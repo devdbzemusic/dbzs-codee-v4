@@ -331,4 +331,33 @@ describe("BootOrchestrator", () => {
     expect(finalState.phases.find((p) => p.id === "release")!.state).toBe("success");
     expect(finalState.status).toBe("degraded");
   });
+
+  it("weights overall progress by phase instead of a flat average (heavy phases count far more than trivial ones)", async () => {
+    // Real production weights: desktop-process=1, model-index=20. An
+    // unlisted id ("release") defaults to weight 1.
+    const phases = [
+      def({ id: "desktop-process" }),
+      def({ id: "model-index", dependencies: ["desktop-process"] }),
+      def({ id: "release", dependencies: ["model-index"] })
+    ];
+    let capturedProgress: number | null = null;
+    const orchestrator = new BootOrchestrator(phases, {
+      "desktop-process": async () => ok(),
+      "model-index": async (ctx) => {
+        ctx.reportProgress(10); // heavy phase only 10% done
+        capturedProgress = orchestrator.getState().overallProgress;
+        return ok();
+      },
+      release: async () => ok()
+    });
+
+    const runPromise = orchestrator.run();
+    await vi.runAllTimersAsync();
+    await runPromise;
+
+    // desktop-process (weight 1) done=100, model-index (weight 20) at 10%,
+    // release (weight 1, still pending) at 0.
+    const expected = Math.round((1 * 100 + 20 * 10 + 1 * 0) / (1 + 20 + 1));
+    expect(capturedProgress).toBe(expected);
+  });
 });

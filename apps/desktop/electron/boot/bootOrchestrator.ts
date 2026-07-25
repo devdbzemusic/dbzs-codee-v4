@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { BootError, BootLogEntry, BootPhase, BootState, BootRunStatus } from "@dbzs/shared";
-import type { BootPhaseDefinition } from "./bootPhaseDefinitions.js";
+import { PHASE_WEIGHTS, type BootPhaseDefinition } from "./bootPhaseDefinitions.js";
 import { validateBootGraph } from "./validateBootGraph.js";
 
 /**
@@ -485,14 +485,24 @@ export class BootOrchestrator {
     this.publish();
   }
 
+  /**
+   * Weighted, not a flat average (spec §19) -- an instant phase like
+   * desktop-process would otherwise count as much toward the bar as a
+   * genuinely slow one like model-index or resident-model, making the
+   * splash's progress jump unevenly relative to actual wall-clock time.
+   */
   private computeOverallProgress(): number {
     if (this.state.phases.length === 0) return 100;
-    const sum = this.state.phases.reduce((acc, phase) => {
-      if (["success", "warning", "skipped"].includes(phase.state)) return acc + 100;
-      if (phase.state === "failed" || phase.state === "blocked") return acc + 100;
-      return acc + phase.progress;
-    }, 0);
-    return Math.round(sum / this.state.phases.length);
+    let weightedSum = 0;
+    let totalWeight = 0;
+    for (const phase of this.state.phases) {
+      const weight = PHASE_WEIGHTS[phase.id] ?? 1;
+      totalWeight += weight;
+      const isTerminalDone = ["success", "warning", "skipped", "failed", "blocked"].includes(phase.state);
+      weightedSum += weight * (isTerminalDone ? 100 : phase.progress);
+    }
+    if (totalWeight === 0) return 100;
+    return Math.round(weightedSum / totalWeight);
   }
 
   private appendLog(phaseId: string, entry: Omit<BootLogEntry, "timestamp" | "phaseId">): void {

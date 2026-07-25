@@ -334,3 +334,31 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     }
   }
 ];
+
+/**
+ * Weighted contribution of each phase toward the splash's overall progress
+ * bar (repair spec §19) -- a flat per-phase average would make trivial
+ * instant phases (desktop-process) count as much as genuinely slow ones
+ * (model-index, resident-model), making the bar jump unevenly. Any phase id
+ * not listed here defaults to weight 1 in computeOverallProgress() (should
+ * not happen once validateBootGraph has run, but never crashes if it does).
+ */
+export const PHASE_WEIGHTS: Record<string, number> = {
+  "desktop-process": 1,
+  "local-config": 2,
+  "filesystem-check": 4,
+  "backend-spawn": 5,
+  "backend-live": 5,
+  "backend-startup-api": 3,
+  "database-init": 7,
+  "model-index": 20,
+  "runtime-manager-init": 10,
+  "resident-model": 20,
+  "backend-ready": 5,
+  "frontend-bridge": 4,
+  "frontend-config-sync": 3,
+  "workspace-restore": 5,
+  "agents-roles-models": 3,
+  "main-window-rendered": 2,
+  "main-app-released": 1
+};
