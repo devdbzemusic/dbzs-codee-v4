@@ -426,14 +426,29 @@ function AppShell() {
       }
       await report?.("frontend-config-sync", "success", "Einstellungen synchronisiert.");
 
-      await Promise.all([loadWorkspaceState(), loadAllowedCommands()]);
-      if (cancelled) return;
-      const workspaceStateError = useWorkspaceStore.getState().error;
-      if (workspaceStateError) {
-        await report?.("workspace-restore", "failed", workspaceStateError);
+      // Safe Mode (spec §20): no automatic workspace restore, no agent
+      // autostarts. Both phases still report a real terminal outcome
+      // ("success" with a message noting the skip) -- reportBootPhaseState
+      // only has success/failed, there is no separate frontend "skipped".
+      const safeMode = (await window.dbzs.isBootSafeMode?.()) ?? false;
+
+      if (safeMode) {
+        await report?.("workspace-restore", "success", "Sicherer Modus: Workspace-Wiederherstellung übersprungen.");
+      } else {
+        await Promise.all([loadWorkspaceState(), loadAllowedCommands()]);
+        if (cancelled) return;
+        const workspaceStateError = useWorkspaceStore.getState().error;
+        if (workspaceStateError) {
+          await report?.("workspace-restore", "failed", workspaceStateError);
+          return;
+        }
+        await report?.("workspace-restore", "success", "Workspace wiederhergestellt.");
+      }
+
+      if (safeMode) {
+        await report?.("agents-roles-models", "success", "Sicherer Modus: Agenten-Autostarts übersprungen.");
         return;
       }
-      await report?.("workspace-restore", "success", "Workspace wiederhergestellt.");
 
       await Promise.all([loadModelIndex(), loadRuntimeStatus(), loadAgents(), loadTasks(), loadJobs()]);
       if (cancelled) return;

@@ -1,3 +1,4 @@
+import type { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -101,6 +102,35 @@ describe("BackendStartupService", () => {
 
     expect(result.state).toBe("failed");
     expect(result.message).toContain("did not become ready");
+  });
+
+  it("passes DBZS_SAFE_MODE=1 to the spawned process only after setSafeMode(true), and not before", async () => {
+    const healthCheck = vi.fn().mockResolvedValue(false);
+    const fakeProcess = new FakeChildProcess();
+    const spawnFn = vi.fn((_exe: string, _args: string[], options: { env?: Record<string, string | undefined> }) => {
+      void options;
+      return fakeProcess as never;
+    });
+    const service = new BackendStartupService({
+      port: 8876,
+      isPackaged: false,
+      resourcesPath: "/resources",
+      devBackendCwd: "/backend",
+      healthCheck,
+      spawnFn: spawnFn as unknown as typeof spawn,
+      waitIntervalMs: 10
+    });
+
+    await service.ensureStarted({ waitUntilReady: false });
+    expect(spawnFn).toHaveBeenCalledOnce();
+    expect(spawnFn.mock.calls[0][2].env?.DBZS_SAFE_MODE).toBeUndefined();
+
+    service.stop();
+    service.setSafeMode(true);
+    await service.ensureStarted({ waitUntilReady: false });
+
+    expect(spawnFn).toHaveBeenCalledTimes(2);
+    expect(spawnFn.mock.calls[1][2].env?.DBZS_SAFE_MODE).toBe("1");
   });
 
   it("returns starting immediately when not waiting for readiness", async () => {

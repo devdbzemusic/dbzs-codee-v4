@@ -88,6 +88,8 @@ export class BootOrchestrator {
   private readonly globalLogEntries: BootLogEntry[] = [];
   private state: BootState;
   private resolveRun: (() => void) | null = null;
+  private aborted = false;
+  private activeAbortController: AbortController | null = null;
 
   constructor(
     phaseDefinitions: BootPhaseDefinition[],
@@ -189,6 +191,43 @@ export class BootOrchestrator {
     this.pump();
   }
 
+  /**
+   * Force-resets every phase in `phaseIds` to "pending" regardless of its
+   * current state (unlike retryPhase(), which only accepts a currently
+   * failed/blocked phase) -- used by "restart backend", which must reset
+   * phases that had already succeeded too (spec §20). Successful phases
+   * NOT in the list are left untouched.
+   */
+  async resetPhaseGroup(phaseIds: string[]): Promise<void> {
+    for (const id of phaseIds) {
+      this.resetPhaseForRetry(id);
+    }
+    for (const id of phaseIds) {
+      this.resetDependentsToPending(id);
+    }
+    if (!this.resolveRun) {
+      await this.run();
+      return;
+    }
+    this.pump();
+  }
+
+  /**
+   * Cancels the currently-active phase (if any) and prevents any further
+   * phase from starting -- step 2-3 of the "quit app" sequence (spec §20).
+   * A runner promise that resolves after abort() is called is discarded by
+   * executePhase(); it can never mutate state once aborted.
+   */
+  abort(): void {
+    if (this.aborted) return;
+    this.aborted = true;
+    this.activeAbortController?.abort();
+    if (this.resolveRun) {
+      this.resolveRun();
+      this.resolveRun = null;
+    }
+  }
+
   private resetPhaseForRetry(phaseId: string): void {
     const phase = this.getPhaseOrThrow(phaseId);
     phase.state = "pending";
@@ -219,6 +258,11 @@ export class BootOrchestrator {
    * started in the same pump() call.
    */
   private pump(): void {
+    if (this.aborted) {
+      this.publish();
+      return;
+    }
+
     this.applyBlocking();
 
     if (this.active.size > 0) {
@@ -338,6 +382,7 @@ export class BootOrchestrator {
       }
 
       const controller = new AbortController();
+      this.activeAbortController = controller;
       let softFired = false;
       const softTimer = setTimeout(() => {
         softFired = true;
@@ -385,6 +430,13 @@ export class BootOrchestrator {
         clearTimeout(hardTimer);
       }
       void softFired;
+
+      if (this.aborted) {
+        // abort() fired (directly, or its controller.abort() raced this
+        // attempt's own hard-timeout race) -- discard this result entirely,
+        // successful or not. State must never be mutated after abort.
+        return;
+      }
 
       if (result && result.outcome === "pending") {
         // Not a failure -- the component is still initializing. pollCount is
@@ -492,7 +544,12 @@ export class BootOrchestrator {
     const optionalFailed = this.state.phases.some((p) => p.optional && (p.state === "failed" || p.state === "blocked"));
 
     let status: BootRunStatus;
-    if (mandatoryBlocking) {
+    if (this.aborted) {
+      // Never report "ready"/"degraded" for a run that was cut short --
+      // whatever state phases were left in mid-flight is not a genuine
+      // terminal outcome.
+      status = "failed";
+    } else if (mandatoryBlocking) {
       status = "failed";
     } else if (optionalFailed) {
       status = "degraded";

@@ -113,11 +113,23 @@ async def _run_startup_tasks(logger) -> None:
     from app.runtime.resident_model_startup import run_resident_model_startup
 
     store = get_boot_state_store()
+    # Set by the desktop process when the user picked "Safe Mode" after a
+    # failed boot and asked to restart the backend with it. Database init
+    # still runs (the app is unusable without it); model index and resident
+    # model are skipped outright -- there is no incremental-scan cache layer
+    # to fall back to (see index_service.py), so "skip" is the honest choice
+    # here, not a fabricated "loaded from cache" success.
+    safe_mode = os.environ.get("DBZS_SAFE_MODE") == "1"
 
     await _run_database_init(logger)
 
-    # Model index must not block readiness — scheduled, not awaited (spec §8).
-    asyncio.create_task(run_model_index_startup(store))
+    if safe_mode:
+        await store.set_component(
+            "modelRegistry", "skipped", message="Sicherer Modus: Modellindex übersprungen."
+        )
+    else:
+        # Model index must not block readiness — scheduled, not awaited (spec §8).
+        asyncio.create_task(run_model_index_startup(store))
 
     try:
         get_runtime_service()
@@ -131,9 +143,14 @@ async def _run_startup_tasks(logger) -> None:
             error=BootComponentError(code="runtime-manager-init-failed", technical_detail=str(exc)),
         )
 
-    # Resident model is optional (spec decision): scheduled in the background,
-    # a failure degrades readiness without blocking GET /health/ready.
-    asyncio.create_task(run_resident_model_startup(store))
+    if safe_mode:
+        await store.set_component(
+            "residentModel", "skipped", message="Sicherer Modus: kein automatischer Modellstart."
+        )
+    else:
+        # Resident model is optional (spec decision): scheduled in the background,
+        # a failure degrades readiness without blocking GET /health/ready.
+        asyncio.create_task(run_resident_model_startup(store))
 
 
 def create_app() -> FastAPI:

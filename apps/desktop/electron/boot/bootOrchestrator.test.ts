@@ -430,4 +430,69 @@ describe("BootOrchestrator", () => {
     orchestrator.ingestExternalLog({ level: "info", source: "backend", phaseId: "a", event: "progress", message: "third" });
     expect(seen).toEqual(["first", "second"]);
   });
+
+  it("resetPhaseGroup() force-resets phases regardless of current state, including already-successful ones", async () => {
+    const phases = [
+      def({ id: "backend-spawn" }),
+      def({ id: "backend-live", dependencies: ["backend-spawn"] }),
+      def({ id: "release", dependencies: ["backend-live"] })
+    ];
+    let backendLiveCalls = 0;
+    const orchestrator = new BootOrchestrator(phases, {
+      "backend-spawn": async () => ok(),
+      "backend-live": async () => {
+        backendLiveCalls += 1;
+        return ok();
+      },
+      release: async () => ok()
+    });
+
+    const firstRun = orchestrator.run();
+    await vi.runAllTimersAsync();
+    const firstState = await firstRun;
+    expect(firstState.status).toBe("ready");
+    expect(backendLiveCalls).toBe(1);
+
+    // "Restart backend": reset the whole backend-related phase group even
+    // though every one of them already succeeded.
+    const resetPromise = orchestrator.resetPhaseGroup(["backend-spawn", "backend-live", "release"]);
+    await vi.runAllTimersAsync();
+    await resetPromise;
+
+    expect(backendLiveCalls).toBe(2);
+    expect(orchestrator.getState().status).toBe("ready");
+  });
+
+  it("abort() cancels the active phase's signal, discards its late result, and never lets the run report ready", async () => {
+    const phases = [def({ id: "a" }), def({ id: "b", dependencies: ["a"] })];
+    let sawAbort = false;
+    // Held in an object (rather than a bare `let`) so TS doesn't over-narrow
+    // this closure-mutated reference to `never` (same quirk as
+    // validateBootGraph.ts's cycle-detection state).
+    const resolveHolder: { resolveA: (() => void) | null } = { resolveA: null };
+    const orchestrator = new BootOrchestrator(phases, {
+      a: (ctx) =>
+        new Promise<PhaseRunnerResult>((resolve) => {
+          resolveHolder.resolveA = () => resolve(ok("late result after abort"));
+          ctx.signal.addEventListener("abort", () => {
+            sawAbort = true;
+          });
+        }),
+      b: async () => ok()
+    });
+
+    const runPromise = orchestrator.run();
+    orchestrator.abort();
+    const finalState = await runPromise;
+
+    expect(sawAbort).toBe(true);
+    expect(finalState.status).toBe("failed");
+
+    // The runner for "a" only resolves now, well after abort() -- this must
+    // not retroactively flip phase "a" to "success".
+    resolveHolder.resolveA?.();
+    await Promise.resolve();
+    expect(orchestrator.getState().phases.find((p) => p.id === "a")!.state).not.toBe("success");
+    expect(orchestrator.getState().phases.find((p) => p.id === "b")!.state).toBe("pending");
+  });
 });

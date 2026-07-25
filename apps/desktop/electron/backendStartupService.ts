@@ -236,6 +236,7 @@ export class BackendStartupService {
   private ownership: BackendProcessOwnership = "unknown";
   /** Generated once per desktop session; only a process we spawn ourselves gets this in its env. */
   private readonly bootNonce = randomUUID();
+  private safeMode = false;
   private readonly listeners = new Set<(status: BackendStartupStatus) => void>();
   private readonly healthCheck: (backendUrl: string) => Promise<boolean>;
   private readonly identityProbe: (backendUrl: string) => Promise<BackendIdentityProbeResult | null>;
@@ -260,6 +261,11 @@ export class BackendStartupService {
 
   getPid(): number | null {
     return this.process?.pid ?? null;
+  }
+
+  /** Takes effect on the *next* spawn only -- an already-running process can't retroactively pick up an env var. */
+  setSafeMode(enabled: boolean): void {
+    this.safeMode = enabled;
   }
 
   onStatusChange(listener: (status: BackendStartupStatus) => void): () => void {
@@ -408,6 +414,7 @@ export class BackendStartupService {
           ...process.env,
           DBZS_BACKEND_PORT: String(this.config.port),
           DBZS_BOOT_NONCE: this.bootNonce,
+          ...(this.safeMode ? { DBZS_SAFE_MODE: "1" } : {}),
           PYTHONUNBUFFERED: "1"
         },
         windowsHide: true
@@ -421,6 +428,7 @@ export class BackendStartupService {
       env: {
         ...process.env,
         DBZS_BOOT_NONCE: this.bootNonce,
+        ...(this.safeMode ? { DBZS_SAFE_MODE: "1" } : {}),
         PYTHONUNBUFFERED: "1"
       },
       windowsHide: true,

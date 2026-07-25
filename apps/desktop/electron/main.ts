@@ -2108,6 +2108,16 @@ app.whenReady().then(async () => {
         log: (line) => console.log(`[runtime-cleanup] ${line}`)
       });
     },
+    enterSafeModeAndRestartBackend: async () => {
+      startup.setSafeMode(true);
+      startup.stop();
+      await cleanupLingeringRuntimeArtifacts({
+        backendPort: BACKEND_PORT,
+        devUserDataDir: app.getPath("userData"),
+        pruneTransientDirectories: false,
+        log: (line) => console.log(`[runtime-cleanup] ${line}`)
+      });
+    },
     exportDiagnostics: () =>
       exportBootDiagnosticsToFile(
         coordinator.getSplashWindow() ?? coordinator.getMainWindow(),
@@ -2146,6 +2156,11 @@ app.on("before-quit", async (event) => {
   if (!isQuitting) {
     event.preventDefault();
     isQuitting = true;
+
+    // Step 1 of the quit sequence (spec §20): cancel any still-running boot
+    // phase before anything else, so its runner can never mutate state (or
+    // e.g. try to reach a backend we're about to stop) after this point.
+    orchestrator?.abort();
 
     try {
       const settings = await requestBackend<AppSettings>("/settings").catch(() => null);
