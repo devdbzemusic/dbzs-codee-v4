@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { BootError, BootLogEntry, BootPhase, BootState, BootRunStatus } from "@dbzs/shared";
 import type { BootPhaseDefinition } from "./bootPhaseDefinitions.js";
+import { validateBootGraph } from "./validateBootGraph.js";
 
 /**
  * Central boot state machine (spec: "the single source of truth for boot
@@ -77,6 +78,11 @@ export class BootOrchestrator {
     runners: Record<string, PhaseRunner>,
     options?: { clock?: BootOrchestratorClock; runId?: string }
   ) {
+    const validation = validateBootGraph(phaseDefinitions, runners);
+    if (!validation.valid) {
+      throw new Error(`Invalid boot graph:\n${validation.errors.join("\n")}`);
+    }
+
     this.definitions = new Map(phaseDefinitions.map((def) => [def.id, def]));
     this.runners = runners;
     this.clock = options?.clock ?? defaultClock;

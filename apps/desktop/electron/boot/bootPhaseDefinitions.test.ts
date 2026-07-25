@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BOOT_PHASE_DEFINITIONS } from "./bootPhaseDefinitions.js";
+import { validateBootGraph } from "./validateBootGraph.js";
+import type { PhaseRunner } from "./bootOrchestrator.js";
 
 // These phases' runners (phaseRunners.ts) return outcome:"failed" purely to
 // mean "not ready yet" — the orchestrator's retry loop doubles as a poll.
@@ -31,5 +33,15 @@ describe("BOOT_PHASE_DEFINITIONS timeout/retry consistency", () => {
         expect(ids.has(dep)).toBe(true);
       }
     }
+  });
+
+  it("passes validateBootGraph's full structural validation (regression guard for the real production graph)", () => {
+    const stubRunner: PhaseRunner = async () => ({ outcome: "success", message: "" });
+    const runners: Record<string, PhaseRunner> = {};
+    for (const def of BOOT_PHASE_DEFINITIONS) runners[def.id] = stubRunner;
+
+    const result = validateBootGraph(BOOT_PHASE_DEFINITIONS, runners);
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
   });
 });

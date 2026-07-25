@@ -97,12 +97,14 @@ describe("BootOrchestrator", () => {
     const phases = [
       def({ id: "spawn", timeouts: timeouts({ softTimeoutMs: 10, hardTimeoutMs: 50, maxRetries: 1, retryDelayMs: 5 }) }),
       def({ id: "alive", dependencies: ["spawn"] }),
-      def({ id: "unrelated" })
+      def({ id: "unrelated" }),
+      def({ id: "release", dependencies: ["alive", "unrelated"] })
     ];
     const runners: Record<string, PhaseRunner> = {
       spawn: async () => fail("ENOENT"),
       alive: async () => ok(),
-      unrelated: async () => ok()
+      unrelated: async () => ok(),
+      release: async () => ok()
     };
 
     const orchestrator = new BootOrchestrator(phases, runners);
@@ -157,8 +159,17 @@ describe("BootOrchestrator", () => {
   });
 
   it("an optional phase failing degrades the run instead of failing it; a mandatory failure fails it", async () => {
-    const degradedPhases = [def({ id: "resident-model", optional: true, timeouts: timeouts({ softTimeoutMs: 5, hardTimeoutMs: 20, maxRetries: 0, retryDelayMs: 0 }) })];
-    const degraded = new BootOrchestrator(degradedPhases, { "resident-model": async () => fail("no model") });
+    // "release" mirrors main-app-released: mandatory, and deliberately does
+    // NOT depend on the optional resident-model phase, so resident-model's
+    // failure degrades the run instead of blocking (and thus failing) it.
+    const degradedPhases = [
+      def({ id: "resident-model", optional: true, timeouts: timeouts({ softTimeoutMs: 5, hardTimeoutMs: 20, maxRetries: 0, retryDelayMs: 0 }) }),
+      def({ id: "release" })
+    ];
+    const degraded = new BootOrchestrator(degradedPhases, {
+      "resident-model": async () => fail("no model"),
+      release: async () => ok()
+    });
     const degradedRun = degraded.run();
     await vi.runAllTimersAsync();
     expect((await degradedRun).status).toBe("degraded");

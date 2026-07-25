@@ -40,10 +40,14 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     dependencies: [],
     optional: false,
     blocksWindowRelease: true,
+    // maxRetries/retryDelayMs are 0 (this phase never actually retries or
+    // polls), but pollIntervalMs must stay > 0 per validateBootGraph's own
+    // invariant (check 9) — it's simply never consumed for a phase that
+    // completes synchronously.
     timeouts: {
       softTimeoutMs: 1_000,
       hardTimeoutMs: 3_000,
-      pollIntervalMs: 0,
+      pollIntervalMs: 100,
       maxRetries: 0,
       retryDelayMs: 0,
       extendDeadlineOnProgress: false,
@@ -317,7 +321,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     timeouts: {
       softTimeoutMs: 1_000,
       hardTimeoutMs: 5_000,
-      pollIntervalMs: 0,
+      pollIntervalMs: 100,
       maxRetries: 0,
       retryDelayMs: 0,
       extendDeadlineOnProgress: false,
