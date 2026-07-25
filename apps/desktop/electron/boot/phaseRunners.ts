@@ -254,13 +254,11 @@ export function createPhaseRunners(deps: PhaseRunnerDeps): Record<string, PhaseR
     "workspace-restore": (ctx) => waitFrontend("workspace-restore", ctx.signal, "Workspace wiederhergestellt."),
     "agents-roles-models": (ctx) => waitFrontend("agents-roles-models", ctx.signal, "Agenten und Modelle geladen."),
 
-    // TODO(paint-ack repair step): replace with waitFrontend("main-window-rendered", ...)
-    // once the renderer reports a real double-requestAnimationFrame paint
-    // acknowledgement. A stub for now (rather than waitFrontend, which
-    // would time out and fail the whole boot since nothing reports this
-    // phase yet) so the boot graph can already carry the new phase without
-    // breaking every boot in the meantime.
-    "main-window-rendered": async () => ({ outcome: "success", message: "Hauptfenster gerendert (Platzhalter)." }),
+    // Gated on the renderer's real double-requestAnimationFrame paint
+    // acknowledgement (main.tsx), not just Electron's "ready-to-show" event
+    // -- see waitFrontend()'s docstring for why this needs a real signal
+    // from the renderer rather than an OS-level "presentable" hint.
+    "main-window-rendered": (ctx) => waitFrontend("main-window-rendered", ctx.signal, "Hauptfenster gerendert."),
 
     "main-app-released": async () => ({ outcome: "success", message: "Hauptanwendung freigegeben." })
   };

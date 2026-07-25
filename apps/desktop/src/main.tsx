@@ -30,3 +30,22 @@ ReactDOM.createRoot(rootElement).render(
 );
 
 removeBootSplash();
+
+if (!isSplashView) {
+  // Double rAF: the first callback fires before the browser has painted the
+  // frame containing this render; the second fires only after that paint
+  // has actually happened. This is the real "main-window-rendered" boot
+  // phase's paint acknowledgement -- gating the splash's close on Electron's
+  // built-in "ready-to-show" event alone (windowCoordinator.ts) only proves
+  // the OS considers the window presentable, not that React has painted a
+  // real first frame into it.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      void window.dbzs.reportBootPhaseState?.(
+        "main-window-rendered",
+        "success",
+        "Hauptfenster vollständig gerendert."
+      );
+    });
+  });
+}
