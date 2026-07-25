@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from app.core.boot_state import BootStateStore
+from app.core.boot_state import BootComponentError, BootStateStore
 from app.models.discovery_mode import get_model_discovery_mode
 from app.models.index_service import ModelIndexService
 
@@ -54,7 +54,12 @@ async def run_model_index_startup(store: BootStateStore) -> None:
         )
     except Exception as exc:
         logger.error("Model index startup task failed: %s", exc)
-        await store.set_component("modelRegistry", "failed", message=str(exc), error=str(exc))
+        await store.set_component(
+            "modelRegistry",
+            "failed",
+            message=str(exc),
+            error=BootComponentError(code="model-index-failed", technical_detail=str(exc)),
+        )
         return
 
     model_count = len(index.models)
@@ -66,7 +71,7 @@ async def run_model_index_startup(store: BootStateStore) -> None:
             progress=model_count,
             total=model_count,
             message=message,
-            error="; ".join(f"{k}: {v}" for k, v in errors.items()),
+            data={"modelErrors": errors},
         )
     else:
         await store.set_component(

@@ -18,20 +18,18 @@ export interface BootPhaseDefinition {
  * the main window (confirmed decision: resident-model is optional/degraded,
  * degraded boots auto-continue to the main window).
  *
- * IMPORTANT for phases 6-11 (backend-health-live, backend-ready,
- * database-init, model-index, runtime-manager-init, resident-model): their
- * runners (phaseRunners.ts) still return outcome:"failed" simply to mean
- * "not ready yet" so the orchestrator's retry loop doubles as a poll — the
- * runner itself never throws. `maxRetries` here must stay large enough that
- * `maxRetries * retryDelayMs` comfortably exceeds `hardTimeoutMs`, otherwise
- * the retry *count* ceiling — not the intended time deadline — silently
- * becomes what ends the phase. This was a real bug (backend-health-live
- * failed at exactly 40*500ms=20s despite a 60s hardTimeoutMs, live-reproduced
- * during implementation). `pollIntervalMs`/`extendDeadlineOnProgress` are
- * added here (boot-repair step 2) but not yet consumed by the orchestrator —
- * a later repair step replaces the retry-as-poll hack with a genuine
- * `pending` outcome and pollCount, at which point these `maxRetries` values
- * can shrink back down to real failure-retry budgets.
+ * Phases 6-11 (backend-health-live, backend-ready, database-init,
+ * model-index, runtime-manager-init, resident-model) poll a backend
+ * component that may still be initializing. Their runners (phaseRunners.ts)
+ * report this via outcome:"pending", which the orchestrator tracks with its
+ * own `pollCount` and reschedules via `pollIntervalMs` — bounded purely by
+ * `hardTimeoutMs`, never by `maxRetries`. `maxRetries`/`retryDelayMs` here
+ * are reserved for genuine failures only (a real exception, an unexpected
+ * component "failed" state) and are deliberately small, unlike an earlier
+ * version of this file where they had to be inflated to survive a
+ * retry-count-doubles-as-poll-count hack (a real bug: backend-health-live
+ * failed at exactly 40*500ms=20s despite a 60s hardTimeoutMs, because the
+ * retry ceiling — not the intended deadline — silently ended the phase).
  */
 export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
   {
@@ -134,7 +132,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
       softTimeoutMs: 10_000,
       hardTimeoutMs: 60_000,
       pollIntervalMs: 500,
-      maxRetries: 150,
+      maxRetries: 2,
       retryDelayMs: 500,
       extendDeadlineOnProgress: false,
       maxDeadlineExtensionMs: 0
@@ -150,7 +148,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
       softTimeoutMs: 3_000,
       hardTimeoutMs: 10_000,
       pollIntervalMs: 500,
-      maxRetries: 30,
+      maxRetries: 2,
       retryDelayMs: 500,
       extendDeadlineOnProgress: false,
       maxDeadlineExtensionMs: 0
@@ -166,7 +164,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
       softTimeoutMs: 5_000,
       hardTimeoutMs: 20_000,
       pollIntervalMs: 1_000,
-      maxRetries: 30,
+      maxRetries: 2,
       retryDelayMs: 1_000,
       extendDeadlineOnProgress: false,
       maxDeadlineExtensionMs: 0
@@ -182,7 +180,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
       softTimeoutMs: 10_000,
       hardTimeoutMs: 60_000,
       pollIntervalMs: 2_000,
-      maxRetries: 40,
+      maxRetries: 2,
       retryDelayMs: 2_000,
       extendDeadlineOnProgress: false,
       maxDeadlineExtensionMs: 0
@@ -198,7 +196,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
       softTimeoutMs: 2_000,
       hardTimeoutMs: 8_000,
       pollIntervalMs: 500,
-      maxRetries: 25,
+      maxRetries: 2,
       retryDelayMs: 500,
       extendDeadlineOnProgress: false,
       maxDeadlineExtensionMs: 0
@@ -219,7 +217,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
       softTimeoutMs: 15_000,
       hardTimeoutMs: 90_000,
       pollIntervalMs: 3_000,
-      maxRetries: 40,
+      maxRetries: 2,
       retryDelayMs: 3_000,
       extendDeadlineOnProgress: false,
       maxDeadlineExtensionMs: 0

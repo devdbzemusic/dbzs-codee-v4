@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 
-from app.core.boot_state import BootStateStore
+from app.core.boot_state import BootComponentError, BootStateStore
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,12 @@ async def run_resident_model_startup(store: BootStateStore) -> None:
             )
             return
     except Exception as exc:
-        await store.set_component("residentModel", "failed", message=str(exc), error=str(exc))
+        await store.set_component(
+            "residentModel",
+            "failed",
+            message=str(exc),
+            error=BootComponentError(code="resident-model-resolve-failed", technical_detail=str(exc)),
+        )
         return
 
     service = get_runtime_service()
@@ -110,5 +115,5 @@ async def run_resident_model_startup(store: BootStateStore) -> None:
         "residentModel",
         "failed",
         message=f"No resident model could be started. Tried: {last_status_message}",
-        error=last_status_message,
+        error=BootComponentError(code="resident-model-start-failed", technical_detail=last_status_message),
     )

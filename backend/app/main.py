@@ -84,7 +84,7 @@ async def _run_database_init(logger) -> None:
     `run_all_migrations()` migrates by default). Running migrations first
     against a fresh install would crash with "no such table".
     """
-    from app.core.boot_state import get_boot_state_store
+    from app.core.boot_state import BootComponentError, get_boot_state_store
     from app.core.migrations import run_all_migrations
 
     store = get_boot_state_store()
@@ -99,11 +99,16 @@ async def _run_database_init(logger) -> None:
         )
     except Exception as exc:
         logger.error(f"Database boot initialization failed: {exc}")
-        await store.set_component("database", "failed", message=str(exc), error=str(exc))
+        await store.set_component(
+            "database",
+            "failed",
+            message=str(exc),
+            error=BootComponentError(code="database-init-failed", technical_detail=str(exc)),
+        )
 
 
 async def _run_startup_tasks(logger) -> None:
-    from app.core.boot_state import get_boot_state_store
+    from app.core.boot_state import BootComponentError, get_boot_state_store
     from app.models.index_startup import run_model_index_startup
     from app.runtime.resident_model_startup import run_resident_model_startup
 
@@ -119,7 +124,12 @@ async def _run_startup_tasks(logger) -> None:
         await store.set_component("runtimeManager", "success", message="Runtime manager ready.")
     except Exception as exc:
         logger.error(f"Runtime manager confirmation failed: {exc}")
-        await store.set_component("runtimeManager", "failed", message=str(exc), error=str(exc))
+        await store.set_component(
+            "runtimeManager",
+            "failed",
+            message=str(exc),
+            error=BootComponentError(code="runtime-manager-init-failed", technical_detail=str(exc)),
+        )
 
     # Resident model is optional (spec decision): scheduled in the background,
     # a failure degrades readiness without blocking GET /health/ready.

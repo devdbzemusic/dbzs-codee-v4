@@ -17,34 +17,86 @@ export interface PhaseRunnerDeps {
   onResidentModelId: (id: string | null) => void;
 }
 
+/** Normalizes a component's progress/total pair (or bare progress) to 0-100. */
+function normalizeProgress(progress?: number | null, total?: number | null): number {
+  if (
+    typeof progress === "number" &&
+    typeof total === "number" &&
+    Number.isFinite(progress) &&
+    Number.isFinite(total) &&
+    total > 0
+  ) {
+    return Math.min(100, Math.max(0, Math.round((progress / total) * 100)));
+  }
+  if (typeof progress === "number" && Number.isFinite(progress)) {
+    return Math.min(100, Math.max(0, progress));
+  }
+  return 0;
+}
+
+/**
+ * Maps a backend readiness component onto a PhaseRunnerResult. Non-terminal
+ * component states (pending/waiting/running) map to outcome:"pending" — not
+ * "failed" — so the orchestrator's pollCount (not retryCount) advances while
+ * waiting for a component to finish initializing. Treating "still working"
+ * as a failure was the root cause of a real production bug (see
+ * bootPhaseDefinitions.ts's history): the retry-count ceiling, not the
+ * intended hard timeout, silently ended phases early.
+ */
 function componentResult(
   component: BootReadinessComponent | undefined,
   reportProgress: (progress: number, message?: string) => void,
   readyLabel: string
 ): PhaseRunnerResult {
   if (!component) {
-    return { outcome: "failed", message: "Backend hat noch keinen Status gemeldet." };
+    return { outcome: "pending", message: "Backend hat noch keinen Komponentenstatus gemeldet.", pollAfterMs: 500 };
   }
-  if (component.progress != null && component.total != null && component.total > 0) {
-    reportProgress(Math.round((component.progress / component.total) * 100), component.message);
-  } else if (component.message) {
-    reportProgress(component.progress ?? 0, component.message);
+
+  const progress = normalizeProgress(component.progress, component.total);
+  reportProgress(progress, component.message);
+
+  switch (component.state) {
+    case "success":
+      return { outcome: "success", message: component.message ?? readyLabel, metadata: component.data };
+
+    case "warning":
+      return { outcome: "warning", message: component.message ?? readyLabel, metadata: component.data };
+
+    case "skipped":
+      return { outcome: "skipped", message: component.message ?? "Übersprungen.", metadata: component.data };
+
+    case "failed":
+      return {
+        outcome: "failed",
+        message: component.message ?? "Komponente fehlgeschlagen.",
+        error: {
+          code: component.error?.code ?? "component-failed",
+          message: component.message ?? "Komponente fehlgeschlagen.",
+          technicalDetail: component.error?.technicalDetail,
+          exitCode: component.error?.exitCode,
+          stderrTail: component.error?.stderrTail
+        },
+        metadata: component.data
+      };
+
+    case "pending":
+    case "waiting":
+    case "running":
+      return {
+        outcome: "pending",
+        message: component.message ?? "Komponente wird initialisiert.",
+        progress,
+        pollAfterMs: 500,
+        metadata: component.data
+      };
+
+    default:
+      return {
+        outcome: "failed",
+        message: `Unbekannter Komponentenstatus: ${String(component.state)}`,
+        error: { code: "unknown-component-state", message: `Unbekannter Komponentenstatus: ${String(component.state)}` }
+      };
   }
-  if (component.state === "success") {
-    return { outcome: "success", message: component.message ?? readyLabel };
-  }
-  if (component.state === "warning") {
-    return { outcome: "warning", message: component.message ?? readyLabel };
-  }
-  if (component.state === "failed") {
-    return {
-      outcome: "failed",
-      message: component.message ?? "Fehlgeschlagen.",
-      error: { code: "component-failed", message: component.message ?? "Fehlgeschlagen.", technicalDetail: component.error ?? undefined }
-    };
-  }
-  // pending/running/waiting/skipped -> not terminal yet, ask orchestrator to retry
-  return { outcome: "failed", message: component.message ?? "Wird verarbeitet..." };
 }
 
 async function waitFrontend(phaseId: string, signal: AbortSignal, label: string): Promise<PhaseRunnerResult> {
@@ -87,7 +139,7 @@ export function createPhaseRunners(deps: PhaseRunnerDeps): Record<string, PhaseR
         return { outcome: "failed", message: status.message ?? "Backend-Prozess beendet.", error: { code: "process-exited", message: status.message ?? "" } };
       }
       if (pid == null) {
-        return { outcome: "failed", message: "Warte auf Backend-Prozess-PID..." };
+        return { outcome: "pending", message: "Warte auf Backend-Prozess-PID...", pollAfterMs: 500 };
       }
       deps.onBackendPid(pid);
       return { outcome: "success", message: `Backend-Prozess lebt (PID ${pid}).` };
@@ -96,7 +148,7 @@ export function createPhaseRunners(deps: PhaseRunnerDeps): Record<string, PhaseR
     "backend-health-live": async (ctx) => {
       const result = await deps.probe.probeLive(ctx.signal);
       if (!result.ok) {
-        return { outcome: "failed", message: "Backend-Health-Endpunkt noch nicht erreichbar." };
+        return { outcome: "pending", message: "Backend-Health-Endpunkt noch nicht erreichbar.", pollAfterMs: 500 };
       }
       if (result.pid != null) deps.onBackendPid(result.pid);
       return { outcome: "success", message: "Backend-Health-Endpunkt erreichbar." };
@@ -105,7 +157,7 @@ export function createPhaseRunners(deps: PhaseRunnerDeps): Record<string, PhaseR
     "backend-ready": async (ctx) => {
       const readiness = await deps.probe.probeReady(ctx.signal);
       if (!readiness || typeof readiness.status !== "string") {
-        return { outcome: "failed", message: "Backend-Readiness-Endpunkt noch nicht bereit." };
+        return { outcome: "pending", message: "Backend-Readiness-Endpunkt noch nicht bereit.", pollAfterMs: 500 };
       }
       return { outcome: "success", message: "Backend-Readiness-Subsystem bereit." };
     },
@@ -133,11 +185,7 @@ export function createPhaseRunners(deps: PhaseRunnerDeps): Record<string, PhaseR
       if (component?.state === "success" && component.message) {
         deps.onResidentModelId(component.message);
       }
-      const result = componentResult(component, ctx.reportProgress, "Residentes Modell bereit.");
-      if (component?.state === "skipped") {
-        return { outcome: "success", message: component.message ?? "Autostart deaktiviert." };
-      }
-      return result;
+      return componentResult(component, ctx.reportProgress, "Residentes Modell bereit.");
     },
 
     "frontend-bridge": (ctx) => waitFrontend("frontend-bridge", ctx.signal, "Frontend-Bridge verbunden."),

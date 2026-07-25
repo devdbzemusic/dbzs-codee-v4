@@ -64,4 +64,4 @@ async def test_model_index_startup_reports_warning_when_some_models_are_skipped(
 
     snapshot = store.snapshot()
     assert snapshot["components"]["modelRegistry"]["state"] == "warning"
-    assert "broken-model.gguf" in (snapshot["components"]["modelRegistry"]["error"] or "")
+    assert "broken-model.gguf" in snapshot["components"]["modelRegistry"]["data"]["modelErrors"]

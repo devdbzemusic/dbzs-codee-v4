@@ -77,4 +77,4 @@ async def test_failure_is_captured_without_raising_when_all_attempts_fail():
 
     snapshot = store.snapshot()
     assert snapshot["components"]["residentModel"]["state"] == "failed"
-    assert "model-a" in (snapshot["components"]["residentModel"]["error"] or "")
+    assert "model-a" in (snapshot["components"]["residentModel"]["error"]["technicalDetail"] or "")

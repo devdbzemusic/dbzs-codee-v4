@@ -26,12 +26,25 @@ COMPONENT_NAMES = ("database", "modelRegistry", "runtimeManager", "residentModel
 
 
 @dataclass
+class BootComponentError:
+    """Mirrors the shared BootComponentError TS type (packages/shared/src/boot.ts)."""
+
+    code: str
+    technical_detail: str | None = None
+    exit_code: int | None = None
+    stderr_tail: str | None = None
+
+
+@dataclass
 class BootComponentSnapshot:
     state: BootComponentState = "pending"
     progress: float | None = None
     total: float | None = None
     message: str | None = None
-    error: str | None = None
+    error: BootComponentError | None = None
+    # Structured payload beyond a free-text message (model-index counts,
+    # resident-model identity, ...) -- mirrors BootReadinessComponent.data.
+    data: dict[str, object] | None = None
     updated_at: float = field(default_factory=time.time)
 
 
@@ -54,7 +67,8 @@ class BootStateStore:
         progress: float | None = None,
         total: float | None = None,
         message: str | None = None,
-        error: str | None = None,
+        error: BootComponentError | None = None,
+        data: dict[str, object] | None = None,
     ) -> None:
         if name not in COMPONENT_NAMES:
             raise ValueError(f"Unknown boot component: {name}")
@@ -68,6 +82,8 @@ class BootStateStore:
             if message is not None:
                 snapshot.message = message
             snapshot.error = error
+            if data is not None:
+                snapshot.data = data
             snapshot.updated_at = time.time()
             self._logs.append(
                 {
@@ -87,7 +103,17 @@ class BootStateStore:
                 "progress": snap.progress,
                 "total": snap.total,
                 "message": snap.message,
-                "error": snap.error,
+                "error": (
+                    {
+                        "code": snap.error.code,
+                        "technicalDetail": snap.error.technical_detail,
+                        "exitCode": snap.error.exit_code,
+                        "stderrTail": snap.error.stderr_tail,
+                    }
+                    if snap.error is not None
+                    else None
+                ),
+                "data": snap.data,
             }
             for name, snap in self._components.items()
         }

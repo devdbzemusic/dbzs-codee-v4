@@ -25,7 +25,12 @@ export type PhaseRunnerOutcome = "success" | "warning" | "pending" | "failed" | 
 export interface PhaseRunnerResult {
   outcome: PhaseRunnerOutcome;
   message: string;
+  /** Only meaningful for outcome:"pending" — current progress (0-100). */
+  progress?: number;
+  /** Only meaningful for outcome:"pending" — overrides the phase's default pollIntervalMs for this one poll. */
+  pollAfterMs?: number;
   error?: Partial<BootError>;
+  metadata?: Record<string, unknown>;
 }
 
 export type PhaseRunner = (ctx: PhaseRunnerContext) => Promise<PhaseRunnerResult>;
@@ -274,8 +279,12 @@ export class BootOrchestrator {
 
     // hardTimeoutMs is the phase's overall deadline, not a per-attempt budget —
     // otherwise a phase with several retries could run for retryCount x
-    // hardTimeoutMs, which defeats the point of a "hard" timeout.
-    const deadline = phase.startedAt + def.timeouts.hardTimeoutMs;
+    // hardTimeoutMs, which defeats the point of a "hard" timeout. `deadline`
+    // is mutable (not const) so a "pending" result with genuine progress can
+    // extend it, bounded by originalDeadline + maxDeadlineExtensionMs.
+    const originalDeadline = phase.startedAt + def.timeouts.hardTimeoutMs;
+    let deadline = originalDeadline;
+    let previousProgress = phase.progress;
 
     let attempt = 0;
     for (;;) {
@@ -338,7 +347,32 @@ export class BootOrchestrator {
       }
       void softFired;
 
-      if (result && result.outcome !== "failed") {
+      if (result && result.outcome === "pending") {
+        // Not a failure -- the component is still initializing. pollCount is
+        // tracked entirely separately from retryCount, so a slow-but-healthy
+        // backend can never be cut short by a retry-count ceiling reached
+        // long before its own hard timeout (the exact bug this replaces).
+        phase.pollCount += 1;
+        phase.state = "waiting";
+        phase.message = result.message;
+
+        if (typeof result.progress === "number" && Number.isFinite(result.progress)) {
+          const clamped = Math.min(100, Math.max(0, Math.round(result.progress)));
+          if (def.timeouts.extendDeadlineOnProgress && clamped > previousProgress) {
+            deadline = Math.min(originalDeadline + def.timeouts.maxDeadlineExtensionMs, deadline + def.timeouts.pollIntervalMs);
+          }
+          previousProgress = clamped;
+          phase.progress = clamped;
+        }
+
+        this.publish();
+        await this.clock.sleep(result.pollAfterMs ?? def.timeouts.pollIntervalMs);
+        phase.state = "running";
+        this.publish();
+        continue;
+      }
+
+      if (result && (result.outcome === "success" || result.outcome === "warning" || result.outcome === "skipped")) {
         this.finalizePhase(phaseId, result.outcome, result.message);
         return;
       }

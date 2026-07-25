@@ -34,6 +34,14 @@ function fail(message = "fail"): PhaseRunnerResult {
   return { outcome: "failed", message, error: { code: "test", message, retryAttempts: 0 } };
 }
 
+function pending(message = "pending", progress?: number): PhaseRunnerResult {
+  return { outcome: "pending", message, progress, pollAfterMs: 5 };
+}
+
+function skip(message = "skipped"): PhaseRunnerResult {
+  return { outcome: "skipped", message };
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
 });
@@ -253,5 +261,50 @@ describe("BootOrchestrator", () => {
 
     expect(maxObservedConcurrentPhases).toBe(1);
     expect(finalState.phases.every((p) => p.state === "success")).toBe(true);
+  });
+
+  it("outcome:pending sets state to waiting and increments pollCount, never retryCount", async () => {
+    let calls = 0;
+    const phases = [
+      def({ id: "backend-ready", timeouts: timeouts({ softTimeoutMs: 500, hardTimeoutMs: 1000, pollIntervalMs: 5, maxRetries: 0, retryDelayMs: 0 }) })
+    ];
+    const observedStatesWhileWaiting: string[] = [];
+    const orchestrator = new BootOrchestrator(phases, {
+      "backend-ready": async () => {
+        calls += 1;
+        if (calls < 4) return pending(`not ready yet (${calls})`, calls * 10);
+        return ok("ready");
+      }
+    });
+    orchestrator.onStateChange((state) => {
+      const phase = state.phases[0];
+      if (phase?.state === "waiting") observedStatesWhileWaiting.push(phase.state);
+    });
+
+    const runPromise = orchestrator.run();
+    await vi.runAllTimersAsync();
+    const finalState = await runPromise;
+
+    expect(calls).toBe(4);
+    expect(observedStatesWhileWaiting.length).toBeGreaterThan(0);
+    expect(finalState.phases[0].state).toBe("success");
+    expect(finalState.phases[0].pollCount).toBe(3);
+    expect(finalState.phases[0].retryCount).toBe(0);
+  });
+
+  it("outcome:skipped finalizes the phase as skipped and satisfies dependents", async () => {
+    const phases = [def({ id: "resident-model", optional: true }), def({ id: "release", dependencies: ["resident-model"] })];
+    const orchestrator = new BootOrchestrator(phases, {
+      "resident-model": async () => skip("Autostart deaktiviert."),
+      release: async () => ok()
+    });
+
+    const runPromise = orchestrator.run();
+    await vi.runAllTimersAsync();
+    const finalState = await runPromise;
+
+    expect(finalState.phases.find((p) => p.id === "resident-model")!.state).toBe("skipped");
+    expect(finalState.phases.find((p) => p.id === "release")!.state).toBe("success");
+    expect(finalState.status).toBe("ready");
   });
 });

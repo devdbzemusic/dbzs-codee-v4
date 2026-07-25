@@ -125,13 +125,22 @@ export type ModelRuntimeStatus =
   | "failed"
   | "stopped";
 
+export interface BootComponentError {
+  code: string;
+  technicalDetail?: string;
+  exitCode?: number | null;
+  stderrTail?: string;
+}
+
 /** Mirrors `backend/app/core/boot_state.py`'s component snapshot shape. */
 export interface BootReadinessComponent {
   state: BootPhaseState;
   progress?: number;
   total?: number;
   message?: string;
-  error?: string | null;
+  error?: BootComponentError | null;
+  /** Structured payload (e.g. model-index counts, resident-model identity) beyond a free-text message. */
+  data?: Record<string, unknown>;
 }
 
 export interface BootReadinessResponse {
