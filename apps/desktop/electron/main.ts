@@ -99,6 +99,7 @@ import { createPhaseRunners } from "./boot/phaseRunners.js";
 import { registerBootEventBridge } from "./boot/bootEventBridge.js";
 import { WindowCoordinator } from "./boot/windowCoordinator.js";
 import { exportBootDiagnosticsToFile } from "./boot/bootDiagnosticExport.js";
+import { startBootLogPersistence } from "./boot/bootLogPersistence.js";
 
 const BACKEND_PORT = Number(process.env.DBZS_BACKEND_PORT ?? "8876");
 const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
@@ -2087,6 +2088,12 @@ app.whenReady().then(async () => {
 
   orchestrator = new BootOrchestrator(BOOT_PHASE_DEFINITIONS, runners);
   orchestrator.patchHud({ backendPort: BACKEND_PORT });
+
+  startBootLogPersistence({
+    orchestrator,
+    userDataDir: app.getPath("userData"),
+    runId: orchestrator.getState().runId
+  });
 
   registerBootEventBridge({
     orchestrator,

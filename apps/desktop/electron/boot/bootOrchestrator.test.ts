@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BootOrchestrator, type PhaseRunner, type PhaseRunnerResult } from "./bootOrchestrator.js";
+import {
+  BootOrchestrator,
+  MAX_GLOBAL_LOG_ENTRIES,
+  MAX_PHASE_LOG_ENTRIES,
+  type PhaseRunner,
+  type PhaseRunnerResult
+} from "./bootOrchestrator.js";
 import type { BootPhaseDefinition } from "./bootPhaseDefinitions.js";
 
 function timeouts(partial: Partial<BootPhaseDefinition["timeouts"]> = {}): BootPhaseDefinition["timeouts"] {
@@ -359,5 +365,69 @@ describe("BootOrchestrator", () => {
     // release (weight 1, still pending) at 0.
     const expected = Math.round((1 * 100 + 20 * 10 + 1 * 0) / (1 + 20 + 1));
     expect(capturedProgress).toBe(expected);
+  });
+
+  it("caps a single phase's log entries at MAX_PHASE_LOG_ENTRIES, dropping the oldest first", () => {
+    const phases = [def({ id: "a" })];
+    const orchestrator = new BootOrchestrator(phases, { a: async () => ok() });
+
+    for (let i = 0; i < MAX_PHASE_LOG_ENTRIES + 50; i += 1) {
+      orchestrator.ingestExternalLog({
+        level: "info",
+        source: "backend",
+        phaseId: "a",
+        event: "progress",
+        message: `entry-${i}`
+      });
+    }
+
+    const details = orchestrator.getState().phases[0].details;
+    expect(details.length).toBe(MAX_PHASE_LOG_ENTRIES);
+    expect(details[0].message).toBe(`entry-${50}`); // the oldest 50 were evicted
+    expect(details.at(-1)?.message).toBe(`entry-${MAX_PHASE_LOG_ENTRIES + 49}`);
+  });
+
+  it("caps the global log stream at MAX_GLOBAL_LOG_ENTRIES across phases, evicting the oldest phase's entries too", () => {
+    // 11 phases x 480 entries each = 5280, comfortably over the 5000 global
+    // cap while every individual phase stays under its own 500-entry cap --
+    // isolates the global cap from the per-phase cap tested separately above.
+    const entriesPerPhase = 480;
+    const phaseCount = 11;
+    const ids = Array.from({ length: phaseCount }, (_, i) => `p${i}`);
+    const phases = ids.map((id, i) => def({ id, dependencies: i === 0 ? [] : [ids[i - 1]] }));
+    const runners = Object.fromEntries(ids.map((id) => [id, async () => ok()])) as Record<string, PhaseRunner>;
+    const orchestrator = new BootOrchestrator(phases, runners);
+
+    for (const id of ids) {
+      for (let i = 0; i < entriesPerPhase; i += 1) {
+        orchestrator.ingestExternalLog({ level: "info", source: "backend", phaseId: id, event: "progress", message: `${id}-${i}` });
+      }
+    }
+
+    const state = orchestrator.getState();
+    const totalDetails = state.phases.reduce((sum, p) => sum + p.details.length, 0);
+    expect(totalDetails).toBe(MAX_GLOBAL_LOG_ENTRIES);
+
+    // p0's entries were globally the oldest: overflow = 5280 - 5000 = 280,
+    // so p0 (pushed 480) loses its oldest 280, keeping its last 200.
+    const overflow = phaseCount * entriesPerPhase - MAX_GLOBAL_LOG_ENTRIES;
+    const p0 = state.phases.find((p) => p.id === "p0")!;
+    expect(p0.details.length).toBe(entriesPerPhase - overflow);
+    expect(p0.details[0].message).toBe(`p0-${overflow}`);
+  });
+
+  it("notifies onLogEntry subscribers for every log entry, independent of the in-memory caps", () => {
+    const phases = [def({ id: "a" })];
+    const orchestrator = new BootOrchestrator(phases, { a: async () => ok() });
+    const seen: string[] = [];
+    const unsubscribe = orchestrator.onLogEntry((entry) => seen.push(entry.message));
+
+    orchestrator.ingestExternalLog({ level: "info", source: "backend", phaseId: "a", event: "progress", message: "first" });
+    orchestrator.ingestExternalLog({ level: "info", source: "backend", phaseId: "a", event: "progress", message: "second" });
+
+    expect(seen).toEqual(["first", "second"]);
+    unsubscribe();
+    orchestrator.ingestExternalLog({ level: "info", source: "backend", phaseId: "a", event: "progress", message: "third" });
+    expect(seen).toEqual(["first", "second"]);
   });
 });

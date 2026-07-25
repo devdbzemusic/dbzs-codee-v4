@@ -69,12 +69,23 @@ function createInitialPhase(def: BootPhaseDefinition): BootPhase {
   };
 }
 
+/**
+ * Per-phase and global in-memory log caps (repair spec §18) -- an
+ * unbounded `phase.details`/global log stream would grow for the entire
+ * process lifetime otherwise (previously true: no cap existed at all).
+ */
+export const MAX_PHASE_LOG_ENTRIES = 500;
+export const MAX_GLOBAL_LOG_ENTRIES = 5_000;
+
 export class BootOrchestrator {
   private readonly definitions: Map<string, BootPhaseDefinition>;
   private readonly runners: Record<string, PhaseRunner>;
   private readonly clock: BootOrchestratorClock;
   private readonly listeners = new Set<(state: BootState) => void>();
+  private readonly logListeners = new Set<(entry: BootLogEntry) => void>();
   private readonly active = new Map<string, Promise<void>>();
+  /** Flat, global insertion-order view of every log entry still retained by some phase -- backs the MAX_GLOBAL_LOG_ENTRIES cap. */
+  private readonly globalLogEntries: BootLogEntry[] = [];
   private state: BootState;
   private resolveRun: (() => void) | null = null;
 
@@ -121,6 +132,19 @@ export class BootOrchestrator {
   }
 
   /**
+   * Fires once per log entry as it's appended (both from internal phase
+   * execution and ingestExternalLog()), independent of the in-memory caps
+   * below -- an external subscriber (e.g. JSONL persistence) needs the full
+   * stream even once old entries start getting evicted from `phase.details`.
+   */
+  onLogEntry(listener: (entry: BootLogEntry) => void): () => void {
+    this.logListeners.add(listener);
+    return () => {
+      this.logListeners.delete(listener);
+    };
+  }
+
+  /**
    * Merges a log entry sourced from outside the orchestrator (backend
    * /boot/stream SSE, frontend phase reports) into the matching phase's
    * `details`, so the splash's log panel has one merged, structured feed
@@ -129,9 +153,7 @@ export class BootOrchestrator {
   ingestExternalLog(entry: Omit<BootLogEntry, "timestamp"> & { timestamp?: number }): void {
     const phaseId = entry.phaseId && this.state.phases.some((p) => p.id === entry.phaseId) ? entry.phaseId : this.state.currentPhaseId;
     if (!phaseId) return;
-    const phase = this.state.phases.find((p) => p.id === phaseId);
-    if (!phase) return;
-    phase.details.push({ ...entry, phaseId, timestamp: entry.timestamp ?? this.clock.now() });
+    this.appendLog(phaseId, entry, entry.timestamp);
     this.publish();
   }
 
@@ -505,10 +527,30 @@ export class BootOrchestrator {
     return Math.round(weightedSum / totalWeight);
   }
 
-  private appendLog(phaseId: string, entry: Omit<BootLogEntry, "timestamp" | "phaseId">): void {
-    const phase = this.getPhaseOrThrow(phaseId);
-    const logEntry: BootLogEntry = { ...entry, phaseId, timestamp: this.clock.now() };
+  private appendLog(phaseId: string, entry: Omit<BootLogEntry, "timestamp" | "phaseId">, timestamp?: number): void {
+    const phase = this.state.phases.find((p) => p.id === phaseId);
+    if (!phase) return;
+    const logEntry: BootLogEntry = { ...entry, phaseId, timestamp: timestamp ?? this.clock.now() };
+
     phase.details.push(logEntry);
+    if (phase.details.length > MAX_PHASE_LOG_ENTRIES) {
+      phase.details.splice(0, phase.details.length - MAX_PHASE_LOG_ENTRIES);
+    }
+
+    this.globalLogEntries.push(logEntry);
+    if (this.globalLogEntries.length > MAX_GLOBAL_LOG_ENTRIES) {
+      const dropped = this.globalLogEntries.splice(0, this.globalLogEntries.length - MAX_GLOBAL_LOG_ENTRIES);
+      for (const droppedEntry of dropped) {
+        const owner = this.state.phases.find((p) => p.id === droppedEntry.phaseId);
+        if (!owner) continue;
+        const idx = owner.details.indexOf(droppedEntry);
+        if (idx !== -1) owner.details.splice(idx, 1);
+      }
+    }
+
+    for (const listener of this.logListeners) {
+      listener(logEntry);
+    }
   }
 
   private getPhaseOrThrow(phaseId: string): BootPhase {
