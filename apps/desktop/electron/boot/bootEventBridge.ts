@@ -33,8 +33,15 @@ export function registerBootEventBridge(deps: BootEventBridgeDeps): () => void {
 
   ipcMain.handle(
     "dbzs:boot:report-phase",
-    (_event, phaseId: string, outcome: "success" | "failed", message: string) => {
-      reportFrontendPhase(phaseId, outcome, message ?? "");
+    (
+      _event,
+      phaseId: string,
+      state: "success" | "failed",
+      message: string,
+      progress?: number,
+      metadata?: Record<string, unknown>
+    ) => {
+      reportFrontendPhase(phaseId, state, message ?? "", progress, metadata);
     }
   );
 

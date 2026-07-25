@@ -376,7 +376,7 @@ function AppShell() {
   // orchestrator's "main-app-released" phase (16) actually wait on it.
   useEffect(() => {
     let cancelled = false;
-    const report = window.dbzs.reportBootPhase;
+    const report = window.dbzs.reportBootPhaseState;
 
     function errorMessage(err: unknown): string {
       return err instanceof Error ? err.message : String(err);
