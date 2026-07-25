@@ -132,15 +132,20 @@ export interface BootComponentError {
   stderrTail?: string;
 }
 
-/** Mirrors `backend/app/core/boot_state.py`'s component snapshot shape. */
+/**
+ * Mirrors `backend/app/core/boot_state.py`'s component snapshot shape.
+ * progress/total/message/data are nullable (not just optional) because the
+ * Python side's dataclass defaults are `None`, serialized as JSON `null` --
+ * this must accept what the wire actually sends, not just what's "tidiest".
+ */
 export interface BootReadinessComponent {
   state: BootPhaseState;
-  progress?: number;
-  total?: number;
-  message?: string;
+  progress?: number | null;
+  total?: number | null;
+  message?: string | null;
   error?: BootComponentError | null;
   /** Structured payload (e.g. model-index counts, resident-model identity) beyond a free-text message. */
-  data?: Record<string, unknown>;
+  data?: Record<string, unknown> | null;
 }
 
 /** GET /health/startup's response shape: always 200, full per-component detail. */

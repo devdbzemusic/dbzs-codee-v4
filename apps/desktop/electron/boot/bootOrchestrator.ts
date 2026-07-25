@@ -16,7 +16,7 @@ export interface PhaseRunnerContext {
   attempt: number;
   signal: AbortSignal;
   bootState: Readonly<BootState>;
-  reportProgress: (progress: number, message?: string) => void;
+  reportProgress: (progress: number, message?: string | null) => void;
   log: (entry: Omit<BootLogEntry, "timestamp" | "phaseId">) => void;
 }
 
@@ -30,7 +30,7 @@ export interface PhaseRunnerResult {
   /** Only meaningful for outcome:"pending" — overrides the phase's default pollIntervalMs for this one poll. */
   pollAfterMs?: number;
   error?: Partial<BootError>;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown> | null;
 }
 
 export type PhaseRunner = (ctx: PhaseRunnerContext) => Promise<PhaseRunnerResult>;

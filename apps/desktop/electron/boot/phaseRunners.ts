@@ -45,7 +45,7 @@ function normalizeProgress(progress?: number | null, total?: number | null): num
  */
 function componentResult(
   component: BootReadinessComponent | undefined,
-  reportProgress: (progress: number, message?: string) => void,
+  reportProgress: (progress: number, message?: string | null) => void,
   readyLabel: string
 ): PhaseRunnerResult {
   if (!component) {

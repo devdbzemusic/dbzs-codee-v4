@@ -6,6 +6,7 @@ export { RUNTIME_SLOT_DEFINITIONS } from "./runtime/runtimeSlots.js";
 export * from "./context/contextContracts.js";
 export * from "./interaction/interactionContracts.js";
 export * from "./boot.js";
+export * from "./bootReadinessSchema.js";
 
 export type TerminalShell = "powershell" | "cmd" | "pwsh";
 

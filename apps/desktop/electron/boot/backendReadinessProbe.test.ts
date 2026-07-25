@@ -29,12 +29,25 @@ describe("BackendReadinessProbe", () => {
   });
 
   it("probeStartup returns the parsed per-component startup payload", async () => {
-    const payload = { status: "starting", ready: false, progress: 50, instanceId: "abc", components: {} };
+    const component = { state: "pending" as const };
+    const payload = {
+      status: "starting",
+      ready: false,
+      progress: 50,
+      instanceId: "abc",
+      components: { database: component, modelRegistry: component, runtimeManager: component, residentModel: component }
+    };
     const fetchFn = vi.fn().mockResolvedValue(jsonResponse(payload));
     const probe = new BackendReadinessProbe("http://127.0.0.1:8876", fetchFn);
     const result = await probe.probeStartup();
     expect(result).toEqual(payload);
     expect(fetchFn).toHaveBeenCalledWith("http://127.0.0.1:8876/health/startup", { signal: undefined });
+  });
+
+  it("probeStartup throws BootProtocolError when the backend payload doesn't match the schema", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ status: "starting" })); // missing required fields
+    const probe = new BackendReadinessProbe("http://127.0.0.1:8876", fetchFn);
+    await expect(probe.probeStartup()).rejects.toThrow("Ungültige Backend-Startup-Antwort");
   });
 
   it("probeReady returns null on a 503 'not ready' response instead of throwing", async () => {
@@ -60,5 +73,11 @@ describe("BackendReadinessProbe", () => {
     const result = await probe.probeReady();
     expect(result).toEqual(payload);
     expect(fetchFn).toHaveBeenCalledWith("http://127.0.0.1:8876/health/ready", { signal: undefined });
+  });
+
+  it("probeReady throws BootProtocolError when the backend payload doesn't match the schema", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ status: "ready", ready: "yes" })); // ready must be boolean
+    const probe = new BackendReadinessProbe("http://127.0.0.1:8876", fetchFn);
+    await expect(probe.probeReady()).rejects.toThrow("Ungültige Backend-Readiness-Antwort");
   });
 });

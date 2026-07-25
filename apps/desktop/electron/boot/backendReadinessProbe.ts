@@ -1,10 +1,15 @@
-import type { BootReadyResponse, BootStartupResponse } from "@dbzs/shared";
+import { BootProtocolError, BootReadyResponseSchema, BootStartupResponseSchema, type BootReadyResponse, type BootStartupResponse } from "@dbzs/shared";
 
 /**
  * Thin fetch+AbortSignal wrapper around /health/live, /health/startup, and
  * /health/ready. Deliberately does its own single-shot fetch per call —
  * repeated polling is the BootOrchestrator's retry loop's job (soft/hard
  * timeout driven), not a fixed interval baked into the probe itself.
+ *
+ * probeStartup()/probeReady() validate the response body against the shared
+ * Zod schemas rather than blindly casting it — a malformed or
+ * version-mismatched backend payload throws BootProtocolError instead of
+ * producing `undefined` property access deep inside a phase runner.
  */
 export class BackendReadinessProbe {
   constructor(private readonly backendUrl: string, private readonly fetchFn: typeof fetch = fetch) {}
@@ -25,8 +30,14 @@ export class BackendReadinessProbe {
     try {
       const response = await this.fetchFn(`${this.backendUrl}/health/startup`, { signal });
       if (!response.ok) return null;
-      return (await response.json()) as BootStartupResponse;
-    } catch {
+      const payload = await response.json();
+      const parsed = BootStartupResponseSchema.safeParse(payload);
+      if (!parsed.success) {
+        throw new BootProtocolError("Ungültige Backend-Startup-Antwort", parsed.error.message);
+      }
+      return parsed.data;
+    } catch (err) {
+      if (err instanceof BootProtocolError) throw err;
       return null;
     }
   }
@@ -40,8 +51,14 @@ export class BackendReadinessProbe {
     try {
       const response = await this.fetchFn(`${this.backendUrl}/health/ready`, { signal });
       if (!response.ok) return null;
-      return (await response.json()) as BootReadyResponse;
-    } catch {
+      const payload = await response.json();
+      const parsed = BootReadyResponseSchema.safeParse(payload);
+      if (!parsed.success) {
+        throw new BootProtocolError("Ungültige Backend-Readiness-Antwort", parsed.error.message);
+      }
+      return parsed.data;
+    } catch (err) {
+      if (err instanceof BootProtocolError) throw err;
       return null;
     }
   }
