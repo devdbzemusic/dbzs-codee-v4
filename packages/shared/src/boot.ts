@@ -53,11 +53,22 @@ export interface BootLogEntry {
   metadata?: Record<string, unknown>;
 }
 
-export interface BootTimeoutPolicy {
+/**
+ * Replaces the earlier BootTimeoutPolicy (softTimeoutMs/hardTimeoutMs/
+ * retryCount/retryDelayMs). pollIntervalMs governs "not ready yet" polling
+ * (a non-terminal component status), while maxRetries/retryDelayMs govern
+ * retries after a *genuine* failure — the two must stay independent, since
+ * conflating them (the old design) let a retry-count ceiling silently cut a
+ * poll loop short before its own hard timeout was reached.
+ */
+export interface BootPhasePolicy {
   softTimeoutMs: number;
   hardTimeoutMs: number;
-  retryCount: number;
+  pollIntervalMs: number;
+  maxRetries: number;
   retryDelayMs: number;
+  extendDeadlineOnProgress: boolean;
+  maxDeadlineExtensionMs: number;
 }
 
 export interface BootPhase {
@@ -69,9 +80,14 @@ export interface BootPhase {
   message: string;
   dependencies: string[];
   optional: boolean;
+  /** Whether the main window's release must wait for this phase to reach a terminal state. */
+  blocksWindowRelease: boolean;
   startedAt?: number;
   finishedAt?: number;
   durationMs?: number;
+  /** Counts non-terminal "still working" polls (component state pending/waiting/running). */
+  pollCount: number;
+  /** Counts retries after a genuine failure outcome. Kept separate from pollCount. */
   retryCount: number;
   error?: BootError;
   details: BootLogEntry[];

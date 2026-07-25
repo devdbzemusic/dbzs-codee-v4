@@ -16,10 +16,10 @@ const POLLING_PHASE_IDS = [
 ];
 
 describe("BOOT_PHASE_DEFINITIONS timeout/retry consistency", () => {
-  it.each(POLLING_PHASE_IDS)("%s: retryCount * retryDelayMs comfortably exceeds hardTimeoutMs", (id) => {
+  it.each(POLLING_PHASE_IDS)("%s: maxRetries * retryDelayMs comfortably exceeds hardTimeoutMs", (id) => {
     const def = BOOT_PHASE_DEFINITIONS.find((p) => p.id === id);
     expect(def).toBeDefined();
-    const retryBudgetMs = def!.timeouts.retryCount * def!.timeouts.retryDelayMs;
+    const retryBudgetMs = def!.timeouts.maxRetries * def!.timeouts.retryDelayMs;
     expect(retryBudgetMs).toBeGreaterThanOrEqual(def!.timeouts.hardTimeoutMs);
   });
 

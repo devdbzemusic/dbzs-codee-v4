@@ -2,12 +2,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BootOrchestrator, type PhaseRunner, type PhaseRunnerResult } from "./bootOrchestrator.js";
 import type { BootPhaseDefinition } from "./bootPhaseDefinitions.js";
 
+function timeouts(partial: Partial<BootPhaseDefinition["timeouts"]> = {}): BootPhaseDefinition["timeouts"] {
+  return {
+    softTimeoutMs: 50,
+    hardTimeoutMs: 200,
+    pollIntervalMs: 10,
+    maxRetries: 0,
+    retryDelayMs: 10,
+    extendDeadlineOnProgress: false,
+    maxDeadlineExtensionMs: 0,
+    ...partial
+  };
+}
+
 function def(partial: Partial<BootPhaseDefinition> & { id: string }): BootPhaseDefinition {
   return {
     label: partial.id,
     dependencies: [],
     optional: false,
-    timeouts: { softTimeoutMs: 50, hardTimeoutMs: 200, retryCount: 0, retryDelayMs: 10 },
+    blocksWindowRelease: true,
+    timeouts: timeouts(),
     ...partial
   };
 }
@@ -60,7 +74,7 @@ describe("BootOrchestrator", () => {
 
   it("retries a phase that fails transiently and eventually succeeds (late backend start)", async () => {
     let attempts = 0;
-    const phases = [def({ id: "backend", timeouts: { softTimeoutMs: 50, hardTimeoutMs: 500, retryCount: 5, retryDelayMs: 20 } })];
+    const phases = [def({ id: "backend", timeouts: timeouts({ softTimeoutMs: 50, hardTimeoutMs: 500, maxRetries: 5, retryDelayMs: 20 }) })];
     const runners: Record<string, PhaseRunner> = {
       backend: async () => {
         attempts += 1;
@@ -81,7 +95,7 @@ describe("BootOrchestrator", () => {
 
   it("fails a phase and blocks its dependents when the backend process never starts", async () => {
     const phases = [
-      def({ id: "spawn", timeouts: { softTimeoutMs: 10, hardTimeoutMs: 50, retryCount: 1, retryDelayMs: 5 } }),
+      def({ id: "spawn", timeouts: timeouts({ softTimeoutMs: 10, hardTimeoutMs: 50, maxRetries: 1, retryDelayMs: 5 }) }),
       def({ id: "alive", dependencies: ["spawn"] }),
       def({ id: "unrelated" })
     ];
@@ -108,7 +122,7 @@ describe("BootOrchestrator", () => {
   });
 
   it("soft-timeout keeps a slow phase running (with a warning log) instead of failing it", async () => {
-    const phases = [def({ id: "slow", timeouts: { softTimeoutMs: 20, hardTimeoutMs: 500, retryCount: 0, retryDelayMs: 0 } })];
+    const phases = [def({ id: "slow", timeouts: timeouts({ softTimeoutMs: 20, hardTimeoutMs: 500, maxRetries: 0, retryDelayMs: 0 }) })];
     const runners: Record<string, PhaseRunner> = {
       slow: () =>
         new Promise<PhaseRunnerResult>((resolve) => {
@@ -127,7 +141,7 @@ describe("BootOrchestrator", () => {
   });
 
   it("hard-timeout fails a phase whose runner never resolves, exhausting no more than the retry budget", async () => {
-    const phases = [def({ id: "hangs", timeouts: { softTimeoutMs: 5, hardTimeoutMs: 30, retryCount: 1, retryDelayMs: 5 } })];
+    const phases = [def({ id: "hangs", timeouts: timeouts({ softTimeoutMs: 5, hardTimeoutMs: 30, maxRetries: 1, retryDelayMs: 5 }) })];
     const runners: Record<string, PhaseRunner> = {
       hangs: () => new Promise<PhaseRunnerResult>(() => {}) // never resolves
     };
@@ -143,13 +157,13 @@ describe("BootOrchestrator", () => {
   });
 
   it("an optional phase failing degrades the run instead of failing it; a mandatory failure fails it", async () => {
-    const degradedPhases = [def({ id: "resident-model", optional: true, timeouts: { softTimeoutMs: 5, hardTimeoutMs: 20, retryCount: 0, retryDelayMs: 0 } })];
+    const degradedPhases = [def({ id: "resident-model", optional: true, timeouts: timeouts({ softTimeoutMs: 5, hardTimeoutMs: 20, maxRetries: 0, retryDelayMs: 0 }) })];
     const degraded = new BootOrchestrator(degradedPhases, { "resident-model": async () => fail("no model") });
     const degradedRun = degraded.run();
     await vi.runAllTimersAsync();
     expect((await degradedRun).status).toBe("degraded");
 
-    const mandatoryPhases = [def({ id: "database", optional: false, timeouts: { softTimeoutMs: 5, hardTimeoutMs: 20, retryCount: 0, retryDelayMs: 0 } })];
+    const mandatoryPhases = [def({ id: "database", optional: false, timeouts: timeouts({ softTimeoutMs: 5, hardTimeoutMs: 20, maxRetries: 0, retryDelayMs: 0 }) })];
     const mandatory = new BootOrchestrator(mandatoryPhases, { database: async () => fail("db down") });
     const mandatoryRun = mandatory.run();
     await vi.runAllTimersAsync();
@@ -159,7 +173,7 @@ describe("BootOrchestrator", () => {
   it("retryPhase() re-runs a failed phase and unblocks its dependents", async () => {
     let shouldFail = true;
     const phases = [
-      def({ id: "backend", timeouts: { softTimeoutMs: 5, hardTimeoutMs: 20, retryCount: 0, retryDelayMs: 0 } }),
+      def({ id: "backend", timeouts: timeouts({ softTimeoutMs: 5, hardTimeoutMs: 20, maxRetries: 0, retryDelayMs: 0 }) }),
       def({ id: "ready", dependencies: ["backend"] })
     ];
     const runners: Record<string, PhaseRunner> = {

@@ -19,7 +19,7 @@ export interface PhaseRunnerContext {
   log: (entry: Omit<BootLogEntry, "timestamp" | "phaseId">) => void;
 }
 
-export type PhaseRunnerOutcome = "success" | "warning" | "failed";
+export type PhaseRunnerOutcome = "success" | "warning" | "pending" | "failed" | "skipped";
 
 export interface PhaseRunnerResult {
   outcome: PhaseRunnerOutcome;
@@ -56,6 +56,8 @@ function createInitialPhase(def: BootPhaseDefinition): BootPhase {
     message: "",
     dependencies: [...def.dependencies],
     optional: def.optional,
+    blocksWindowRelease: def.blocksWindowRelease,
+    pollCount: 0,
     retryCount: 0,
     details: []
   };
@@ -318,7 +320,7 @@ export class BootOrchestrator {
       }
 
       const bootError = this.toBootError(failure, result, attempt);
-      const canRetry = attempt < def.timeouts.retryCount;
+      const canRetry = attempt < def.timeouts.maxRetries;
 
       if (canRetry) {
         attempt += 1;
@@ -330,7 +332,7 @@ export class BootOrchestrator {
           level: "warn",
           source: "desktop",
           event: "retry",
-          message: `Retry ${attempt}/${def.timeouts.retryCount}: ${bootError.message}`,
+          message: `Retry ${attempt}/${def.timeouts.maxRetries}: ${bootError.message}`,
           retryNumber: attempt
         });
         this.publish();
