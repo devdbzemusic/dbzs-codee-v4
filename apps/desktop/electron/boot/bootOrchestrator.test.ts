@@ -307,4 +307,28 @@ describe("BootOrchestrator", () => {
     expect(finalState.phases.find((p) => p.id === "release")!.state).toBe("success");
     expect(finalState.status).toBe("ready");
   });
+
+  it("a failed OPTIONAL dependency does not block its dependents (only degrades the run), unlike a failed mandatory one", async () => {
+    // Mirrors the real production shape: backend-ready depends on the
+    // optional resident-model. A failed resident-model must still let
+    // backend-ready (and everything after it) proceed to success -- the
+    // splash waits for resident-model to become terminal, then continues
+    // regardless of which terminal outcome it reached.
+    const phases = [
+      def({ id: "resident-model", optional: true, timeouts: timeouts({ softTimeoutMs: 5, hardTimeoutMs: 20, maxRetries: 0, retryDelayMs: 0 }) }),
+      def({ id: "release", dependencies: ["resident-model"] })
+    ];
+    const orchestrator = new BootOrchestrator(phases, {
+      "resident-model": async () => fail("no model available"),
+      release: async () => ok()
+    });
+
+    const runPromise = orchestrator.run();
+    await vi.runAllTimersAsync();
+    const finalState = await runPromise;
+
+    expect(finalState.phases.find((p) => p.id === "resident-model")!.state).toBe("failed");
+    expect(finalState.phases.find((p) => p.id === "release")!.state).toBe("success");
+    expect(finalState.status).toBe("degraded");
+  });
 });

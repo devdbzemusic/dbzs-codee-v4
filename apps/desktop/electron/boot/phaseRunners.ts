@@ -124,28 +124,23 @@ export function createPhaseRunners(deps: PhaseRunnerDeps): Record<string, PhaseR
       return { outcome: "success", message: `Schreibrechte bestätigt: ${deps.userDataDir}` };
     },
 
-    "backend-process-started": async () => {
+    // Merges the former "backend-process-started" + "backend-process-alive"
+    // phases: spawning and confirming the PID are one fast local action, not
+    // two separately-timed-out steps.
+    "backend-spawn": async () => {
       const status = await deps.backendStartup.ensureStarted({ waitUntilReady: false });
       if (status.state === "failed") {
         return { outcome: "failed", message: status.message ?? "Backend-Start fehlgeschlagen.", error: { code: "spawn-failed", message: status.message ?? "" } };
       }
-      return { outcome: "success", message: "Backend-Prozess gestartet." };
-    },
-
-    "backend-process-alive": async () => {
       const pid = deps.backendStartup.getPid();
-      const status = deps.backendStartup.getStatus();
-      if (status.state === "failed") {
-        return { outcome: "failed", message: status.message ?? "Backend-Prozess beendet.", error: { code: "process-exited", message: status.message ?? "" } };
-      }
       if (pid == null) {
         return { outcome: "pending", message: "Warte auf Backend-Prozess-PID...", pollAfterMs: 500 };
       }
       deps.onBackendPid(pid);
-      return { outcome: "success", message: `Backend-Prozess lebt (PID ${pid}).` };
+      return { outcome: "success", message: `Backend-Prozess gestartet (PID ${pid}).` };
     },
 
-    "backend-health-live": async (ctx) => {
+    "backend-live": async (ctx) => {
       const result = await deps.probe.probeLive(ctx.signal);
       if (!result.ok) {
         return { outcome: "pending", message: "Backend-Health-Endpunkt noch nicht erreichbar.", pollAfterMs: 500 };
@@ -154,12 +149,11 @@ export function createPhaseRunners(deps: PhaseRunnerDeps): Record<string, PhaseR
       return { outcome: "success", message: "Backend-Health-Endpunkt erreichbar." };
     },
 
-    "backend-ready": async (ctx) => {
+    "backend-startup-api": async (ctx) => {
       // Checks that the readiness subsystem itself is reachable and
       // structurally valid -- NOT the terminal GET /health/ready gate (that
       // endpoint stays 503 until database/modelRegistry/runtimeManager all
-      // succeed, which happens much later than this early phase in the
-      // current dependency order).
+      // succeed, which happens much later in this dependency order).
       const startup = await deps.probe.probeStartup(ctx.signal);
       if (!startup || typeof startup.status !== "string") {
         return { outcome: "pending", message: "Backend-Readiness-Endpunkt noch nicht bereit.", pollAfterMs: 500 };
@@ -193,10 +187,36 @@ export function createPhaseRunners(deps: PhaseRunnerDeps): Record<string, PhaseR
       return componentResult(component, ctx.reportProgress, "Residentes Modell bereit.");
     },
 
+    // The real terminal aggregate: GET /health/ready only reports
+    // ready:true once database/modelRegistry/runtimeManager have all
+    // succeeded and resident-model has reached some terminal state.
+    "backend-ready": async (ctx) => {
+      const readiness = await deps.probe.probeReady(ctx.signal);
+      if (!readiness) {
+        return { outcome: "pending", message: "Warte auf vollständige Backend-Readiness...", pollAfterMs: 500 };
+      }
+      if (!readiness.ready) {
+        return { outcome: "pending", message: `Backend noch nicht vollständig bereit (${readiness.status}).`, pollAfterMs: 500 };
+      }
+      const message =
+        readiness.status === "degraded"
+          ? "Backend bereit (residentes Modell eingeschränkt oder nicht verfügbar)."
+          : "Backend vollständig bereit.";
+      return { outcome: "success", message };
+    },
+
     "frontend-bridge": (ctx) => waitFrontend("frontend-bridge", ctx.signal, "Frontend-Bridge verbunden."),
     "frontend-config-sync": (ctx) => waitFrontend("frontend-config-sync", ctx.signal, "Frontend-Konfiguration synchronisiert."),
     "workspace-restore": (ctx) => waitFrontend("workspace-restore", ctx.signal, "Workspace wiederhergestellt."),
     "agents-roles-models": (ctx) => waitFrontend("agents-roles-models", ctx.signal, "Agenten und Modelle geladen."),
+
+    // TODO(paint-ack repair step): replace with waitFrontend("main-window-rendered", ...)
+    // once the renderer reports a real double-requestAnimationFrame paint
+    // acknowledgement. A stub for now (rather than waitFrontend, which
+    // would time out and fail the whole boot since nothing reports this
+    // phase yet) so the boot graph can already carry the new phase without
+    // breaking every boot in the meantime.
+    "main-window-rendered": async () => ({ outcome: "success", message: "Hauptfenster gerendert (Platzhalter)." }),
 
     "main-app-released": async () => ({ outcome: "success", message: "Hauptanwendung freigegeben." })
   };

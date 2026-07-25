@@ -230,9 +230,20 @@ export class BootOrchestrator {
     );
   }
 
+  /**
+   * An optional dependency's "failed" outcome still counts as satisfied
+   * (not just success/warning/skipped) -- an optional phase (e.g.
+   * resident-model) blocks the splash only until it reaches SOME terminal
+   * state, then the boot must proceed regardless of which one. Only a
+   * mandatory dependency's failure withholds satisfaction (handled instead
+   * by applyBlocking(), which turns the dependent "blocked").
+   */
   private dependenciesSatisfied(phase: BootPhase): boolean {
     return phase.dependencies.every((depId) => {
       const dep = this.getPhaseOrThrow(depId);
+      if (dep.optional) {
+        return dep.state === "success" || dep.state === "warning" || dep.state === "skipped" || dep.state === "failed";
+      }
       return dep.state === "success" || dep.state === "warning" || dep.state === "skipped";
     });
   }
@@ -245,6 +256,12 @@ export class BootOrchestrator {
         if (phase.state !== "pending") continue;
         const blockedBy = phase.dependencies.find((depId) => {
           const dep = this.getPhaseOrThrow(depId);
+          // An optional dependency's failure must never cascade-block --
+          // only a genuinely stuck (already-blocked) optional dependency
+          // does, since that means IT can never become terminal either.
+          if (dep.optional) {
+            return dep.state === "blocked";
+          }
           return dep.state === "failed" || dep.state === "blocked";
         });
         if (blockedBy) {

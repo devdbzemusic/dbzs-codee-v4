@@ -53,7 +53,7 @@ export function registerBootEventBridge(deps: BootEventBridgeDeps): () => void {
 
   ipcMain.handle("dbzs:boot:restart-backend", async () => {
     await deps.restartBackendProcess();
-    await deps.orchestrator.retryPhase("backend-process-started");
+    await deps.orchestrator.retryPhase("backend-spawn");
   });
 
   ipcMain.handle("dbzs:boot:use-fallback-model", async () => {
@@ -74,7 +74,7 @@ export function registerBootEventBridge(deps: BootEventBridgeDeps): () => void {
   let sseAbort: AbortController | null = null;
   const unsubscribeSse = deps.orchestrator.onStateChange((state: BootState) => {
     if (sseStarted) return;
-    const healthPhase = state.phases.find((p) => p.id === "backend-health-live");
+    const healthPhase = state.phases.find((p) => p.id === "backend-live");
     if (healthPhase?.state === "success") {
       sseStarted = true;
       sseAbort = new AbortController();

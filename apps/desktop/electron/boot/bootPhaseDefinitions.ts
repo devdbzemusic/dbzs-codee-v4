@@ -12,24 +12,31 @@ export interface BootPhaseDefinition {
 }
 
 /**
- * The 16 boot phases, in dependency order. Phase 16 ("main-app-released")
- * intentionally omits "resident-model" (11) from its dependencies — that
- * phase is optional, so its failure degrades the boot instead of blocking
- * the main window (confirmed decision: resident-model is optional/degraded,
- * degraded boots auto-continue to the main window).
+ * The 17 boot phases, in dependency order (boot-repair spec §7). Two roles
+ * that used to be conflated under a single early "backend-ready" phase are
+ * now split:
  *
- * Phases 6-11 (backend-health-live, backend-ready, database-init,
- * model-index, runtime-manager-init, resident-model) poll a backend
- * component that may still be initializing. Their runners (phaseRunners.ts)
- * report this via outcome:"pending", which the orchestrator tracks with its
- * own `pollCount` and reschedules via `pollIntervalMs` — bounded purely by
- * `hardTimeoutMs`, never by `maxRetries`. `maxRetries`/`retryDelayMs` here
- * are reserved for genuine failures only (a real exception, an unexpected
- * component "failed" state) and are deliberately small, unlike an earlier
- * version of this file where they had to be inflated to survive a
- * retry-count-doubles-as-poll-count hack (a real bug: backend-health-live
- * failed at exactly 40*500ms=20s despite a 60s hardTimeoutMs, because the
- * retry ceiling — not the intended deadline — silently ended the phase).
+ * - "backend-startup-api" (06): the readiness *subsystem* is reachable
+ *   (GET /health/startup responds) -- not that anything is actually ready.
+ * - "backend-ready" (11): the real aggregate -- GET /health/ready reports
+ *   `ready:true`, which only happens once database/modelRegistry/
+ *   runtimeManager have all succeeded and resident-model has reached some
+ *   terminal state.
+ *
+ * "resident-model" (10) is optional, but `blocksWindowRelease: true`: since
+ * "backend-ready" now depends on it, the splash waits for it to reach ANY
+ * terminal state (success/warning/skipped/failed) before continuing --
+ * failure alone does not cascade-block, only a genuinely stuck (blocked)
+ * optional dependency does (see BootOrchestrator.dependenciesSatisfied/
+ * applyBlocking). A failed resident-model still degrades the overall run
+ * status to "degraded", it just no longer bypasses this wait entirely.
+ *
+ * Phases 07-11 (database-init, model-index, runtime-manager-init,
+ * resident-model, backend-ready) poll a backend component that may still be
+ * initializing. Their runners (phaseRunners.ts) report this via
+ * outcome:"pending", tracked via pollCount and rescheduled via
+ * pollIntervalMs -- bounded purely by hardTimeoutMs, never by maxRetries.
+ * maxRetries/retryDelayMs are reserved for genuine failures only.
  */
 export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
   {
@@ -38,10 +45,6 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     dependencies: [],
     optional: false,
     blocksWindowRelease: true,
-    // maxRetries/retryDelayMs are 0 (this phase never actually retries or
-    // polls), but pollIntervalMs must stay > 0 per validateBootGraph's own
-    // invariant (check 9) — it's simply never consumed for a phase that
-    // completes synchronously.
     timeouts: {
       softTimeoutMs: 1_000,
       hardTimeoutMs: 3_000,
@@ -85,8 +88,9 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     }
   },
   {
-    id: "backend-process-started",
+    id: "backend-spawn",
     label: "Backend-Prozess gestartet",
+    description: "Spawnt den Backend-Prozess (oder erkennt einen bereits laufenden) und bestätigt dessen PID.",
     dependencies: ["filesystem-check"],
     optional: false,
     blocksWindowRelease: true,
@@ -101,25 +105,9 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     }
   },
   {
-    id: "backend-process-alive",
-    label: "Backend-Prozess lebt",
-    dependencies: ["backend-process-started"],
-    optional: false,
-    blocksWindowRelease: true,
-    timeouts: {
-      softTimeoutMs: 3_000,
-      hardTimeoutMs: 15_000,
-      pollIntervalMs: 1_000,
-      maxRetries: 2,
-      retryDelayMs: 1_000,
-      extendDeadlineOnProgress: false,
-      maxDeadlineExtensionMs: 0
-    }
-  },
-  {
-    id: "backend-health-live",
+    id: "backend-live",
     label: "Backend-Health-Endpunkt erreichbar",
-    dependencies: ["backend-process-alive"],
+    dependencies: ["backend-spawn"],
     optional: false,
     blocksWindowRelease: true,
     // Cold start (Python interpreter + importing the full FastAPI app
@@ -139,9 +127,10 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     }
   },
   {
-    id: "backend-ready",
-    label: "Backend vollständig ready",
-    dependencies: ["backend-health-live"],
+    id: "backend-startup-api",
+    label: "Backend-Readiness-Subsystem erreichbar",
+    description: "Prüft nur, dass GET /health/startup antwortet -- nicht, dass etwas bereits bereit ist.",
+    dependencies: ["backend-live"],
     optional: false,
     blocksWindowRelease: true,
     timeouts: {
@@ -157,7 +146,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
   {
     id: "database-init",
     label: "Datenbank initialisiert",
-    dependencies: ["backend-ready"],
+    dependencies: ["backend-startup-api"],
     optional: false,
     blocksWindowRelease: true,
     timeouts: {
@@ -173,7 +162,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
   {
     id: "model-index",
     label: "Modellkatalog geladen",
-    dependencies: ["backend-ready", "database-init"],
+    dependencies: ["database-init"],
     optional: false,
     blocksWindowRelease: true,
     timeouts: {
@@ -189,7 +178,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
   {
     id: "runtime-manager-init",
     label: "Runtime Manager initialisiert",
-    dependencies: ["backend-ready", "model-index"],
+    dependencies: ["model-index"],
     optional: false,
     blocksWindowRelease: true,
     timeouts: {
@@ -207,18 +196,34 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     label: "Residentes Basismodell geprüft oder gestartet",
     dependencies: ["runtime-manager-init"],
     optional: true,
-    // Kept false in this step for behavioral parity with the current
-    // main-app-released dependency list (below), which still omits
-    // resident-model. The boot-repair spec's semantic reversal
-    // (blocksWindowRelease = true) lands together with the phase
-    // reorder/rename step, not here.
-    blocksWindowRelease: false,
+    // Semantic reversal from the pre-repair version: the splash now waits
+    // for this phase to reach ANY terminal state before releasing the main
+    // window (see module docstring above), rather than silently excluding
+    // it from the release-gating chain entirely.
+    blocksWindowRelease: true,
     timeouts: {
       softTimeoutMs: 15_000,
       hardTimeoutMs: 90_000,
       pollIntervalMs: 3_000,
       maxRetries: 2,
       retryDelayMs: 3_000,
+      extendDeadlineOnProgress: false,
+      maxDeadlineExtensionMs: 0
+    }
+  },
+  {
+    id: "backend-ready",
+    label: "Backend vollständig ready",
+    description: "Pollt das echte GET /health/ready -- ready:true erst wenn alle Pflichtkomponenten erfolgreich sind.",
+    dependencies: ["runtime-manager-init", "resident-model"],
+    optional: false,
+    blocksWindowRelease: true,
+    timeouts: {
+      softTimeoutMs: 3_000,
+      hardTimeoutMs: 10_000,
+      pollIntervalMs: 500,
+      maxRetries: 2,
+      retryDelayMs: 500,
       extendDeadlineOnProgress: false,
       maxDeadlineExtensionMs: 0
     }
@@ -296,24 +301,26 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     }
   },
   {
+    id: "main-window-rendered",
+    label: "Hauptfenster vollständig gerendert",
+    description: "Wartet auf den Renderer-Paint-Ack (doppeltes requestAnimationFrame) statt nur auf Electrons ready-to-show.",
+    dependencies: ["agents-roles-models"],
+    optional: false,
+    blocksWindowRelease: true,
+    timeouts: {
+      softTimeoutMs: 3_000,
+      hardTimeoutMs: 10_000,
+      pollIntervalMs: 500,
+      maxRetries: 2,
+      retryDelayMs: 500,
+      extendDeadlineOnProgress: false,
+      maxDeadlineExtensionMs: 0
+    }
+  },
+  {
     id: "main-app-released",
     label: "Hauptanwendung freigegeben",
-    dependencies: [
-      "desktop-process",
-      "local-config",
-      "filesystem-check",
-      "backend-process-started",
-      "backend-process-alive",
-      "backend-health-live",
-      "backend-ready",
-      "database-init",
-      "model-index",
-      "runtime-manager-init",
-      "frontend-bridge",
-      "frontend-config-sync",
-      "workspace-restore",
-      "agents-roles-models"
-    ],
+    dependencies: ["main-window-rendered"],
     optional: false,
     blocksWindowRelease: true,
     timeouts: {
