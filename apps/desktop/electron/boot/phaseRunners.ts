@@ -1,15 +1,15 @@
-import { constants as fsConstants } from "node:fs";
-import { access, mkdir } from "node:fs/promises";
 import type { BootReadinessComponent } from "@dbzs/shared";
 import type { BackendStartupService } from "../backendStartupService.js";
 import type { BackendReadinessProbe } from "./backendReadinessProbe.js";
 import type { PhaseRunner, PhaseRunnerResult } from "./bootOrchestrator.js";
+import { MIN_FREE_SPACE_BYTES, runFilesystemCheck, type FilesystemCheckInput } from "./filesystemCheck.js";
 import { waitForFrontendPhase } from "./frontendPhaseReporter.js";
 
 export interface PhaseRunnerDeps {
   backendStartup: BackendStartupService;
   probe: BackendReadinessProbe;
   userDataDir: string;
+  filesystemCheck: FilesystemCheckInput;
   /** Wraps the existing loadWorkspaceState() call (main.ts) as a tracked boot phase. */
   loadLocalConfig: () => Promise<void>;
   onBackendPid: (pid: number | null) => void;
@@ -119,9 +119,47 @@ export function createPhaseRunners(deps: PhaseRunnerDeps): Record<string, PhaseR
     },
 
     "filesystem-check": async () => {
-      await mkdir(deps.userDataDir, { recursive: true });
-      await access(deps.userDataDir, fsConstants.W_OK);
-      return { outcome: "success", message: `Schreibrechte bestätigt: ${deps.userDataDir}` };
+      const result = await runFilesystemCheck(deps.filesystemCheck);
+
+      if (!result.userDataWritable) {
+        const message = `Benutzerdatenverzeichnis nicht beschreibbar: ${deps.filesystemCheck.userDataDir}`;
+        return { outcome: "failed", message, error: { code: "userdata-not-writable", message }, metadata: { ...result } };
+      }
+      if (!result.databaseDirWritable) {
+        const message = `Datenbankverzeichnis nicht beschreibbar: ${deps.filesystemCheck.databaseDir}`;
+        return { outcome: "failed", message, error: { code: "database-dir-not-writable", message }, metadata: { ...result } };
+      }
+      if (!result.backendLaunchAvailable) {
+        const message = "Backend-Executable oder uv/python wurde nicht gefunden.";
+        return { outcome: "failed", message, error: { code: "backend-launch-unavailable", message }, metadata: { ...result } };
+      }
+      // Runtime-executable check is best-effort (see filesystemCheck.ts's
+      // docstring) -- only fails when we actually had candidates to check
+      // and none of them existed; runtime-manager-init is the real gate.
+      if (deps.filesystemCheck.runtimeExecutableCandidates.length > 0 && !result.runtimeExecutableAvailable) {
+        const message = "Runtime-Executable wurde an keinem der bekannten Pfade gefunden.";
+        return { outcome: "failed", message, error: { code: "runtime-executable-unavailable", message }, metadata: { ...result } };
+      }
+      if (result.freeSpaceBytes < MIN_FREE_SPACE_BYTES) {
+        const freeMb = Math.round(result.freeSpaceBytes / (1024 * 1024));
+        const message = `Zu wenig freier Speicherplatz (${freeMb} MB verfügbar, mindestens 500 MB erforderlich).`;
+        return { outcome: "failed", message, error: { code: "insufficient-disk-space", message }, metadata: { ...result } };
+      }
+
+      const unavailableModelRoots = result.modelRoots.filter((root) => !root.exists || !root.readable);
+      if (unavailableModelRoots.length > 0) {
+        const message = `Modellpfad(e) nicht verfügbar: ${unavailableModelRoots.map((root) => root.path).join(", ")}`;
+        return { outcome: "warning", message, metadata: { ...result } };
+      }
+      if (!result.logDirWritable) {
+        return {
+          outcome: "warning",
+          message: `Log-Verzeichnis nicht beschreibbar: ${deps.filesystemCheck.logDir}`,
+          metadata: { ...result }
+        };
+      }
+
+      return { outcome: "success", message: `Schreibrechte bestätigt: ${deps.filesystemCheck.userDataDir}`, metadata: { ...result } };
     },
 
     // Merges the former "backend-process-started" + "backend-process-alive"

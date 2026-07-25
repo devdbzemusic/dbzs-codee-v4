@@ -147,6 +147,24 @@ export function resolveDevBackendLaunch(
   };
 }
 
+/**
+ * Best-effort pre-flight check reused by the filesystem-check boot phase:
+ * does SOME concrete way to launch the backend actually exist on disk?
+ * Mirrors spawnBackendProcess()'s own resolution exactly, so this can never
+ * disagree with what will actually be attempted at spawn time.
+ */
+export function isBackendLaunchAvailable(
+  config: Pick<BackendStartupConfig, "isPackaged" | "resourcesPath" | "devBackendCwd">
+): boolean {
+  if (config.isPackaged) {
+    const bundleDir = path.join(config.resourcesPath, "backend", "dbzs-backend");
+    const exe = process.platform === "win32" ? path.join(bundleDir, "dbzs-backend.exe") : path.join(bundleDir, "dbzs-backend");
+    return pathExists(exe);
+  }
+  const launch = resolveDevBackendLaunch(config.devBackendCwd, 0);
+  return pathExists(launch.executable);
+}
+
 export function formatBackendStartupError(error: unknown): string {
   if (error instanceof Error) {
     const code = "code" in error ? String((error as NodeJS.ErrnoException).code ?? "") : "";
