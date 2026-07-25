@@ -184,27 +184,45 @@ export class BootOrchestrator {
 
   // --- scheduling ---
 
+  /**
+   * Exactly zero or one boot phase may be active at any point in time
+   * (spec §5) -- earlier versions started every currently-runnable phase
+   * concurrently, which both violated the "strictly sequential" boot
+   * requirement and made currentPhaseId ambiguous when several phases
+   * started in the same pump() call.
+   */
   private pump(): void {
     this.applyBlocking();
 
-    const runnable = this.state.phases.filter(
-      (phase) => phase.state === "pending" && !this.active.has(phase.id) && this.dependenciesSatisfied(phase)
-    );
+    if (this.active.size > 0) {
+      this.publish();
+      return;
+    }
 
-    for (const phase of runnable) {
-      const promise = this.executePhase(phase.id).finally(() => {
-        this.active.delete(phase.id);
+    const next = this.findNextRunnablePhase();
+
+    if (next) {
+      const promise = this.executePhase(next.id).finally(() => {
+        this.active.delete(next.id);
         this.pump();
       });
-      this.active.set(phase.id, promise);
+      this.active.set(next.id, promise);
+      this.publish();
+      return;
     }
 
     this.publish();
 
-    if (this.active.size === 0 && this.isFullyTerminal()) {
+    if (this.isFullyTerminal()) {
       this.resolveRun?.();
       this.resolveRun = null;
     }
+  }
+
+  private findNextRunnablePhase(): BootPhase | undefined {
+    return this.state.phases.find(
+      (phase) => phase.state === "pending" && !this.active.has(phase.id) && this.dependenciesSatisfied(phase)
+    );
   }
 
   private dependenciesSatisfied(phase: BootPhase): boolean {

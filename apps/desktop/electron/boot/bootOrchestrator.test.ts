@@ -225,4 +225,33 @@ describe("BootOrchestrator", () => {
 
     expect(snapshots).toContain("success");
   });
+
+  it("never runs more than one phase concurrently, even when several phases are independently runnable", async () => {
+    // "a", "b", and "c" share no dependencies, so a scheduler that starts
+    // every runnable phase at once (the pre-repair behavior) would run all
+    // three concurrently here.
+    let active = 0;
+    let maxObservedConcurrentPhases = 0;
+    const makeRunner = (): PhaseRunner => async () => {
+      active += 1;
+      maxObservedConcurrentPhases = Math.max(maxObservedConcurrentPhases, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active -= 1;
+      return ok();
+    };
+
+    const phases = [def({ id: "a" }), def({ id: "b" }), def({ id: "c" }), def({ id: "release", dependencies: ["a", "b", "c"] })];
+    const orchestrator = new BootOrchestrator(phases, {
+      a: makeRunner(),
+      b: makeRunner(),
+      c: makeRunner(),
+      release: async () => ok()
+    });
+    const runPromise = orchestrator.run();
+    await vi.runAllTimersAsync();
+    const finalState = await runPromise;
+
+    expect(maxObservedConcurrentPhases).toBe(1);
+    expect(finalState.phases.every((p) => p.state === "success")).toBe(true);
+  });
 });
