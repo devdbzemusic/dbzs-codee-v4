@@ -153,10 +153,21 @@ export interface BackendHealth {
 
 export type BackendStartupState = "idle" | "starting" | "ready" | "failed" | "stopped";
 
+/**
+ * "spawned-by-desktop": this process instance was launched by the current
+ * Electron session and may be stopped by it. "preexisting-local": a backend
+ * was already listening on the configured port before this session tried to
+ * spawn one -- it must never be killed by this instance. "unknown": ownership
+ * hasn't been determined yet (e.g. before the first ensureStarted() call).
+ */
+export type BackendProcessOwnership = "spawned-by-desktop" | "preexisting-local" | "unknown";
+
 export interface BackendStartupStatus {
   state: BackendStartupState;
   message: string | null;
   port: number;
+  ownership: BackendProcessOwnership;
+  instanceId: string | null;
 }
 
 export interface AppInfo {

@@ -26,12 +26,17 @@ def get_health_live() -> dict[str, object]:
     """Process is up and can accept HTTP requests. No DB/service access,
     no boot-state read — must answer within milliseconds even while startup
     tasks are still running, so the desktop boot orchestrator can treat this
-    as the "backend process is alive" signal, independent of readiness."""
+    as the "backend process is alive" signal, independent of readiness.
+
+    Echoes back DBZS_BOOT_NONCE (set by the desktop process only when IT
+    spawned this backend) so the caller can tell "the process I spawned" apart
+    from "some other backend happens to be listening on this port"."""
     return {
         "status": "ok",
         "pid": os.getpid(),
         "uptimeMs": int((time.time() - _process_start_time) * 1000),
         "instanceId": get_boot_state_store().instance_id,
+        "bootNonce": os.environ.get("DBZS_BOOT_NONCE"),
     }
 
 

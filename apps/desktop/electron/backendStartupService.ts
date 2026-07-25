@@ -1,9 +1,17 @@
+import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
-import type { BackendStartupState, BackendStartupStatus } from "@dbzs/shared";
+import type { BackendProcessOwnership, BackendStartupState, BackendStartupStatus } from "@dbzs/shared";
 
-export type { BackendStartupState, BackendStartupStatus };
+export type { BackendProcessOwnership, BackendStartupState, BackendStartupStatus };
+
+export interface BackendIdentityProbeResult {
+  pid: number | null;
+  instanceId: string | null;
+  bootNonce: string | null;
+  appName: string | null;
+}
 
 export interface BackendStartupConfig {
   port: number;
@@ -11,6 +19,8 @@ export interface BackendStartupConfig {
   resourcesPath: string;
   devBackendCwd: string;
   healthCheck?: (backendUrl: string) => Promise<boolean>;
+  /** Reads GET /health/live's body (pid/instanceId/bootNonce) to determine process ownership. */
+  identityProbe?: (backendUrl: string) => Promise<BackendIdentityProbeResult | null>;
   spawnFn?: typeof spawn;
   waitIntervalMs?: number;
   log?: (line: string) => void;
@@ -151,10 +161,48 @@ export function formatBackendStartupError(error: unknown): string {
 
 export async function defaultBackendHealthCheck(backendUrl: string): Promise<boolean> {
   try {
-    const response = await fetch(`${backendUrl}/health`);
+    const response = await fetch(`${backendUrl}/health/live`);
     return response.ok;
   } catch {
     return false;
+  }
+}
+
+/** The DBZS backend's own /health identity string (backend/app/core/config.py's APP_NAME). */
+export const EXPECTED_BACKEND_APP_NAME = "DBZS Code Assistant";
+
+/**
+ * Reads GET /health/live's body to determine whether a listening process is
+ * ours, plus a best-effort GET /health app-name check -- an already-running
+ * process on the configured port must be verified by more than "HTTP 200
+ * happened to come back", or a coincidentally-listening unrelated service
+ * could be mistaken for a pre-existing DBZS backend.
+ */
+export async function defaultBackendIdentityProbe(backendUrl: string): Promise<BackendIdentityProbeResult | null> {
+  try {
+    const response = await fetch(`${backendUrl}/health/live`);
+    if (!response.ok) return null;
+    const body = (await response.json()) as { pid?: number; instanceId?: string; bootNonce?: string };
+
+    let appName: string | null = null;
+    try {
+      const healthResponse = await fetch(`${backendUrl}/health`);
+      if (healthResponse.ok) {
+        const healthBody = (await healthResponse.json()) as { app?: string };
+        appName = typeof healthBody.app === "string" ? healthBody.app : null;
+      }
+    } catch {
+      // App-identity confirmation is best-effort; liveness alone still counts.
+    }
+
+    return {
+      pid: typeof body.pid === "number" ? body.pid : null,
+      instanceId: typeof body.instanceId === "string" ? body.instanceId : null,
+      bootNonce: typeof body.bootNonce === "string" ? body.bootNonce : null,
+      appName
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -167,14 +215,19 @@ export class BackendStartupService {
   private status: BackendStartupStatus;
   private spawnError: Error | null = null;
   private earlyExitMessage: string | null = null;
+  private ownership: BackendProcessOwnership = "unknown";
+  /** Generated once per desktop session; only a process we spawn ourselves gets this in its env. */
+  private readonly bootNonce = randomUUID();
   private readonly listeners = new Set<(status: BackendStartupStatus) => void>();
   private readonly healthCheck: (backendUrl: string) => Promise<boolean>;
+  private readonly identityProbe: (backendUrl: string) => Promise<BackendIdentityProbeResult | null>;
   private readonly spawnFn: typeof spawn;
   private readonly log: (line: string) => void;
 
   constructor(private readonly config: BackendStartupConfig) {
-    this.status = { state: "idle", message: null, port: config.port };
+    this.status = { state: "idle", message: null, port: config.port, ownership: "unknown", instanceId: null };
     this.healthCheck = config.healthCheck ?? defaultBackendHealthCheck;
+    this.identityProbe = config.identityProbe ?? defaultBackendIdentityProbe;
     this.spawnFn = config.spawnFn ?? spawn;
     this.log = config.log ?? ((line) => console.error(line));
   }
@@ -200,7 +253,7 @@ export class BackendStartupService {
   }
 
   private publishStatus(state: BackendStartupState, message: string | null = this.status.message): void {
-    this.status = { state, message, port: this.config.port };
+    this.status = { state, message, port: this.config.port, ownership: this.ownership, instanceId: this.status.instanceId };
     const snapshot = this.getStatus();
     for (const listener of this.listeners) {
       listener(snapshot);
@@ -212,6 +265,33 @@ export class BackendStartupService {
     const timeoutMs = options?.timeoutMs ?? 30_000;
 
     if (await this.healthCheck(this.backendUrl)) {
+      // Something already answers on this port. Determine (or reconfirm)
+      // ownership via the richer identity probe before declaring "ready" --
+      // a bare HTTP 200 alone must never be enough to trust a process we
+      // didn't spawn ourselves.
+      const identity = await this.identityProbe(this.backendUrl);
+      if (identity) {
+        if (this.ownership === "spawned-by-desktop" && identity.bootNonce !== null && identity.bootNonce !== this.bootNonce) {
+          // Something else is now listening on our port instead of the
+          // process we spawned -- never assume it's safe to treat as ready.
+          this.publishStatus(
+            "failed",
+            "Backend-Instanz stimmt nicht überein (unerwarteter Prozess auf diesem Port)."
+          );
+          return this.getStatus();
+        }
+        if (this.ownership !== "spawned-by-desktop") {
+          if (identity.appName !== null && identity.appName !== EXPECTED_BACKEND_APP_NAME) {
+            this.publishStatus(
+              "failed",
+              `Auf Port ${this.config.port} läuft ein anderer Dienst (${identity.appName}), nicht das DBZS-Backend.`
+            );
+            return this.getStatus();
+          }
+          this.ownership = "preexisting-local";
+        }
+        this.status.instanceId = identity.instanceId;
+      }
       this.publishStatus("ready", null);
       return this.getStatus();
     }
@@ -222,6 +302,7 @@ export class BackendStartupService {
 
     this.spawnError = null;
     this.earlyExitMessage = null;
+    this.ownership = "spawned-by-desktop";
     this.publishStatus("starting", null);
 
     try {
@@ -241,7 +322,13 @@ export class BackendStartupService {
     return this.getStatus();
   }
 
+  /** An already-running external backend (ownership "preexisting-local") must never be terminated by us. */
   stop(): void {
+    if (this.ownership !== "spawned-by-desktop") {
+      this.process = null;
+      this.publishStatus("stopped", null);
+      return;
+    }
     if (this.process && !this.process.killed) {
       this.process.kill();
     }
@@ -265,6 +352,17 @@ export class BackendStartupService {
       }
 
       if (await this.healthCheck(this.backendUrl)) {
+        if (this.ownership === "spawned-by-desktop") {
+          const identity = await this.identityProbe(this.backendUrl);
+          if (identity && identity.bootNonce !== null && identity.bootNonce !== this.bootNonce) {
+            this.publishStatus(
+              "failed",
+              "Backend-Instanz stimmt nicht überein (unerwarteter Prozess auf diesem Port)."
+            );
+            return this.getStatus();
+          }
+          if (identity) this.status.instanceId = identity.instanceId;
+        }
         this.publishStatus("ready", null);
         return this.getStatus();
       }
@@ -291,6 +389,7 @@ export class BackendStartupService {
         env: {
           ...process.env,
           DBZS_BACKEND_PORT: String(this.config.port),
+          DBZS_BOOT_NONCE: this.bootNonce,
           PYTHONUNBUFFERED: "1"
         },
         windowsHide: true
@@ -303,6 +402,7 @@ export class BackendStartupService {
       cwd: this.config.devBackendCwd,
       env: {
         ...process.env,
+        DBZS_BOOT_NONCE: this.bootNonce,
         PYTHONUNBUFFERED: "1"
       },
       windowsHide: true,
