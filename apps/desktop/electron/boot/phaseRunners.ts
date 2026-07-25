@@ -155,33 +155,38 @@ export function createPhaseRunners(deps: PhaseRunnerDeps): Record<string, PhaseR
     },
 
     "backend-ready": async (ctx) => {
-      const readiness = await deps.probe.probeReady(ctx.signal);
-      if (!readiness || typeof readiness.status !== "string") {
+      // Checks that the readiness subsystem itself is reachable and
+      // structurally valid -- NOT the terminal GET /health/ready gate (that
+      // endpoint stays 503 until database/modelRegistry/runtimeManager all
+      // succeed, which happens much later than this early phase in the
+      // current dependency order).
+      const startup = await deps.probe.probeStartup(ctx.signal);
+      if (!startup || typeof startup.status !== "string") {
         return { outcome: "pending", message: "Backend-Readiness-Endpunkt noch nicht bereit.", pollAfterMs: 500 };
       }
       return { outcome: "success", message: "Backend-Readiness-Subsystem bereit." };
     },
 
     "database-init": async (ctx) => {
-      const readiness = await deps.probe.probeReady(ctx.signal);
-      return componentResult(readiness?.components.database, ctx.reportProgress, "Datenbank bereit.");
+      const startup = await deps.probe.probeStartup(ctx.signal);
+      return componentResult(startup?.components.database, ctx.reportProgress, "Datenbank bereit.");
     },
 
     "model-index": async (ctx) => {
-      const readiness = await deps.probe.probeReady(ctx.signal);
-      const component = readiness?.components.modelRegistry;
+      const startup = await deps.probe.probeStartup(ctx.signal);
+      const component = startup?.components.modelRegistry;
       if (component?.total != null) deps.onDetectedModelCount(component.total);
       return componentResult(component, ctx.reportProgress, "Modellkatalog geladen.");
     },
 
     "runtime-manager-init": async (ctx) => {
-      const readiness = await deps.probe.probeReady(ctx.signal);
-      return componentResult(readiness?.components.runtimeManager, ctx.reportProgress, "Runtime Manager bereit.");
+      const startup = await deps.probe.probeStartup(ctx.signal);
+      return componentResult(startup?.components.runtimeManager, ctx.reportProgress, "Runtime Manager bereit.");
     },
 
     "resident-model": async (ctx) => {
-      const readiness = await deps.probe.probeReady(ctx.signal);
-      const component = readiness?.components.residentModel;
+      const startup = await deps.probe.probeStartup(ctx.signal);
+      const component = startup?.components.residentModel;
       if (component?.state === "success" && component.message) {
         deps.onResidentModelId(component.message);
       }

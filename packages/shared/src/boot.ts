@@ -143,16 +143,33 @@ export interface BootReadinessComponent {
   data?: Record<string, unknown>;
 }
 
-export interface BootReadinessResponse {
+/** GET /health/startup's response shape: always 200, full per-component detail. */
+export interface BootStartupResponse {
   status: BootRunStatus;
   ready: boolean;
   progress: number;
+  instanceId: string;
   components: {
     database: BootReadinessComponent;
     modelRegistry: BootReadinessComponent;
     runtimeManager: BootReadinessComponent;
     residentModel: BootReadinessComponent;
   };
+}
+
+/**
+ * GET /health/ready's response shape: 503 while not ready (reduced body,
+ * only status/ready/instanceId), 200 once ready (adds the required/optional
+ * component-state breakdown). Deliberately has no per-component progress or
+ * message detail -- that's /health/startup's job; this endpoint only
+ * answers the terminal yes/no question.
+ */
+export interface BootReadyResponse {
+  status: BootRunStatus;
+  ready: boolean;
+  instanceId: string;
+  requiredComponents?: Record<string, BootPhaseState>;
+  optionalComponents?: Record<string, BootPhaseState>;
 }
 
 export interface BootDiagnosticExport {
@@ -174,5 +191,5 @@ export interface BootDiagnosticExport {
   retryAttempts: Record<string, number>;
   exitCodes: Record<string, number | null>;
   stderr: Record<string, string>;
-  readinessResponses: BootReadinessResponse[];
+  readinessResponses: BootStartupResponse[];
 }

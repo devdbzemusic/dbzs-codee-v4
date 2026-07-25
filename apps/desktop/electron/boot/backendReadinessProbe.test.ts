@@ -21,18 +21,44 @@ describe("BackendReadinessProbe", () => {
     expect(fetchFn).toHaveBeenCalledWith("http://127.0.0.1:8876/health/live", { signal: undefined });
   });
 
-  it("probeReady returns null on a non-ok response instead of throwing", async () => {
+  it("probeStartup returns null on a non-ok response instead of throwing", async () => {
     const fetchFn = vi.fn().mockResolvedValue(jsonResponse({}, false));
+    const probe = new BackendReadinessProbe("http://127.0.0.1:8876", fetchFn);
+    const result = await probe.probeStartup();
+    expect(result).toBeNull();
+  });
+
+  it("probeStartup returns the parsed per-component startup payload", async () => {
+    const payload = { status: "starting", ready: false, progress: 50, instanceId: "abc", components: {} };
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse(payload));
+    const probe = new BackendReadinessProbe("http://127.0.0.1:8876", fetchFn);
+    const result = await probe.probeStartup();
+    expect(result).toEqual(payload);
+    expect(fetchFn).toHaveBeenCalledWith("http://127.0.0.1:8876/health/startup", { signal: undefined });
+  });
+
+  it("probeReady returns null on a 503 'not ready' response instead of throwing", async () => {
+    // GET /health/ready answers 503 while not ready -- fetch's `.ok` is
+    // false for any non-2xx status, so this is indistinguishable here from
+    // an unreachable backend, which is the correct behavior for a poller.
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ status: "starting", ready: false, instanceId: "abc" }, false));
     const probe = new BackendReadinessProbe("http://127.0.0.1:8876", fetchFn);
     const result = await probe.probeReady();
     expect(result).toBeNull();
   });
 
-  it("probeReady returns the parsed readiness payload", async () => {
-    const payload = { status: "starting", ready: false, progress: 50, components: {} };
+  it("probeReady returns the reduced terminal readiness payload once ready", async () => {
+    const payload = {
+      status: "ready",
+      ready: true,
+      instanceId: "abc",
+      requiredComponents: { database: "success", modelRegistry: "success", runtimeManager: "success" },
+      optionalComponents: { residentModel: "success" }
+    };
     const fetchFn = vi.fn().mockResolvedValue(jsonResponse(payload));
     const probe = new BackendReadinessProbe("http://127.0.0.1:8876", fetchFn);
     const result = await probe.probeReady();
     expect(result).toEqual(payload);
+    expect(fetchFn).toHaveBeenCalledWith("http://127.0.0.1:8876/health/ready", { signal: undefined });
   });
 });
