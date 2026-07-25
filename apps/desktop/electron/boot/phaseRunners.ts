@@ -1,4 +1,4 @@
-import type { BootReadinessComponent } from "@dbzs/shared";
+import { ResidentModelDataSchema, type BootReadinessComponent } from "@dbzs/shared";
 import type { BackendStartupService } from "../backendStartupService.js";
 import type { BackendReadinessProbe } from "./backendReadinessProbe.js";
 import type { PhaseRunner, PhaseRunnerResult } from "./bootOrchestrator.js";
@@ -219,8 +219,14 @@ export function createPhaseRunners(deps: PhaseRunnerDeps): Record<string, PhaseR
     "resident-model": async (ctx) => {
       const startup = await deps.probe.probeStartup(ctx.signal);
       const component = startup?.components.residentModel;
-      if (component?.state === "success" && component.message) {
-        deps.onResidentModelId(component.message);
+      // Structured id extraction only -- never parsed out of the free-text
+      // message. A successful fallback (outcome "warning") also carries a
+      // real modelId, so this checks for the data shape, not just "success".
+      if (component?.data) {
+        const parsed = ResidentModelDataSchema.safeParse(component.data);
+        if (parsed.success) {
+          deps.onResidentModelId(parsed.data.modelId);
+        }
       }
       return componentResult(component, ctx.reportProgress, "Residentes Modell bereit.");
     },

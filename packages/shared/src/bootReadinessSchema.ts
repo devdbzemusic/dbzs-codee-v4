@@ -59,6 +59,20 @@ export const BootReadyResponseSchema = z.object({
   optionalComponents: z.record(BootComponentStateSchema).optional()
 });
 
+/**
+ * Structured resident-model identity (repair spec §15) -- read from a
+ * component's `data` field via safeParse, never regex-extracted from its
+ * free-text `message`.
+ */
+export const ResidentModelDataSchema = z.object({
+  modelId: z.string(),
+  modelName: z.string().nullable().optional(),
+  slotId: z.string().nullable().optional(),
+  provider: z.string().nullable().optional(),
+  pid: z.number().nullable().optional(),
+  port: z.number().nullable().optional()
+});
+
 export class BootProtocolError extends Error {
   constructor(message: string, public readonly detail: string) {
     super(`${message}: ${detail}`);
