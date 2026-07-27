@@ -1,0 +1,34 @@
+schemaVersion: "1.0"
+id: code-review
+kind: skill
+name: Code Review
+version: 1.0.0
+description: Risiken, Regressionen und fehlende Tests in Codeänderungen prüfen
+mode: review
+targetAgents: [reviewer]
+activation:
+  intents: [code_review, repository_review]
+  keywords: [review, codereview, regression]
+  explicitOnly: false
+  autoSuggest: true
+preconditions:
+  - { id: workspace, description: Aktiver Workspace, required: true, evaluator: has_active_workspace }
+effects: [review_findings]
+domains: [software-development]
+cost: low
+latency: normal
+riskLevel: low
+sideEffects: []
+idempotent: true
+permissions:
+  allowedTools: [list_files, read_file, search_workspace, grep, get_git_diff, ask_user, write_skill_artifact]
+  requiredTools: [read_file]
+  mayReadFiles: true
+  mayWriteFiles: false
+  mayRunCommands: false
+  mayInstallDependencies: false
+  mayUseNetwork: false
+compatibility: { requires: [], conflictsWith: [], composesWith: [], enables: [] }
+successSignals: [{ id: findings_prioritized, description: Findings sind nach Risiko priorisiert, required: true }]
+failureSignals: [{ id: missing_evidence, description: Findings ohne Dateievidenz }]
+observability: { logs: [review completed], metrics: [finding_count] }

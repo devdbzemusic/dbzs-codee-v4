@@ -519,6 +519,11 @@ export interface RuntimeWarmupDiagnostics {
   tokenCount: number;
   finishReason?: string;
   readinessStage?: RuntimeReadinessStage;
+  streamMode?: boolean;
+  toolCallDetected?: boolean;
+  /** First 8 KB of the raw HTTP response — only set on warmup_empty_response. */
+  rawResponsePreview?: string;
+  stderrTail?: string;
 }
 
 export type DroppedContextReason =
@@ -2047,7 +2052,8 @@ export type RuntimeChatEventType =
   | "chat.failed"
   | "chat.completed"
   | "chat.question_asked"
-  | "chat.answer_received";
+  | "chat.answer_received"
+  | "runtime.fallback.initiated";
 
 export interface RuntimeChatEvent {
   id: string;
@@ -2113,6 +2119,13 @@ export interface RuntimeChatError {
   requestId?: string;
 }
 
+/** Why an automatic fallback onto an already-resident model was rejected. */
+export interface FallbackRejectionInfo {
+  modelId: string;
+  modelName: string;
+  reason: string;
+}
+
 export interface RuntimeChatRun {
   id: string;
   userMessageId: string;
@@ -2127,11 +2140,15 @@ export interface RuntimeChatRun {
   /** Target runtime slot for this run. */
   slotId?: string;
   endpoint?: string;
+  /** Task classification for this run (coding, chat, debug, ...), when known. */
+  taskType?: string;
 
   /** Binding / diagnostics (optional; historical runs may omit). */
   configuredModelId?: string;
   selectionSource?: string;
   fallbackReason?: string;
+  /** Set when an automatic resident-model fallback was considered but rejected as incompatible. */
+  fallbackRejection?: FallbackRejectionInfo;
   settingsRevision?: number;
   warmupStatus?: "pending" | "ready" | "failed" | "skipped";
   workflowLabel?: string;

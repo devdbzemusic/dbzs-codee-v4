@@ -1,0 +1,50 @@
+
+This file lists modules PyInstaller was not able to find. This does not
+necessarily mean these modules are required for running your program. Both
+Python's standard library and 3rd-party Python packages often conditionally
+import optional modules, some of which may be available only on certain
+platforms.
+
+Types of import:
+* top-level: imported at the top-level - look at these first
+* conditional: imported within an if-statement
+* delayed: imported within a function
+* optional: imported within a try-except-statement
+
+IMPORTANT: Do NOT post this list to the issue-tracker. Use it as a basis for
+            tracking down the missing module yourself. Thanks!
+
+missing module named pwd - imported by posixpath (delayed, conditional, optional), shutil (delayed, optional), tarfile (optional), pathlib (optional), netrc (delayed, optional), subprocess (delayed, conditional, optional)
+missing module named grp - imported by shutil (delayed, optional), tarfile (optional), pathlib (optional), subprocess (delayed, conditional, optional)
+missing module named 'collections.abc' - imported by _colorize (top-level), typing (top-level), traceback (top-level), logging (top-level), selectors (top-level), http.client (top-level), importlib.resources.readers (top-level), inspect (top-level), tracemalloc (top-level), sqlite3.dbapi2 (top-level), app.core.sqlite (top-level), asyncio.base_events (top-level), multiprocessing.managers (top-level), asyncio.coroutines (top-level), app.runtime.chat_stream (top-level), app.runtime.process_cleanup (top-level)
+missing module named _posixsubprocess - imported by subprocess (conditional), multiprocessing.util (delayed)
+missing module named fcntl - imported by pathlib._os (optional), subprocess (optional)
+missing module named _frozen_importlib_external - imported by importlib._bootstrap (delayed), importlib (optional), importlib.abc (optional), zipimport (top-level)
+excluded module named _frozen_importlib - imported by importlib (optional), importlib.abc (optional), zipimport (top-level)
+missing module named _scproxy - imported by urllib.request (conditional)
+missing module named posix - imported by posixpath (optional), shutil (conditional), importlib._bootstrap_external (conditional), pathlib._os (optional), os (conditional, optional)
+missing module named resource - imported by posix (top-level)
+missing module named _posixshmem - imported by multiprocessing.resource_tracker (conditional), multiprocessing.shared_memory (conditional)
+missing module named multiprocessing.BufferTooShort - imported by multiprocessing (top-level), multiprocessing.connection (top-level)
+missing module named multiprocessing.AuthenticationError - imported by multiprocessing (top-level), multiprocessing.forkserver (top-level), multiprocessing.connection (top-level)
+missing module named multiprocessing.get_context - imported by multiprocessing (top-level), multiprocessing.pool (top-level), multiprocessing.managers (top-level), multiprocessing.sharedctypes (top-level)
+missing module named multiprocessing.TimeoutError - imported by multiprocessing (top-level), multiprocessing.pool (top-level)
+missing module named multiprocessing.set_start_method - imported by multiprocessing (top-level), multiprocessing.spawn (top-level)
+missing module named multiprocessing.get_start_method - imported by multiprocessing (top-level), multiprocessing.spawn (top-level)
+missing module named pyimod02_importers - imported by C:\Users\ralle\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\PyInstaller\hooks\rthooks\pyi_rth_pkgutil.py (delayed)
+missing module named vms_lib - imported by platform (delayed, optional)
+missing module named 'java.lang' - imported by platform (delayed, optional)
+missing module named java - imported by platform (delayed)
+missing module named readline - imported by code (delayed, conditional, optional), sqlite3.__main__ (delayed, conditional, optional)
+missing module named pydantic - imported by app.agents.models (top-level), app.agent_runner.models (top-level), app.context_pack.models (top-level), app.rag.models (top-level), app.job_spooler.models (top-level), app.orchestration.models (top-level), app.settings.models (top-level), app.runtime.schemas (top-level), app.models.schemas (top-level), app.runtime.doctor (top-level), app.context.models (top-level), app.docs_analysis.models (top-level), app.api.model_profiles (top-level), app.models.profiles (top-level), app.context.certification (top-level), app.models.download_router (top-level), app.project_memory.models (top-level), app.task_board.models (top-level), app.agent_workbench.router (top-level), app.trajectories.router (top-level)
+missing module named fastapi - imported by app.main (top-level), app.api.agents (top-level), app.api.agent_runner (top-level), app.api.runtime (top-level), app.api.context_pack (top-level), app.api.context (top-level), app.api.docs_analysis (top-level), app.api.health (top-level), app.api.health_dashboard (top-level), app.api.job_spooler (top-level), app.api.models (top-level), app.api.model_profiles (top-level), app.api.orchestration (top-level), app.models.download_router (top-level), app.job_spooler.sse_router (top-level), app.api.project_memory (top-level), app.api.settings (top-level), app.api.task_board (top-level), app.review_gates.router (top-level), app.agent_workbench.router (top-level), app.agent_workbench.event_stream (top-level), app.trajectories.router (top-level), app.rag.router (top-level)
+missing module named 'google.antigravity' - imported by app.antigravity.service (optional)
+missing module named google - imported by app.antigravity.service (optional)
+missing module named psutil - imported by app.runtime.service (optional), app.runtime.hardware_fingerprint (optional), app.api.health_dashboard (delayed, optional), app.runtime.multi_server_manager (optional), app.runtime.process_cleanup (optional)
+missing module named openai - imported by app.runtime.cloud_client (delayed)
+missing module named anthropic - imported by app.runtime.cloud_client (delayed)
+missing module named 'app.config' - imported by app.agent_loop.autonomous_controller (delayed), app.core.audit (delayed), app.core.metrics (delayed), app.runtime.anthropic_client (delayed)
+missing module named huggingface_hub - imported by app.models.download_service (delayed, optional)
+missing module named 'fastapi.responses' - imported by app.api.runtime (top-level), app.api.health_dashboard (top-level), app.job_spooler.sse_router (top-level), app.agent_workbench.event_stream (top-level)
+missing module named 'fastapi.middleware' - imported by app.main (top-level)
+missing module named uvicorn - imported by C:\Users\ralle\source\repos\dbzs-codee-project\backend\run.py (top-level)

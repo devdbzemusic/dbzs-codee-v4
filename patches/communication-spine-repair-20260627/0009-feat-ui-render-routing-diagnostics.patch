@@ -1,0 +1,69 @@
+From 659529a5cca13d982b758a132bdd01efeef83faf Mon Sep 17 00:00:00 2001
+From: Ralf <dbz.emusic@gmail.com>
+Date: Sat, 27 Jun 2026 02:11:31 +0200
+Subject: [PATCH 09/12] feat(ui): render routing diagnostics
+
+- Import RoutingDiagnosticsCard component
+- Add routingDiagnostics: RoutingDiagnostics | null to state
+- Populate from broker decision, slot validation status, and errors
+- Render diagnostics card when diagnostics button clicked
+- Display task type, agent, slot, model, and validation status
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ .../desktop/src/components/RuntimeChatTab.tsx | 32 +++++++++++++++++++
+ 1 file changed, 32 insertions(+)
+
+diff --git a/apps/desktop/src/components/RuntimeChatTab.tsx b/apps/desktop/src/components/RuntimeChatTab.tsx
+index dcb493c..b3ed48f 100644
+--- a/apps/desktop/src/components/RuntimeChatTab.tsx
++++ b/apps/desktop/src/components/RuntimeChatTab.tsx
+@@ -20,6 +20,8 @@ import { useEditorStore } from "@/stores/editorStore";
+ import { MessageMarkdown } from "@/components/chat/MessageMarkdown";
+ import { CodeeRunLiveBlock } from "@/components/chat/CodeeRunLiveBlock";
+ import { codeIndexService } from "@/services/codeIndexService";
++import { RoutingDiagnosticsCard } from "@/components/RoutingDiagnosticsCard";
++import type { RoutingDiagnostics } from "@/types/runtimeRoutingDiagnostics";
+ 
+ interface RuntimeChatTabProps {
+   activeFile: WorkspaceFile | null;
+@@ -306,6 +308,36 @@ export function RuntimeChatTab({
+ 
+         {showDiagnostics && !compact ? (
+           <div className="border-b border-dbzs-border">
++            {lastRouting ? (
++              <RoutingDiagnosticsCard
++                diagnostics={{
++                  decision: lastRouting ? {
++                    decidedAt: new Date().toISOString(),
++                    taskType: "unknown",
++                    targetAgent: lastRouting.targetAgent,
++                    slotId: lastRouting.slotId || "unknown",
++                    modelId: lastRouting.modelId,
++                    modelName: lastRouting.modelName,
++                    reason: `Provider: ${lastRouting.providerId || "runtime"}`
++                  } : null,
++                  validation: {
++                    slotReady: status?.state === "running" && !!status?.endpoint,
++                    slotMessage: status?.state === "running" ? "Ready" : "Not running",
++                    memoryAvailable: true,
++                    memoryMessage: "Available",
++                    canStart: status?.state === "running"
++                  },
++                  errorClassification: error ? {
++                    errorType: "chat_error",
++                    errorMessage: error,
++                    retryable: false,
++                    retryCount: 0
++                  } : undefined
++                }}
++              />
++            ) : (
++              <div className="p-2 text-[10px] text-dbzs-muted">No routing decision yet</div>
++            )}
+             <RuntimeModelTestPanel runtimeReady={runtimeReady} />
+           </div>
+         ) : null}
+-- 
+2.53.0.windows.3
+

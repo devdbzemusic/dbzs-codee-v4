@@ -1,0 +1,115 @@
+From 697be38afc927636cc24a55f8e70cacf908ac1ca Mon Sep 17 00:00:00 2001
+From: Ralf <dbz.emusic@gmail.com>
+Date: Sat, 27 Jun 2026 02:10:37 +0200
+Subject: [PATCH 04/12] fix(routing): remove legacy router from dispatch
+
+- Remove modelRouterService.selectModelForAgent() calls
+- Simplify sendChat() to accept pre-routed RuntimeChatRequest
+- Simplify sendChatStream() to use broker decision directly
+- Use request.model_id and request.slot_id from frontend
+- Eliminate redundant routing in dispatch path
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ apps/desktop/src/services/agentRunService.ts | 78 ++------------------
+ 1 file changed, 7 insertions(+), 71 deletions(-)
+
+diff --git a/apps/desktop/src/services/agentRunService.ts b/apps/desktop/src/services/agentRunService.ts
+index 2e214d2..6712de9 100644
+--- a/apps/desktop/src/services/agentRunService.ts
++++ b/apps/desktop/src/services/agentRunService.ts
+@@ -42,84 +42,20 @@ class AgentRunService {
+     };
+   }
+ 
+-  async sendChat(agent: ModelTargetAgent, request: RuntimeChatRequest): Promise<RuntimeChatResponse> {
+-    const settings = useSettingsStore.getState().settings;
+-
+-    const runtimeStatus = useRuntimeStore.getState().status;
+-    const isLocalRunning = runtimeStatus && runtimeStatus.state === "running";
+-    const shouldAwaitRefresh = modelRegistryService.listAvailableModels().length === 0 && !isLocalRunning;
+-
+-    if (shouldAwaitRefresh) {
+-      await modelRegistryService.refreshModels(settings);
+-    } else {
+-      void modelRegistryService.refreshModels(settings);
+-    }
+-    const selected = modelRouterService.selectModelForAgent(agent, settings) ?? modelRouterService.fallbackModel(settings);
+-
+-    if (!selected) {
+-      return backendClient.sendRuntimeChat(request);
+-    }
+-
+-    const provider = modelRegistryService.getProvider(selected.providerId);
+-    if (!provider) {
+-      return backendClient.sendRuntimeChat(request);
+-    }
+-
+-    return provider.sendChat(settings, selected.id, request);
++  async sendChat(request: RuntimeChatRequest, signal?: AbortSignal): Promise<RuntimeChatResponse> {
++    // Use model_id from request (set by broker decision in store)
++    // No legacy routing logic - rely on broker decision
++    return backendClient.sendRuntimeChat(request);
+   }
+ 
+   async sendChatStream(
+-    agent: ModelTargetAgent,
+     request: RuntimeChatRequest,
+     callbacks: import("@/services/runtimeChatStreamClient").RuntimeChatStreamCallbacks,
+     signal?: AbortSignal
+   ): Promise<RuntimeChatResponse> {
+-    const settings = useSettingsStore.getState().settings;
+-
+-    const runtimeStatus = useRuntimeStore.getState().status;
+-    const isLocalRunning = runtimeStatus && runtimeStatus.state === "running";
+-    const shouldAwaitRefresh = modelRegistryService.listAvailableModels().length === 0 && !isLocalRunning;
+-
+-    if (shouldAwaitRefresh) {
+-      await modelRegistryService.refreshModels(settings);
+-    } else {
+-      void modelRegistryService.refreshModels(settings);
+-    }
+-
+-    const selected =
+-      modelRouterService.selectModelForAgent(agent, settings) ?? modelRouterService.fallbackModel(settings);
+-
+-    if (!selected) {
+-      return streamRuntimeChat(request, callbacks);
+-    }
+-
+-    const provider = modelRegistryService.getProvider(selected.providerId);
+-    if (!provider) {
+-      return streamRuntimeChat(request, callbacks);
+-    }
+-
+-    if (provider.id === "ollama") {
+-      const modelName = selected.id.startsWith("ollama:") ? selected.id.slice("ollama:".length) : selected.id;
+-      return streamOllamaChat(normalizeBaseUrl(settings.ollamaBaseUrl), modelName, request, callbacks, signal);
+-    }
+-
+-    if (provider.id === "llama-cpp") {
+-      const cleanModelId = selected.id.startsWith("llama-cpp:") ? selected.id.slice("llama-cpp:".length) : selected.id;
+-      return streamRuntimeChat({
+-        ...request,
+-        model_id: cleanModelId
+-      }, callbacks);
+-    }
+-
+-    const response = await provider.sendChat(settings, selected.id, request);
+-    if (response.message.content) {
+-      callbacks.onDelta(response.message.content, response.message.content.length);
+-    }
+-    callbacks.onDone?.({
+-      model_id: response.model_id,
+-      model_name: response.model_name
+-    });
+-    return response;
++    // Use model_id from request (set by broker decision in store)
++    // No legacy routing logic - rely on broker decision
++    return streamRuntimeChat(request, callbacks, signal);
+   }
+ }
+ 
+-- 
+2.53.0.windows.3
+

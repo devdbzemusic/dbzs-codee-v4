@@ -1,0 +1,29 @@
+schemaVersion: "1.0"
+id: debug
+kind: skill
+name: Debugging
+version: 1.0.0
+description: Fehler reproduzieren und ihre Ursache gezielt beheben
+mode: review
+targetAgents: [debugger]
+activation: { intents: [debug, bug_fix], keywords: [debug, fehler, exception, traceback], explicitOnly: false, autoSuggest: true }
+preconditions: []
+effects: [root_cause_analysis]
+domains: [software-development]
+cost: low
+latency: normal
+riskLevel: low
+sideEffects: []
+idempotent: true
+permissions:
+  allowedTools: [list_files, read_file, search_workspace, grep, get_git_diff, ask_user, write_skill_artifact]
+  requiredTools: []
+  mayReadFiles: true
+  mayWriteFiles: false
+  mayRunCommands: false
+  mayInstallDependencies: false
+  mayUseNetwork: false
+compatibility: { requires: [], conflictsWith: [], composesWith: [], enables: [] }
+successSignals: [{ id: root_cause, description: Ursache ist mit Evidenz belegt, required: true }]
+failureSignals: [{ id: symptom_only, description: Nur das Symptom wurde behandelt }]
+observability: { logs: [debug analysis completed], metrics: [hypothesis_count] }

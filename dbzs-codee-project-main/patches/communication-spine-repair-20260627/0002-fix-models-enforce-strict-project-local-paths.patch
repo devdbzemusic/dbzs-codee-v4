@@ -1,0 +1,61 @@
+From e62cbdac52214cafc81af2d86bb4b50e8a19187c Mon Sep 17 00:00:00 2001
+From: Ralf <dbz.emusic@gmail.com>
+Date: Sat, 27 Jun 2026 02:10:27 +0200
+Subject: [PATCH 02/12] fix(models): enforce strict project-local paths
+
+- Add strict mode validation in _from_catalog()
+- Reject non-project-local models in project_local_strict mode
+- Generate relative IDs for filesystem scan in strict mode
+- Use relative_path.as_posix().lower() for stable model_id
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ backend/app/models/index_service.py | 20 +++++++++++++++++++-
+ 1 file changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/backend/app/models/index_service.py b/backend/app/models/index_service.py
+index 09e85b9..787da07 100644
+--- a/backend/app/models/index_service.py
++++ b/backend/app/models/index_service.py
+@@ -71,11 +71,22 @@ class ModelIndexService:
+             # P1 Phase 4: Use relative IDs for project-local models
+             raw_path = str(entry.get("absolute_path") or entry.get("file_path") or entry.get("path") or "")
+             
++            # Strict mode: require project-local paths
++            if self.discovery_mode == "project_local_strict":
++                try:
++                    self.discovery_service.require_project_local(raw_path)
++                except ValueError:
++                    continue  # Skip non-project-local models in strict mode
++            
+             # Try to generate relative ID if model is project-local
+             relative_id = None
+             if raw_path:
+                 relative_id = self.discovery_service.get_project_relative_id(raw_path)
+             
++            # For strict mode: use relative ID if available, otherwise skip
++            if self.discovery_mode == "project_local_strict" and not relative_id:
++                continue
++            
+             # Fallback to catalog ID or hash-based ID
+             model_id = str(entry.get("id")) if entry.get("id") else (relative_id or _stable_id(raw_path))
+             runtime_entry = runtime_by_id.get(model_id, {})
+@@ -153,7 +164,14 @@ class ModelIndexService:
+                 continue
+ 
+             path = str(model_path)
+-            model_id = _stable_id(path)
++            
++            # Use relative ID in strict mode for stable model IDs
++            if self.discovery_mode == "project_local_strict":
++                relative_path = model_path.relative_to(self.models_dir)
++                model_id = relative_path.as_posix().lower()
++            else:
++                model_id = _stable_id(path)
++            
+             runtime_entry = runtime_by_id.get(model_id, {})
+             runtime = runtime_entry.get("runtime", {})
+             server = runtime_entry.get("server", {})
+-- 
+2.53.0.windows.3
+

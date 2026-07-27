@@ -1,0 +1,171 @@
+{
+  "id": "run-ms05tjb6-o697",
+  "userMessageId": "msg-ms05tjb6-user",
+  "status": "failed",
+  "startedAt": "2026-07-25T09:21:31.650Z",
+  "mode": "auto",
+  "profile": "ask",
+  "contextEnabled": true,
+  "workspaceRoot": "C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\test-fixtures\\coding-capability-project",
+  "events": [
+    {
+      "id": "ev-ms05tjb6-nvp",
+      "type": "chat.accepted",
+      "timestamp": "2026-07-25T09:21:31.650Z",
+      "message": "Nachricht angenommen",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms05tjb7-2ns",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-25T09:21:31.651Z",
+      "message": "Runtime-Status pruefen",
+      "durationMs": 1
+    },
+    {
+      "id": "ev-ms05tjfw-cko",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-25T09:21:31.820Z",
+      "message": "Backend online · Residenter Slotstatus: Phi-3-mini-4k-instruct-q4",
+      "durationMs": 169
+    },
+    {
+      "id": "ev-ms05tjfw-wrw",
+      "type": "routing.started",
+      "timestamp": "2026-07-25T09:21:31.820Z",
+      "message": "Modell-Routing",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms05tjfx-zp3",
+      "type": "routing.completed",
+      "timestamp": "2026-07-25T09:21:31.821Z",
+      "message": "Modell gewählt: Codestral-22B-v0.1-Q4-K-M",
+      "meta": {
+        "rolloutStage": "canary-100",
+        "routingPath": "broker",
+        "canaryPercent": 100,
+        "shadowMode": false,
+        "shadowMatch": null,
+        "stopOnShadowMismatch": false
+      },
+      "durationMs": 1
+    },
+    {
+      "id": "ev-ms05tkr1-2es",
+      "type": "context.started",
+      "timestamp": "2026-07-25T09:21:33.517Z",
+      "message": "Runtime-Kontext vorbereiten (Stufe 1)",
+      "durationMs": 1696
+    },
+    {
+      "id": "ev-ms05tkr1-ym0",
+      "type": "context.completed",
+      "timestamp": "2026-07-25T09:21:33.517Z",
+      "message": "Stufe 1 aktiv — keine pauschalen Workspace-Signale",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms05tm05-pkw",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-25T09:21:35.141Z",
+      "message": "resource_risk=medium",
+      "meta": {
+        "risk": "medium",
+        "reasons": [
+          "large_model_on_4gb_class_vram"
+        ],
+        "profile": "balanced",
+        "slotNeedsStart": true
+      },
+      "durationMs": 1624
+    },
+    {
+      "id": "ev-ms05tm05-scv",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-25T09:21:35.141Z",
+      "message": "Arbeitsmodell wird bei Bedarf geladen …",
+      "meta": {
+        "startTrigger": "post_budget_ondemand",
+        "slotId": "fast_gpu",
+        "modelId": "629433d4aacdc771",
+        "profile": "balanced",
+        "reasons": [
+          "task_type:large_code_change",
+          "target_agent:planner",
+          "workflow_kind:code_change",
+          "workflow_phase:planning",
+          "model_role:planner",
+          "tool_profile:ask",
+          "slot:fast_gpu",
+          "model_selection:large_code_change",
+          "vision_gate:text_only",
+          "role_setting:629433d4aacdc771",
+          "selection_source:role_setting"
+        ]
+      },
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms05xcak-g1z",
+      "type": "chat.failed",
+      "timestamp": "2026-07-25T09:24:29.180Z",
+      "message": "target_slot_ondemand_failed: Failed to fetch",
+      "durationMs": 174039
+    }
+  ],
+  "turns": [],
+  "toolCalls": [],
+  "fileChanges": [],
+  "commands": [],
+  "provider": "llama-cpp",
+  "modelId": "629433d4aacdc771",
+  "modelName": "Codestral-22B-v0.1-Q4-K-M",
+  "slotId": "fast_gpu",
+  "configuredModelId": "629433d4aacdc771",
+  "selectionSource": "role_setting",
+  "settingsRevision": 158,
+  "warmupStatus": "pending",
+  "workflowLabel": "allless",
+  "phaseLabel": "planning",
+  "targetAgentLabel": "planner",
+  "contextStage": 1,
+  "tokenBudget": {
+    "runtimeContextLimit": 4096,
+    "systemTokens": 589,
+    "toolTokens": 458,
+    "chatTokens": 169,
+    "interviewTokens": 1,
+    "memoryTokens": 1,
+    "fileContextTokens": 1,
+    "ragTokens": 1,
+    "outputReserveTokens": 512,
+    "totalInputTokens": 1220,
+    "totalRequiredTokens": 1732,
+    "overflowTokens": 0
+  },
+  "droppedSources": [],
+  "contextFallbackApplied": false,
+  "promptBindingDiagnostics": {
+    "preFallbackPromptTokens": 762,
+    "postFallbackPromptTokens": 762,
+    "sentPromptTokens": 762,
+    "preFallbackPromptHash": "76c2d759",
+    "postFallbackPromptHash": "76c2d759",
+    "sentPromptHash": "76c2d759",
+    "messageCountBefore": 13,
+    "messageCountAfter": 13,
+    "messageCountSent": 13
+  },
+  "resourceRisk": "medium",
+  "resourceRiskReasons": [
+    "large_model_on_4gb_class_vram"
+  ],
+  "finishedAt": "2026-07-25T09:24:29.180Z",
+  "outcome": "runtime_start_failed",
+  "error": {
+    "code": "runtime_start_failed",
+    "message": "target_slot_ondemand_failed: Failed to fetch",
+    "phase": "runtime"
+  }
+}
