@@ -27,9 +27,18 @@ const EXPLAIN_PATTERNS = [
 
 const PLAN_ONLY_PATTERNS = [
   /erstelle\s+einen\s+plan/i,
+  /erstelle\s+einen\s+klaren\s+implementierungsplan/i,
+  /erstelle\s+einen\s+implementierungsplan/i,
+  /erstelle\s+einen\s+umsetzungsplan/i,
   /mach(e)?\s+einen\s+plan/i,
   /create\s+a\s+plan/i,
   /make\s+a\s+plan/i,
+  /\bimplementierungsplan\b/i,
+  /\bumsetzungsplan\b/i,
+  /\bplan\s+mit\s+konkreten\s+schritten\b/i,
+  /\bkonkreten?\s+schritten?,\s+risiken?\s+und\s+tests?\b/i,
+  /\bfix-?plan\b/i,
+  /\bstructured\s+fix-?plan\b/i,
   /\bplane\b.*\b(nur|only)\b/i,
   /\bplanning\s+only\b/i
 ];

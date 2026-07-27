@@ -17,6 +17,10 @@ describe("executionIntent", () => {
   it("maps explain / plan / implement examples from the hotfix", () => {
     expect(classifyUserExecutionIntent("Wie würde man Electron einbauen?")).toBe("explain_only");
     expect(classifyUserExecutionIntent("Erstelle einen Plan für Electron.")).toBe("plan_only");
+    expect(classifyUserExecutionIntent("Erstelle einen klaren Implementierungsplan mit konkreten Schritten, Risiken und Tests.")).toBe("plan_only");
+    expect(classifyUserExecutionIntent("Erstelle einen Umsetzungsplan für den Runtime-Chat.")).toBe("plan_only");
+    expect(classifyUserExecutionIntent("Liefere einen Fix-Plan für den Bug.")).toBe("plan_only");
+    expect(classifyUserExecutionIntent("Please provide a structured fix-plan.")).toBe("plan_only");
     expect(classifyUserExecutionIntent("Baue Electron ein.")).toBe("implement");
     expect(classifyUserExecutionIntent("Behebe den Fehler.")).toBe("fix");
     expect(classifyUserExecutionIntent("Mach einen kompletten Code Review.")).toBe("review");

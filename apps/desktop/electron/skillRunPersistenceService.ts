@@ -16,6 +16,7 @@ import type {
   SkillRun,
   SkillRunValidation
 } from "../src/runtime/skill/skillContracts";
+import { writeFileAtomic } from "./atomicFileWrite";
 import { resolveCanonicalWorkspacePath } from "./workspacePathGuard";
 
 const ARTIFACT_LIMIT_BYTES = 256 * 1024;
@@ -46,10 +47,7 @@ function safeArtifactPath(relativePath: string): string {
 }
 
 async function atomicWrite(filePath: string, content: string): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const temporary = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  await fs.writeFile(temporary, redact(content), "utf8");
-  await fs.rename(temporary, filePath);
+  await writeFileAtomic(filePath, redact(content));
 }
 
 async function atomicJson(filePath: string, value: unknown): Promise<void> {

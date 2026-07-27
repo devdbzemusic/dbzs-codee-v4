@@ -95,7 +95,7 @@ export interface AgentProtocolFailure {
 export const EXECUTION_PROTOCOL_REPAIR_HINT = [
   "Du bist im Codee-Agentenworkflow.",
   "Beschreibe keinen Toolaufruf.",
-  "Nutze das Werkzeug direkt im CODEE_TOOL_CALL-Envelope oder liefere einen strukturierten Fix-Plan.",
+  "Nutze das Werkzeug direkt im CODEE_TOOL_CALL-Envelope.",
   "Falls die Umsetzung blockiert ist, nenne ausschließlich den konkreten Blocker."
 ].join("\n");
 
