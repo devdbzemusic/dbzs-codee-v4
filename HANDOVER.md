@@ -1,60 +1,61 @@
 # Handover
 
-Stand: 2026-07-25
+Stand: 2026-07-27
 
 ## Aktueller Fokus
 
-Codee Repository Review ist aktuell nicht stabil, wenn ein Full-Repository-Review
-mit gesetztem `activeFile` gestartet wird. Der Lauf endet dann mit
-`0/0 Dateien` und `0/0 Batches`, obwohl das Inventory korrekt Dateien sieht.
+Der zuvor dokumentierte Repository-Review-Bug bei `full_repository` ist im
+gemergten Stand bereits enthalten. Die praktische Verifikation gegen das
+Fixture `test-fixtures/coding-capability-project` lief erfolgreich durch.
+Neuer Fokus ist jetzt die Bereinigung des Review-Inventars, weil der
+Node-basierte Offline-Review vorhandene `.codee`-Artefakte mit analysiert.
 
-## Frisch verifizierter Befund
+## Frisch verifizierter Stand
 
-- Diagnose-Lauf:
-  `.codee/diag-protokolle/codee-run-run-ms044ucs-yl8l.json`
-- Betroffener Review:
-  `test-fixtures/coding-capability-project/.codee/reviews/rev-ms044ugn-his5n`
-- Beobachtung:
-  `inventory.json` enthält 7 Dateien, `review-plan.json` enthält aber
-  `batches: []`, der Review endet auf `failed`.
+- GitHub-Stand:
+  PR `#1` wurde am 27. Juli 2026 in `main` gemergt.
+- Review-Startpfad:
+  [apps/desktop/src/stores/runtimeChatStore.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/stores/runtimeChatStore.ts)
+  hängt `selectedPaths` nur noch dann an, wenn der Scope **nicht**
+  `full_repository` ist.
+- Batch-Planer:
+  [apps/desktop/src/services/repositoryReview/reviewBatchPlanner.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/repositoryReview/reviewBatchPlanner.ts)
+  nutzt `selectedPaths` nur für `active_file` und `selected_paths`.
+- Regressionstest:
+  [apps/desktop/src/services/repositoryReview/repositoryReview.test.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/repositoryReview/repositoryReview.test.ts)
+  enthält bereits den Test
+  `ignores a stray selectedPaths for full_repository and still produces batches`.
+- Lokale Verifikation:
+  `pnpm test -- src/services/repositoryReview/repositoryReview.test.ts`
+  lief am 27. Juli 2026 grün durch (`16/16` Tests).
+- Fixture-Verifikation:
+  `pnpm test -- src/services/repositoryReview/codingCapabilityFixture.repro.test.ts`
+  lief am 27. Juli 2026 grün durch (`1/1` Test).
+  Dabei wurden `review-plan.json`, `REVIEW_REPORT.md` und `findings.json`
+  unter
+  `test-fixtures/coding-capability-project/.codee/reviews/rev-coding-capability-fixture/`
+  neu erzeugt.
 
-## Wahrscheinliche Ursache
+## Historischer Befund
 
-Der Review-Startpfad übergibt bei Repository-Reviews derzeit
-`selectedPaths: [activeFile.path]`, auch wenn der Scope bereits
-`full_repository` ist.
-
-Zusätzlich filtert `apps/desktop/src/services/repositoryReview/reviewBatchPlanner.ts`
-bei vorhandenen `selectedPaths` immer hart auf diese Auswahl. Dadurch kann die
-Batch-Planung leer werden, obwohl der Full-Repository-Scope aktiv ist.
+Der frühere Diagnose-Lauf
+`.codee/diag-protokolle/codee-run-run-ms044ucs-yl8l.json`
+bleibt als Nachweis für den ursprünglich reproduzierten Fehlerfall relevant.
+Das dazugehörige Handover vom 25. Juli 2026 ist inhaltlich überholt.
 
 ## Relevante Stellen
 
 - [apps/desktop/src/stores/runtimeChatStore.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/stores/runtimeChatStore.ts)
 - [apps/desktop/src/services/repositoryReview/reviewBatchPlanner.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/repositoryReview/reviewBatchPlanner.ts)
-- [apps/desktop/src/services/repositoryReview/repositoryInventory.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/repositoryReview/repositoryInventory.ts)
 - [apps/desktop/src/services/repositoryReview/repositoryReview.test.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/repositoryReview/repositoryReview.test.ts)
+- [test-fixtures/coding-capability-project](C:/Users/ralle/source/repos/dbzs-codee-project/test-fixtures/coding-capability-project)
 
-## Empfohlener Minimal-Fix
+## Neuer Anschlussbefund
 
-1. `selectedPaths` nur für `active_file` oder `selected_paths` an den
-   Review-Request hängen, nicht für `full_repository`.
-2. `reviewBatchPlanner.ts` defensiv härten:
-   `selectedPaths` nur dann als Filter anwenden, wenn der Scope wirklich
-   dateibasiert ist.
-3. Regressionstest ergänzen:
-   `full_repository` plus versehentlich gesetzte `selectedPaths` muss trotzdem
-   echte Batches erzeugen.
-
-## Status der heutigen Arbeit
-
-- Desktop-App lokal startbar gemacht.
-- Review-Fehler reproduziert und auf Planungs-/Scope-Ebene eingegrenzt.
-- Noch kein Code-Fix für den Review-Bug umgesetzt.
-
-## Offene Risiken
-
-- Solange der Fix fehlt, kann Codee bei Repository-Reviews in einen falschen
-  `failed`-Zustand laufen, obwohl das Workspace-Inventar gültig ist.
-- Die Diagnose-Artefakte referenzieren Report-/Findings-Pfade, die bei diesem
-  Fehlerfall nicht erzeugt werden.
+- Der leere `full_repository`-Plan ist behoben.
+- Der praktische Fixture-Lauf zeigt aber, dass
+  [apps/desktop/src/services/repositoryReview/nodeReviewWorkspaceIo.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/repositoryReview/nodeReviewWorkspaceIo.ts)
+  vorhandene `.codee/reviews/...`-Artefakte nicht aus dem Inventory filtert.
+- Dadurch landen interne Review-Zustände und alte Reports in neuen Batches.
+  Das erklärt den grün laufenden Durchsatz bei gleichzeitig niedriger
+  Analysequalität und schwacher Signalstärke im erzeugten Report.

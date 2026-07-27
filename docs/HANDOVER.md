@@ -12,7 +12,7 @@ Das Projekt befindet sich in einer kritischen Reparatur- und Stabilisierungsphas
 
 2.  **Routing-Repair (Laufend):** Die Analyse nach dem Boot-Repair (`DBZS_CODEE_V4_POST_REPAIR_ANALYSIS.md`) hat gezeigt, dass die Kernprobleme nun im Bereich des Intent-Routings, der Modell-Aktivierung (Warm-up) und der Zustandssynchronisation liegen. Die laufenden Arbeiten konzentrieren sich auf die Behebung dieser Punkte (siehe `TODO.md`).
 
-**Gesamtzustand:** Die Basis-Architektur ist solide. Die intelligente Steuerung und Fehlerbehandlung im Kern der Anwendung wurde erheblich gehärtet, aber ein kritischer Bug im Repository Review erfordert sofortige Aufmerksamkeit.
+**Gesamtzustand:** Die Basis-Architektur ist solide. Die intelligente Steuerung und Fehlerbehandlung im Kern der Anwendung wurde erheblich gehärtet. Der zuvor dokumentierte Repository-Review-Bug ist im gemergten Stand bereits enthalten; offen ist jetzt vor allem die praktische End-to-End-Verifikation des Review-Flows am Fixture.
 
 ## 2. Kernarchitektur & Konzepte
 
@@ -39,14 +39,15 @@ Die Anwendung verfügt über umfangreiche Diagnose-Werkzeuge, die zur Laufzeit E
 
 Die Prioritäten sind klar in der `TODO.md` definiert. Die meisten P0-Tasks sind abgeschlossen.
 
-### Aktueller, unmittelbarer Fokus: Behebung des Repository-Review-Bugs
+### Aktueller, unmittelbarer Fokus: Bereinigung des Offline-Repository-Review-Inventars
 
-Es gibt einen kritischen, bekannten Fehler im Repository-Review-Feature:
+Der zuvor bekannte Fehler im Repository-Review-Feature wurde im gemergten Stand bereits adressiert:
 
--   **Der Bug:** Das Starten eines "Full Repository Review" während eine Datei im Editor aktiv ist, führt fälschlicherweise zu einem leeren Review-Plan (`batches: []`), wodurch der Durchlauf fehlschlägt.
--   **Die Ursache:** `runtimeChatStore.ts` sendet fälschlicherweise den Pfad der aktiven Datei (`selectedPaths: [activeFile.path]`) an den Review-Orchestrator, selbst wenn der Benutzer einen vollständigen Repository-Review (`scope: "full_repository"`) beabsichtigt. Der `reviewBatchPlanner.ts` filtert dann strikt nach diesen `selectedPaths`, was zu einem leeren Satz von zu analysierenden Dateien führt.
+-   `runtimeChatStore.ts` hängt `selectedPaths` bei `scope: "full_repository"` nicht mehr an den Review-Request.
+-   `reviewBatchPlanner.ts` verwendet `selectedPaths` nur noch für `active_file` und `selected_paths`.
+-   Ein Regressionstest deckt den Fall `full_repository` plus versehentlich gesetzte `selectedPaths` bereits ab.
 
-Die nächsten Schritte zur Behebung dieses Fehlers sind in `TODO.md` unter "Nächster Fix" detailliert beschrieben.
+Die praktische Bestätigung des Flows gegen das Fixture `test-fixtures/coding-capability-project` lief erfolgreich durch. Dabei wurde aber sichtbar, dass der Offline-Review-Pfad vorhandene `.codee`-Artefakte in das Inventory aufnimmt. Der nächste sinnvolle Schritt ist deshalb die Bereinigung dieses Pfads, damit neue Reviews keine alten Review-Artefakte mitanalysieren.
 
 ### Fortschritt bei den P0-Aufgaben (Kernfunktionalität reparieren)
 
