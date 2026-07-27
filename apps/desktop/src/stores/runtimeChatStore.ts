@@ -2160,10 +2160,18 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
                     : /process_start|runtime_start_failed/i.test(errMsg)
                         ? "runtime_start_failed"
                         : "runtime_start_failed";
+              const userFacingOnDemandError =
+                onDemandOutcome === "runtime_oom"
+                  ? "Das aktuelle Modell oder der Kontext passt gerade nicht in den gewählten Slot. Ich kann mit kleinerem Profil oder anderem Modell weitermachen."
+                  : onDemandOutcome === "endpoint_ready_timeout"
+                    ? "Das Modell wurde gestartet, aber nicht rechtzeitig bereit. Ein Retry oder ein kleineres Profil ist jetzt sinnvoll."
+                    : error instanceof BindingModelError
+                      ? error.message
+                      : "Das Arbeitsmodell konnte nicht sauber starten. Ich kann als Nächstes einen Retry, ein anderes Profil oder ein anderes Modell anbieten.";
               appendGenericRunFailure({
                 updateActiveRun,
                 outcome: onDemandOutcome,
-                summary: errMsg,
+                summary: userFacingOnDemandError,
                 error: {
                   code: onDemandOutcome,
                   message: errMsg,
@@ -2173,8 +2181,8 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
               finalizeSendState({
                 set,
                 get,
-                activity: markActivityFailure(activity, `Abgebrochen: ${errMsg}`),
-                errorMessage: errMsg
+                activity: markActivityFailure(activity, userFacingOnDemandError),
+                errorMessage: userFacingOnDemandError
               });
               return false;
             }

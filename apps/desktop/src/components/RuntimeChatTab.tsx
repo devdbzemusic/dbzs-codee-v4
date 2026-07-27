@@ -261,7 +261,6 @@ export function RuntimeChatTab({
     const text = draft;
     if (text.trim().length === 0) return;
     setDraft("");
-    setShowPanels(true);
 
     void (async () => {
       const payload = chatMode === "agent" ? `[Agent Mode]\n${text}` : text;
@@ -428,23 +427,27 @@ export function RuntimeChatTab({
           </div>
         </div>
 
-        {/* Presets + Kontext-Chips */}
-        <div className="flex flex-wrap items-center gap-1 border-b border-dbzs-border bg-dbzs-bg px-2 py-1">
-          {(["plan", "refactor", "review", "summarize", "next_steps"] as const).map((preset) => (
-            <button
-              className="rounded border border-dbzs-border bg-dbzs-panelSoft px-1.5 py-0.5 text-[10px] text-dbzs-muted hover:border-dbzs-cyan/40 hover:text-dbzs-cyan disabled:opacity-40"
-              disabled={!runtimeReady || isSending}
-              key={preset}
-              onClick={() => void sendPresetPrompt(preset, status, activeFile, null, contextHint, sendOptions)}
-              type="button"
-            >
-              {preset === "next_steps" ? "Next" : preset.charAt(0).toUpperCase() + preset.slice(1, 4)}
-            </button>
-          ))}
-          <span className="ml-auto truncate text-[10px] text-dbzs-muted" title={contextReadinessHint ?? undefined}>
-            {activeFile?.name ?? "keine Datei"} · {workspaceChipLabel}
-          </span>
-        </div>
+        <details className="border-b border-dbzs-border bg-dbzs-bg px-2 py-1">
+          <summary className="cursor-pointer text-[10px] text-dbzs-muted">
+            Arbeitskontext & Schnellaktionen
+          </summary>
+          <div className="mt-2 flex flex-wrap items-center gap-1">
+            {(["plan", "refactor", "review", "summarize", "next_steps"] as const).map((preset) => (
+              <button
+                className="rounded border border-dbzs-border bg-dbzs-panelSoft px-1.5 py-0.5 text-[10px] text-dbzs-muted hover:border-dbzs-cyan/40 hover:text-dbzs-cyan disabled:opacity-40"
+                disabled={!runtimeReady || isSending}
+                key={preset}
+                onClick={() => void sendPresetPrompt(preset, status, activeFile, null, contextHint, sendOptions)}
+                type="button"
+              >
+                {preset === "next_steps" ? "Next" : preset.charAt(0).toUpperCase() + preset.slice(1, 4)}
+              </button>
+            ))}
+            <span className="ml-auto truncate text-[10px] text-dbzs-muted" title={contextReadinessHint ?? undefined}>
+              {activeFile?.name ?? "keine Datei"} · {workspaceChipLabel}
+            </span>
+          </div>
+        </details>
 
         {contextReadinessHint ? (
           <p className="border-b border-dbzs-amber/30 bg-dbzs-amber/5 px-2 py-1 text-[10px] leading-4 text-dbzs-amber">
@@ -670,6 +673,9 @@ export function RuntimeChatTab({
               Kontext
             </label>
             <span className="ml-auto truncate text-dbzs-muted">{contextNote ?? "Enter senden · Shift+Enter Zeile"}</span>
+          </div>
+          <div className="mb-2 text-[10px] text-dbzs-muted">
+            Schreibe einfach natürlich, was du erreichen willst. Ich leite Scope und nächste Schritte möglichst direkt aus dem Verlauf und dem aktuellen Kontext ab.
           </div>
           <div className="flex gap-2">
             <textarea

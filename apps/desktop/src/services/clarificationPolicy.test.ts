@@ -58,7 +58,7 @@ describe("decideClarification", () => {
     expect(result.reason).toBe("none");
   });
 
-  it("asks on low confidence even with no missing fields", () => {
+  it("does not ask on low confidence alone once no blocking fields are missing", () => {
     const result = decideClarification({
       intent: intent({ confidence: CONFIDENCE_THRESHOLD - 0.01 }),
       missingFields: [],
@@ -66,8 +66,8 @@ describe("decideClarification", () => {
       questionsAskedThisTurn: 0,
       questionsAskedThisRun: 0
     });
-    expect(result.shouldAsk).toBe(true);
-    expect(result.reason).toBe("low_confidence");
+    expect(result.shouldAsk).toBe(false);
+    expect(result.reason).toBe("none");
   });
 
   it("does not ask exactly at the confidence threshold", () => {
@@ -81,7 +81,7 @@ describe("decideClarification", () => {
     expect(result.shouldAsk).toBe(false);
   });
 
-  it("asks when top two candidates are within the ambiguity margin", () => {
+  it("does not ask when top two candidates are within the ambiguity margin but no field blocks execution", () => {
     const result = decideClarification({
       intent: intent({
         confidence: 0.8,
@@ -92,8 +92,8 @@ describe("decideClarification", () => {
       questionsAskedThisTurn: 0,
       questionsAskedThisRun: 0
     });
-    expect(result.shouldAsk).toBe(true);
-    expect(result.reason).toBe("ambiguous_top2");
+    expect(result.shouldAsk).toBe(false);
+    expect(result.reason).toBe("none");
   });
 
   it("does not ask when the runner-up is far below the margin", () => {
@@ -120,6 +120,21 @@ describe("decideClarification", () => {
     });
     expect(result.shouldAsk).toBe(true);
     expect(result.reason).toBe("high_risk_confirm");
+  });
+
+  it("still asks on ambiguity for high risk turns", () => {
+    const result = decideClarification({
+      intent: intent({
+        confidence: 0.8,
+        alternativeTaskTypes: [{ taskType: "large_code_change", confidence: 0.8 - TOP2_MARGIN_THRESHOLD + 0.01 }]
+      }),
+      missingFields: [],
+      riskLevel: "high",
+      questionsAskedThisTurn: 0,
+      questionsAskedThisRun: 0
+    });
+    expect(result.shouldAsk).toBe(true);
+    expect(result.reason).toBe("high_risk_ambiguity");
   });
 
   it("stops asking once the per-turn budget is exhausted", () => {
