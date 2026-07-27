@@ -135,10 +135,14 @@ class BootStateStore:
         # prematurely just because the mandatory components are done.
         resident_terminal = resident_state in ("success", "failed", "skipped")
 
-        if any(s == "failed" for s in mandatory_states):
+        mandatory_failed = any(s == "failed" for s in mandatory_states)
+        mandatory_terminal = all(s in ("success", "warning") for s in mandatory_states)
+        mandatory_warned = any(s == "warning" for s in mandatory_states)
+
+        if mandatory_failed:
             status = "failed"
-        elif all(s == "success" for s in mandatory_states) and resident_terminal:
-            status = "degraded" if resident_state == "failed" else "ready"
+        elif mandatory_terminal and resident_terminal:
+            status = "degraded" if resident_state == "failed" or mandatory_warned else "ready"
         else:
             status = "starting"
 

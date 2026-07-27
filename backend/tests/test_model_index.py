@@ -141,6 +141,15 @@ def test_model_index_scans_gguf_when_catalog_is_missing(tmp_path: Path) -> None:
     assert index.models[0].recommended_use == "coding_candidate"
 
 
+def test_model_index_skips_invalid_gguf_header_when_catalog_is_missing(tmp_path: Path) -> None:
+    model_path = tmp_path / "broken.gguf"
+    model_path.write_bytes(b"NOTG")
+
+    index = ModelIndexService(models_dir=tmp_path, ollama_models_dir=tmp_path / "empty-ollama").build_index()
+
+    assert index.summary.total == 0
+
+
 def test_model_index_classifies_functiongemma_as_orchestrator(tmp_path: Path) -> None:
     model_path = tmp_path / "functiongemma-270m-it.Q8_0.gguf"
     model_path.write_bytes(b"GGUF")

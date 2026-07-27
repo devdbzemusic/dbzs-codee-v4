@@ -120,12 +120,23 @@ Alle 17 Reparaturschritte wurden mit Unit-Tests abgesichert (Desktop: Vitest, Ba
 
 **Test A (Normalstart) — live verifiziert:** `npm run dev` gestartet, Backend erreicht `/health/ready` mit HTTP 200, `/health/startup` liefert strukturierte Daten (364 Modelle indiziert: `scannedFileCount/candidateCount/validModelCount/invalidModelCount/cachedModelCount`; residentes Modell `deepseek-coder-6.7b-instruct.Q4-K-M` mit `modelId/modelName/slotId/provider/pid/port`). Hauptfenster erschien nach vollständigem Boot mit Titel "DBZS Code Assistant", Statusanzeigen "Desktop: bereit" / "Backend: online" / "Modelle: llama.cpp aktiv" — screenshot-bestätigt (1440×920, kein Flackern, Splash bereits geschlossen). Der Backend-Prozess wurde von `start-dev.ps1` unabhängig von Electron gestartet — ein guter Realtest für die neue Prozess-Ownership-Erkennung (Electron sollte diesen als `preexisting-local` erkennen statt ihn erneut zu spawnen).
 
-**Tests B-G** (langsamer Backend-Start, DB-Fehler, beschädigte GGUF-Datei, Resident-Model-Fallback/Totalausfall, Frontend-Render-Timeout, externes Backend erkannt) sind durch die jeweiligen Unit-Tests strukturell abgedeckt (siehe Commits zu §5, §6, §9, §10, §15, §17), aber nicht einzeln als gezielte Fehlerinjektion gegen die laufende App durchgespielt worden — das wäre der nächste Schritt vor einer produktiven Freigabe.
+**Live-Nachverifikation am 27. Juli 2026:**
+
+- **Fehlerstart / externes Backend erkannt:** Live mit einem absichtlich vorgeschalteten Fremddienst auf Port `8876` geprüft. Der Splash blieb korrekt im Fehlerzustand und meldete explizit: `Auf Port 8876 läuft ein anderer Dienst (Port Blocker), nicht das DBZS-Backend.` Der Fehler wurde damit nicht nur strukturell, sondern gegen eine laufende Electron-App reproduziert.
+- **Retry nach Fehlerstart:** Anschließend wurde derselbe Lauf nach Entfernen des Fremddienstes per `Erneut versuchen` erneut angestoßen. Dabei wurde ein echter Retry-Bug in den Frontend-Phasen sichtbar und behoben: `retry-phase(null)` setzt die fehlgeschlagenen/blockierten Phasen jetzt als konsistente Gruppe zurück, und der Renderer führt `frontend-bridge`, `frontend-config-sync`, `workspace-restore` und `agents-roles-models` bei echten Retries phasengetrieben erneut aus. Danach lief derselbe Szenario-Start wieder bis `ready` durch.
+- **Safe Mode:** Live mit echtem Cache-Fallback geprüft. Zuerst wurde ein gültiger Modellindex-Cache erzeugt (`userData/cache/model-index-cache.json`), danach ein defektes `models.catalog.json` injiziert. Der normale Bootlauf ging erwartbar in `failed`; nach Aktivierung von `Sicherer Modus` startete das Backend mit `DBZS_SAFE_MODE=1`, lud den Modellindex aus Cache (`Modellindex aus Cache geladen (1 Modelle)`), markierte `resident-model` korrekt als `skipped` und erreichte wieder `ready`.
+- **Langsamer Backend-Start:** Live per kontrollierter Python-Startverzögerung verifiziert. Der Bootlauf blieb stabil und erreichte trotz künstlich verlangsamtem Backend wieder `ready`; `backend-live` lief dabei messbar in einen echten Langsamstart (`durationMs` ca. 14,7 s), ohne den Orchestrator fälschlich in einen Fehlerzustand zu kippen.
+- **DB-Fehler:** Live über einen absichtlich vergifteten DB-Zielpfad (`agents.sqlite3` als Verzeichnis statt Datei) verifiziert. Das Backend kam dadurch vor dem Health-Handshake nicht stabil hoch; der Splash blieb korrekt im Fehlerzustand. Der Fall belegt, dass ein harter DB-/Persistenzfehler nicht in einen scheinbar gesunden Bootlauf durchrutscht.
+- **Beschädigte GGUF-Datei außerhalb des Katalogfalls:** Live verifiziert und gleichzeitig funktional nachgeschärft. Der Filesystem-Scan validiert jetzt den GGUF-Magic-Header (`GGUF`) statt jede `*.gguf` nur per Dateiname zu akzeptieren. Mit einer absichtlich beschädigten Datei (`broken.gguf`, Header `NOTG`) lief der Start auf `ready`, während `model-index` korrekt `warning` meldete: `Indexed 0 models (1 skipped due to errors)`.
+- **Resident-Model-Totalausfall:** Live mit absichtlich ungültigem `defaultOrchestratorModelId` verifiziert. Das Backend erreichte sauber `degraded`, `backend-ready` meldete den eingeschränkten Zustand korrekt, und `resident-model` scheiterte sichtbar mit `No resident model could be started. Tried: missing-orchestrator.gguf`.
+- **Frontend-Render-Timeout:** Live per kontrolliertem Dummy-Renderer verifiziert. Die Frontend-Phasen bis `agents-roles-models` wurden bewusst ohne Render-Ack gemeldet; `main-window-rendered` lief darauf korrekt ins harte Timeout, und der Splash blieb im Fehlerzustand statt das Hauptfenster vorzeitig freizugeben.
+
+Damit sind die zuvor als **Tests B-G** bezeichneten Live-Fehlerinjektionen am 27. Juli 2026 vollständig nachgezogen.
 
 ## Bekannte Restprobleme
 
 - Safe Mode setzt Phasen erst ab `backend-spawn` zurück — ein ursprünglicher Fehler in `filesystem-check` würde davon noch nicht profitieren.
-- Die Live-Abnahmematrix für Fehlerstart, Retry und Safe Mode ist noch nicht vollständig manuell durchgespielt; aktuell sind diese Fälle über Unit-/Integrationstests bzw. den neuen Electron-Boot-E2E belastbar abgesichert.
+- Für einzelne Fault-Injections (langsamer Backend-Start, Frontend-Render-Timeout) wurden kontrollierte Test-Hooks/Umgebungen verwendet; das ist für Abnahmezwecke belastbar, ersetzt aber keine dauerhafte produktive Chaos-Test-Infrastruktur.
 
 ## Nachgezogene Reparaturen
 
@@ -137,6 +148,8 @@ Alle 17 Reparaturschritte wurden mit Unit-Tests abgesichert (Desktop: Vitest, Ba
 - Warm-up-Diagnostik wurde für Qwen-/Reasoning-Fälle auf Request-/Response-Metadaten, Streaming-Events, Tokenzählung und Parser-Entscheid erweitert.
 - Ein erfolgreicher Resident-Fallback läuft sichtbar degradiert weiter und wird in Run-Diagnostik sowie UI explizit markiert.
 - Die Backend-Health-/Boot-Verträge sind jetzt zusätzlich auf Python-Seite als Pydantic-Modelle gespiegelt (`/health/startup`, `/health/ready`, Resident-Model-Daten), statt nur implizit strukturierte Dicts zurückzugeben.
+- Der gemeinsame Boot-Vertrag akzeptiert jetzt nullable Fehlerdetails (`technicalDetail`, `stderrTail`) konsistent auf Python-, Zod- und TypeScript-Seite; dadurch werden echte `resident-model`-/Model-Index-Fehler nicht mehr von einem Schema-Mismatch verdeckt.
+- Der GGUF-Dateiscan prüft im Filesystem-Pfad jetzt mindestens den Magic-Header `GGUF`; beschädigte Dateien werden als isolierte Modellfehler gewarnt statt still als scheinbar gültige Modelle indiziert.
 - Ein echter Electron-Playwright-Boot-Test (`apps/desktop/e2e/boot.spec.ts`) prüft jetzt Splash zuerst, verstecktes Hauptfenster bis zum Render-Ack, `main-window-rendered` vor `main-app-released` und die finale Freigabe des Hauptfensters.
 - Die bisher als Altlast geführten `RuntimeService`-Tests sind im aktuellen Stand nicht mehr rot: `uv run pytest -q` lief am 27. Juli 2026 vollständig grün durch (`404 passed`).
 
@@ -148,8 +161,13 @@ Alle 17 Reparaturschritte wurden mit Unit-Tests abgesichert (Desktop: Vitest, Ba
 - [x] Desktop-Build erfolgreich
 - [x] Electron-Boot-E2E erfolgreich
 - [x] Normalstart erfolgreich (live verifiziert)
-- [ ] Fehlerstart erfolgreich geprüft (Tests B-G der manuellen Matrix noch nicht einzeln live durchgespielt)
-- [ ] Retry erfolgreich geprüft (live)
-- [ ] Safe Mode erfolgreich geprüft (live)
+- [x] Fehlerstart erfolgreich geprüft (live am 27. Juli 2026 gegen externen Fremddienst auf Port 8876)
+- [x] Retry erfolgreich geprüft (live am 27. Juli 2026 nach Entfernen des Fremddienstes)
+- [x] Safe Mode erfolgreich geprüft (live am 27. Juli 2026 mit echtem Modellindex-Cache-Fallback)
+- [x] Langsamer Backend-Start erfolgreich geprüft (live am 27. Juli 2026 mit kontrollierter Startverzögerung)
+- [x] DB-Fehler erfolgreich geprüft (live am 27. Juli 2026 mit absichtlich ungültigem DB-Zielpfad)
+- [x] Beschädigte GGUF-Datei erfolgreich geprüft (live am 27. Juli 2026 mit ungültigem GGUF-Header)
+- [x] Resident-Model-Totalausfall erfolgreich geprüft (live am 27. Juli 2026 mit ungültigem Orchestrator-Modell)
+- [x] Frontend-Render-Timeout erfolgreich geprüft (live am 27. Juli 2026 mit ausbleibendem Render-Ack)
 - [x] Keine parallelen Bootphasen (per Unit-Test abgesichert)
 - [x] Splash schließt erst nach Render-Ack (per Code-Pfad + Unit-Test abgesichert)

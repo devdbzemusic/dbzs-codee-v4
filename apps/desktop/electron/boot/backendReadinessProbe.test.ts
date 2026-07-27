@@ -44,6 +44,33 @@ describe("BackendReadinessProbe", () => {
     expect(fetchFn).toHaveBeenCalledWith("http://127.0.0.1:8876/health/startup", { signal: undefined });
   });
 
+  it("probeStartup accepts nullable error detail fields", async () => {
+    const payload = {
+      status: "degraded",
+      ready: true,
+      progress: 100,
+      instanceId: "abc",
+      components: {
+        database: { state: "success" as const, message: "ok" },
+        modelRegistry: {
+          state: "failed" as const,
+          message: "catalog broken",
+          error: { code: "model-index-failed", technicalDetail: "catalog broken", stderrTail: null }
+        },
+        runtimeManager: { state: "success" as const, message: "ok" },
+        residentModel: {
+          state: "failed" as const,
+          message: "resident failed",
+          error: { code: "resident-model-start-failed", technicalDetail: null, stderrTail: null }
+        }
+      }
+    };
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse(payload));
+    const probe = new BackendReadinessProbe("http://127.0.0.1:8876", fetchFn);
+    const result = await probe.probeStartup();
+    expect(result).toEqual(payload);
+  });
+
   it("probeStartup throws BootProtocolError when the backend payload doesn't match the schema", async () => {
     const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ status: "starting" })); // missing required fields
     const probe = new BackendReadinessProbe("http://127.0.0.1:8876", fetchFn);

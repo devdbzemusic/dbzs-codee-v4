@@ -112,3 +112,26 @@ def test_health_ready_returns_200_and_degraded_when_only_resident_model_fails() 
     assert body["ready"] is True
     assert body["status"] == "degraded"
     assert body["optionalComponents"] == {"residentModel": "failed"}
+
+
+def test_health_ready_returns_200_and_degraded_when_mandatory_component_warns() -> None:
+    store = reset_boot_state_store()
+    import asyncio
+
+    asyncio.run(store.set_component("database", "success"))
+    asyncio.run(store.set_component("modelRegistry", "warning"))
+    asyncio.run(store.set_component("runtimeManager", "success"))
+    asyncio.run(store.set_component("residentModel", "skipped"))
+
+    client = TestClient(app)
+    response = client.get("/health/ready")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ready"] is True
+    assert body["status"] == "degraded"
+    assert body["requiredComponents"] == {
+        "database": "success",
+        "modelRegistry": "warning",
+        "runtimeManager": "success",
+    }

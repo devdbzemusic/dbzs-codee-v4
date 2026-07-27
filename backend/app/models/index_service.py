@@ -45,6 +45,7 @@ FUNCTIONGEMMA_DEFAULT_PROFILE: dict[str, Any] = {
 MODEL_INDEX_CACHE_SCHEMA_VERSION = 1
 MODEL_INDEX_CACHE_METADATA_VERSION = 1
 MODEL_INDEX_CACHE_HEADER_BYTES = 4096
+GGUF_MAGIC = b"GGUF"
 
 
 @dataclass
@@ -292,6 +293,7 @@ class ModelIndexService:
         for index, model_path in enumerate(gguf_paths):
             try:
                 path = str(model_path.resolve())
+                _validate_gguf_header(model_path)
                 signature = _build_file_signature(model_path)
                 cached_entry = cache_entries.get(path)
                 if isinstance(cached_entry, dict) and cached_entry.get("signature") == signature:
@@ -632,6 +634,13 @@ def _write_json(path: Path, data: dict) -> None:
 
 def _stable_id(value: str) -> str:
     return hashlib.sha1(value.encode("utf-8")).hexdigest()[:16]
+
+
+def _validate_gguf_header(path: Path) -> None:
+    with path.open("rb") as handle:
+        magic = handle.read(len(GGUF_MAGIC))
+    if magic != GGUF_MAGIC:
+        raise ValueError(f"Invalid GGUF header for {path.name}")
 
 
 def _build_file_signature(path: Path) -> dict[str, object]:

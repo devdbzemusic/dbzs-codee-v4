@@ -38,6 +38,12 @@ const BACKEND_RESTART_PHASE_GROUP = [
   "main-app-released"
 ];
 
+export function collectRetryAllPhaseIds(state: BootState): string[] {
+  return state.phases
+    .filter((phase) => phase.state === "failed" || phase.state === "blocked")
+    .map((phase) => phase.id);
+}
+
 function broadcast(deps: BootEventBridgeDeps, channel: string, payload: unknown): void {
   for (const win of deps.getWindows()) {
     if (!win.isDestroyed()) {
@@ -75,11 +81,9 @@ export function registerBootEventBridge(deps: BootEventBridgeDeps): () => void {
       await deps.orchestrator.retryPhase(phaseId);
       return;
     }
-    const state = deps.orchestrator.getState();
-    for (const phase of state.phases) {
-      if (phase.state === "failed" || phase.state === "blocked") {
-        await deps.orchestrator.retryPhase(phase.id);
-      }
+    const retryPhaseIds = collectRetryAllPhaseIds(deps.orchestrator.getState());
+    if (retryPhaseIds.length > 0) {
+      await deps.orchestrator.resetPhaseGroup(retryPhaseIds);
     }
   });
 

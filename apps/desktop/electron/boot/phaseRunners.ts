@@ -72,9 +72,9 @@ function componentResult(
         error: {
           code: component.error?.code ?? "component-failed",
           message: component.message ?? "Komponente fehlgeschlagen.",
-          technicalDetail: component.error?.technicalDetail,
+          technicalDetail: component.error?.technicalDetail ?? undefined,
           exitCode: component.error?.exitCode,
-          stderrTail: component.error?.stderrTail
+          stderrTail: component.error?.stderrTail ?? undefined
         },
         metadata: component.data
       };

@@ -127,9 +127,9 @@ export type ModelRuntimeStatus =
 
 export interface BootComponentError {
   code: string;
-  technicalDetail?: string;
+  technicalDetail?: string | null;
   exitCode?: number | null;
-  stderrTail?: string;
+  stderrTail?: string | null;
 }
 
 /**
