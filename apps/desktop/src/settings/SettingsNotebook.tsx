@@ -39,18 +39,15 @@ export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
   const discardDraft = useSettingsDraftStore((state) => state.discardDraft);
   const applyDraft = useSettingsDraftStore((state) => state.applyDraft);
   const settingsError = useSettingsStore((state) => state.error);
-  const loadDiagnostics = useSettingsStore((state) => state.loadDiagnostics);
+  const backendHealth = useSettingsStore((state) => state.backendHealth);
   const { index: modelIndex, isLoading: modelIndexLoading, error: modelIndexError, loadModelIndex } = useModelIndexStore();
+  const backendReady = backendHealth?.status === "ok";
 
   useEffect(() => {
-    void loadDiagnostics();
-  }, [loadDiagnostics]);
-
-  useEffect(() => {
-    if (!modelIndex && !modelIndexLoading) {
+    if (backendReady && !modelIndex && !modelIndexLoading) {
       void loadModelIndex();
     }
-  }, [loadModelIndex, modelIndex, modelIndexLoading]);
+  }, [backendReady, loadModelIndex, modelIndex, modelIndexLoading]);
 
   const modelOptions = useMemo(() => {
     return (modelIndex?.models ?? [])

@@ -5,6 +5,7 @@ import {
   reloadSkillRegistry
 } from "@/services/skillsLoader";
 import { useRuntimeChatStore } from "@/stores/runtimeChatStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import type { ToolCapability } from "@/types/orchestration";
 import type { SkillRun } from "@/runtime/skill/skillContracts";
@@ -21,6 +22,7 @@ export function RuntimeChatToolsBar({ compact = false }: { compact?: boolean }) 
   } = useRuntimeChatStore();
 
   const workspaceRoot = useWorkspaceStore((state) => state.state.projectPath);
+  const backendOnline = useSettingsStore((state) => state.backendHealth?.status === "ok");
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [registryGeneration, setRegistryGeneration] = useState(0);
   const [latestRun, setLatestRun] = useState<SkillRun | null>(null);
@@ -31,7 +33,9 @@ export function RuntimeChatToolsBar({ compact = false }: { compact?: boolean }) 
   );
 
   useEffect(() => {
-    void loadToolCatalog();
+    if (backendOnline) {
+      void loadToolCatalog();
+    }
     void reloadSkillRegistry(workspaceRoot ?? undefined).then((snapshot) => {
       setRegistryGeneration(snapshot.generation);
     });
@@ -44,7 +48,7 @@ export function RuntimeChatToolsBar({ compact = false }: { compact?: boolean }) 
         );
       });
     }
-  }, [loadToolCatalog, workspaceRoot]);
+  }, [backendOnline, loadToolCatalog, workspaceRoot]);
 
   const toggleWithTrust = (skillId: string) => {
     const entry = entries.find((candidate) => candidate.skill.manifest.id === skillId);
