@@ -6,7 +6,10 @@ function formatElapsed(startedAt: number, finishedAt: number | undefined, now: n
 }
 
 export function BootProgress({ state, now }: { state: BootState; now: number }) {
-  const currentPhase = state.phases.find((p) => p.id === state.currentPhaseId);
+  const currentPhase =
+    state.phases.find((phase) => ["running", "waiting", "retrying"].includes(phase.state)) ??
+    state.phases.find((phase) => phase.id === state.currentPhaseId) ??
+    null;
   const retryTotal = state.phases.reduce((sum, p) => sum + p.retryCount, 0);
 
   return (

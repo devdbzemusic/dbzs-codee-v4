@@ -7,13 +7,18 @@ import { ragClient } from "@/services/ragClient";
 export function DiagnosticsStorageTab() {
   const { diagnostics, loadDiagnostics, settings, isLoading, setError, loadInitialState } =
     useSettingsStore();
+  const backendHealth = useSettingsStore((state) => state.backendHealth);
   const { resetWorkspace, state: workspaceState } = useWorkspaceStore();
   const [ragStatus, setRagStatus] = useState<RagIndexStatus | null>(null);
   const [ragBusy, setRagBusy] = useState(false);
+  const backendReady = backendHealth?.status === "ok";
 
   useEffect(() => {
+    if (!backendReady) {
+      return;
+    }
     void loadDiagnostics();
-  }, [loadDiagnostics]);
+  }, [backendReady, loadDiagnostics]);
 
   useEffect(() => {
     const root = workspaceState.projectPath;
@@ -77,9 +82,15 @@ export function DiagnosticsStorageTab() {
         <Row label="Revision" value={String(diagnostics?.revision ?? settings.revision ?? 0)} />
         <Row label="Zuletzt gespeichert" value={diagnostics?.lastSavedAt ?? settings.updatedAt ?? "—"} />
         <Row label="Geladen um" value={diagnostics?.loadedAt ?? "—"} />
+        {!backendReady ? (
+          <p className="text-[10px] leading-4 text-dbzs-amber">
+            Backend startet noch. Diagnose wird geladen, sobald der Health-Check grün ist.
+          </p>
+        ) : null}
         <div className="flex flex-wrap gap-2 pt-1">
           <button
             className="border border-dbzs-border px-2 py-1 hover:border-dbzs-cyan/40"
+            disabled={!backendReady}
             onClick={() => void loadDiagnostics()}
             type="button"
           >

@@ -59,8 +59,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ backendStartupStatus: status });
     if (status.state === "failed" && status.message) {
       set({ error: status.message });
-    }
-    if (status.state === "ready") {
+    } else {
       set({ error: null });
     }
   },

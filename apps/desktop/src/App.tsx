@@ -12,6 +12,8 @@ import {
   type ProjectMemory,
   type ProposedChange,
   type AgentUpdateRequest,
+  type BackendStartupStatus,
+  type BootState,
   type PlannerPlan,
   type WorkspaceFile,
   type WorkspaceProjectFile
@@ -89,6 +91,57 @@ function clamp(value: number, min: number, max: number): number {
 
 function hasElectronBridge(): boolean {
   return typeof window !== "undefined" && typeof window.dbzs !== "undefined";
+}
+
+function deriveBootAwareBackendStatus(
+  bootState: BootState | null,
+  backendStartupStatus: BackendStartupStatus | null
+): BackendStartupStatus | null {
+  if (!bootState) {
+    return backendStartupStatus;
+  }
+
+  const port = backendStartupStatus?.port ?? 8876;
+  const ownership = backendStartupStatus?.ownership ?? "unknown";
+  const instanceId = backendStartupStatus?.instanceId ?? null;
+  const currentPhase = bootState.phases.find((phase) => phase.id === bootState.currentPhaseId) ?? null;
+  const backendLivePhase = bootState.phases.find((phase) => phase.id === "backend-live") ?? null;
+  const backendReadyPhase = bootState.phases.find((phase) => phase.id === "backend-ready") ?? null;
+
+  if (backendReadyPhase?.state === "success" || bootState.status === "ready" || bootState.status === "degraded") {
+    return {
+      state: "ready",
+      message:
+        bootState.status === "degraded"
+          ? backendReadyPhase?.message || "Backend bereit, aber mit eingeschränkten optionalen Komponenten."
+          : backendReadyPhase?.message || "Backend vollständig bereit.",
+      port,
+      ownership,
+      instanceId
+    };
+  }
+
+  if (
+    bootState.status === "starting" &&
+    (currentPhase != null ||
+      backendLivePhase?.state === "running" ||
+      backendLivePhase?.state === "waiting" ||
+      backendLivePhase?.state === "success")
+  ) {
+    return {
+      state: "starting",
+      message:
+        currentPhase?.message ||
+        backendLivePhase?.message ||
+        backendStartupStatus?.message ||
+        "Backend startet…",
+      port,
+      ownership,
+      instanceId
+    };
+  }
+
+  return backendStartupStatus;
 }
 
 export function App() {
@@ -245,6 +298,7 @@ function AppShell() {
   const [standaloneView, setStandaloneView] = useState(readStandaloneView);
   const [runtimeChatWindowOpen, setRuntimeChatWindowOpen] = useState(false);
   const [sharedChatContext, setSharedChatContext] = useState<RuntimeChatContextSnapshot | null>(null);
+  const [bootState, setBootState] = useState<BootState | null>(null);
   const [plannerPlan, setPlannerPlan] = useState<PlannerPlan | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [symbolQuery, setSymbolQuery] = useState("");
@@ -337,6 +391,20 @@ function AppShell() {
     return onContext((context) => {
       setSharedChatContext(context);
     });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    window.dbzs.getBootState?.().then((initial) => {
+      if (!cancelled) {
+        setBootState(initial);
+      }
+    });
+    const unsubscribe = window.dbzs.onBootState?.((next) => setBootState(next));
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -517,6 +585,8 @@ function AppShell() {
 
     return unsubscribe;
   }, [loadAgents, loadInitialState, loadJobs, loadModelIndex, loadProjectMemory, loadRuntimeStatus, loadTasks, refreshGitStatus, setBackendStartupStatus]);
+
+  const effectiveBackendStartupStatus = deriveBootAwareBackendStatus(bootState, backendStartupStatus);
 
   useEffect(() => {
     if (backendHealth?.status !== "ok") {
@@ -909,14 +979,14 @@ function AppShell() {
             <StatusPill
               label="Backend"
               tone={
-                backendUiStatus(backendStartupStatus) === "ready"
+                backendUiStatus(effectiveBackendStartupStatus) === "ready"
                   ? "green"
-                  : backendUiStatus(backendStartupStatus) === "starting" ||
-                      backendUiStatus(backendStartupStatus) === "degraded"
+                  : backendUiStatus(effectiveBackendStartupStatus) === "starting" ||
+                      backendUiStatus(effectiveBackendStartupStatus) === "degraded"
                     ? "amber"
                     : "red"
               }
-              value={formatBootStateForUi(backendStartupStatus).replace(/^Backend:\s*/, "")}
+              value={formatBootStateForUi(effectiveBackendStartupStatus).replace(/^Backend:\s*/, "")}
             />
             <StatusPill
               label="Modelle"
