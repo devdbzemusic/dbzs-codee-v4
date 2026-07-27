@@ -7,6 +7,7 @@ import { estimateTokensCharHeuristic } from "@/runtime/context/contextSpooler";
 
 const MIN_BATCH = 3;
 const MAX_BATCH = 8;
+const PREFERRED_EXTENSIONS = /\.(ts|tsx|js|jsx|py|rs|go|java|cs|md|json)$/i;
 
 type BucketId = "entry" | "domain" | "api" | "data" | "ui" | "audio" | "tests" | "perf";
 
@@ -110,8 +111,7 @@ function sourceFiles(
   inventory: RepositoryInventory,
   request: RepositoryReviewRequest
 ): string[] {
-  const preferredExt = /\.(ts|tsx|js|jsx|py|rs|go|java|cs|md|json)$/i;
-  let files = inventory.files.filter((path) => preferredExt.test(path));
+  let files = inventory.files.filter((path) => PREFERRED_EXTENSIONS.test(path));
   const usesSelectedPaths = request.scope === "active_file" || request.scope === "selected_paths";
   if (usesSelectedPaths && request.selectedPaths?.length) {
     const selected = new Set(request.selectedPaths.map((path) => path.replace(/\\/g, "/")));
@@ -121,6 +121,26 @@ function sourceFiles(
   return files
     .sort((left, right) => left.localeCompare(right))
     .slice(0, limit);
+}
+
+/**
+ * Explains why planReviewBatches() came out empty despite a non-empty inventory,
+ * so the empty_plan failure outcome can carry a specific, actionable reason
+ * instead of a generic "failed". The caller already guarantees
+ * inventory.fileCount > 0, and for active_file/selected_paths scope the
+ * inventory itself is already restricted to the selection (see
+ * repositoryInventory.ts's scopeFilter) — so the only realistic cause of an
+ * empty plan here is that none of the inventoried files match the supported
+ * extension filter.
+ */
+export function describeEmptyReviewPlan(request: RepositoryReviewRequest): string {
+  const base =
+    "Keine Datei im Repository-Inventar entspricht dem unterstützten Dateiformat-Filter (ts/tsx/js/jsx/py/rs/go/java/cs/md/json).";
+  const usesSelectedPaths = request.scope === "active_file" || request.scope === "selected_paths";
+  if (usesSelectedPaths && request.selectedPaths?.length) {
+    return `${base} Betroffene Auswahl: ${request.selectedPaths.join(", ")}.`;
+  }
+  return base;
 }
 
 export function planReviewBatches(

@@ -13,7 +13,7 @@ import type {
   ReviewBatchPlan
 } from "@dbzs/shared";
 import { ensureBatchFitsOrSplit } from "./reviewBatchBudget";
-import { planReviewBatches } from "./reviewBatchPlanner";
+import { describeEmptyReviewPlan, planReviewBatches } from "./reviewBatchPlanner";
 import { planReviewCommands } from "./reviewCommandPlanner";
 import { runReviewCommands } from "./reviewCommandRunner";
 import {
@@ -316,14 +316,18 @@ export class RepositoryReviewOrchestrator {
       }
 
       if (!plan || plan.batches.length === 0) {
+        const detail = plan
+          ? describeEmptyReviewPlan(request)
+          : "Der Review-Plan konnte nicht erstellt werden.";
         state.status = "failed";
-        state.outcome = "failed";
+        state.outcome = "empty_plan";
+        state.detail = detail;
         state.updatedAt = new Date().toISOString();
         await saveReviewState(this.io, request.workspaceRoot, state);
-        const progress = emit("failed", "failed");
+        const progress = emit("failed", "empty_plan", detail);
         return {
           reviewId,
-          outcome: "failed",
+          outcome: "empty_plan",
           plan,
           inventory,
           findings: [],

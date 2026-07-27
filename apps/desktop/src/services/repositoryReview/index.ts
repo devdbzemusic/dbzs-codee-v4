@@ -20,7 +20,7 @@ export {
   isInstallReviewCommand
 } from "./reviewCommandPlanner";
 export { runReviewCommands } from "./reviewCommandRunner";
-export { planReviewBatches, splitReviewBatch } from "./reviewBatchPlanner";
+export { describeEmptyReviewPlan, planReviewBatches, splitReviewBatch } from "./reviewBatchPlanner";
 export {
   computeReviewBatchBudget,
   batchFitsBudget,

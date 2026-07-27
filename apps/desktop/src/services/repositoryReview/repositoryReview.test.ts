@@ -6,6 +6,7 @@ import {
   computeReviewBatchBudget,
   createHeuristicBatchAnalyzer,
   dedupeRepositoryReviewFindings,
+  describeEmptyReviewPlan,
   ensureBatchFitsOrSplit,
   filterFindingsToExistingPaths,
   isDestructiveReviewCommand,
@@ -390,6 +391,43 @@ describe("RepositoryReviewOrchestrator", () => {
     });
     const result = await orch.start(request);
     expect(result.outcome).toBe("failed");
+  });
+
+  it("classifies a non-empty inventory with zero eligible batches as empty_plan", async () => {
+    const io = createMemoryIO({
+      "styles.css": "body { color: red; }",
+      "notes.txt": "just some notes"
+    });
+    const request = buildRepositoryReviewRequest({
+      workspaceId: "c:/demo",
+      workspaceRoot: "C:/demo",
+      scope: "full_repository"
+    });
+    const orch = new RepositoryReviewOrchestrator({
+      io,
+      createReviewId: () => "rev-empty-plan"
+    });
+    const result = await orch.start(request);
+    expect(result.outcome).toBe("empty_plan");
+    expect(result.inventory?.fileCount).toBeGreaterThan(0);
+    expect(result.plan?.batches.length ?? 0).toBe(0);
+    expect(result.progress.currentBatchTitle).toMatch(/Dateiformat-Filter/);
+
+    const stateRaw = await io.readText("C:/demo", ".codee/reviews/rev-empty-plan/review-state.json");
+    expect(stateRaw).toBeTruthy();
+    const state = JSON.parse(stateRaw!);
+    expect(state.outcome).toBe("empty_plan");
+    expect(state.detail).toMatch(/Dateiformat-Filter/);
+  });
+
+  it("names the affected selection when describing an empty selectedPaths plan", () => {
+    const request = buildRepositoryReviewRequest({
+      workspaceId: "c:/demo",
+      workspaceRoot: "C:/demo",
+      scope: "selected_paths",
+      selectedPaths: ["styles.css"]
+    });
+    expect(describeEmptyReviewPlan(request)).toMatch(/styles\.css/);
   });
 
   it("isolates workspaces on resume", async () => {

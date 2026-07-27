@@ -789,7 +789,9 @@ export type RepositoryReviewOutcome =
   | "command_failed"
   | "batch_failed"
   | "context_split_required"
-  | "report_generation_failed";
+  | "report_generation_failed"
+  /** Plan produced zero batches despite a non-empty inventory (e.g. selectedPaths matched nothing, or no file matched the supported extension filter). */
+  | "empty_plan";
 
 export type RepositoryReviewFindingSeverity = "P0" | "P1" | "P2" | "P3";
 

@@ -38,6 +38,8 @@ export interface ReviewStateFile {
   workspaceRoot: string;
   status: import("@dbzs/shared").RepositoryReviewStatus;
   outcome?: import("@dbzs/shared").RepositoryReviewOutcome;
+  /** Free-text reason for a failure outcome, e.g. why the review plan came out empty. */
+  detail?: string;
   createdAt: string;
   updatedAt: string;
   completedBatchIds: string[];
