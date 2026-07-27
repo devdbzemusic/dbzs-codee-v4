@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tasklist)",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s -m 2 http://127.0.0.1:8876/health/live)",
+      "Bash(netstat -ano)",
+      "Bash(curl -s -m 3 http://127.0.0.1:8876/health/live)",
+      "Bash(curl -s -m 3 http://127.0.0.1:8876/health/ready)"
+    ]
+  }
+}

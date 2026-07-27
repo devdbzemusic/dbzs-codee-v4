@@ -1,0 +1,29 @@
+schemaVersion: "1.0"
+id: doc
+kind: skill
+name: DOCX
+version: 1.0.0
+description: DOCX-Dokumente planen und auf Inhalt sowie Layout prüfen
+mode: advisory
+targetAgents: [runtime_chat]
+activation: { intents: [document_work], keywords: [docx, word dokument], explicitOnly: false, autoSuggest: true }
+preconditions: []
+effects: [document_guidance]
+domains: [documents]
+cost: low
+latency: normal
+riskLevel: low
+sideEffects: []
+idempotent: true
+permissions:
+  allowedTools: [list_files, read_file, ask_user, write_skill_artifact]
+  requiredTools: []
+  mayReadFiles: true
+  mayWriteFiles: false
+  mayRunCommands: false
+  mayInstallDependencies: false
+  mayUseNetwork: false
+compatibility: { requires: [], conflictsWith: [], composesWith: [], enables: [] }
+successSignals: [{ id: document_result, description: Dokumentergebnis ist prüfbar beschrieben, required: true }]
+failureSignals: [{ id: layout_unverified, description: Layout wurde ungeprüft als korrekt bezeichnet }]
+observability: { logs: [document skill completed], metrics: [artifact_count] }

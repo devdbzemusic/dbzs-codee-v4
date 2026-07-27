@@ -8,10 +8,35 @@ export interface BootEventBridgeDeps {
   getWindows: () => BrowserWindow[];
   backendPort: number;
   restartBackendProcess: () => Promise<void>;
+  /** Stops the current backend (if any we own) and flags the next spawn to carry DBZS_SAFE_MODE=1. */
+  enterSafeModeAndRestartBackend: () => Promise<void>;
   exportDiagnostics: () => Promise<string>;
   requestSafeMode: () => void;
   quitApp: () => void;
 }
+
+/**
+ * Every phase from backend-spawn through main-app-released -- reset as a
+ * group by "restart backend"/"safe mode" (spec §20), since those actions
+ * must re-run phases that had already succeeded, not just retry a failed
+ * one (that's retryPhase()'s narrower job).
+ */
+const BACKEND_RESTART_PHASE_GROUP = [
+  "backend-spawn",
+  "backend-live",
+  "backend-startup-api",
+  "database-init",
+  "model-index",
+  "runtime-manager-init",
+  "resident-model",
+  "backend-ready",
+  "frontend-bridge",
+  "frontend-config-sync",
+  "workspace-restore",
+  "agents-roles-models",
+  "main-window-rendered",
+  "main-app-released"
+];
 
 function broadcast(deps: BootEventBridgeDeps, channel: string, payload: unknown): void {
   for (const win of deps.getWindows()) {
@@ -33,8 +58,15 @@ export function registerBootEventBridge(deps: BootEventBridgeDeps): () => void {
 
   ipcMain.handle(
     "dbzs:boot:report-phase",
-    (_event, phaseId: string, outcome: "success" | "failed", message: string) => {
-      reportFrontendPhase(phaseId, outcome, message ?? "");
+    (
+      _event,
+      phaseId: string,
+      state: "success" | "failed",
+      message: string,
+      progress?: number,
+      metadata?: Record<string, unknown>
+    ) => {
+      reportFrontendPhase(phaseId, state, message ?? "", progress, metadata);
     }
   );
 
@@ -53,7 +85,7 @@ export function registerBootEventBridge(deps: BootEventBridgeDeps): () => void {
 
   ipcMain.handle("dbzs:boot:restart-backend", async () => {
     await deps.restartBackendProcess();
-    await deps.orchestrator.retryPhase("backend-process-started");
+    await deps.orchestrator.resetPhaseGroup(BACKEND_RESTART_PHASE_GROUP);
   });
 
   ipcMain.handle("dbzs:boot:use-fallback-model", async () => {
@@ -62,8 +94,10 @@ export function registerBootEventBridge(deps: BootEventBridgeDeps): () => void {
 
   ipcMain.handle("dbzs:boot:export-diagnostics", async () => deps.exportDiagnostics());
 
-  ipcMain.handle("dbzs:boot:safe-mode", () => {
+  ipcMain.handle("dbzs:boot:safe-mode", async () => {
     deps.requestSafeMode();
+    await deps.enterSafeModeAndRestartBackend();
+    await deps.orchestrator.resetPhaseGroup(BACKEND_RESTART_PHASE_GROUP);
   });
 
   ipcMain.handle("dbzs:boot:quit", () => {
@@ -74,7 +108,7 @@ export function registerBootEventBridge(deps: BootEventBridgeDeps): () => void {
   let sseAbort: AbortController | null = null;
   const unsubscribeSse = deps.orchestrator.onStateChange((state: BootState) => {
     if (sseStarted) return;
-    const healthPhase = state.phases.find((p) => p.id === "backend-health-live");
+    const healthPhase = state.phases.find((p) => p.id === "backend-live");
     if (healthPhase?.state === "success") {
       sseStarted = true;
       sseAbort = new AbortController();

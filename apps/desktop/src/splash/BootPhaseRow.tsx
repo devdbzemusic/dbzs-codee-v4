@@ -25,9 +25,10 @@ export function BootPhaseRow({ phase, now }: { phase: BootPhase; now: number }) 
       <span className="w-64 shrink-0 truncate text-sm text-dbzs-text">{phase.label}</span>
       <span className="flex-1 truncate text-xs text-dbzs-muted">
         {phase.message || led.label}
+        {phase.pollCount > 0 ? ` (Poll ${phase.pollCount})` : ""}
         {phase.retryCount > 0 ? ` (Retry ${phase.retryCount})` : ""}
       </span>
-      {phase.state === "running" && phase.progress > 0 ? (
+      {(phase.state === "running" || phase.state === "waiting") && phase.progress > 0 ? (
         <div className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-dbzs-panelSoft">
           <div className="h-full bg-dbzs-cyan transition-[width]" style={{ width: `${Math.min(100, phase.progress)}%` }} />
         </div>

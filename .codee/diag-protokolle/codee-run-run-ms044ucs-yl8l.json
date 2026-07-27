@@ -1,0 +1,135 @@
+{
+  "id": "run-ms044ucs-yl8l",
+  "userMessageId": "msg-ms044ucs-user",
+  "status": "failed",
+  "startedAt": "2026-07-25T08:34:19.948Z",
+  "mode": "auto",
+  "profile": "ask",
+  "contextEnabled": true,
+  "workspaceRoot": "C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\test-fixtures\\coding-capability-project",
+  "activeFile": "C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\test-fixtures\\coding-capability-project\\tsconfig.json",
+  "events": [
+    {
+      "id": "ev-ms044ucs-zqu",
+      "type": "chat.accepted",
+      "timestamp": "2026-07-25T08:34:19.948Z",
+      "message": "Nachricht angenommen",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms044uct-zuk",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-25T08:34:19.949Z",
+      "message": "Runtime-Status pruefen",
+      "durationMs": 1
+    },
+    {
+      "id": "ev-ms044ugl-9x6",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-25T08:34:20.085Z",
+      "message": "Backend online · Residenter Slotstatus: Phi-3-mini-4k-instruct-q4",
+      "durationMs": 136
+    },
+    {
+      "id": "ev-ms044ugl-q61",
+      "type": "routing.started",
+      "timestamp": "2026-07-25T08:34:20.085Z",
+      "message": "Modell-Routing",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms044ugn-cak",
+      "type": "routing.completed",
+      "timestamp": "2026-07-25T08:34:20.087Z",
+      "message": "Modell gewählt: qwen3-reranker-0.6b-q8-0",
+      "meta": {
+        "rolloutStage": "canary-100",
+        "routingPath": "broker",
+        "canaryPercent": 100,
+        "shadowMode": false,
+        "shadowMatch": null,
+        "stopOnShadowMismatch": false
+      },
+      "durationMs": 2
+    },
+    {
+      "id": "ev-ms044ugn-6u3",
+      "type": "context.started",
+      "timestamp": "2026-07-25T08:34:20.087Z",
+      "message": "Repository Review gestartet · Scope full_repository · Intent code_review",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms044uig-p40",
+      "type": "context.completed",
+      "timestamp": "2026-07-25T08:34:20.152Z",
+      "message": "Review 0/0",
+      "meta": {
+        "repositoryReview": {
+          "reviewId": "rev-ms044ugn-his5n",
+          "workspaceId": "c:/users/ralle/source/repos/dbzs-codee-project/test-fixtures/coding-capability-project",
+          "scope": "full_repository",
+          "status": "failed",
+          "outcome": "failed",
+          "intentLabel": "code_review",
+          "workflowId": "repository_review",
+          "totalBatches": 0,
+          "completedBatches": 0,
+          "checks": [],
+          "severityCounts": {},
+          "artifactDir": ".codee/reviews/rev-ms044ugn-his5n",
+          "reportPath": ".codee/reviews/rev-ms044ugn-his5n/REVIEW_REPORT.md",
+          "findingsPath": ".codee/reviews/rev-ms044ugn-his5n/findings.json",
+          "analyzerDiagnostics": [],
+          "topFindings": [],
+          "updatedAt": "2026-07-25T08:34:20.152Z"
+        }
+      },
+      "durationMs": 65
+    },
+    {
+      "id": "ev-ms044uio-g1h",
+      "type": "chat.failed",
+      "timestamp": "2026-07-25T08:34:20.160Z",
+      "message": "Repository Review abgeschlossen\nDauer: 0 min 0 s\nAbdeckung: 0/0 Dateien · 0/0 Batches\nAnalyzer: LLM 0/0 erfolgreich · Heuristik 0/0\nQualitätsstatus: unbekannt · Outcome failed\nChecks: 0 erfolgreich · 0 nicht verfügbar/ausgeführt\nFindings: P0 0 · P1 0 · P2 0 · P3 0\nTop Findings: keine bestätigten Findings\nReport: .codee/reviews/rev-ms044ugn-his5n/REVIEW_REPORT.md\nFindings: .codee/reviews/rev-ms044ugn-his5n/findings.json\nArtefaktordner: .codee/reviews/rev-ms044ugn-his5n",
+      "durationMs": 8
+    }
+  ],
+  "turns": [],
+  "toolCalls": [],
+  "fileChanges": [],
+  "commands": [],
+  "provider": "llama-cpp",
+  "modelId": "fa0ecbe06bedbb0e",
+  "modelName": "qwen3-reranker-0.6b-q8-0",
+  "slotId": "fast_gpu",
+  "configuredModelId": "fa0ecbe06bedbb0e",
+  "selectionSource": "role_setting",
+  "settingsRevision": 155,
+  "warmupStatus": "pending",
+  "workflowLabel": "repository_review",
+  "phaseLabel": "review",
+  "targetAgentLabel": "reviewer",
+  "repositoryReview": {
+    "reviewId": "rev-ms044ugn-his5n",
+    "workspaceId": "c:/users/ralle/source/repos/dbzs-codee-project/test-fixtures/coding-capability-project",
+    "scope": "full_repository",
+    "status": "failed",
+    "outcome": "failed",
+    "intentLabel": "code_review",
+    "workflowId": "repository_review",
+    "totalBatches": 0,
+    "completedBatches": 0,
+    "checks": [],
+    "severityCounts": {},
+    "artifactDir": ".codee/reviews/rev-ms044ugn-his5n",
+    "reportPath": ".codee/reviews/rev-ms044ugn-his5n/REVIEW_REPORT.md",
+    "findingsPath": ".codee/reviews/rev-ms044ugn-his5n/findings.json",
+    "analyzerDiagnostics": [],
+    "topFindings": [],
+    "updatedAt": "2026-07-25T08:34:20.152Z"
+  },
+  "finishedAt": "2026-07-25T08:34:20.160Z",
+  "outcome": "generation_failed",
+  "assistantMessageId": "msg-ms044uio-assistant-w3z9"
+}

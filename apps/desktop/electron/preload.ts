@@ -516,8 +516,13 @@ const api = {
       ipcRenderer.removeListener("dbzs:boot:state", handler);
     };
   },
-  reportBootPhase: (phaseId: string, outcome: "success" | "failed", message: string) =>
-    ipcRenderer.invoke("dbzs:boot:report-phase", phaseId, outcome, message) as Promise<void>,
+  reportBootPhaseState: (
+    phaseId: string,
+    state: "success" | "failed",
+    message: string,
+    progress?: number,
+    metadata?: Record<string, unknown>
+  ) => ipcRenderer.invoke("dbzs:boot:report-phase", phaseId, state, message, progress, metadata) as Promise<void>,
   retryBootPhase: (phaseId: string | null) =>
     ipcRenderer.invoke("dbzs:boot:retry-phase", phaseId) as Promise<void>,
   restartBootBackend: () => ipcRenderer.invoke("dbzs:boot:restart-backend") as Promise<void>,

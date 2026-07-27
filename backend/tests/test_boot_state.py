@@ -1,6 +1,6 @@
 import pytest
 
-from app.core.boot_state import BootStateStore
+from app.core.boot_state import BootComponentError, BootStateStore
 
 
 @pytest.mark.anyio
@@ -33,7 +33,7 @@ async def test_status_degraded_when_resident_model_fails_but_mandatory_component
     await store.set_component("database", "success")
     await store.set_component("modelRegistry", "success")
     await store.set_component("runtimeManager", "success")
-    await store.set_component("residentModel", "failed", error="no gguf found")
+    await store.set_component("residentModel", "failed", error=BootComponentError(code="no-gguf-found"))
 
     snapshot = store.snapshot()
 
@@ -58,7 +58,7 @@ async def test_status_ready_when_resident_model_skipped():
 @pytest.mark.anyio
 async def test_status_failed_when_a_mandatory_component_fails():
     store = BootStateStore()
-    await store.set_component("database", "failed", error="disk full")
+    await store.set_component("database", "failed", error=BootComponentError(code="disk-full"))
     await store.set_component("modelRegistry", "success")
     await store.set_component("runtimeManager", "success")
 

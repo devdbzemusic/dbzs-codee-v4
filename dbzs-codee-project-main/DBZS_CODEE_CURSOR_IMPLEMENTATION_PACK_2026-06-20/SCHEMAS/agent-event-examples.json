@@ -1,0 +1,62 @@
+{
+  "schema_version": "agent-event-v1",
+  "events": [
+    {
+      "sequence": 1,
+      "id": "evt-001",
+      "run_id": "run-demo",
+      "step_id": null,
+      "event_type": "run.created",
+      "severity": "info",
+      "summary": "AgentRun erstellt",
+      "payload": {
+        "goal": "Beispieländerung umsetzen"
+      },
+      "created_at": "2026-06-20T12:00:00Z"
+    },
+    {
+      "sequence": 2,
+      "id": "evt-002",
+      "run_id": "run-demo",
+      "step_id": "step-001",
+      "event_type": "step.started",
+      "severity": "info",
+      "summary": "Projektstruktur analysieren",
+      "payload": {
+        "ordinal": 1
+      },
+      "created_at": "2026-06-20T12:00:01Z"
+    },
+    {
+      "sequence": 3,
+      "id": "evt-003",
+      "run_id": "run-demo",
+      "step_id": "step-001",
+      "event_type": "tool.completed",
+      "severity": "info",
+      "summary": "Workspace-Dateien aufgelistet",
+      "payload": {
+        "tool_id": "filesystem.list",
+        "result_count": 42
+      },
+      "created_at": "2026-06-20T12:00:02Z"
+    },
+    {
+      "sequence": 4,
+      "id": "evt-004",
+      "run_id": "run-demo",
+      "step_id": "step-002",
+      "event_type": "file.change_proposed",
+      "severity": "warning",
+      "summary": "Änderung wartet auf Review",
+      "payload": {
+        "file_change_id": "chg-001",
+        "file_path": "src/example.ts",
+        "added_lines": 12,
+        "removed_lines": 2,
+        "risk_level": "medium"
+      },
+      "created_at": "2026-06-20T12:00:10Z"
+    }
+  ]
+}

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { dialog, type BrowserWindow } from "electron";
 import type { BootDiagnosticExport, BootLogEntry, BootState } from "@dbzs/shared";
+import { redactSecretsDeep } from "./secretRedaction.js";
 
 export interface BuildBootDiagnosticExportOptions {
   bootState: BootState;
@@ -28,7 +29,11 @@ export function buildBootDiagnosticExport(options: BuildBootDiagnosticExportOpti
 
   const residentModelPhase = bootState.phases.find((p) => p.id === "resident-model");
 
-  return {
+  // Deep-redacted as a whole (not just `logs`/`stderr`) -- `phases[].details[]`
+  // and `phases[].error.{technicalDetail,stderrTail}` also carry free text
+  // that could contain a leaked secret (repair spec §18). This export is
+  // meant to be shareable for troubleshooting.
+  return redactSecretsDeep({
     runId: bootState.runId,
     appVersion,
     os: `${os.platform()} ${os.release()}`,
@@ -48,7 +53,7 @@ export function buildBootDiagnosticExport(options: BuildBootDiagnosticExportOpti
     exitCodes,
     stderr,
     readinessResponses: residentModelPhase ? [] : []
-  };
+  });
 }
 
 export async function exportBootDiagnosticsToFile(

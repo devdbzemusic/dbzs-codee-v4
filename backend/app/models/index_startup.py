@@ -13,17 +13,37 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from app.core.boot_state import BootStateStore
+from app.core.boot_state import BootComponentError, BootStateStore
 from app.models.discovery_mode import get_model_discovery_mode
 from app.models.index_service import ModelIndexService
 
 logger = logging.getLogger(__name__)
 
 
-async def run_model_index_startup(store: BootStateStore) -> None:
-    await store.set_component("modelRegistry", "running", progress=0, total=0, message="Scanning model catalog...")
+def _counts(scanned: int, candidates: int, invalid: int) -> dict[str, object]:
+    """Structured progress counts (repair spec §14). No incremental-scan
+    cache layer exists in ModelIndexService yet, so cachedModelCount is
+    always 0 -- reported honestly as "not implemented", not fabricated."""
+    return {
+        "scannedFileCount": scanned,
+        "candidateCount": candidates,
+        "validModelCount": max(0, scanned - invalid),
+        "invalidModelCount": invalid,
+        "cachedModelCount": 0,
+    }
 
-    errors: dict[str, str] = {}
+
+async def run_model_index_startup(store: BootStateStore) -> None:
+    await store.set_component(
+        "modelRegistry",
+        "running",
+        progress=0,
+        total=0,
+        message="Scanning model catalog...",
+        data=_counts(0, 0, 0),
+    )
+
+    errors: dict[str, dict[str, str]] = {}
 
     def on_progress(checked: int, total: int) -> None:
         # Called synchronously from the worker thread inside build_index();
@@ -35,12 +55,13 @@ async def run_model_index_startup(store: BootStateStore) -> None:
                 progress=checked,
                 total=total,
                 message=f"Checked {checked}/{total} models",
+                data=_counts(checked, total, len(errors)),
             ),
             loop,
         )
 
     def on_model_error(identifier: str, exc: Exception) -> None:
-        errors[identifier] = str(exc)
+        errors[identifier] = {"path": identifier, "code": type(exc).__name__, "message": str(exc)}
         logger.warning("Model index: skipping unreadable model %s: %s", identifier, exc)
 
     loop = asyncio.get_running_loop()
@@ -54,10 +75,17 @@ async def run_model_index_startup(store: BootStateStore) -> None:
         )
     except Exception as exc:
         logger.error("Model index startup task failed: %s", exc)
-        await store.set_component("modelRegistry", "failed", message=str(exc), error=str(exc))
+        await store.set_component(
+            "modelRegistry",
+            "failed",
+            message=str(exc),
+            error=BootComponentError(code="model-index-failed", technical_detail=str(exc)),
+            data=_counts(0, 0, 0),
+        )
         return
 
     model_count = len(index.models)
+    total_scanned = model_count + len(errors)
     if errors:
         message = f"Indexed {model_count} models ({len(errors)} skipped due to errors)"
         await store.set_component(
@@ -66,7 +94,7 @@ async def run_model_index_startup(store: BootStateStore) -> None:
             progress=model_count,
             total=model_count,
             message=message,
-            error="; ".join(f"{k}: {v}" for k, v in errors.items()),
+            data={"modelErrors": list(errors.values()), **_counts(total_scanned, total_scanned, len(errors))},
         )
     else:
         await store.set_component(
@@ -75,4 +103,5 @@ async def run_model_index_startup(store: BootStateStore) -> None:
             progress=model_count,
             total=model_count,
             message=f"Indexed {model_count} models",
+            data=_counts(model_count, model_count, 0),
         )

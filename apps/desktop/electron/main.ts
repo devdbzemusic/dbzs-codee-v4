@@ -69,7 +69,8 @@ import {
 } from "./settingsSecurity.js";
 import { configureWindowSecurity } from "./windowSecurity.js";
 import {
-  BackendStartupService
+  BackendStartupService,
+  isBackendLaunchAvailable
 } from "./backendStartupService.js";
 import { promptTextInput as promptTextInputDialog } from "./promptInput.js";
 import { SkillPackageService } from "./skillPackageService.js";
@@ -98,6 +99,7 @@ import { createPhaseRunners } from "./boot/phaseRunners.js";
 import { registerBootEventBridge } from "./boot/bootEventBridge.js";
 import { WindowCoordinator } from "./boot/windowCoordinator.js";
 import { exportBootDiagnosticsToFile } from "./boot/bootDiagnosticExport.js";
+import { startBootLogPersistence } from "./boot/bootLogPersistence.js";
 
 const BACKEND_PORT = Number(process.env.DBZS_BACKEND_PORT ?? "8876");
 const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
@@ -2056,6 +2058,26 @@ app.whenReady().then(async () => {
     backendStartup: startup,
     probe,
     userDataDir: app.getPath("userData"),
+    filesystemCheck: {
+      userDataDir: app.getPath("userData"),
+      logDir: path.join(app.getPath("userData"), "logs"),
+      tempDir: app.getPath("temp"),
+      databaseDir: app.getPath("userData"),
+      // No configured local-model directories are known desktop-side today
+      // (that's the backend's SettingsService's concern) -- an empty list
+      // means "nothing to check here", not "no models configured".
+      modelRoots: [],
+      isBackendLaunchAvailable: () =>
+        isBackendLaunchAvailable({
+          isPackaged: app.isPackaged,
+          resourcesPath: process.resourcesPath,
+          devBackendCwd: backendCwd()
+        }),
+      // No reliable universal runtime-executable path is known desktop-side
+      // (llama.cpp binaries are resolved per-model by the backend) -- see
+      // filesystemCheck.ts's docstring for why an empty list is honest here.
+      runtimeExecutableCandidates: []
+    },
     loadLocalConfig: async () => {
       // Work already performed above, eagerly — this phase just confirms it.
     },
@@ -2067,11 +2089,27 @@ app.whenReady().then(async () => {
   orchestrator = new BootOrchestrator(BOOT_PHASE_DEFINITIONS, runners);
   orchestrator.patchHud({ backendPort: BACKEND_PORT });
 
+  startBootLogPersistence({
+    orchestrator,
+    userDataDir: app.getPath("userData"),
+    runId: orchestrator.getState().runId
+  });
+
   registerBootEventBridge({
     orchestrator,
     getWindows: () => coordinator.getAllWindows(),
     backendPort: BACKEND_PORT,
     restartBackendProcess: async () => {
+      startup.stop();
+      await cleanupLingeringRuntimeArtifacts({
+        backendPort: BACKEND_PORT,
+        devUserDataDir: app.getPath("userData"),
+        pruneTransientDirectories: false,
+        log: (line) => console.log(`[runtime-cleanup] ${line}`)
+      });
+    },
+    enterSafeModeAndRestartBackend: async () => {
+      startup.setSafeMode(true);
       startup.stop();
       await cleanupLingeringRuntimeArtifacts({
         backendPort: BACKEND_PORT,
@@ -2118,6 +2156,11 @@ app.on("before-quit", async (event) => {
   if (!isQuitting) {
     event.preventDefault();
     isQuitting = true;
+
+    // Step 1 of the quit sequence (spec §20): cancel any still-running boot
+    // phase before anything else, so its runner can never mutate state (or
+    // e.g. try to reach a backend we're about to stop) after this point.
+    orchestrator?.abort();
 
     try {
       const settings = await requestBackend<AppSettings>("/settings").catch(() => null);

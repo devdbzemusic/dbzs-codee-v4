@@ -1,0 +1,330 @@
+{
+  "id": "run-mrx2qx3u-xufv",
+  "userMessageId": "msg-mrx2qx3u-user",
+  "status": "failed",
+  "startedAt": "2026-07-23T05:32:12.186Z",
+  "mode": "auto",
+  "profile": "ask",
+  "contextEnabled": true,
+  "workspaceRoot": "C:\\Users\\ralle\\source\\repos\\guitar-bass-academy",
+  "activeFile": "C:\\Users\\ralle\\source\\repos\\guitar-bass-academy\\README.md",
+  "events": [
+    {
+      "id": "ev-mrx2qx3u-kcy",
+      "type": "chat.accepted",
+      "timestamp": "2026-07-23T05:32:12.186Z",
+      "message": "Nachricht angenommen",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-mrx2qx3u-rar",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-23T05:32:12.186Z",
+      "message": "Runtime-Status pruefen",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-mrx2qx6l-lys",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-23T05:32:12.285Z",
+      "message": "Backend online · Residenter Slotstatus: qwen2.5-coder-3b-instruct-q8-0",
+      "durationMs": 99
+    },
+    {
+      "id": "ev-mrx2qx6l-3jb",
+      "type": "routing.started",
+      "timestamp": "2026-07-23T05:32:12.285Z",
+      "message": "Modell-Routing",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-mrx2qx6m-z1q",
+      "type": "routing.completed",
+      "timestamp": "2026-07-23T05:32:12.286Z",
+      "message": "Modell gewählt: qwen2.5-coder-3b-instruct-q8-0",
+      "meta": {
+        "rolloutStage": "canary-100",
+        "routingPath": "broker",
+        "canaryPercent": 100,
+        "shadowMode": false,
+        "shadowMatch": null,
+        "stopOnShadowMismatch": false
+      },
+      "durationMs": 1
+    },
+    {
+      "id": "ev-mrx2qx8e-n3p",
+      "type": "context.started",
+      "timestamp": "2026-07-23T05:32:12.350Z",
+      "message": "Runtime-Kontext vorbereiten (Stufe 1)",
+      "durationMs": 64
+    },
+    {
+      "id": "ev-mrx2qx8e-vyg",
+      "type": "context.completed",
+      "timestamp": "2026-07-23T05:32:12.350Z",
+      "message": "Stufe 1 aktiv — keine pauschalen Workspace-Signale",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-mrx2qx9a-22w",
+      "type": "context.completed",
+      "timestamp": "2026-07-23T05:32:12.382Z",
+      "message": "context_fallback_applied reason=context_overflow tokens_before=5128 tokens_after=1344",
+      "durationMs": 32
+    },
+    {
+      "id": "ev-mrx2qxax-wee",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-23T05:32:12.441Z",
+      "message": "resource_risk=low:resident_skip_ask",
+      "meta": {
+        "risk": "low",
+        "reasons": [],
+        "profile": "balanced",
+        "slotNeedsStart": false
+      },
+      "durationMs": 59
+    },
+    {
+      "id": "ev-mrx2qxkf-qwx",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-23T05:32:12.783Z",
+      "message": "runtime_inference_ready",
+      "meta": {
+        "slotId": "fast_gpu",
+        "preview": "OK.",
+        "readinessStage": "inference_ready",
+        "tokenVerified": true
+      },
+      "durationMs": 342
+    },
+    {
+      "id": "ev-mrx2qxlx-5yj",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-23T05:32:12.837Z",
+      "message": "On-Demand bereit: qwen2.5-coder-3b-instruct-q8-0",
+      "meta": {
+        "startTrigger": "post_budget_ondemand",
+        "slotId": "fast_gpu",
+        "modelId": "b071fa4bcbebd7c1",
+        "reasons": [
+          "task_type:review",
+          "target_agent:reviewer",
+          "slot:fast_gpu",
+          "model_selection:review",
+          "vision_gate:text_only",
+          "role_setting:b071fa4bcbebd7c1",
+          "selection_source:role_setting"
+        ]
+      },
+      "durationMs": 54
+    },
+    {
+      "id": "ev-mrx2qxnm-j1e",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-23T05:32:12.898Z",
+      "message": "slot_execution_ready",
+      "meta": {
+        "slotId": "fast_gpu",
+        "processRunning": true,
+        "endpointReachable": true,
+        "modelLoaded": true,
+        "slotBusy": false,
+        "activeRunId": "run-mrx2qx3u-xufv",
+        "modelId": "b071fa4bcbebd7c1",
+        "gpuLayers": 0
+      },
+      "durationMs": 61
+    },
+    {
+      "id": "ev-mrx2qxnn-g2r",
+      "type": "model.request.started",
+      "timestamp": "2026-07-23T05:32:12.899Z",
+      "message": "Agent-Turn Loop gestartet",
+      "durationMs": 1
+    },
+    {
+      "id": "ev-mrx2r0rx-vc0",
+      "type": "model.first_token",
+      "timestamp": "2026-07-23T05:32:16.941Z",
+      "message": "Erstes Token empfangen",
+      "durationMs": 4042
+    },
+    {
+      "id": "ev-mrx2ypo6-b4y",
+      "type": "chat.failed",
+      "timestamp": "2026-07-23T05:38:15.798Z",
+      "message": "Die Anfrage ist größer als das aktuelle Runtime-Kontextfenster. Bitte weniger Kontext senden oder ein Profil mit größerem Kontext starten.",
+      "durationMs": 358857
+    }
+  ],
+  "turns": [],
+  "toolCalls": [
+    {
+      "id": "tc-5eb3edc2-f27d-4dca-aad2-cd849c365d44",
+      "name": "grep",
+      "toolCallId": "tc-5eb3edc2-f27d-4dca-aad2-cd849c365d44",
+      "status": "completed",
+      "arguments": "{\"pattern\":\"^test.*featureName$\",\"include\":\"./src/**/*.spec.ts\",\"maxResults\":5}",
+      "startedAt": "2026-07-23T05:32:12.186Z"
+    },
+    {
+      "id": "tc-6a137c5b-bfa7-479e-adf8-f2f1b5a7cb1a",
+      "name": "read_file",
+      "toolCallId": "tc-6a137c5b-bfa7-479e-adf8-f2f1b5a7cb1a",
+      "status": "failed",
+      "arguments": "{\"path\":\"./src/functions/exampleFunction.js\"}",
+      "filePath": "./src/functions/exampleFunction.js",
+      "startedAt": "2026-07-23T05:32:12.186Z"
+    },
+    {
+      "id": "tc-0c5c272f-fc6d-45c2-8287-328287102d0e",
+      "name": "grep",
+      "toolCallId": "tc-0c5c272f-fc6d-45c2-8287-328287102d0e",
+      "status": "completed",
+      "arguments": "{\"pattern\":\"^test.*newFeature$\",\"include\":\"./src/**/*.spec.ts\",\"maxResults\":5}",
+      "startedAt": "2026-07-23T05:32:12.186Z"
+    },
+    {
+      "id": "tc-f05aaf91-4ba5-4381-80c6-f69d663ecfdc",
+      "name": "grep",
+      "toolCallId": "tc-f05aaf91-4ba5-4381-80c6-f69d663ecfdc",
+      "status": "completed",
+      "arguments": "{\"pattern\":\"^it\\\\s+should perform the expected actions$\",\"include\":\"./src/**/*.spec.js\",\"maxResults\":5}",
+      "startedAt": "2026-07-23T05:32:12.186Z"
+    }
+  ],
+  "fileChanges": [],
+  "commands": [],
+  "provider": "llama-cpp",
+  "modelId": "b071fa4bcbebd7c1",
+  "modelName": "qwen2.5-coder-3b-instruct-q8-0",
+  "slotId": "fast_gpu",
+  "configuredModelId": "b071fa4bcbebd7c1",
+  "selectionSource": "role_setting",
+  "settingsRevision": 2,
+  "warmupStatus": "ready",
+  "workflowLabel": "Implementiere Electron",
+  "phaseLabel": "review",
+  "targetAgentLabel": "reviewer",
+  "contextFallbackApplied": true,
+  "droppedSources": [
+    "active-task-workspace-summary",
+    "active-task-workspace-file-0",
+    "active-task-workspace-file-1",
+    "active-task-workspace-file-2",
+    "active-task-workspace-file-3",
+    "active-task-workspace-file-4",
+    "active-task-workspace-file-5",
+    "relevant-code-0",
+    "msg-mrx2qx3u-user",
+    "orchestration_signals",
+    "broad_rag"
+  ],
+  "droppedContextSources": [
+    {
+      "id": "active-task-workspace-summary",
+      "reason": "context_overflow",
+      "tokensRemoved": 0
+    },
+    {
+      "id": "active-task-workspace-file-0",
+      "reason": "context_overflow",
+      "tokensRemoved": 0
+    },
+    {
+      "id": "active-task-workspace-file-1",
+      "reason": "context_overflow",
+      "tokensRemoved": 0
+    },
+    {
+      "id": "active-task-workspace-file-2",
+      "reason": "context_overflow",
+      "tokensRemoved": 0
+    },
+    {
+      "id": "active-task-workspace-file-3",
+      "reason": "context_overflow",
+      "tokensRemoved": 0
+    },
+    {
+      "id": "active-task-workspace-file-4",
+      "reason": "context_overflow",
+      "tokensRemoved": 0
+    },
+    {
+      "id": "active-task-workspace-file-5",
+      "reason": "context_overflow",
+      "tokensRemoved": 0
+    },
+    {
+      "id": "relevant-code-0",
+      "reason": "context_overflow",
+      "tokensRemoved": 0
+    },
+    {
+      "id": "msg-mrx2qx3u-user",
+      "reason": "context_overflow",
+      "tokensRemoved": 0
+    },
+    {
+      "id": "orchestration_signals",
+      "reason": "context_overflow",
+      "tokensRemoved": 0
+    },
+    {
+      "id": "broad_rag",
+      "reason": "context_overflow",
+      "tokensRemoved": 0
+    }
+  ],
+  "tokenBudget": {
+    "runtimeContextLimit": 4096,
+    "systemTokens": 294,
+    "toolTokens": 1,
+    "chatTokens": 21,
+    "interviewTokens": 1,
+    "memoryTokens": 1,
+    "fileContextTokens": 1,
+    "ragTokens": 1,
+    "outputReserveTokens": 1024,
+    "totalInputTokens": 320,
+    "totalRequiredTokens": 1344,
+    "overflowTokens": 0
+  },
+  "contextStage": 1,
+  "resourceRisk": "low",
+  "resourceRiskReasons": [],
+  "readinessStage": "inference_ready",
+  "slotExecutionState": {
+    "slotId": "fast_gpu",
+    "processRunning": true,
+    "endpointReachable": true,
+    "modelLoaded": true,
+    "slotBusy": false,
+    "activeRunId": "run-mrx2qx3u-xufv",
+    "modelId": "b071fa4bcbebd7c1",
+    "gpuLayers": 0
+  },
+  "firstTokenAt": "2026-07-23T05:32:16.941Z",
+  "finishedAt": "2026-07-23T05:38:15.798Z",
+  "outcome": "context_overflow",
+  "finalAnswerDiagnostics": {
+    "correlationId": "run-mrx2qx3u-xufv",
+    "runId": "run-mrx2qx3u-xufv",
+    "modelId": "b071fa4bcbebd7c1",
+    "modelName": "qwen2.5-coder-3b-instruct-q8-0",
+    "slotId": "fast_gpu",
+    "rawContentLength": 163,
+    "rawContentPreview": "Die Anfrage ist größer als das aktuelle Runtime-Kontextfenster. Bitte weniger Datei-/Workspace-Kontext senden oder ein Runtime-Profil mit größerem Kontext starten.",
+    "parserSucceeded": true,
+    "agentTurnCount": 3,
+    "pendingToolCalls": 0,
+    "completedToolCalls": 4,
+    "finalAnswerLength": 163,
+    "finalAnswerDelivered": false,
+    "finalOutcome": "context_overflow",
+    "contextSafetyMarginTokens": 2752
+  }
+}

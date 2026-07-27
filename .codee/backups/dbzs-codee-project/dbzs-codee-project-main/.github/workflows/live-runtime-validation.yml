@@ -1,0 +1,28 @@
+name: Live Runtime Validation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  live-runtime:
+    runs-on: [self-hosted, windows, x64, dbzs-runtime]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: astral-sh/setup-uv@v5
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --frozen
+        working-directory: backend
+      - name: Smoke-Check vor Live-Acceptance
+        run: pnpm smoke-test
+
+      - name: Lokale llama-server-Abnahme
+        run: pnpm acceptance:live
+      - name: Antigravity optional prüfen
+        if: ${{ env.GEMINI_API_KEY != '' }}
+        run: uv run --group antigravity pytest tests/test_antigravity_service.py -q
+        working-directory: backend
