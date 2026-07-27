@@ -1,0 +1,7 @@
+{
+  "runtimeExecutable": "./third_party/llama/bin/llama-server.exe",
+  "primaryModelPath": "./models/qwen/Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf",
+  "fallbackModelPath": "./models/qwen/Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf",
+  "residentSlot": "fast_gpu",
+  "warmupMode": "chat-completions"
+}

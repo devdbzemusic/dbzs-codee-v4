@@ -1,6 +1,4 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { streamRuntimeChatViaBackend } from "./runtimeChatStream.js";
-import { classifyRuntimeStreamError, shouldAttemptNonStreamFallback } from "./runtimeChatFallbackPolicy.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -18,16 +16,9 @@ import type {
   GitDiffSummary,
   GitRepositoryStatus,
   GitStatusEntry,
-  JobArtifactCreateRequest,
-  JobClaimRequest,
-  JobEnqueueRequest,
-  JobStatus,
-  JobVerifyRequest,
-  JobWaypointRequest,
   ProjectMemoryUpsertRequest,
   TaskCreateRequest,
   TaskUpdateRequest,
-  RuntimeChatRequest,
   RestorePoint,
   RestorePointReason,
   RestoreResult,
@@ -75,10 +66,6 @@ import {
 import { promptTextInput as promptTextInputDialog } from "./promptInput.js";
 import { SkillPackageService } from "./skillPackageService.js";
 import { SkillRunPersistenceService } from "./skillRunPersistenceService.js";
-import {
-  buildToolFreeRuntimeChatFallbackRequest,
-  shouldDisableNonStreamFallbackForRequest
-} from "./runtimeChatFallback.js";
 import { cleanupLingeringRuntimeArtifacts } from "./runtimeProcessCleanup.js";
 import {
   listReviewArtifacts,
@@ -101,6 +88,7 @@ import { registerBootEventBridge } from "./boot/bootEventBridge.js";
 import { WindowCoordinator } from "./boot/windowCoordinator.js";
 import { exportBootDiagnosticsToFile } from "./boot/bootDiagnosticExport.js";
 import { startBootLogPersistence } from "./boot/bootLogPersistence.js";
+import { registerRuntimeAndJobIpcHandlers } from "./runtimeAndJobIpc.js";
 
 const BACKEND_PORT = Number(process.env.DBZS_BACKEND_PORT ?? "8876");
 const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
@@ -335,7 +323,22 @@ async function requestBackend<T>(pathname: string, init?: RequestInit): Promise<
   if (!response.ok) {
     let details = "";
     try {
-      details = await response.text();
+      const text = await response.text();
+      try {
+        const parsed = JSON.parse(text) as { detail?: string | { message?: string; code?: string; recommendedAction?: string } };
+        if (typeof parsed.detail === "string") {
+          details = parsed.detail;
+        } else if (parsed.detail && typeof parsed.detail === "object") {
+          const message = parsed.detail.message ?? text;
+          const code = parsed.detail.code ? ` [${parsed.detail.code}]` : "";
+          const action = parsed.detail.recommendedAction ? ` Empfehlung: ${parsed.detail.recommendedAction}` : "";
+          details = `${message}${code}${action}`;
+        } else {
+          details = text;
+        }
+      } catch {
+        details = text;
+      }
     } catch {
       details = "";
     }
@@ -433,28 +436,6 @@ function buildRuntimeContextOverflowResponse(): {
     "Die Anfrage ist größer als das aktuelle Runtime-Kontextfenster. Bitte weniger Datei-/Workspace-Kontext senden oder ein Runtime-Profil mit größerem Kontext starten.",
     "context_overflow"
   );
-}
-
-function buildRuntimeChatFallbackRequest(chatRequest: RuntimeChatRequest): RuntimeChatRequest {
-  return buildToolFreeRuntimeChatFallbackRequest(chatRequest);
-}
-
-function buildRuntimeChatMinimalRequest(chatRequest: RuntimeChatRequest): RuntimeChatRequest {
-  const lastUser = [...chatRequest.messages].reverse().find((message) => message.role === "user");
-  const fallbackUserMessage = lastUser ?? { id: `msg-${Date.now().toString(36)}-fallback`, role: "user", content: "Bitte antworte kurz und direkt." };
-
-  return {
-    messages: [fallbackUserMessage],
-    max_tokens: 256,
-    temperature: 0.2,
-    file_context: null,
-    model_id: chatRequest.model_id,
-    slot_id: chatRequest.slot_id,
-    fallback_policy: chatRequest.fallback_policy,
-    provider: chatRequest.provider,
-    routing_reason: chatRequest.routing_reason,
-    decision_id: chatRequest.decision_id,
-  };
 }
 
 function buildRuntimeChatSafeResponse(
@@ -883,318 +864,15 @@ ipcMain.handle("dbzs:settings:patch", async (_event, request: unknown) => {
   return sanitizeSettingsPatchResponse({ ...response, settings: safeSettings });
 });
 ipcMain.handle("dbzs:settings:diagnostics", () => requestBackend("/settings/diagnostics"));
-ipcMain.handle("dbzs:models:index", () => requestBackend("/models/index"));
-ipcMain.handle("dbzs:runtime:status", () => requestBackend("/runtime/status"));
-ipcMain.handle("dbzs:runtime:start", (_event, modelId: string) =>
-  requestBackend("/runtime/start", {
-    method: "POST",
-    body: JSON.stringify({ model_id: modelId })
-  })
-);
-ipcMain.handle("dbzs:runtime:stop", () =>
-  requestBackend("/runtime/stop", {
-    method: "POST",
-    body: JSON.stringify({})
-  })
-);
-
-const activeRuntimeChatAbortControllers = new Map<string, AbortController>();
-
-ipcMain.handle("dbzs:runtime:chat", async (_event, chatRequest: RuntimeChatRequest, requestId?: string) => {
-  const normalizedRequestId =
-    typeof requestId === "string" && requestId.trim().length > 0
-      ? requestId.trim()
-      : `runtime-chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  const abortController = new AbortController();
-  activeRuntimeChatAbortControllers.set(normalizedRequestId, abortController);
-  try {
-    return await requestBackend("/runtime/chat", {
-      method: "POST",
-      body: JSON.stringify(chatRequest),
-      signal: abortController.signal,
-    });
-  } catch (error) {
-    if (abortController.signal.aborted || isAbortError(error)) {
-      throw error;
-    }
-
-    if (isRuntimeContextOverflowError(error)) {
-      return buildRuntimeContextOverflowResponse();
-    }
-
-    if (!isRuntimeToolPayloadError(error)) {
-      return buildRuntimeChatSafeResponse(
-        "Runtime konnte die Anfrage nicht ausführen. Bitte Diagnose-Log prüfen."
-      );
-    }
-
-    const fallbackRequest = buildRuntimeChatFallbackRequest(chatRequest);
-    try {
-      return await requestBackend("/runtime/chat", {
-        method: "POST",
-        body: JSON.stringify(fallbackRequest),
-        signal: abortController.signal,
-      });
-    } catch {
-      if (abortController.signal.aborted) {
-        throw new Error("aborted");
-      }
-
-      try {
-        const minimalRequest = buildRuntimeChatMinimalRequest(chatRequest);
-        return await requestBackend("/runtime/chat", {
-          method: "POST",
-          body: JSON.stringify(minimalRequest),
-          signal: abortController.signal,
-        });
-      } catch (minimalError) {
-        if (abortController.signal.aborted || isAbortError(minimalError)) {
-          throw minimalError;
-        }
-        return buildRuntimeChatSafeResponse("Runtime hat die Anfrage abgelehnt (HTTP 400). Bitte kuerzere Eingabe oder Runtime-Profil pruefen.");
-      }
-    }
-  } finally {
-    activeRuntimeChatAbortControllers.delete(normalizedRequestId);
-  }
+registerRuntimeAndJobIpcHandlers({
+  backendUrl: BACKEND_URL,
+  requestBackend,
+  isAbortError,
+  isRuntimeContextOverflowError,
+  isRuntimeToolPayloadError,
+  buildRuntimeContextOverflowResponse,
+  buildRuntimeChatSafeResponse
 });
-
-let activeChatStreamAbortController: AbortController | null = null;
-
-ipcMain.handle("dbzs:runtime:chat-stream:cancel", () => {
-  if (activeChatStreamAbortController) {
-    activeChatStreamAbortController.abort();
-    activeChatStreamAbortController = null;
-  }
-  return { status: "ok" };
-});
-
-ipcMain.handle("dbzs:runtime:chat:cancel", (_event: Electron.IpcMainInvokeEvent, requestId: string) => {
-  const normalizedRequestId = typeof requestId === "string" ? requestId.trim() : "";
-  if (!normalizedRequestId) {
-    return { status: "invalid_request_id" };
-  }
-
-  const active = activeRuntimeChatAbortControllers.get(normalizedRequestId);
-  if (!active) {
-    return { status: "not_found" };
-  }
-
-  active.abort();
-  activeRuntimeChatAbortControllers.delete(normalizedRequestId);
-  return { status: "cancelled" };
-});
-
-ipcMain.handle("dbzs:runtime:chat-stream", async (event, chatRequest: RuntimeChatRequest) => {
-  // Requirement 4: Streaming Abort over Electron
-  if (activeChatStreamAbortController) {
-    activeChatStreamAbortController.abort();
-  }
-  activeChatStreamAbortController = new AbortController();
-  const streamSignal = activeChatStreamAbortController.signal;
-  const sendStreamChunk = (payload: { delta: string; totalLength: number }) => {
-    if (!streamSignal.aborted) {
-      event.sender.send("dbzs:runtime:chat-stream-chunk", payload);
-    }
-  };
-
-  try {
-    try {
-      const result = await streamRuntimeChatViaBackend(BACKEND_URL, chatRequest, (chunk) => {
-        sendStreamChunk(chunk);
-      }, streamSignal);
-      return result;
-    } catch (error) {
-      // P0 Phase 3: Explicit error classification and retry policy
-      if (streamSignal.aborted) {
-        return {
-          message: { id: `msg-${Date.now().toString(36)}-cancelled`, role: "assistant", content: "" },
-          model_id: null,
-          model_name: null
-        };
-      }
-
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const streamErrorMeta = classifyRuntimeStreamError(error);
-      const isToolError = streamErrorMeta.isToolError;
-      const isContextOverflow = streamErrorMeta.isContextOverflow || isRuntimeContextOverflowError(error);
-      const isTimeout = streamErrorMeta.isTimeout || errorMessage.includes("Timeout") || errorMessage.includes("timeout");
-      const isTransport = streamErrorMeta.isTransport;
-
-      // 1. Timeout errors: NO RETRY (Frontend already waited 60s)
-      // Never stream error text as model deltas — return structured safe_fallback only.
-      if (isTimeout) {
-        return buildRuntimeChatSafeResponse(
-          "Modell antwortet nicht (Timeout). Bitte später erneut versuchen oder kürzere Anfrage stellen.",
-          "timeout"
-        );
-      }
-
-      if (isContextOverflow) {
-        return buildRuntimeContextOverflowResponse();
-      }
-
-      // 2. Transport errors: TRY ONCE without tools (HTTP 400 or connection issues)
-      if (
-        shouldAttemptNonStreamFallback(streamErrorMeta) &&
-        !shouldDisableNonStreamFallbackForRequest(chatRequest)
-      ) {
-        try {
-          const fallbackRequest = buildRuntimeChatFallbackRequest(chatRequest);
-          const fallback = await requestBackend<{
-            message: { role: "assistant"; content: string };
-            model_id: string | null;
-            model_name: string | null;
-          }>("/runtime/chat", {
-            method: "POST",
-            body: JSON.stringify(fallbackRequest),
-            signal: streamSignal
-          });
-
-          if (fallback.message.content) {
-            sendStreamChunk({
-              delta: fallback.message.content,
-              totalLength: fallback.message.content.length,
-            });
-          }
-
-          return fallback;
-        } catch (fallbackError) {
-          if (streamSignal.aborted || isAbortError(fallbackError)) {
-            throw fallbackError;
-          }
-
-          // Fallback failed: give up, send safe response (no error-as-delta)
-          return buildRuntimeChatSafeResponse(
-            isToolError
-              ? "Runtime hat die Anfrage abgelehnt. Bitte ohne Tools oder mit weniger Kontext erneut senden."
-              : "Verbindung unterbrochen. Bitte Nachricht erneut senden.",
-            isToolError ? "invalid_request" : "connection_failed"
-          );
-        }
-      }
-
-      // 3. Other errors: NO RETRY, structured safe response only (no stream delta)
-      return buildRuntimeChatSafeResponse(
-        "Runtime konnte die Anfrage nicht ausführen. Bitte Diagnose-Log prüfen.",
-        "provider_internal_error"
-      );
-    }
-  } finally {
-    if (activeChatStreamAbortController?.signal === streamSignal) {
-      activeChatStreamAbortController = null;
-    }
-  }
-});
-
-ipcMain.handle("dbzs:runtime:benchmark", () =>
-  requestBackend("/runtime/benchmark", {
-    method: "POST",
-    body: JSON.stringify({})
-  })
-);
-
-ipcMain.handle("dbzs:runtime:model-test", () =>
-  requestBackend("/runtime/model-test", {
-    method: "POST",
-    body: JSON.stringify({})
-  })
-);
-ipcMain.handle("dbzs:runtime:doctor", () => requestBackend("/runtime/doctor"));
-ipcMain.handle("dbzs:runtime:doctor-dry-run", (_event, payload: { model_id: string; profile_name?: string | null }) =>
-  requestBackend("/runtime/doctor/dry-run", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  })
-);
-ipcMain.handle("dbzs:runtime:doctor-probe", (_event, payload: { allow_start: boolean; model_id?: string | null }) =>
-  requestBackend("/runtime/doctor/probe", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  })
-);
-ipcMain.handle("dbzs:runtime:logs", () => requestBackend("/runtime/logs"));
-ipcMain.handle("dbzs:orchestration:tools", () => requestBackend("/orchestration/tools"));
-ipcMain.handle("dbzs:orchestration:prepare", (_event, request: unknown) =>
-  requestBackend("/orchestration/context/prepare", {
-    method: "POST",
-    body: JSON.stringify(request)
-  })
-);
-ipcMain.handle("dbzs:orchestration:execute", (_event, request: unknown) =>
-  requestBackend("/orchestration/tools/execute", {
-    method: "POST",
-    body: JSON.stringify(request)
-  })
-);
-ipcMain.handle("dbzs:job-spooler:list", (_event, status?: JobStatus, limit?: number) => {
-  const params = new URLSearchParams();
-  if (status) {
-    params.set("status", status);
-  }
-  if (limit !== undefined) {
-    params.set("limit", String(limit));
-  }
-  const query = params.toString();
-  return requestBackend(`/job-spooler${query ? `?${query}` : ""}`);
-});
-ipcMain.handle("dbzs:job-spooler:enqueue", (_event, request: JobEnqueueRequest) =>
-  requestBackend("/job-spooler/enqueue", {
-    method: "POST",
-    body: JSON.stringify(request)
-  })
-);
-ipcMain.handle("dbzs:job-spooler:claim", (_event, request: JobClaimRequest) =>
-  requestBackend("/job-spooler/claim", {
-    method: "POST",
-    body: JSON.stringify(request)
-  })
-);
-ipcMain.handle("dbzs:job-spooler:detail", (_event, jobId: string) =>
-  requestBackend(`/job-spooler/${encodeURIComponent(jobId)}/detail`)
-);
-ipcMain.handle("dbzs:job-spooler:waypoint", (_event, jobId: string, request: JobWaypointRequest) =>
-  requestBackend(`/job-spooler/${encodeURIComponent(jobId)}/waypoints`, {
-    method: "POST",
-    body: JSON.stringify(request)
-  })
-);
-ipcMain.handle("dbzs:job-spooler:artifact", (_event, jobId: string, request: JobArtifactCreateRequest) =>
-  requestBackend(`/job-spooler/${encodeURIComponent(jobId)}/artifacts`, {
-    method: "POST",
-    body: JSON.stringify(request)
-  })
-);
-ipcMain.handle("dbzs:job-spooler:verify", (_event, jobId: string, request: JobVerifyRequest) =>
-  requestBackend(`/job-spooler/${encodeURIComponent(jobId)}/verify`, {
-    method: "POST",
-    body: JSON.stringify(request)
-  })
-);
-ipcMain.handle("dbzs:job-spooler:requeue-stale", () =>
-  requestBackend("/job-spooler/requeue-stale", {
-    method: "POST",
-    body: JSON.stringify({})
-  })
-);
-ipcMain.handle("dbzs:job-spooler:clear-all", () =>
-  requestBackend("/job-spooler/clear-all", {
-    method: "POST",
-    body: JSON.stringify({})
-  })
-);
-ipcMain.handle("dbzs:job-spooler:prune-finished", () =>
-  requestBackend("/job-spooler/prune-finished", {
-    method: "POST",
-    body: JSON.stringify({})
-  })
-);
-ipcMain.handle("dbzs:trajectories:job", (_event, jobId: string) =>
-  requestBackend(`/trajectories/jobs/${encodeURIComponent(jobId)}`)
-);
-ipcMain.handle("dbzs:trajectories:recent", (_event, limit = 100) =>
-  requestBackend(`/trajectories/recent?limit=${encodeURIComponent(String(limit))}`)
-);
 ipcMain.handle("dbzs:agent-runner:status", () => requestBackend("/agent-runner/status"));
 ipcMain.handle(
   "dbzs:agent-runner:run-once",
@@ -2001,6 +1679,19 @@ ipcMain.handle("dbzs:file:open-dialog", async () => {
   }
 
   return readWorkspaceFile(result.filePaths[0]);
+});
+
+ipcMain.handle("dbzs:fs:read-file", async (_event, filePath: string, encoding = "utf-8") => {
+  return fs.readFile(filePath, encoding as BufferEncoding);
+});
+
+ipcMain.handle("dbzs:fs:write-file", async (_event, filePath: string, content: string) => {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, content, "utf-8");
+});
+
+ipcMain.handle("dbzs:fs:stat", async (_event, filePath: string) => {
+  return fs.stat(filePath);
 });
 
 ipcMain.handle("dbzs:file:save", async (_event, request: SaveFileRequest) => {

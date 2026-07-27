@@ -12,6 +12,7 @@ export type ClarificationReason =
   | "ambiguous_top2"
   | "missing_required_field"
   | "high_risk_confirm"
+  | "high_risk_ambiguity"
   | "budget_exceeded"
   | "none";
 
@@ -46,6 +47,12 @@ function budgetExceeded(input: ClarificationPolicyInput): boolean {
  */
 export function decideClarification(input: ClarificationPolicyInput): ClarificationPolicyResult {
   const missing = input.missingFields.find((entry) => !entry.present);
+  const { intent } = input;
+  const topAlternative = intent.alternativeTaskTypes[0];
+  const isAmbiguous =
+    topAlternative !== undefined &&
+    intent.confidence - topAlternative.confidence < TOP2_MARGIN_THRESHOLD;
+  const isLowConfidence = intent.confidence < CONFIDENCE_THRESHOLD;
 
   if (input.riskLevel === "high") {
     if (budgetExceeded(input)) {
@@ -53,6 +60,9 @@ export function decideClarification(input: ClarificationPolicyInput): Clarificat
     }
     if (missing) {
       return { shouldAsk: true, reason: "high_risk_confirm", question: missing.askIfMissing };
+    }
+    if (isAmbiguous || isLowConfidence) {
+      return { shouldAsk: true, reason: "high_risk_ambiguity" };
     }
   }
 
@@ -63,17 +73,9 @@ export function decideClarification(input: ClarificationPolicyInput): Clarificat
     return { shouldAsk: true, reason: "missing_required_field", question: missing.askIfMissing };
   }
 
-  const { intent } = input;
-  const topAlternative = intent.alternativeTaskTypes[0];
-  const isAmbiguous = topAlternative !== undefined && intent.confidence - topAlternative.confidence < TOP2_MARGIN_THRESHOLD;
-  const isLowConfidence = intent.confidence < CONFIDENCE_THRESHOLD;
-
-  if (isAmbiguous || isLowConfidence) {
-    if (budgetExceeded(input)) {
-      return { shouldAsk: false, reason: "budget_exceeded" };
-    }
-    return { shouldAsk: true, reason: isAmbiguous ? "ambiguous_top2" : "low_confidence" };
-  }
+  // Codex-like default: ambiguity alone is not enough to interrupt the flow.
+  // Once required fields are satisfied, proceed with the best available
+  // assumption unless the caller explicitly marks the turn as high-risk.
 
   return { shouldAsk: false, reason: "none" };
 }

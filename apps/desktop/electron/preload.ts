@@ -96,6 +96,13 @@ const api = {
     ipcRenderer.invoke("dbzs:file:save", request) as Promise<WorkspaceFile>,
   saveFileAsDialog: (request: SaveFileAsRequest) =>
     ipcRenderer.invoke("dbzs:file:save-as-dialog", request) as Promise<WorkspaceFile | null>,
+  fs: {
+    readFile: (filePath: string, encoding?: string) =>
+      ipcRenderer.invoke("dbzs:fs:read-file", filePath, encoding) as Promise<string>,
+    writeFile: (filePath: string, content: string) =>
+      ipcRenderer.invoke("dbzs:fs:write-file", filePath, content) as Promise<void>,
+    stat: (filePath: string) => ipcRenderer.invoke("dbzs:fs:stat", filePath) as Promise<unknown>
+  },
   selectProjectDirectory: () =>
     ipcRenderer.invoke("dbzs:workspace:select-project-directory") as Promise<{ projectPath: string; projectName: string } | null>,
   createNewProject: () =>

@@ -18,12 +18,19 @@ function detectLanguage(fileName: string): string {
 }
 
 export function resolveFixtureWorkspaceRoot(): string {
+  return resolveNamedFixtureWorkspaceRoot("coding-assistant-workspace", ["fixtures"]);
+}
+
+export function resolveNamedFixtureWorkspaceRoot(
+  workspaceName: string,
+  preferredParents: string[] = ["fixtures", "test-fixtures"]
+): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    path.resolve(here, "../../../../fixtures/coding-assistant-workspace"),
-    path.resolve(process.cwd(), "../../fixtures/coding-assistant-workspace"),
-    path.resolve(process.cwd(), "fixtures/coding-assistant-workspace")
-  ];
+  const candidates = preferredParents.flatMap((parent) => [
+    path.resolve(here, `../../../../${parent}/${workspaceName}`),
+    path.resolve(process.cwd(), `../../${parent}/${workspaceName}`),
+    path.resolve(process.cwd(), `${parent}/${workspaceName}`)
+  ]);
 
   for (const candidate of candidates) {
     if (existsSync(path.join(candidate, "package.json"))) {
@@ -31,7 +38,7 @@ export function resolveFixtureWorkspaceRoot(): string {
     }
   }
 
-  throw new Error("coding-assistant-workspace fixture not found.");
+  throw new Error(`${workspaceName} fixture not found.`);
 }
 
 async function walkFiles(root: string, relativeDir = ""): Promise<string[]> {

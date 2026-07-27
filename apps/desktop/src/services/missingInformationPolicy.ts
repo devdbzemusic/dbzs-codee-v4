@@ -46,6 +46,10 @@ const NO_CONSTRAINTS_PATTERN =
   /(keine\s+(weiteren\s+)?(vorgaben|einschränkungen)|keine\s+zusätzlichen|no\s+(additional\s+)?constraints|bestehenden?\s+projektkonventionen)/i;
 const TARGET_PATH_PATTERN = /[\w./-]+\.(ts|tsx|js|jsx|py|md|json|yaml|yml)\b|apps\/|packages\/|backend\//i;
 const OPEN_FEATURE_PATTERN = /(neue?\s+funktion|neues?\s+feature|new\s+(function|feature)|\bfeature\s+bauen\b)/i;
+const SMALL_CHANGE_HINT_PATTERN =
+  /(fix|bug|fehler|patch|klein|small|anpassen|rename|umbenennen|update|korrigier|refine|adjust)/i;
+const QUICK_ACCEPTANCE_HINT_PATTERN =
+  /(soll|should|wenn|when|danach|after|render|anzeigen|sichtbar|test|grün|green)/i;
 
 function questionId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -81,12 +85,15 @@ function checkCoding(
   ctx: MissingInfoContext
 ): RequiredFieldCheck[] {
   const checks: RequiredFieldCheck[] = [];
-
   const hasTarget = targetIdentifiable(message, ctx);
   const isOpenFeatureIntent = OPEN_FEATURE_PATTERN.test(message);
+  const isSmallChange =
+    taskType === "small_code_change" || (!isOpenFeatureIntent && SMALL_CHANGE_HINT_PATTERN.test(message));
+  const shouldAskTarget = !hasTarget && !ctx.hasFileContext;
+
   checks.push({
     field: "target",
-    present: hasTarget,
+    present: hasTarget || !shouldAskTarget,
     askIfMissing: withFieldMeta("coding", "target", {
       id: questionId("q-target"),
       questionType: "free_text",
@@ -107,10 +114,16 @@ function checkCoding(
   const hasAcceptance =
     fieldAnswered(ctx.state, "acceptance_criteria") ||
     ACCEPTANCE_HINT_PATTERN.test(message) ||
+    QUICK_ACCEPTANCE_HINT_PATTERN.test(message) ||
     Boolean(ctx.state.acceptanceCriteria?.length);
+  const shouldAskAcceptance =
+    taskType === "large_code_change" ||
+    taskType === "refactoring" ||
+    isOpenFeatureIntent ||
+    (!hasAcceptance && !hasTarget && !ctx.hasFileContext);
   checks.push({
     field: "acceptance_criteria",
-    present: hasAcceptance,
+    present: hasAcceptance || !shouldAskAcceptance,
     askIfMissing: withFieldMeta("coding", "acceptance_criteria", {
       id: questionId("q-acceptance"),
       questionType: "free_text",
@@ -122,7 +135,7 @@ function checkCoding(
     })
   });
 
-  if (taskType === "large_code_change" || taskType === "refactoring") {
+  if (taskType === "refactoring" || taskType === "large_code_change") {
     const hasScope = fieldAnswered(ctx.state, "scope_boundary") || SCOPE_HINT_PATTERN.test(message);
     checks.push({
       field: "scope_boundary",
@@ -225,6 +238,7 @@ function checkPlanning(message: string, ctx: MissingInfoContext): RequiredFieldC
     fieldAnswered(ctx.state, "success_criteria") ||
     fieldAnswered(ctx.state, "acceptance_criteria") ||
     SUCCESS_CRITERIA_PATTERN.test(message) ||
+    QUICK_ACCEPTANCE_HINT_PATTERN.test(message) ||
     Boolean(ctx.state.acceptanceCriteria?.length);
 
   checks.push({
@@ -244,7 +258,8 @@ function checkPlanning(message: string, ctx: MissingInfoContext): RequiredFieldC
   const hasConstraints =
     fieldAnswered(ctx.state, "constraints") ||
     CONSTRAINTS_PATTERN.test(message) ||
-    NO_CONSTRAINTS_PATTERN.test(message);
+    NO_CONSTRAINTS_PATTERN.test(message) ||
+    ctx.hasFileContext;
 
   checks.push({
     field: "constraints",

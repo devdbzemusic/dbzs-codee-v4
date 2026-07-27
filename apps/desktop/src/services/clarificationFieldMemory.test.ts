@@ -129,6 +129,19 @@ describe("clarification field memory", () => {
     expect(afterConstraints.find((c) => c.field === "constraints")?.present).toBe(true);
   });
 
+  it("does not force target or acceptance questions for a small coding task with active file context", () => {
+    const checks = checkMissingInformation(
+      "coding",
+      "small_code_change",
+      "Bitte fixe den Button-Text und passe den Click-Handler an.",
+      true,
+      { answeredFields: new Set() }
+    );
+
+    expect(checks.find((c) => c.field === "target")?.present).toBe(true);
+    expect(checks.find((c) => c.field === "acceptance_criteria")?.present).toBe(true);
+  });
+
   it("keeps clarification answers isolated per workspace", () => {
     upsertActiveTaskContract(WORKSPACE_A, {
       originalRequest: "A",

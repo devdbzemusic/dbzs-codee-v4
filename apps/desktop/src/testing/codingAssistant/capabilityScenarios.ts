@@ -26,12 +26,15 @@ export function setCapabilityBrokerAgentOverride(agent: SharedModelTargetAgent |
 
 vi.mock("@/services/modelSelectionBroker", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/modelSelectionBroker")>();
-  const modelIdByAgent: Record<SharedModelTargetAgent, string> = {
-    runtime_chat: "chat-model",
-    planner: "planner-model",
-    coder: "coder",
-    reviewer: "reviewer-model",
-    debugger: "debugger-model"
+  const routeByAgent: Record<
+    SharedModelTargetAgent,
+    { modelId: string; modelName: string; slotId: "quality_cpu" | "fast_gpu" }
+  > = {
+    runtime_chat: { modelId: "chat-model", modelName: "Chat Model", slotId: "quality_cpu" },
+    planner: { modelId: "coder", modelName: "Coder Test", slotId: "fast_gpu" },
+    coder: { modelId: "coder", modelName: "Coder Test", slotId: "fast_gpu" },
+    reviewer: { modelId: "coder", modelName: "Coder Test", slotId: "fast_gpu" },
+    debugger: { modelId: "coder", modelName: "Coder Test", slotId: "fast_gpu" }
   };
   const brokerAgentByShared: Record<SharedModelTargetAgent, BrokerModelTargetAgent> = {
     runtime_chat: "default",
@@ -49,13 +52,17 @@ vi.mock("@/services/modelSelectionBroker", async (importOriginal) => {
       }
       const sharedAgent = capabilityBrokerAgentOverride;
       const brokerAgent = brokerAgentByShared[sharedAgent];
-      const modelId = modelIdByAgent[sharedAgent];
+      const route = routeByAgent[sharedAgent];
       return {
         ...decision,
         targetAgent: brokerAgent,
-        resolvedModelId: modelId,
-        resolvedModelName: modelId,
-        configuredModelId: modelId,
+        slotId: route.slotId,
+        modelId: route.modelId,
+        modelName: route.modelName,
+        resolvedModelId: route.modelId,
+        resolvedModelName: route.modelName,
+        configuredModelId: route.modelId,
+        providerId: "llama-cpp" as const,
         selectionSource: "role_setting" as const
       };
     }
@@ -264,6 +271,7 @@ function resetStores(): void {
       defaultModelName: "Chat Model",
       runtimeChatUseBroker: true
     },
+    settingsRevision: 0,
     isLoading: false,
     error: null
   });

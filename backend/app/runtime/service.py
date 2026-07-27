@@ -6,9 +6,8 @@ import os
 import re
 import threading
 import time
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterator, Protocol
+from typing import Any, Callable, Iterator
 from urllib import error, request
 
 try:
@@ -31,12 +30,11 @@ from app.runtime.launch import (
     resolve_preferred_port,
 )
 from app.runtime.chat_stream import (
-    iter_llama_server_stream,
-    iter_ollama_stream,
     parse_llama_server_sse_finish_reason,
     parse_llama_server_sse_has_tool_call,
     parse_llama_server_sse_line,
 )
+from app.runtime.chat_clients import LlamaServerChatClient, OllamaChatClient
 from app.runtime.cloud_client import CloudRuntimeClient
 from app.runtime.gpu_detect import GpuInfo, detect_gpu
 from app.runtime.hardware_fingerprint import collect_hardware_fingerprint, fingerprint_hash
@@ -44,6 +42,13 @@ from app.runtime.process_runner import CapturingSubprocessRunner
 from app.runtime.prompts import RUNTIME_CHAT_SYSTEM_PROMPT
 from app.runtime.residency import RuntimeResidencyRegistry, compute_launch_fingerprint
 from app.runtime.resource_planner import RuntimeResourcePlanner
+from app.runtime.service_persistence import (
+    provider_for_model,
+    read_json_file,
+    utc_now_iso,
+    write_json_file,
+)
+from app.runtime.service_types import ChatClient, ManagedProcess, ProcessRunner, RuntimeStreamContext
 from app.runtime.slot_contract import slot_id_for_port, slot_port
 from app.runtime.schemas import (
     RuntimeChatMessage,
@@ -88,37 +93,6 @@ def _default_port_for_slot(slot_id: str) -> int:
         return 8091
 
 
-@dataclass(slots=True)
-class RuntimeStreamContext:
-    slot_id: RuntimeSlotId
-    model_id: str | None = None
-    model_name: str | None = None
-    endpoint: str | None = None
-    fallback_reason: str | None = None
-
-
-class ManagedProcess(Protocol):
-    pid: int
-
-    def poll(self) -> int | None: ...
-
-    def terminate(self) -> None: ...
-
-
-class ProcessRunner(Protocol):
-    def start(self, command: list[str], cwd: Path, env: dict[str, str] | None = None) -> ManagedProcess: ...
-
-
-class ChatClient(Protocol):
-    def complete(self, endpoint: str, payload: dict) -> str: ...
-
-    def stream(self, endpoint: str, payload: dict) -> Iterator[str]: ...
-
-
-def _chat_timeout_seconds() -> float:
-    return float(os.getenv("DBZS_RUNTIME_CHAT_TIMEOUT_SECONDS", "1800"))
-
-
 def _build_sampling_payload(chat_request: RuntimeChatRequest) -> dict:
     """Build conservative llama.cpp/OpenAI-compatible sampling options."""
     return {
@@ -130,131 +104,6 @@ def _build_sampling_payload(chat_request: RuntimeChatRequest) -> dict:
         "presence_penalty": chat_request.presence_penalty if chat_request.presence_penalty is not None else 0.15,
         "frequency_penalty": chat_request.frequency_penalty if chat_request.frequency_penalty is not None else 0.25,
     }
-
-
-def _raise_chat_request_error(provider: str, exc: BaseException) -> None:
-    if isinstance(exc, TimeoutError):
-        raise RuntimeError(
-            f"{provider} request timed out after {int(_chat_timeout_seconds())}s. "
-            "Modell antwortet zu langsam — kleineren Prompt, weniger max_tokens oder schnelleres Modell verwenden."
-        ) from exc
-
-    if isinstance(exc, error.HTTPError):
-        details = ""
-        try:
-            details = exc.read().decode("utf-8", errors="replace")
-        except Exception:
-            details = str(exc)
-        details = details.strip()
-        suffix = f" | {details}" if details else ""
-        raise RuntimeError(f"{provider} request failed: HTTP Error {exc.code}{suffix}") from exc
-
-    raise RuntimeError(f"{provider} request failed: {exc}") from exc
-
-
-class LlamaServerChatClient:
-    last_finish_reason: str | None = None
-
-    def complete(self, endpoint: str, payload: dict) -> str:
-        body = json.dumps(payload).encode("utf-8")
-        http_request = request.Request(
-            f"{endpoint}/v1/chat/completions",
-            data=body,
-            headers={"content-type": "application/json"},
-            method="POST",
-        )
-
-        try:
-            with request.urlopen(http_request, timeout=_chat_timeout_seconds()) as response:
-                data = json.loads(response.read().decode("utf-8"))
-        except (error.URLError, TimeoutError, OSError) as exc:
-            _raise_chat_request_error("llama-server", exc)
-
-        choices = data.get("choices")
-        if not isinstance(choices, list) or not choices:
-            raise RuntimeError("llama-server response did not include choices.")
-
-        message = choices[0].get("message")
-        if not isinstance(message, dict) or not isinstance(message.get("content"), str):
-            raise RuntimeError("llama-server response did not include assistant content.")
-
-        return message["content"]
-
-    def stream(
-        self,
-        endpoint: str,
-        payload: dict,
-        *,
-        on_usage: Callable[[dict[str, int]], None] | None = None,
-        on_finish: Callable[[str], None] | None = None,
-    ) -> Iterator[str]:
-        # stream_options.include_usage asks llama-server's OpenAI-compatible
-        # endpoint to send a final usage-only chunk (Phase 5) — without it,
-        # streaming responses never include token counts.
-        stream_payload = {**payload, "stream": True, "stream_options": {"include_usage": True}}
-        body = json.dumps(stream_payload).encode("utf-8")
-        http_request = request.Request(
-            f"{endpoint}/v1/chat/completions",
-            data=body,
-            headers={"content-type": "application/json"},
-            method="POST",
-        )
-
-        try:
-            with request.urlopen(http_request, timeout=_chat_timeout_seconds()) as response:
-                self.last_finish_reason = None
-
-                def capture_finish(reason: str) -> None:
-                    self.last_finish_reason = reason
-                    if on_finish is not None:
-                        on_finish(reason)
-
-                yield from iter_llama_server_stream(
-                    response,
-                    on_usage=on_usage,
-                    on_finish=capture_finish,
-                )
-        except (error.URLError, TimeoutError, OSError) as exc:
-            _raise_chat_request_error("llama-server", exc)
-
-
-class OllamaChatClient:
-    def complete(self, endpoint: str, payload: dict) -> str:
-        body = json.dumps(payload).encode("utf-8")
-        http_request = request.Request(
-            f"{endpoint}/api/chat",
-            data=body,
-            headers={"content-type": "application/json"},
-            method="POST",
-        )
-
-        try:
-            with request.urlopen(http_request, timeout=_chat_timeout_seconds()) as response:
-                data = json.loads(response.read().decode("utf-8"))
-        except (error.URLError, TimeoutError, OSError) as exc:
-            _raise_chat_request_error("Ollama", exc)
-
-        message = data.get("message")
-        if not isinstance(message, dict) or not isinstance(message.get("content"), str):
-            raise RuntimeError("Ollama response did not include assistant content.")
-
-        return message["content"]
-
-    def stream(self, endpoint: str, payload: dict) -> Iterator[str]:
-        stream_payload = {**payload, "stream": True}
-        body = json.dumps(stream_payload).encode("utf-8")
-        http_request = request.Request(
-            f"{endpoint}/api/chat",
-            data=body,
-            headers={"content-type": "application/json"},
-            method="POST",
-        )
-
-        try:
-            with request.urlopen(http_request, timeout=_chat_timeout_seconds()) as response:
-                yield from iter_ollama_stream(response)
-        except (error.URLError, TimeoutError, OSError) as exc:
-            _raise_chat_request_error("Ollama", exc)
 
 
 class RuntimeService:
@@ -1118,7 +967,7 @@ class RuntimeService:
                         self._save_selected_model(candidate_id)
                         status = RuntimeStatus(
                             state="running",
-                            provider=_provider_for_model(candidate_model),
+                            provider=provider_for_model(candidate_model),
                             model_id=candidate_model.id,
                             model_name=candidate_model.name,
                             port=plan.port,
@@ -1161,7 +1010,7 @@ class RuntimeService:
                                 self._external_slot_pids[target_slot_id] = owner_pid
                                 status = RuntimeStatus(
                                     state="running",
-                                    provider=_provider_for_model(candidate_model),
+                                    provider=provider_for_model(candidate_model),
                                     model_id=candidate_model.id,
                                     model_name=candidate_model.name,
                                     port=plan.port,
@@ -1215,7 +1064,7 @@ class RuntimeService:
                             )
                         status = RuntimeStatus(
                             state="running",
-                            provider=_provider_for_model(candidate_model),
+                            provider=provider_for_model(candidate_model),
                             model_id=candidate_model.id,
                             model_name=candidate_model.name,
                             port=plan.port,
@@ -1868,7 +1717,7 @@ class RuntimeService:
         if not runtime_path.exists():
             return None
         try:
-            runtime_data = _read_json(runtime_path)
+            runtime_data = read_json_file(runtime_path)
         except Exception:
             return None
         models = runtime_data.get("models", {})
@@ -1895,7 +1744,7 @@ class RuntimeService:
     ) -> None:
         runtime_path = self.models_dir / "models.runtime.json"
         if runtime_path.exists():
-            runtime_data = _read_json(runtime_path)
+            runtime_data = read_json_file(runtime_path)
         else:
             runtime_data = {"schema_version": "1.0", "models": {}}
 
@@ -1932,7 +1781,7 @@ class RuntimeService:
             **existing,
             "load_ok": True,
             "error": "",
-            "last_tested": _utc_now(),
+            "last_tested": utc_now_iso(),
             "last_good_preset": existing.get("last_good_preset", "safe"),
             "last_good_command": {
                 "model_path": model_path or "",
@@ -1963,17 +1812,17 @@ class RuntimeService:
 
         runtime_data["models"][model_id] = updated_entry
 
-        _write_json(runtime_path, runtime_data)
+        write_json_file(runtime_path, runtime_data)
 
     def _save_selected_model(self, model_id: str) -> None:
         state_path = self.models_dir / "models.state.json"
         if state_path.exists():
-            state_data = _read_json(state_path)
+            state_data = read_json_file(state_path)
         else:
             state_data = {"schema_version": "1.0", "models": {}}
 
         state_data["selected_model_id"] = model_id
-        _write_json(state_path, state_data)
+        write_json_file(state_path, state_data)
 
     def _fallback_model_candidates(self, requested_model_id: str, models: list[IndexedModel]) -> list[str]:
         requested = next((model for model in models if model.id == requested_model_id), None)
@@ -2029,26 +1878,3 @@ class RuntimeService:
             seen.add(candidate_id)
             ordered.append(candidate_id)
         return ordered
-
-
-def _read_json(path: Path) -> dict:
-    with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def _write_json(path: Path, data: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
-        json.dump(data, handle, indent=2, ensure_ascii=False)
-
-
-def _utc_now() -> str:
-    from datetime import UTC, datetime
-
-    return datetime.now(UTC).isoformat()
-
-
-def _provider_for_model(model: IndexedModel) -> str:
-    if model.runtime_launcher == "ollama":
-        return "ollama"
-    return "llama.cpp"

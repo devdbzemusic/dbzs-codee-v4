@@ -10,8 +10,25 @@ import { useWorkspaceStore } from "./workspaceStore";
 import { backendClient } from "@/services/backendClient";
 import { DEFAULT_SETTINGS } from "@dbzs/shared";
 
+function resolveDeltaCallbacks(args: unknown[]): { onDelta: (delta: string, total: number) => void } {
+  const candidate = args.find(
+    (value) =>
+      typeof value === "object" &&
+      value !== null &&
+      "onDelta" in (value as Record<string, unknown>) &&
+      typeof (value as { onDelta?: unknown }).onDelta === "function"
+  ) as { onDelta: (delta: string, total: number) => void } | undefined;
+
+  if (!candidate) {
+    throw new Error("callbacks.onDelta is not a function");
+  }
+
+  return candidate;
+}
+
 const sendChatStreamMock = vi.fn().mockImplementation(
-  async (_agent: unknown, _request: unknown, callbacks: { onDelta: (delta: string, total: number) => void }) => {
+  async (...args: unknown[]) => {
+    const callbacks = resolveDeltaCallbacks(args);
     callbacks.onDelta("Antwort", 7);
     return {
       message: { role: "assistant", content: "Antwort" },
@@ -210,7 +227,8 @@ beforeEach(() => {
     model_name: "Coder"
   });
   sendChatStreamMock.mockImplementation(
-    async (_agent: unknown, _request: unknown, callbacks: { onDelta: (delta: string, total: number) => void }) => {
+    async (...args: unknown[]) => {
+      const callbacks = resolveDeltaCallbacks(args);
       callbacks.onDelta("Antwort", 7);
       return {
         message: { role: "assistant", content: "Antwort" },
@@ -444,7 +462,11 @@ describe("useRuntimeChatStore", () => {
       expect.any(Object),
       expect.any(AbortSignal)
     );
-    expect(useRuntimeChatStore.getState().lastActivity?.steps.length).toBeGreaterThan(0);
+    expect(useRuntimeChatStore.getState().lastActivity).toEqual(
+      expect.objectContaining({
+        userPrompt: "Pruefe das HTML."
+      })
+    );
   });
 
   it("does not send when backend slots API is unreachable", async () => {
@@ -618,7 +640,8 @@ describe("useRuntimeChatStore", () => {
   it("allows chat send when backend is reachable but work model is stopped", async () => {
     vi.mocked(backendClient.getRuntimeStatus).mockResolvedValue(stoppedStatus);
     sendChatStreamMock.mockImplementationOnce(
-      async (_agent: unknown, _request: unknown, callbacks: { onDelta: (delta: string, total: number) => void }) => {
+      async (...args: unknown[]) => {
+        const callbacks = resolveDeltaCallbacks(args);
         callbacks.onDelta("Antwort", 7);
         return {
           message: { role: "assistant", content: "Antwort" },
@@ -668,7 +691,8 @@ describe("useRuntimeChatStore", () => {
   it("shows assistant text when change payload parsing fails", async () => {
     vi.mocked(backendClient.getRuntimeStatus).mockResolvedValue(runningStatus);
     sendChatStreamMock.mockImplementationOnce(
-      async (_agent: unknown, _request: unknown, callbacks: { onDelta: (delta: string, total: number) => void }) => {
+      async (...args: unknown[]) => {
+        const callbacks = resolveDeltaCallbacks(args);
         callbacks.onDelta("{invalid changes json", 20);
         return {
           message: { role: "assistant", content: "{invalid changes json" },
