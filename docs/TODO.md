@@ -40,6 +40,13 @@ Diese Punkte sollten erst nach Abschluss der P0-Aufgaben angegangen werden. (Sta
 
 - [ ] **Protokollvertrag:** Einen gemeinsamen Zod-/Pydantic-Protokollvertrag für die API-Kommunikation herstellen.
 
+## Aktuell verifizierter Review-Status
+
+- [x] Der frühere `full_repository`-Bug mit versehentlich gesetzten `selectedPaths` ist im aktuellen `main` bereits behoben.
+- [x] Der zielgerichtete Repository-Review-Vitest-Lauf ist grün.
+- [x] Die praktische End-to-End-Verifikation des Review-Flows gegen `test-fixtures/coding-capability-project` wurde erneut ausgeführt; `review-plan.json`, `REVIEW_REPORT.md` und `findings.json` wurden erzeugt.
+- [ ] Der Offline-Review-Pfad sollte `.codee`-Artefakte aus dem Inventory ausschließen, weil der Fixture-Lauf aktuell alte Review-Zustände und Reports mit in neue Batches zieht.
+
 ## P2: Zukünftige Erweiterungen
 
 - [ ] **Interaktiver Trajectory-Visualizer:** Eine dedizierte UI zur Analyse von Agenten-Abläufen.

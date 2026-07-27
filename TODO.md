@@ -1,32 +1,31 @@
 # TODO
 
-Stand: 2026-07-25
+Stand: 2026-07-27
 
-## Nächster Fix
+## Repository Review
 
-- [ ] Repository-Review-Startpfad prüfen:
-      `apps/desktop/src/stores/runtimeChatStore.ts` darf bei
-      `scope === "full_repository"` kein `selectedPaths` aus `activeFile`
-      mitschicken.
-- [ ] Batch-Planer härten:
+- [x] Repository-Review-Startpfad verifiziert:
+      `apps/desktop/src/stores/runtimeChatStore.ts` sendet bei
+      `scope === "full_repository"` kein `selectedPaths` aus `activeFile`.
+- [x] Batch-Planer verifiziert:
       `apps/desktop/src/services/repositoryReview/reviewBatchPlanner.ts`
-      soll `selectedPaths` nur für `active_file` und `selected_paths`
-      als Filter verwenden.
-- [ ] Regressionstest ergänzen:
+      nutzt `selectedPaths` nur für `active_file` und `selected_paths`.
+- [x] Regressionstest vorhanden:
       `full_repository` mit versehentlich gesetzten `selectedPaths`
-      muss weiterhin mindestens einen Batch erzeugen.
-
-## Verifikation nach Fix
-
-- [ ] `apps/desktop/src/services/repositoryReview/repositoryReview.test.ts`
-      erweitern und lokal grün ausführen.
-- [ ] Zielgerichteter Vitest-Lauf für Repository Review starten.
-- [ ] Review im Fixture
+      erzeugt weiterhin echte Batches.
+- [x] Zielgerichteter Vitest-Lauf:
+      `apps/desktop/src/services/repositoryReview/repositoryReview.test.ts`
+      lief lokal grün (`16/16` Tests).
+- [x] Praktischen Review im Fixture
       `test-fixtures/coding-capability-project`
-      erneut ausführen.
-- [ ] Erwartung prüfen:
+      erneut ausgeführt.
+- [x] Erwartung im Fixture erfüllt:
       `review-plan.json` enthält Batches,
-      `REVIEW_REPORT.md` und `findings.json` werden erzeugt.
+      `REVIEW_REPORT.md` und `findings.json` wurden erzeugt.
+- [ ] Offline-Review-Inventory härten:
+      `apps/desktop/src/services/repositoryReview/nodeReviewWorkspaceIo.ts`
+      soll vorhandene `.codee`-Artefakte aus dem Inventory ausschließen,
+      damit neue Reviews nicht alte Review-Zustände mitanalysieren.
 
 ## Optional danach
 
