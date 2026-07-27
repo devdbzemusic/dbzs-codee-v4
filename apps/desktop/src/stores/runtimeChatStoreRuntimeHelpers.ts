@@ -13,6 +13,8 @@ import type {
   WorkspaceFile
 } from "@dbzs/shared";
 import { agentRunService } from "@/services/agentRunService";
+import { backendClient } from "@/services/backendClient";
+import { isModelContentDelta } from "@/services/providerRuntimeEvents";
 import { buildRuntimeAgentActionRegistry } from "@/services/runtimeAgentActions";
 import { parseAssistantPayload } from "@/services/assistantPayloadParser";
 import { classifyRuntimeChatError, formatChatErrorForUser } from "@/services/runtimeChatErrorClassifier";
@@ -175,7 +177,7 @@ export async function withTimeout<T>(
 export async function refreshRuntimeStatus(fallback: RuntimeStatus | null): Promise<RuntimeStatus> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const status = await import("@/services/backendClient").then(({ backendClient }) => backendClient.getRuntimeStatus());
+      const status = await backendClient.getRuntimeStatus();
       useRuntimeStore.setState({ status });
       return status;
     } catch {
@@ -432,7 +434,7 @@ export async function requestAssistantResponse(
         fallback.message.content &&
         !(fallback as { safe_fallback?: boolean }).safe_fallback &&
         !(fallback as { provider_error?: unknown }).provider_error &&
-        (await import("@/services/providerRuntimeEvents")).isModelContentDelta(fallback.message.content)
+        isModelContentDelta(fallback.message.content)
       ) {
         onDelta(fallback.message.content, fallback.message.content.length);
       }
