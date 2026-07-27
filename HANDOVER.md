@@ -2,60 +2,59 @@
 
 Stand: 2026-07-27
 
-## Aktueller Fokus
+## Repo-Wahrheit
 
-Der zuvor dokumentierte Repository-Review-Bug bei `full_repository` ist im
-gemergten Stand bereits enthalten. Die praktische Verifikation gegen das
-Fixture `test-fixtures/coding-capability-project` lief erfolgreich durch.
-Neuer Fokus ist jetzt die Bereinigung des Review-Inventars, weil der
-Node-basierte Offline-Review vorhandene `.codee`-Artefakte mit analysiert.
+- aktiver GitHub-Remote: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
+- lokaler Ordnername bleibt aktuell `dbzs-codee-project`
+- `origin/main` zeigt auf `97063959fb54fbc6ba220797773174b4bf990732`
+- offene Pull Requests im Live-Repo: keine
+- Branch Protection fuer `main`: aktuell nicht aktiv
 
-## Frisch verifizierter Stand
+## Bestaetigter Repair-Run-Stand
 
-- GitHub-Stand:
-  PR `#1` wurde am 27. Juli 2026 in `main` gemergt.
-- Review-Startpfad:
-  [apps/desktop/src/stores/runtimeChatStore.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/stores/runtimeChatStore.ts)
-  hängt `selectedPaths` nur noch dann an, wenn der Scope **nicht**
-  `full_repository` ist.
-- Batch-Planer:
-  [apps/desktop/src/services/repositoryReview/reviewBatchPlanner.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/repositoryReview/reviewBatchPlanner.ts)
-  nutzt `selectedPaths` nur für `active_file` und `selected_paths`.
-- Regressionstest:
-  [apps/desktop/src/services/repositoryReview/repositoryReview.test.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/repositoryReview/repositoryReview.test.ts)
-  enthält bereits den Test
-  `ignores a stray selectedPaths for full_repository and still produces batches`.
-- Lokale Verifikation:
-  `pnpm test -- src/services/repositoryReview/repositoryReview.test.ts`
-  lief am 27. Juli 2026 grün durch (`16/16` Tests).
-- Fixture-Verifikation:
-  `pnpm test -- src/services/repositoryReview/codingCapabilityFixture.repro.test.ts`
-  lief am 27. Juli 2026 grün durch (`1/1` Test).
-  Dabei wurden `review-plan.json`, `REVIEW_REPORT.md` und `findings.json`
-  unter
-  `test-fixtures/coding-capability-project/.codee/reviews/rev-coding-capability-fixture/`
-  neu erzeugt.
+Der lokale Nachweis fuer `main`-Readiness ist erbracht:
 
-## Historischer Befund
+- `pnpm ci:local:win` lief am 2026-07-27 vollstaendig gruen
+- `pnpm test:capabilities` laeuft jetzt korrekt durch
+- Desktop Capability Suite: `37/37`
+- Backend Capability-/Scenario-/Tuning-Lab-Tests: `15 passed`
 
-Der frühere Diagnose-Lauf
-`.codee/diag-protokolle/codee-run-run-ms044ucs-yl8l.json`
-bleibt als Nachweis für den ursprünglich reproduzierten Fehlerfall relevant.
-Das dazugehörige Handover vom 25. Juli 2026 ist inhaltlich überholt.
+Die aktive Detailquelle fuer diesen Nachweis ist:
 
-## Relevante Stellen
+- [docs/audits/MAIN_READINESS_AUDIT_2026-07-27.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/MAIN_READINESS_AUDIT_2026-07-27.md)
 
-- [apps/desktop/src/stores/runtimeChatStore.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/stores/runtimeChatStore.ts)
-- [apps/desktop/src/services/repositoryReview/reviewBatchPlanner.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/repositoryReview/reviewBatchPlanner.ts)
-- [apps/desktop/src/services/repositoryReview/repositoryReview.test.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/repositoryReview/repositoryReview.test.ts)
-- [test-fixtures/coding-capability-project](C:/Users/ralle/source/repos/dbzs-codee-project/test-fixtures/coding-capability-project)
+## In diesem Repair-Run aktualisierte Bereiche
 
-## Neuer Anschlussbefund
+- [apps/desktop/src/services/missingInformationPolicy.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/missingInformationPolicy.ts)
+  - Rueckfrage- und Akzeptanzheuristiken an den aktuellen Conversational-Flow angepasst
+- [apps/desktop/src/services/runtimeRunFinalization.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/runtimeRunFinalization.ts)
+  - `context_overflow`-Rueckmeldung fuer Nutzer klarer gemacht
+- [apps/desktop/src/stores/runtimeChatStore.test.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/stores/runtimeChatStore.test.ts)
+  - Testhelfer auf den aktuellen Delta-Callback-Fluss angepasst
+- [backend/app/runtime/service.py](C:/Users/ralle/source/repos/dbzs-codee-project/backend/app/runtime/service.py)
+  - `urllib.request` wieder im Modulkontext verfuegbar gemacht, damit Runtime-Tests sauber patchen
+- [package.json](C:/Users/ralle/source/repos/dbzs-codee-project/package.json)
+- [scripts/run-desktop-capability-suite.mjs](C:/Users/ralle/source/repos/dbzs-codee-project/scripts/run-desktop-capability-suite.mjs)
+  - Root-Capability-Befehl fuehrt den Desktop-Anteil jetzt wirklich mit `RUN_CAPABILITY_SUITE=1` aus
 
-- Der leere `full_repository`-Plan ist behoben.
-- Der praktische Fixture-Lauf zeigt aber, dass
-  [apps/desktop/src/services/repositoryReview/nodeReviewWorkspaceIo.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/repositoryReview/nodeReviewWorkspaceIo.ts)
-  vorhandene `.codee/reviews/...`-Artefakte nicht aus dem Inventory filtert.
-- Dadurch landen interne Review-Zustände und alte Reports in neuen Batches.
-  Das erklärt den grün laufenden Durchsatz bei gleichzeitig niedriger
-  Analysequalität und schwacher Signalstärke im erzeugten Report.
+## Aktive offene Aufgaben
+
+### P0
+
+- aktuelle Repair-Run-Aenderungen gezielt committen
+- Branch sauber pushen
+- echte GitHub-CI-Strategie fuer `push` und `pull_request` entscheiden und dokumentieren
+- mindestens einen echten GitHub-Workflow-Lauf nach Reaktivierung dokumentieren
+
+### P1
+
+- Windows-Golden-Path auf frischer Umgebung dokumentiert abnehmen
+- Branch Protection und Merge-Gates fuer `main` sauber nachziehen
+- Offline-Review-Inventory gegen `.codee`-Artefakte haerten:
+  - [apps/desktop/src/services/repositoryReview/nodeReviewWorkspaceIo.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/repositoryReview/nodeReviewWorkspaceIo.ts)
+
+## Wichtige Hinweise
+
+- Historische Papiere unter `Pläne/` oder `docs/archive/` koennen falsche Repo- oder PR-Annahmen enthalten.
+- Die aktuellen Wahrheitsquellen sind `README.md`, `TODO.md`, `docs/STATUS_TODAY.md` und das Audit unter `docs/audits/`.
+- Im Worktree liegen generierte Artefakte unter `.cache/backend-build/`; diese gehoeren nicht automatisch in den naechsten Commit.

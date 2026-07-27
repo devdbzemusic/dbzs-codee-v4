@@ -1,58 +1,71 @@
-# DBZS Codee - Aktuelle Aufgaben
+# TODO
 
-Dieses Dokument listet die priorisierten Aufgaben zur Stabilisierung und Weiterentwicklung der Anwendung. Es basiert auf der `DBZS_CODEE_V4_POST_REPAIR_ANALYSIS.md`.
+Stand: 2026-07-27
 
-## P0: Kernfunktionalität reparieren (Definition of Done)
+## Jetzt direkt
 
-Der Task ist erst abgeschlossen, wenn alle folgenden Punkte erfüllt sind. (Stand: 27. Juli 2026)
+- [ ] Repair-Run-Aenderungen gezielt committen
+- [ ] Branch `codex/godfiles-split-top3` sauber pushen
+- [ ] nur fachliche Dateien committen, nicht `.cache/backend-build/*`
 
-- [x] **Direct-Tool-Routing:** Deterministische Workspace-Aufgaben (`Zähle alle gguf...`) benötigen kein LLM.
-  - [x] Die GGUF-Zählung funktioniert direkt und exakt.
-  - [x] Es erscheint keine zweckfremde Planner-Frage.
+## Main-Readiness und GitHub-Hygiene
 
-- [x] **Eindeutige Runtime-Route:** Slot, Profil und Modell stammen aus genau einem `ResolvedRuntimeRoute`-Objekt.
-  - [x] Routing-Widersprüche (`reason` vs. `resolved`) werden erkannt und führen zu einem Fehler.
+- [x] aktives GitHub-Repository live verifiziert:
+      `devdbzemusic/dbzs-codee-v4`
+- [x] `origin/main`-Stand live verifiziert:
+      `97063959fb54fbc6ba220797773174b4bf990732`
+- [x] offene PRs live verifiziert:
+      aktuell keine
+- [x] Branch-Protection-Status live verifiziert:
+      `main` ist aktuell nicht geschuetzt
+- [x] lokaler Required-Gate-Spiegel lief gruen:
+      `pnpm ci:local:win`
+- [x] Root-Capability-Befehl auf echten Desktop+Backend-Nachweis korrigiert:
+      `pnpm test:capabilities`
+- [x] aktives Audit und Statuspfad aktualisiert:
+      `README.md`, `docs/STATUS_TODAY.md`,
+      `docs/audits/MAIN_READINESS_AUDIT_2026-07-27.md`
+- [ ] GitHub-CI-Strategie entscheiden:
+      Auto-Trigger fuer `push`/`pull_request` reaktivieren
+      oder dokumentiertes Interimsmodell beibehalten
+- [ ] nach CI-Reaktivierung mindestens einen echten GitHub-Lauf dokumentieren
+- [ ] Branch Protection / Merge-Gates fuer `main` sauber nachziehen
+- [ ] Windows-Golden-Path auf frischer Umgebung dokumentiert abnehmen
 
-- [x] **Warm-up-Diagnose & Modellkompatibilität:**
-  - [ ] Das Modell `Qwen3.5` liefert im isolierten Test eine verwertbare Antwort. (Noch ausstehend)
-  - [x] Warm-up-Diagnosen enthalten die Rohantwort und den gewählten Parser-Pfad.
-  - [x] Reasoning-, Tool- und Streaming-Ausgaben werden im Warm-up korrekt als Erfolg erkannt.
+## Repair-Run-Fixes aus diesem Block
 
-- [x] **Residenter Fallback:** Ein residentes, kompatibles Modell wird automatisch als Fallback verwendet, wenn das primäre Rollenmodell scheitert.
+- [x] Missing-Information-Heuristik an aktuellen Conversational-Flow angepasst:
+      `apps/desktop/src/services/missingInformationPolicy.ts`
+- [x] Nutzertext fuer `context_overflow` verbessert:
+      `apps/desktop/src/services/runtimeRunFinalization.ts`
+- [x] Runtime-Chat-Testhelfer an aktuellen Delta-Callback-Fluss angepasst:
+      `apps/desktop/src/stores/runtimeChatStore.test.ts`
+- [x] Runtime-Test-Patching gegen `urllib.request` wiederhergestellt:
+      `backend/app/runtime/service.py`
+- [x] Desktop-Capability-Suite im Root-Skriptpfad korrekt aktiviert:
+      `scripts/run-desktop-capability-suite.mjs`, `package.json`
 
-- [x] **Konsistenter Backend-Status:** Der UI-Header zeigt ausschließlich ehrliche Readiness-Zustände an (`startet`, `online`, `beeinträchtigt`, `Fehler`).
+## Repository Review
 
-- [x] **Tests:** Alle relevanten TypeScript- und Python-Tests sind grün. (Neue Tests für refaktorierte Komponenten sind grün; 15 alte `RuntimeService`-Tests noch offen)
+- [x] `full_repository`-Startpfad verifiziert:
+      `runtimeChatStore.ts` sendet kein verirrtes `selectedPaths`
+- [x] Batch-Planer verifiziert:
+      `reviewBatchPlanner.ts` nutzt `selectedPaths` nur fuer
+      `active_file` und `selected_paths`
+- [x] Regressionstest vorhanden:
+      `full_repository` plus versehentlich gesetztes `selectedPaths`
+      erzeugt weiterhin echte Batches
+- [x] zielgerichteter Review-Vitest-Lauf war gruen
+- [x] Fixture-Lauf gegen
+      `test-fixtures/coding-capability-project` war gruen
+- [ ] Offline-Review-Inventory haerten:
+      `apps/desktop/src/services/repositoryReview/nodeReviewWorkspaceIo.ts`
+      soll vorhandene `.codee`-Artefakte aus dem Inventory ausschliessen
+- [ ] Fehlerklassifikation fuer leere Review-Plaene verbessern
+- [ ] Diagnose-Export bei `batches: []` expliziter machen
 
-- [ ] **E2E-Test:** Ein Electron-E2E-Test bestätigt den vollständigen 17-Phasen-Boot.
+## Struktur und Qualitaet danach
 
-## P1: Weitere Verbesserungen (nach P0)
-
-Diese Punkte sollten erst nach Abschluss der P0-Aufgaben angegangen werden. (Stand: 27. Juli 2026)
-
-- [x] **Modell-Index-Cache:** Einen persistenten Cache für den Modell-Index implementieren, um die Startzeit zu verkürzen.
-
-- [x] **Pfad-Validierung:** Echte Modellpfade und Runtime-Executables vor dem Start prüfen.
-
-- [x] **Safe Mode:** Den Safe Mode auch bei Fehlern im `filesystem-check` wirksam machen.
-
-- [ ] **Test-Reparatur:** Die 15 bestehenden `RuntimeService`-Testfehler reparieren.
-
-- [ ] **Protokollvertrag:** Einen gemeinsamen Zod-/Pydantic-Protokollvertrag für die API-Kommunikation herstellen.
-
-## Aktuell verifizierter Review-Status
-
-- [x] Der frühere `full_repository`-Bug mit versehentlich gesetzten `selectedPaths` ist im aktuellen `main` bereits behoben.
-- [x] Der zielgerichtete Repository-Review-Vitest-Lauf ist grün.
-- [x] Die praktische End-to-End-Verifikation des Review-Flows gegen `test-fixtures/coding-capability-project` wurde erneut ausgeführt; `review-plan.json`, `REVIEW_REPORT.md` und `findings.json` wurden erzeugt.
-- [ ] Der Offline-Review-Pfad sollte `.codee`-Artefakte aus dem Inventory ausschließen, weil der Fixture-Lauf aktuell alte Review-Zustände und Reports mit in neue Batches zieht.
-
-## P2: Zukünftige Erweiterungen
-
-- [ ] **Interaktiver Trajectory-Visualizer:** Eine dedizierte UI zur Analyse von Agenten-Abläufen.
-
-- [ ] **Workflow-Editor:** Eine grafische Oberfläche zur Konfiguration von Agenten-Ketten und Routing-Regeln.
-
-- [ ] **Erweitertes Modell-Management:** UI zur Konfiguration von Kompatibilitätsprofilen, GPU-Layer-Benchmarks und VRAM-Budgets.
-
-- [ ] **Kontext-Inspektor:** Eine UI zur Anzeige des finalen, an das Modell gesendeten Prompts.
+- [ ] weitere Zerlegung grosser Runtime-/Store-Dateien fortsetzen
+- [ ] Contract-Parity zwischen Shared und Backend weiter haerten
+- [ ] Windows-Golden-Path und Installer-Abnahme in aktive Runbooks ueberfuehren

@@ -147,7 +147,7 @@ function defaultUserMessage(outcome: RuntimeRunOutcome): string {
     case "cancelled":
       return "Lauf abgebrochen";
     case "context_overflow":
-      return "Ich habe zu viel Kontext für das aktuelle Modell gesammelt. Wenn du willst, machen wir mit weniger Kontext weiter oder wechseln auf ein passenderes Profil.";
+      return "Ich habe mehr Kontext gesammelt, als in das aktuelle Kontextfenster des Modells passt. Wenn du willst, machen wir mit weniger Kontext weiter oder wechseln auf ein passenderes Profil.";
     case "empty_final_answer":
       return "Ich habe keine verwertbare Endantwort vom Modell bekommen. Wir können die Anfrage direkt noch einmal kleiner oder klarer versuchen.";
     case "agent_output_invalid":

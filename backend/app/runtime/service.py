@@ -7,7 +7,8 @@ import re
 import threading
 import time
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
+from urllib import error, request
 
 try:
     import psutil  # type: ignore[import-not-found]

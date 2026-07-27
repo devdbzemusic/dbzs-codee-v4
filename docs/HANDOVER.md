@@ -1,85 +1,60 @@
-# Übergabedokument: DBZS Codee
+# Handover
 
-**Stand:** 27. Juli 2026
+Stand: 2026-07-27
 
-Dieses Dokument fasst den aktuellen Entwicklungsstand, die Architektur und die nächsten Schritte für das Projekt `dbzs-codee` zusammen.
+## Repo-Wahrheit
 
-## 1. Aktueller Status
+- aktiver GitHub-Remote: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
+- lokaler Ordnername bleibt aktuell `dbzs-codee-project`
+- `origin/main` zeigt auf `97063959fb54fbc6ba220797773174b4bf990732`
+- offene Pull Requests im Live-Repo: keine
+- Branch Protection fuer `main`: aktuell nicht aktiv
 
-Das Projekt befindet sich in einer kritischen Reparatur- und Stabilisierungsphase. Die jüngsten Arbeiten konzentrierten sich auf zwei Hauptbereiche:
+## Bestaetigter Repair-Run-Stand
 
-1.  **Boot-Repair (Abgeschlossen):** Die Boot-Sequenz der Anwendung wurde von einem unvorhersehbaren, nebenläufigen Prozess zu einem strikt sequenziellen, deterministischen und beobachtbaren 17-Phasen-Ablauf umgebaut. Dies hat die Startzuverlässigkeit erheblich verbessert.
+Der lokale Nachweis fuer `main`-Readiness ist erbracht:
 
-2.  **Routing-Repair (Laufend):** Die Analyse nach dem Boot-Repair (`DBZS_CODEE_V4_POST_REPAIR_ANALYSIS.md`) hat gezeigt, dass die Kernprobleme nun im Bereich des Intent-Routings, der Modell-Aktivierung (Warm-up) und der Zustandssynchronisation liegen. Die laufenden Arbeiten konzentrieren sich auf die Behebung dieser Punkte (siehe `TODO.md`).
+- `pnpm ci:local:win` lief am 2026-07-27 vollstaendig gruen
+- `pnpm test:capabilities` laeuft jetzt korrekt durch
+- Desktop Capability Suite: `37/37`
+- Backend Capability-/Scenario-/Tuning-Lab-Tests: `15 passed`
 
-**Gesamtzustand:** Die Basis-Architektur ist solide. Die intelligente Steuerung und Fehlerbehandlung im Kern der Anwendung wurde erheblich gehärtet. Der zuvor dokumentierte Repository-Review-Bug ist im gemergten Stand bereits enthalten; offen ist jetzt vor allem die praktische End-to-End-Verifikation des Review-Flows am Fixture.
+Die aktive Detailquelle fuer diesen Nachweis ist:
 
-## 2. Kernarchitektur & Konzepte
+- [docs/audits/MAIN_READINESS_AUDIT_2026-07-27.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/MAIN_READINESS_AUDIT_2026-07-27.md)
 
-### Boot-Orchestrator
-Der Start der Anwendung wird durch einen zentralen Orchestrator gesteuert, der eine feste Abfolge von Phasen durchläuft. Dies stellt sicher, dass alle Dienste und Zustände in einer vorhersagbaren Reihenfolge initialisiert werden.
+## In diesem Repair-Run aktualisierte Bereiche
 
-### Model-Routing & Broker
-Die Auswahl des zu verwendenden LLM erfolgt durch einen `modelSelectionBroker`. Dieser berücksichtigt den `taskType` (z.B. `coding`, `chat`), die Fähigkeiten der verfügbaren Modelle (z.B. `vision`) und die Hardware-Gegebenheiten.
+- [apps/desktop/src/services/missingInformationPolicy.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/missingInformationPolicy.ts)
+  - Rueckfrage- und Akzeptanzheuristiken an den aktuellen Conversational-Flow angepasst
+- [apps/desktop/src/services/runtimeRunFinalization.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/runtimeRunFinalization.ts)
+  - `context_overflow`-Rueckmeldung fuer Nutzer klarer gemacht
+- [apps/desktop/src/stores/runtimeChatStore.test.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/stores/runtimeChatStore.test.ts)
+  - Testhelfer auf den aktuellen Delta-Callback-Fluss angepasst
+- [backend/app/runtime/service.py](C:/Users/ralle/source/repos/dbzs-codee-project/backend/app/runtime/service.py)
+  - `urllib.request` wieder im Modulkontext verfuegbar gemacht, damit Runtime-Tests sauber patchen
+- [package.json](C:/Users/ralle/source/repos/dbzs-codee-project/package.json)
+- [scripts/run-desktop-capability-suite.mjs](C:/Users/ralle/source/repos/dbzs-codee-project/scripts/run-desktop-capability-suite.mjs)
+  - Root-Capability-Befehl fuehrt den Desktop-Anteil jetzt wirklich mit `RUN_CAPABILITY_SUITE=1` aus
 
-**Wichtig:** Die vom Broker getroffene Entscheidung (`ResolvedRuntimeRoute`) soll als alleinige Wahrheit für den gesamten Lebenszyklus einer Anfrage dienen.
+## Aktive offene Aufgaben
 
-### Direct Intent Classifier
-Für einfache, deterministische Anfragen (z.B. "Zähle alle Dateien") wurde ein "Fast-Path" implementiert. Der `directIntentClassifier` fängt solche Anfragen ab und leitet sie direkt an ein Tool weiter, ohne ein LLM zu involvieren. Dies spart Ressourcen und verbessert die Antwortzeit.
+### P0
 
-### Residenter Fallback
-Fällt das primär ausgewählte Modell beim Start aus (z.B. durch einen Warm-up-Fehler), versucht das System, auf ein bereits laufendes ("residentes"), kompatibles Modell auszuweichen. Dieser `degraded`-Modus erhöht die Ausfallsicherheit. Die Kompatibilität (z.B. Vision-Fähigkeit) wird durch `isResidentModelCompatible` sichergestellt.
+- aktuelle Repair-Run-Aenderungen gezielt committen
+- Branch sauber pushen
+- echte GitHub-CI-Strategie fuer `push` und `pull_request` entscheiden und dokumentieren
+- mindestens einen echten GitHub-Workflow-Lauf nach Reaktivierung dokumentieren
 
-### Diagnose-Komponenten
-Die Anwendung verfügt über umfangreiche Diagnose-Werkzeuge, die zur Laufzeit Einblick in die Systementscheidungen geben:
-- **`RoutingDiagnosticsCard`:** Zeigt die komplette Kette der Routing-Entscheidung an, inklusive Ablehnungsgründe für Fallbacks.
-- **`TokenBudgetVisualizer`:** Visualisiert die Token-Nutzung einer Anfrage und warnt vor Kontext-Überläufen.
+### P1
 
-## 3. Laufende Arbeiten & Nächste Schritte
+- Windows-Golden-Path auf frischer Umgebung dokumentiert abnehmen
+- Branch Protection und Merge-Gates fuer `main` sauber nachziehen
+- Offline-Review-Inventory gegen `.codee`-Artefakte haerten:
+  - [apps/desktop/src/services/repositoryReview/nodeReviewWorkspaceIo.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/repositoryReview/nodeReviewWorkspaceIo.ts)
 
-Die Prioritäten sind klar in der `TODO.md` definiert. Die meisten P0-Tasks sind abgeschlossen.
+## Wichtige Hinweise
 
-### Aktueller, unmittelbarer Fokus: Bereinigung des Offline-Repository-Review-Inventars
-
-Der zuvor bekannte Fehler im Repository-Review-Feature wurde im gemergten Stand bereits adressiert:
-
--   `runtimeChatStore.ts` hängt `selectedPaths` bei `scope: "full_repository"` nicht mehr an den Review-Request.
--   `reviewBatchPlanner.ts` verwendet `selectedPaths` nur noch für `active_file` und `selected_paths`.
--   Ein Regressionstest deckt den Fall `full_repository` plus versehentlich gesetzte `selectedPaths` bereits ab.
-
-Die praktische Bestätigung des Flows gegen das Fixture `test-fixtures/coding-capability-project` lief erfolgreich durch. Dabei wurde aber sichtbar, dass der Offline-Review-Pfad vorhandene `.codee`-Artefakte in das Inventory aufnimmt. Der nächste sinnvolle Schritt ist deshalb die Bereinigung dieses Pfads, damit neue Reviews keine alten Review-Artefakte mitanalysieren.
-
-### Fortschritt bei den P0-Aufgaben (Kernfunktionalität reparieren)
-
-Die meisten der kritischen P0-Aufgaben aus der `TODO.md` wurden bereits erfolgreich implementiert und getestet:
-
--   **Direct-Tool-Routing:** Implementiert und durch Unit-Tests abgedeckt.
--   **Eindeutige Runtime-Route:** Implementiert und durch Unit-Tests abgedeckt.
--   **Warm-up-Diagnose & Modellkompatibilität:** Detaillierte Warm-up-Diagnose implementiert und in der `RoutingDiagnosticsCard` sichtbar. Schemata für `ModelRuntimeCompatibility` definiert. (Verifizierung für `Qwen3.5` noch ausstehend).
--   **Residenter Fallback:** Implementiert und durch Unit-Tests abgedeckt.
--   **Konsistenter Backend-Status:** Implementiert und durch Unit-Tests abgedeckt.
--   **Tests:** Umfassende Unit-Tests für neue und refaktorisierte Komponenten erstellt.
--   **E2E-Test:** Ein grundlegendes E2E-Testgerüst für den 17-Phasen-Boot ist vorhanden.
-
-### Fortschritt bei den P1-Aufgaben (Weitere Verbesserungen)
-
-Auch bei den P1-Aufgaben wurden bereits wichtige Schritte unternommen:
-
--   **Modell-Index-Cache:** Implementiert und durch Unit-Tests abgedeckt.
--   **Pfad-Validierung:** Implementiert und durch Unit-Tests abgedeckt.
--   **Safe Mode:** Implementiert und durch Unit-Tests abgedeckt.
--   **Protokollvertrag:** Ein gemeinsamer Zod-/Pydantic-Protokollvertrag wurde beispielhaft für `ResolvedRuntimeRoute` erstellt.
-
-## 4. Wichtige Dateien für den Einstieg
-
-- **Analyse & Planung:**
-  - `docs/archive/COPILOT_CODEE_RUNTIME_ROUTING_ABORT_HARDENING.md`
-  - `docs/DBZS_CODEE_V4_POST_REPAIR_ANALYSIS.md`
-- **Zustandsverwaltung:**
-  - `apps/desktop/src/stores/runtimeChatStore.ts`
-- **Service-Logik:**
-  - `apps/desktop/src/services/fallbackHandler.ts`
-  - `apps/desktop/src/services/residentModelHelpers.ts`
-- **UI-Komponenten:**
-  - `apps/desktop/src/components/RoutingDiagnosticsCard.tsx`
-  - `apps/desktop/src/components/TokenBudgetVisualizer.tsx`
+- Historische Papiere unter `Pläne/` oder `docs/archive/` koennen falsche Repo- oder PR-Annahmen enthalten.
+- Die aktuellen Wahrheitsquellen sind `README.md`, `TODO.md`, `docs/STATUS_TODAY.md` und das Audit unter `docs/audits/`.
+- Im Worktree liegen generierte Artefakte unter `.cache/backend-build/`; diese gehoeren nicht automatisch in den naechsten Commit.
