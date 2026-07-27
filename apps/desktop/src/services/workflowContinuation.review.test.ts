@@ -50,6 +50,17 @@ describe("workflowContinuation review switch", () => {
     expect(result.reason).toBe("active_workflow_continue");
   });
 
+  it("treats a terse 'weiter' as a natural continuation", () => {
+    const result = resolveWorkflowContinuation({
+      message: "weiter",
+      contract: contract(),
+      classifiedTaskType: "casual_chat"
+    });
+    expect(result.useActiveContract).toBe(true);
+    expect(result.needsAmbiguityAsk).toBe(false);
+    expect(result.reason).toBe("active_workflow_continue");
+  });
+
   it("still asks when the user clearly pivots into an independent chat question", () => {
     const result = resolveWorkflowContinuation({
       message: "Erkläre mir bitte kurz, was Event Sourcing ist.",
