@@ -273,6 +273,46 @@ import { handleResidentFallback } from "@/services/fallbackHandler";
 import { pathValidatorService } from "@/services/pathValidatorService";
 import { RUNTIME_SLOT_DEFINITIONS, type ContextManifest, type RuntimeTaskType, type RuntimeSlotId, type ContextStage, type RuntimeRunOutcome } from "@dbzs/shared";
 import { WORKFLOW_POLICY_VERSION } from "@/runtime/workflow/workflowPolicyRegistry";
+import {
+  extractReasoningSummary,
+  hasPendingPlanApproval,
+  mergeAssistantMessageState,
+  mergeStreamingAssistantMessage,
+  REASONING_SYSTEM_HINT
+} from "@/stores/runtimeChatStoreMessageHelpers";
+import {
+  appendSystemPatchMessage,
+  buildFileContext,
+  buildWorkspaceLaneItems,
+  createMessageId,
+  formatChatError,
+  isSignificantConversationTurn,
+  loadToolsEnabled,
+  normalizeImplementationContinuationRouting,
+  normalizeWorkspaceContextPathCandidates,
+  patchActivityRun,
+  patchActivitySteps,
+  PRESET_MESSAGES,
+  refreshRuntimeStatus,
+  refreshWorkspaceAfterPatch,
+  requestAssistantResponse,
+  runPatchValidation,
+  sleep,
+  STOPPED_RUNTIME_STATUS,
+  syncRuntimeAgentActions,
+  targetAgentForPreset,
+  withTimeout
+} from "@/stores/runtimeChatStoreRuntimeHelpers";
+
+export {
+  extractReasoningSummary,
+  mergeAssistantMessageState,
+  mergeStreamingAssistantMessage
+} from "@/stores/runtimeChatStoreMessageHelpers";
+export {
+  normalizeImplementationContinuationRouting,
+  normalizeWorkspaceContextPathCandidates
+} from "@/stores/runtimeChatStoreRuntimeHelpers";
 
 const MAX_CONTEXT_CHARS = 16_000;
 const MAX_HISTORY_MESSAGES = 50;
@@ -280,59 +320,6 @@ const TOOLS_ENABLED_STORAGE_KEY = "dbzs-runtime-chat-tools-enabled";
 const STREAMING_UI_THROTTLE_MS = 40;
 
 const runsAbortControllers: Record<string, AbortController> = {};
-
-interface WorkspaceContextPathNormalizationResult {
-  normalized: string[];
-  rejected: string[];
-}
-
-function summarizeRejectedContextPath(pathValue: string): string {
-  const normalized = pathValue.trim().replace(/\\/g, "/");
-  if (!normalized) return "<empty>";
-  if (/^[a-zA-Z]:\//.test(normalized) || normalized.startsWith("//") || normalized.startsWith("/")) {
-    return "<absolute path rejected>";
-  }
-  return normalized.length > 120 ? `${normalized.slice(0, 117)}...` : normalized;
-}
-
-export async function normalizeWorkspaceContextPathCandidates(
-  workspaceRoot: string,
-  values: string[],
-  normalizer?: (workspaceRoot: string, candidates: string[]) => Promise<string[]>
-): Promise<WorkspaceContextPathNormalizationResult> {
-  const normalized: string[] = [];
-  const rejected: string[] = [];
-  for (const value of values) {
-    try {
-      const [result] = normalizer
-        ? await normalizer(workspaceRoot, [value])
-        : [value.replace(/\\/g, "/")];
-      if (result) normalized.push(result);
-      else rejected.push(summarizeRejectedContextPath(value));
-    } catch {
-      rejected.push(summarizeRejectedContextPath(value));
-    }
-  }
-  return { normalized, rejected };
-}
-
-function loadToolsEnabled(): boolean {
-  if (typeof localStorage === "undefined") {
-    return true;
-  }
-  return localStorage.getItem(TOOLS_ENABLED_STORAGE_KEY) !== "0";
-}
-
-const STOPPED_RUNTIME_STATUS: RuntimeStatus = {
-  state: "stopped",
-  provider: null,
-  model_id: null,
-  model_name: null,
-  port: null,
-  pid: null,
-  endpoint: null,
-  message: ""
-};
 
 export interface RuntimeChatSendOptions {
   includeWorkspaceContext?: boolean;
@@ -365,8 +352,6 @@ export interface RuntimeChatSendOptions {
   /** Explicit user choice: continue with the currently resident slot model. */
   forceUseResidentModel?: boolean;
 }
-
-
 function resolveContextSlotId(taskType: string, slotId?: string | null): "quality_cpu" | "fast_gpu" | "utility" {
   if (slotId === "quality_cpu" || slotId === "fast_gpu" || slotId === "utility") {
     return slotId;
@@ -381,57 +366,6 @@ function resolveContextSlotId(taskType: string, slotId?: string | null): "qualit
   }
 
   return "quality_cpu";
-}
-
-function isImplementationWorkflowPhase(phase: string | null | undefined): boolean {
-  return phase === "implementation" || phase === "executing" || phase === "awaiting_patch_approval";
-}
-
-function normalizeImplementationTaskType(
-  taskType: RuntimeTaskType,
-  contractTaskType?: RuntimeTaskType
-): RuntimeTaskType {
-  const candidate =
-    contractTaskType && contractTaskType !== "planning" && contractTaskType !== "architecture"
-      ? contractTaskType
-      : taskType;
-  switch (candidate) {
-    case "large_code_change":
-    case "small_code_change":
-    case "refactoring":
-      return candidate;
-    default:
-      return "small_code_change";
-  }
-}
-
-export function normalizeImplementationContinuationRouting(input: {
-  phase?: string | null;
-  taskType: RuntimeTaskType;
-  contractTaskType?: RuntimeTaskType;
-  targetAgent: ModelTargetAgent;
-  preferPlannerFirst: boolean;
-}): {
-  taskType: RuntimeTaskType;
-  targetAgent: ModelTargetAgent;
-  preferPlannerFirst: boolean;
-  normalized: boolean;
-} {
-  if (!isImplementationWorkflowPhase(input.phase)) {
-    return {
-      taskType: input.taskType,
-      targetAgent: input.targetAgent,
-      preferPlannerFirst: input.preferPlannerFirst,
-      normalized: false
-    };
-  }
-
-  return {
-    taskType: normalizeImplementationTaskType(input.taskType, input.contractTaskType),
-    targetAgent: "coder",
-    preferPlannerFirst: false,
-    normalized: true
-  };
 }
 
 function isRuntimeNotRunningError(error: unknown): boolean {
@@ -449,95 +383,6 @@ function isTransientChatTransportError(error: unknown): boolean {
   return classified.class === "transport";
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  label: string,
-  signal?: AbortSignal
-): Promise<T> {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error(`Timeout: ${label} hat länger als ${timeoutMs / 1000}s gedauert`));
-    }, timeoutMs);
-  });
-
-  if (signal) {
-    if (signal.aborted) {
-      if (timeoutId) clearTimeout(timeoutId);
-      return Promise.reject(signal.reason || new Error("Cancelled"));
-    }
-
-    const abortPromise = new Promise<never>((_, reject) => {
-      signal.addEventListener("abort", () => {
-        if (timeoutId) clearTimeout(timeoutId);
-        reject(signal.reason || new Error("Cancelled"));
-      });
-    });
-
-    return Promise.race([promise, timeoutPromise, abortPromise]).finally(() => {
-      if (timeoutId) clearTimeout(timeoutId);
-    });
-  }
-
-  return Promise.race([promise, timeoutPromise]).finally(() => {
-    if (timeoutId) clearTimeout(timeoutId);
-  });
-}
-
-async function refreshRuntimeStatus(fallback: RuntimeStatus | null): Promise<RuntimeStatus> {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      const status = await backendClient.getRuntimeStatus();
-      useRuntimeStore.setState({ status });
-      return status;
-    } catch {
-      if (attempt < 2) {
-        await sleep(200 * (attempt + 1));
-      }
-    }
-  }
-
-  try {
-    const slots = await runtimeSlotManager.getAllSlotsStatus();
-    const readySlot = slots.find((slot) => runtimeSlotManager.isSlotReady(slot));
-    const runningSlot = readySlot ?? slots.find((slot) => slot.state === "running");
-    if (runningSlot) {
-      const status: RuntimeStatus = {
-        state: runningSlot.state,
-        provider: runningSlot.provider === "llama.cpp" || runningSlot.provider === "ollama" ? runningSlot.provider : null,
-        model_id: runningSlot.model_id,
-        model_name: runningSlot.model_name,
-        port: runningSlot.port,
-        pid: runningSlot.pid,
-        endpoint: runningSlot.endpoint,
-        message: runningSlot.message ?? `Slot ${runningSlot.slot_id} ist aktiv.`,
-        stderr_tail: runningSlot.stderr_tail ?? undefined,
-        stdout_tail: runningSlot.stdout_tail ?? undefined
-      };
-      useRuntimeStore.setState({ status });
-      return status;
-    }
-  } catch {
-    // Slot-Fallback ist best effort; darunter greifen bestehende Fallbacks.
-  }
-
-  const storeStatus = useRuntimeStore.getState().status;
-  if (storeStatus?.state === "running") {
-    return storeStatus;
-  }
-
-  if (fallback?.state === "running") {
-    return fallback;
-  }
-
-  return fallback ?? STOPPED_RUNTIME_STATUS;
-}
 
 interface RuntimeChatState {
   messages: RuntimeChatMessage[];
@@ -630,419 +475,9 @@ interface RuntimeChatState {
   consumeJobContextHint: () => string | null;
 }
 
-function buildFileContext(activeFile: WorkspaceFile | null) {
-  if (!activeFile) {
-    return null;
-  }
-
-  return {
-    path: activeFile.path,
-    language: activeFile.language,
-    content: activeFile.content.slice(0, MAX_CONTEXT_CHARS)
-  };
-}
-
-function buildWorkspaceLaneItems(
-  workspaceContext: RuntimeChatWorkspaceContext | null | undefined,
-  fallbackMessage: string | null
-): SpoolerLaneItem[] {
-  if (!workspaceContext) {
-    return fallbackMessage
-      ? [{
-          id: "active-task-workspace",
-          content: fallbackMessage,
-          estimatedTokens: estimateTokensCharHeuristic(fallbackMessage)
-        }]
-      : [];
-  }
-
-  const fileTreePreview = workspaceContext.fileTree
-    .slice(0, 40)
-    .map((entry) => `- ${entry}`)
-    .join("\n");
-  const summary = [
-    "[Workspace Context]",
-    `Name: ${workspaceContext.name}`,
-    `Root: ${workspaceContext.rootPath}`,
-    "",
-    "Project file tree (preview):",
-    fileTreePreview || "- (leer)"
-  ].join("\n");
-
-  return [
-    {
-      id: "active-task-workspace-summary",
-      content: summary,
-      estimatedTokens: estimateTokensCharHeuristic(summary)
-    },
-    ...workspaceContext.sampledFiles.map((file, index) => {
-      const content = `### ${file.relativePath} (${file.language})\n\`\`\`${file.language}\n${file.content}\n\`\`\``;
-      return {
-        id: `active-task-workspace-file-${index}`,
-        source: file.relativePath,
-        dedupeContent: file.content,
-        content,
-        estimatedTokens: estimateTokensCharHeuristic(content),
-        pinned: true
-      };
-    })
-  ];
-}
-
-const PRESET_MESSAGES: Record<"plan" | "refactor" | "review" | "summarize" | "next_steps", string> = {
-  plan: "Erstelle einen klaren Implementierungsplan mit konkreten Schritten, Risiken und Tests.",
-  refactor: "Schlage einen sicheren Refactor vor (kleine Schritte, Diff-freundlich, mit Validierung).",
-  review: "Fuehre ein fokussiertes Code-Review durch: Risiken, Regressionen, fehlende Tests.",
-  summarize: "Fasse den aktuellen Stand knapp zusammen: Fortschritt, offene Punkte, naechster Schritt.",
-  next_steps: "Gib die naechsten 3 priorisierten Schritte inklusive kurzer Begruendung an."
-};
-
 function looksLikeAgentChangeJson(content: string): boolean {
   return looksLikeAgentChangePayload(content);
 }
-
-const SIGNIFICANT_TURN_PATTERN = /\b(fehler|error|falsch|nicht funktioniert|bug|failed|exception|korrektur|correct(ed|ion)?|achtung|warnung|warning)\b/i;
-
-/**
- * Decisions, corrections, and errors survive conversation compaction as
- * literal messages; everything else gets folded into the one-line digest
- * compactConversation produces. Not just "keep the last N" — a plain chat
- * turn from 20 messages ago is compactable, but an approval decision or a
- * failed-test result from the same point is not.
- */
-function isSignificantConversationTurn(message: RuntimeChatMessage): boolean {
-  if (message.actions && message.actions.length > 0) {
-    return true; // plan/patch approval decisions
-  }
-  if (message.toolCalls?.some((call) => call.status === "error")) {
-    return true;
-  }
-  return SIGNIFICANT_TURN_PATTERN.test(message.content);
-}
-
-function createMessageId(prefix: string): string {
-  return `msg-${Date.now().toString(36)}-${prefix}-${Math.random().toString(36).slice(2, 6)}`;
-}
-
-function appendSystemPatchMessage(
-  set: (updater: (state: RuntimeChatState) => Partial<RuntimeChatState>) => void,
-  content: string,
-  actions?: import("@dbzs/shared").ChatActionRequest[]
-): string {
-  const messageId = createMessageId("patch");
-  set((state) => ({
-    messages: [
-      ...state.messages,
-      {
-        id: messageId,
-        role: "system",
-        content,
-        actions
-      }
-    ]
-  }));
-  return messageId;
-}
-
-function syncRuntimeAgentActions(
-  messages: RuntimeChatMessage[],
-  planProposalsById: Record<string, AgentPlanProposal>
-): Pick<RuntimeChatState, "messages" | "agentActionsById"> {
-  return buildRuntimeAgentActionRegistry(messages, { planProposalsById });
-}
-
-function validationCommandIds(commands: string[] | undefined): string[] {
-  const allowed = new Set(["pnpm_typecheck", "pnpm_test", "npm_run_typecheck", "npm_test"]);
-  return [...new Set((commands ?? []).filter((command) => allowed.has(command)))];
-}
-
-async function runPatchValidation(
-  workspaceRoot: string,
-  proposal: AgentPatchProposal
-): Promise<PatchValidationResult | null> {
-  const executeSafeCommand = window.dbzs.executeSafeCommand;
-  const getSafeCommandRunStatus = window.dbzs.getSafeCommandRunStatus;
-  const streamSafeCommandLogs = window.dbzs.streamSafeCommandLogs;
-  const commands = validationCommandIds(proposal.validationCommands);
-  if (!executeSafeCommand || !getSafeCommandRunStatus || commands.length === 0) {
-    return null;
-  }
-
-  const results: PatchValidationResult["commands"] = [];
-  for (const commandId of commands) {
-    let run = await executeSafeCommand(workspaceRoot, commandId);
-    
-    // Poll until the command is finished (no longer 'running')
-    const pollIntervalMs = 250;
-    while (run.status === "running") {
-      await sleep(pollIntervalMs);
-      run = await getSafeCommandRunStatus(run.runId);
-    }
-
-    let stdout = "";
-    let stderr = "";
-    if (streamSafeCommandLogs) {
-      try {
-        const logs = await streamSafeCommandLogs(run.runId);
-        stdout = logs.stdout ?? "";
-        stderr = logs.stderr ?? "";
-      } catch {
-        // Command status remains the source of truth.
-      }
-    }
-    results.push({
-      commandId,
-      exitCode: typeof run.exitCode === "number" ? run.exitCode : null,
-      stdout,
-      stderr
-    });
-  }
-
-  return {
-    proposalId: proposal.id,
-    success: results.every((result) => result.exitCode === 0),
-    commands: results
-  };
-}
-
-
-async function refreshWorkspaceAfterPatch(workspaceRoot: string, filePaths: string[]): Promise<void> {
-  try {
-    await Promise.allSettled([
-      useWorkspaceStore.getState().scanFiles(),
-      useGitStore.getState().refreshGitStatus()
-    ]);
-  } catch {
-    // Refresh after patching should never block the approval flow.
-  }
-
-  const editor = useEditorStore.getState();
-  const tabs = editor?.tabs ?? [];
-  for (const filePath of filePaths) {
-    try {
-      const absolutePath = filePath.includes(":") ? filePath : `${workspaceRoot.replace(/[\\/]+$/, "")}\\${filePath.replace(/\//g, "\\")}`;
-      const openTab = tabs.find((tab) => tab.type === "file" && (tab.path === absolutePath || tab.path.endsWith(filePath)));
-      if (openTab?.type === "file") {
-        await editor.openWorkspaceFile(openTab.path);
-      }
-    } catch {
-      // Best-effort refresh only.
-    }
-  }
-}
-
-export const REASONING_SYSTEM_HINT = `
-Du musst jede finale Antwort oder Aktion mit einer strukturierten Begründung und Ablaufzusammenfassung in folgendem XML-Format beginnen:
-<reasoning-summary>
-{
-  "title": "Kurzer, prägnanter Titel der Aktion oder Strategie",
-  "summary": "1 bis 3 Sätze Zusammenfassung, warum dieser Weg gewählt wird",
-  "steps": ["Schritt 1", "Schritt 2"],
-  "assumptions": ["Optionale Annahme 1"],
-  "risks": ["Optionales Risiko 1"],
-  "nextAction": "Optionale nächste geplante Aktion oder Tool-Name"
-}
-</reasoning-summary>
-
-Wenn ein ausführbarer Plan erforderlich ist, muss zusätzlich ein separater <plan>-Block erzeugt werden:
-<plan>
-{
-  "type": "agent_plan_proposal",
-  "version": 1,
-  "id": "plan-123",
-  "runId": "run-123",
-  "title": "Geplanter Ablauf",
-  "summary": "Kurze Zusammenfassung",
-  "steps": [
-    {
-      "id": "step-1",
-      "title": "Dateien analysieren",
-      "description": "Relevante Dateien prüfen.",
-      "riskLevel": "low"
-    }
-  ],
-  "createdAt": "2026-07-02T00:00:00.000Z",
-  "state": "proposed"
-}
-</plan>
-
-WICHTIG:
-- Reasoning Summary ist kein Plan.
-- Planinformationen dürfen nicht in reasoning-summary.steps versteckt werden.
-- Wenn ein ausführbarer Plan erforderlich ist, muss zusätzlich ein separater <plan>-Block erzeugt werden.
-- Ein Coding-Auftrag darf nicht nur mit reasoning-summary enden.
-- Wenn direkte Dateiänderungen erforderlich sind, muss zusätzlich propose_file_changes verwendet werden.
-- Gib keinen unvollständigen oder provisorischen Plan frei.
-- Erzeuge niemals Roh-CoT, private Tokens oder Secrets im XML-Block.
-
-Beispiele:
-- Gut: reasoning-summary + separater plan-Block bei komplexen oder mehrstufigen Aufgaben.
-- Gut: nur reasoning-summary bei trivialen Antworten ohne zusätzlichen Plan.
-- Schlecht: Planinformationen als JSON in reasoning-summary.steps.
-- Schlecht: nur allgemeine Planbeschreibung ohne gültigen <plan>-Block bei einem echten Coding- oder Ausführungsplan.
-`;
-
-export function extractReasoningSummary(content: string): {
-  reasoningSummary: import("@dbzs/shared").AgentReasoningSummary | undefined;
-  planProposal: import("@dbzs/shared").AgentPlanProposal | undefined;
-  cleanContent: string;
-} {
-  const payload = parseAssistantPayload(content);
-  return {
-    // Legacy blocks are parsed only so they can be removed from visible text.
-    // They are deliberately not persisted: safe summaries come from real trace events.
-    reasoningSummary: undefined,
-    planProposal: payload.planProposal,
-    cleanContent: payload.visibleText
-  };
-}
-
-export function mergeAssistantMessageState(
-  existingMessage: RuntimeChatMessage,
-  incomingMessage: Partial<RuntimeChatMessage> & Pick<RuntimeChatMessage, "content"> & { planProposal?: import("@dbzs/shared").AgentPlanProposal },
-  options?: { allowActionCreation?: boolean; structuredParse?: "final" | "none"; workspaceRoot?: string }
-): RuntimeChatMessage {
-  const shouldParseStructured = options?.structuredParse !== "none";
-  const incomingRawContent = incomingMessage.rawContent ?? incomingMessage.content ?? existingMessage.rawContent ?? existingMessage.content;
-  const incomingVisibleContent = incomingMessage.visibleContent ?? incomingMessage.content ?? existingMessage.visibleContent ?? existingMessage.content;
-  const payload = shouldParseStructured
-    ? parseAssistantPayload(incomingRawContent)
-    : {
-        visibleText: incomingVisibleContent || incomingRawContent || existingMessage.visibleContent || existingMessage.content,
-        reasoningSummary: undefined,
-        planProposal: undefined,
-        parseState: "none" as const,
-        toolCalls: [],
-        warnings: []
-      };
-  const mergedContent = shouldParseStructured
-    ? payload.visibleText || incomingVisibleContent || incomingRawContent || existingMessage.content
-    : incomingVisibleContent || incomingRawContent || existingMessage.visibleContent || existingMessage.content;
-  const mergedRawContent = incomingRawContent ?? existingMessage.rawContent ?? mergedContent;
-  const mergedVisibleContent = shouldParseStructured
-    ? incomingVisibleContent || payload.visibleText || existingMessage.visibleContent || mergedContent
-    : incomingVisibleContent || incomingRawContent || existingMessage.visibleContent || mergedContent;
-  const toolCalls: RuntimeChatToolCallRecord[] | undefined =
-    incomingMessage.toolCalls ?? existingMessage.toolCalls ??
-    (shouldParseStructured
-      ? payload.toolCalls.map((call, index) => ({
-          id: `parsed-${index + 1}`,
-          name: call.name,
-          status: "done",
-          input: call.arguments,
-          outputSummary: undefined
-        }))
-      : undefined);
-
-  const planActions = incomingMessage.actions ?? existingMessage.actions ?? [];
-  const incomingPlanProposal = incomingMessage.planProposal ?? (incomingMessage as RuntimeChatMessage).planProposal;
-  const resolvedPlanProposal = shouldParseStructured ? (payload.planProposal ?? incomingPlanProposal) : incomingPlanProposal;
-  const planIsValid = (shouldParseStructured && payload.parseState === "valid") || Boolean(
-    resolvedPlanProposal &&
-    resolvedPlanProposal.type === "agent_plan_proposal" &&
-    resolvedPlanProposal.version === 1 &&
-    Boolean(resolvedPlanProposal.id)
-  );
-  const shouldCreatePlanActions = Boolean(
-    shouldParseStructured &&
-    options?.allowActionCreation !== false &&
-    Boolean(options?.workspaceRoot) &&
-    planIsValid &&
-    resolvedPlanProposal &&
-    resolvedPlanProposal.id &&
-    resolvedPlanProposal.type === "agent_plan_proposal" &&
-    resolvedPlanProposal.version === 1
-  );
-  const planProposalId = incomingMessage.planProposalId ?? existingMessage.planProposalId ?? resolvedPlanProposal?.id ?? (shouldParseStructured && payload.planProposal ? payload.planProposal.id : undefined);
-  const actionWorkspaceRoot = options?.workspaceRoot ?? "";
-  const actionWorkspaceId = actionWorkspaceRoot ? workspaceScopeId(actionWorkspaceRoot) : "";
-
-  const nextActions = shouldCreatePlanActions && planProposalId && (!planActions.some((action) => action.kind === "approve_plan" || action.kind === "reject_plan"))
-    ? [
-        {
-          id: `act-${self.crypto.randomUUID ? self.crypto.randomUUID() : Math.random().toString(36).substring(7)}`,
-          runId: resolvedPlanProposal?.runId ?? "",
-          messageId: incomingMessage.id ?? existingMessage.id,
-          workspaceRoot: actionWorkspaceRoot,
-          workspaceId: actionWorkspaceId,
-          kind: "approve_plan" as const,
-          title: "Plan übernehmen",
-          description: "Fortfahren mit diesem Plan",
-          riskLevel: "medium" as const,
-          payload: { planProposalId },
-          state: "pending" as const,
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: `act-${self.crypto.randomUUID ? self.crypto.randomUUID() : Math.random().toString(36).substring(7)}`,
-          runId: resolvedPlanProposal?.runId ?? "",
-          messageId: incomingMessage.id ?? existingMessage.id,
-          workspaceRoot: actionWorkspaceRoot,
-          workspaceId: actionWorkspaceId,
-          kind: "reject_plan" as const,
-          title: "Ablehnen",
-          description: "Plan abbrechen",
-          riskLevel: "low" as const,
-          payload: { planProposalId },
-          state: "pending" as const,
-          createdAt: new Date().toISOString()
-        }
-      ]
-    : planActions;
-
-  return {
-    ...existingMessage,
-    ...incomingMessage,
-    content: mergedContent,
-    rawContent: mergedRawContent,
-    visibleContent: mergedVisibleContent,
-    reasoningSummary: incomingMessage.reasoningSummary ?? existingMessage.reasoningSummary ?? (shouldParseStructured ? payload.reasoningSummary : undefined),
-    toolCalls,
-    actions: nextActions,
-    planProposal: resolvedPlanProposal,
-    planProposalId,
-    patchProposalId: incomingMessage.patchProposalId ?? existingMessage.patchProposalId,
-    patchPreviewId: incomingMessage.patchPreviewId ?? existingMessage.patchPreviewId,
-    meta: incomingMessage.meta ?? existingMessage.meta
-  };
-}
-
-export function mergeStreamingAssistantMessage({
-  message,
-  content,
-  rawContent,
-  reasoningSummary,
-  planProposal,
-  toolCalls
-}: {
-  message: RuntimeChatMessage;
-  content: string;
-  rawContent?: string;
-  reasoningSummary?: import("@dbzs/shared").AgentReasoningSummary;
-  planProposal?: import("@dbzs/shared").AgentPlanProposal;
-  toolCalls?: RuntimeChatToolCallRecord[];
-}): RuntimeChatMessage {
-  const streamingContent = rawContent ?? content;
-  return mergeAssistantMessageState(message, {
-    id: message.id,
-    role: message.role,
-    content: streamingContent,
-    rawContent,
-    visibleContent: streamingContent,
-    reasoningSummary,
-    planProposal,
-    toolCalls,
-    planProposalId: planProposal?.id
-  }, { allowActionCreation: false, structuredParse: "none" });
-}
-
-function hasPendingPlanApproval(message: RuntimeChatMessage): boolean {
-  if (message.planProposalId && (message.actionIds?.length ?? 0) > 0) {
-    return true;
-  }
-  return Boolean(message.actions?.some((action) => action.kind === "approve_plan" && action.state === "pending"));
-}
-
 /**
  * Prevent duplicate clarification cards for the same required field in one workspace.
  * Matches pending or completed actions by requiredField (not random question ids).
@@ -1186,102 +621,6 @@ async function applyPlanningRelevanceGate(input: {
   }
 
   return { content: input.answer };
-}
-
-function formatChatError(error: unknown): string {
-  // P0 Phase 3: Use explicit error classification
-  return formatChatErrorForUser(error);
-}
-
-async function requestAssistantResponse(
-  request: Parameters<typeof agentRunService.sendChatStream>[0],
-  onDelta: (delta: string, totalLength: number) => void,
-  signal?: AbortSignal
-) {
-  let lastError: unknown = null;
-  let retryAttempts = 0;
-
-  // P0 Phase 3: Explicit error classification with no retry cascade
-  // - transport errors: max 1 retry
-  // - timeout/abort/others: 0 retries (fail fast)
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const streamed = await agentRunService.sendChatStream(
-        request,
-        { onDelta },
-        signal
-      );
-      if (
-        (streamed as { safe_fallback?: boolean }).safe_fallback === true ||
-        Boolean((streamed as { provider_error?: unknown }).provider_error)
-      ) {
-        return streamed;
-      }
-      if (streamed.message.content.trim().length > 0) {
-        return streamed;
-      }
-
-      // Einige lokale Runtime-Setups liefern gelegentlich einen leeren Stream.
-      // In dem Fall versuchen wir den non-stream Pfad.
-      const fallback = await agentRunService.sendChat(request, signal);
-      // Never treat safe_fallback / provider_error text as a model content delta.
-      if (
-        fallback.message.content &&
-        !(fallback as { safe_fallback?: boolean }).safe_fallback &&
-        !(fallback as { provider_error?: unknown }).provider_error &&
-        isModelContentDelta(fallback.message.content)
-      ) {
-        onDelta(fallback.message.content, fallback.message.content.length);
-      }
-      return fallback;
-    } catch (error) {
-      if (signal?.aborted) {
-        throw error;
-      }
-
-      lastError = error;
-      const classified = classifyRuntimeChatError(error);
-
-      // Check if we should retry based on error class
-      if (!classified.shouldRetry || retryAttempts >= classified.maxRetries) {
-        break;
-      }
-
-      retryAttempts += 1;
-      await sleep(250 * (attempt + 1));
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error("Chat-Anfrage konnte nicht ausgefuehrt werden.");
-}
-
-function targetAgentForPreset(preset: "plan" | "refactor" | "review" | "summarize" | "next_steps"): ModelTargetAgent {
-  switch (preset) {
-    case "plan":
-      return "planner";
-    case "refactor":
-      return "coder";
-    case "review":
-      return "reviewer";
-    case "summarize":
-    case "next_steps":
-    default:
-      return "runtime_chat";
-  }
-}
-
-function patchActivityRun(
-  run: RuntimeChatActivityRun,
-  patch: Partial<RuntimeChatActivityRun>
-): RuntimeChatActivityRun {
-  return { ...run, ...patch };
-}
-
-function patchActivitySteps(
-  run: RuntimeChatActivityRun,
-  nextSteps: RuntimeChatActivityStep[]
-): RuntimeChatActivityRun {
-  return { ...run, steps: nextSteps };
 }
 
 export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({

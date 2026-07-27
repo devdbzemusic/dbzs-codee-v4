@@ -113,7 +113,8 @@ def test_runtime_api_maps_chat_runtime_error_to_409() -> None:
 
     app.dependency_overrides.clear()
     assert response.status_code == 409
-    assert "timed out" in response.json()["detail"]
+    assert response.json()["detail"]["code"] == "provider_timeout"
+    assert "timed out" in response.json()["detail"]["message"]
 
 
 def test_runtime_api_returns_doctor_report() -> None:

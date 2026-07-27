@@ -285,6 +285,18 @@ RuntimeReadinessStage = Literal[
     "inference_ready",
 ]
 
+RuntimeErrorCode = Literal[
+    "runtime_unavailable",
+    "target_slot_unavailable",
+    "warmup_timeout",
+    "warmup_http_failed",
+    "warmup_empty_response",
+    "binding_mismatch",
+    "provider_request_failed",
+    "provider_timeout",
+    "runtime_internal_error",
+]
+
 
 class RuntimeWarmupDiagnostics(BaseModel):
     endpoint: str | None = None
@@ -330,6 +342,14 @@ class RuntimeWarmupResult(BaseModel):
     elapsed_ms: int
     readiness_stage: RuntimeReadinessStage | None = None
     diagnostics: RuntimeWarmupDiagnostics | None = None
+
+
+class RuntimeErrorContractModel(BaseModel):
+    code: RuntimeErrorCode
+    message: str
+    recoverable: bool
+    diagnosticContext: dict[str, object] | None = None
+    recommendedAction: str | None = None
 
 
 # Runtime Residency Cache (Phase 2)

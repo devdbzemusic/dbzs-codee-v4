@@ -37,6 +37,9 @@
     "e2e": "pnpm --filter @dbzs/desktop e2e",
     "check:version": "node scripts/sync-version.mjs --check",
     "sync:version": "node scripts/sync-version.mjs",
+    "repo:health": "node scripts/repo-health/check-file-metrics.mjs && node scripts/repo-health/check-import-boundaries.mjs",
+    "repo:health:strict": "node scripts/repo-health/check-file-metrics.mjs && node scripts/repo-health/check-import-boundaries.mjs && node scripts/contracts/verify-runtime-contracts.mjs",
+    "contracts:verify": "node scripts/contracts/verify-runtime-contracts.mjs",
     "ci:local": "bash scripts/ci-local.sh",
     "ci:local:win": "powershell -ExecutionPolicy Bypass -File scripts/ci-local.ps1"
   },
