@@ -16,24 +16,24 @@
  */
 
 import { useEffect, type Dispatch, type SetStateAction } from "react";
-import type { BackendStartupStatus, BootState, WorkspaceFile } from "@dbzs/shared";
+import type { BackendStartupStatus, BootState, RuntimeStatus, WorkspaceProjectFile } from "@dbzs/shared";
 import { useAgentRegistryStore } from "@/stores/agentRegistryStore";
 import { useModelIndexStore } from "@/stores/modelIndexStore";
 import { useRuntimeChatStore } from "@/stores/runtimeChatStore";
-import { useRuntimeStore, type RuntimeStoreState } from "@/stores/runtimeStore";
+import { useRuntimeStore } from "@/stores/runtimeStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useTaskBoardStore } from "@/stores/taskBoardStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useNotebookStore } from "@/stores/notebookStore";
 import { codeIndexService } from "@/services/codeIndexService";
 import { initRuntimeChatSync } from "@/services/runtimeChatSync";
-import { readStandaloneView } from "@/utils/standaloneView";
+import { readStandaloneView, type StandaloneView } from "@/utils/standaloneView";
 import { toRuntimeChatContextFile } from "@/utils/runtimeChatWindow";
 import { shouldSyncWorkspaceSettings } from "@/utils/workspaceState";
 import type { RuntimeChatContextSnapshot } from "@/types/runtimeChatWindow";
+import type { FileEditorTab } from "@/stores/editorStore";
 
-type LoadRuntimeStatus = RuntimeStoreState["loadStatus"];
-type RuntimeStatus = RuntimeStoreState["status"];
+type LoadRuntimeStatus = () => Promise<void>;
 
 interface TrackedFrontendPhase {
   id: string;
@@ -43,8 +43,7 @@ interface TrackedFrontendPhase {
 }
 
 interface RuntimeChatWindowSyncOptions {
-  activeTab: { path: string } | null;
-  isFileEditorTab: (tab: unknown) => boolean;
+  activeTab: FileEditorTab | null;
   platformDiagnosticsOnlyMode: boolean;
   runtimeChatOnlyMode: boolean;
   settingsOnlyMode: boolean;
@@ -52,7 +51,7 @@ interface RuntimeChatWindowSyncOptions {
   setBootState: Dispatch<SetStateAction<BootState | null>>;
   setRuntimeChatWindowOpen: Dispatch<SetStateAction<boolean>>;
   setSharedChatContext: Dispatch<SetStateAction<RuntimeChatContextSnapshot | null>>;
-  workspaceFiles: WorkspaceFile[];
+  workspaceFiles: WorkspaceProjectFile[];
   workspaceProjectName: string | null;
   workspaceProjectPath: string | null;
 }
@@ -60,7 +59,6 @@ interface RuntimeChatWindowSyncOptions {
 export function useRuntimeChatWindowSync(options: RuntimeChatWindowSyncOptions): void {
   const {
     activeTab,
-    isFileEditorTab,
     platformDiagnosticsOnlyMode,
     runtimeChatOnlyMode,
     settingsOnlyMode,
@@ -129,7 +127,7 @@ export function useRuntimeChatWindowSync(options: RuntimeChatWindowSyncOptions):
     }
 
     void publish({
-      activeFile: activeTab && isFileEditorTab(activeTab) ? toRuntimeChatContextFile(activeTab) : null,
+      activeFile: activeTab ? toRuntimeChatContextFile(activeTab) : null,
       contextHint: runtimeContextHint,
       workspaceRoot: workspaceProjectPath,
       workspaceName: workspaceProjectName,
@@ -137,7 +135,6 @@ export function useRuntimeChatWindowSync(options: RuntimeChatWindowSyncOptions):
     }).catch(() => undefined);
   }, [
     activeTab,
-    isFileEditorTab,
     platformDiagnosticsOnlyMode,
     runtimeChatOnlyMode,
     settingsOnlyMode,
@@ -314,7 +311,7 @@ interface BackendLifecycleOptions {
   loadRuntimeStatus: LoadRuntimeStatus;
   loadTasks: () => Promise<unknown>;
   refreshGitStatus: () => Promise<unknown>;
-  setBackendStartupStatus: (status: BackendStartupStatus | null) => void;
+  setBackendStartupStatus: (status: BackendStartupStatus) => void;
 }
 
 export function useBackendLifecycleSync(options: BackendLifecycleOptions): void {
@@ -411,15 +408,15 @@ interface WorkspaceProjectSyncOptions {
   activeTab: { path: string } | null;
   loadProjectMemory: (workspaceRoot: string | null) => Promise<unknown>;
   refreshGitStatus: () => Promise<unknown>;
-  setDetectedWorkspaceData: (files: WorkspaceFile[]) => Promise<unknown> | void;
+  setDetectedWorkspaceData: (files: WorkspaceProjectFile[]) => Promise<unknown> | void;
   setDocsWorkspaceRoot: (workspaceRoot: string) => void;
   setIndexBuildBusy: Dispatch<SetStateAction<boolean>>;
   setIndexError: Dispatch<SetStateAction<string | null>>;
   settingsMaxFileScanCount: number;
-  setStandaloneView: Dispatch<SetStateAction<string | null>>;
+  setStandaloneView: Dispatch<SetStateAction<StandaloneView>>;
   updateWorkspaceState: (patch: { maxFileScanCount: number }) => Promise<unknown>;
-  workspaceFiles: WorkspaceFile[];
-  workspaceStateLoaded: unknown;
+  workspaceFiles: WorkspaceProjectFile[];
+  workspaceStateLoaded: boolean;
   workspaceProjectPath: string | null;
 }
 

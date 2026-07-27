@@ -10,4 +10,12 @@ export type {
   JobWaypointRequest,
   JobArtifactCreateRequest,
   JobVerifyRequest,
-} from "../index.js";
+  AllowedCommand,
+  CommandRunStatus,
+  CommandRunLogs,
+  CommandRunState,
+  JobStatus,
+  WaypointType,
+  ArtifactKind,
+  VerificationVerdict,
+} from "./jobContracts.js";
