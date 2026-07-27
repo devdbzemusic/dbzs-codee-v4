@@ -124,9 +124,7 @@ async def _run_startup_tasks(logger) -> None:
     await _run_database_init(logger)
 
     if safe_mode:
-        await store.set_component(
-            "modelRegistry", "skipped", message="Sicherer Modus: Modellindex übersprungen."
-        )
+        asyncio.create_task(run_model_index_startup(store, cache_only=True))
     else:
         # Model index must not block readiness — scheduled, not awaited (spec §8).
         asyncio.create_task(run_model_index_startup(store))

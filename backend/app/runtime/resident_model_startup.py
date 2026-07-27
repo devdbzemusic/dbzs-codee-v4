@@ -17,20 +17,21 @@ from __future__ import annotations
 
 import logging
 
+from app.api.health_contracts import ResidentModelDataModel
 from app.core.boot_state import BootComponentError, BootStateStore
 
 logger = logging.getLogger(__name__)
 
 
 def _resident_model_data(model_id: str, status) -> dict[str, object]:
-    return {
-        "modelId": model_id,
-        "modelName": status.model_name,
-        "slotId": status.slot_id or "orchestrator_cpu",
-        "provider": status.provider,
-        "pid": status.pid,
-        "port": status.port,
-    }
+    return ResidentModelDataModel(
+        modelId=model_id,
+        modelName=status.model_name,
+        slotId=status.slot_id or "orchestrator_cpu",
+        provider=status.provider,
+        pid=status.pid,
+        port=status.port,
+    ).model_dump()
 
 
 async def run_resident_model_startup(store: BootStateStore) -> None:
