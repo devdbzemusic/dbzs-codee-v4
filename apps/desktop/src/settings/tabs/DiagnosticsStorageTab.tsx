@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { RagIndexStatus } from "@dbzs/shared";
+import type { BackupSummary, RagIndexStatus } from "@dbzs/shared";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { ragClient } from "@/services/ragClient";
@@ -12,6 +12,9 @@ export function DiagnosticsStorageTab() {
   const [ragStatus, setRagStatus] = useState<RagIndexStatus | null>(null);
   const [ragBusy, setRagBusy] = useState(false);
   const backendReady = backendHealth?.status === "ok";
+  const [backups, setBackups] = useState<BackupSummary[]>([]);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupMessage, setBackupMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!backendReady) {
@@ -32,6 +35,65 @@ export function DiagnosticsStorageTab() {
       .then(setRagStatus)
       .catch(() => setRagStatus(null));
   }, [workspaceState.projectPath]);
+
+  const loadBackups = async () => {
+    const list = window.dbzs.listBackups;
+    if (!list) return;
+    try {
+      setBackups(await list());
+    } catch (error) {
+      setBackupMessage(error instanceof Error ? error.message : "Backups konnten nicht geladen werden.");
+    }
+  };
+
+  useEffect(() => {
+    void loadBackups();
+  }, []);
+
+  const createBackupNow = async () => {
+    const create = window.dbzs.createBackup;
+    if (!create) return;
+    setBackupBusy(true);
+    setBackupMessage(null);
+    try {
+      const summary = await create();
+      setBackupMessage(`Backup erstellt (${summary.fileCount} Dateien).`);
+      await loadBackups();
+    } catch (error) {
+      setBackupMessage(error instanceof Error ? error.message : "Backup fehlgeschlagen.");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const restoreBackup = async (backupId: string) => {
+    const restore = window.dbzs.restoreBackup;
+    if (!restore) return;
+    if (!window.confirm("Backup wiederherstellen? Der aktuelle Stand wird vorher zusätzlich gesichert.")) {
+      return;
+    }
+    setBackupBusy(true);
+    setBackupMessage(null);
+    try {
+      const result = await restore(backupId);
+      setBackupMessage(
+        result.errors.length > 0
+          ? `Wiederhergestellt mit Fehlern: ${result.errors.join("; ")}`
+          : `${result.restoredFiles.length} Dateien wiederhergestellt. Neustart empfohlen.`
+      );
+      await loadBackups();
+    } catch (error) {
+      setBackupMessage(error instanceof Error ? error.message : "Wiederherstellung fehlgeschlagen.");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const openBackupsFolder = async () => {
+    const open = window.dbzs.openBackupsFolder;
+    if (!open) return;
+    await open();
+  };
 
   const reloadBackend = async () => {
     try {
@@ -133,6 +195,59 @@ export function DiagnosticsStorageTab() {
         >
           {ragBusy ? "Indexiere…" : "Reindex"}
         </button>
+      </div>
+
+      <div className="border border-dbzs-border bg-dbzs-panelSoft p-3 space-y-2">
+        <h4 className="text-[11px] font-medium uppercase tracking-wide text-dbzs-muted">
+          Backup &amp; Wiederherstellung
+        </h4>
+        <p className="text-[10px] leading-4">
+          Sichert Settings, Codee-Datenbanken (ohne den rebuildbaren RAG-Index), aktive
+          Workspace-Daten unter .codee (ohne Restore-Points) sowie kleine Modellprofile.
+          Läuft automatisch beim Start, wenn die letzte Sicherung &gt; 24h zurückliegt.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="border border-dbzs-border px-2 py-1 hover:border-dbzs-cyan/40 disabled:opacity-40"
+            disabled={backupBusy}
+            onClick={() => void createBackupNow()}
+            type="button"
+          >
+            {backupBusy ? "Läuft…" : "Jetzt sichern"}
+          </button>
+          <button
+            className="border border-dbzs-border px-2 py-1 hover:border-dbzs-cyan/40"
+            onClick={() => void openBackupsFolder()}
+            type="button"
+          >
+            Ordner öffnen
+          </button>
+        </div>
+        {backupMessage ? <p className="text-[10px] text-dbzs-cyan">{backupMessage}</p> : null}
+        {backups.length === 0 ? (
+          <p className="text-[10px] leading-4">Noch keine Backups vorhanden.</p>
+        ) : (
+          <ul className="space-y-1">
+            {backups.map((backup) => (
+              <li
+                className="flex flex-wrap items-center justify-between gap-2 border border-dbzs-border px-2 py-1"
+                key={backup.id}
+              >
+                <span>
+                  {new Date(backup.createdAt).toLocaleString()} · {backup.reason} · {backup.fileCount} Dateien
+                </span>
+                <button
+                  className="border border-dbzs-amber/50 px-2 py-0.5 text-dbzs-amber disabled:opacity-40"
+                  disabled={backupBusy}
+                  onClick={() => void restoreBackup(backup.id)}
+                  type="button"
+                >
+                  Wiederherstellen
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="border border-dbzs-border bg-dbzs-panelSoft p-3 space-y-2">

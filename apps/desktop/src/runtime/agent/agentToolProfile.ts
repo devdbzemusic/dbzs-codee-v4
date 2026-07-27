@@ -87,7 +87,15 @@ export function profileLabel(profile: AgentToolProfile): string {
 
 export function toolsRequiringApproval(profile: AgentToolProfile): ToolName[] {
   if (profile === "full") {
-    return ["delete_file", "run_terminal_command", "install_dependency"];
+    return [
+      "write_file",
+      "apply_patch",
+      "create_file",
+      "delete_file",
+      "rename_file",
+      "run_terminal_command",
+      "install_dependency"
+    ];
   }
   if (profile === "agent") {
     return [

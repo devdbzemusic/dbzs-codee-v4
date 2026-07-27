@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type {
+  BackupSummary,
+  RestoreSummary,
   AgentCreateRequest,
   AgentPatchApplyResult,
   AgentPatchPreview,
@@ -334,6 +336,11 @@ const api = {
     ipcRenderer.invoke("dbzs:restore-points:delete", workspaceRoot, restorePointId) as Promise<{ deleted: boolean }>,
   cleanupRestorePoints: (workspaceRoot: string) =>
     ipcRenderer.invoke("dbzs:restore-points:cleanup", workspaceRoot) as Promise<{ removed: string[] }>,
+  listBackups: () => ipcRenderer.invoke("dbzs:backups:list") as Promise<BackupSummary[]>,
+  createBackup: () => ipcRenderer.invoke("dbzs:backups:create") as Promise<BackupSummary>,
+  restoreBackup: (backupId: string) => ipcRenderer.invoke("dbzs:backups:restore", backupId) as Promise<RestoreSummary>,
+  openBackupsFolder: (backupId?: string) =>
+    ipcRenderer.invoke("dbzs:backups:open-folder", backupId) as Promise<{ status: "ok" }>,
   getWorkspaceState: () => ipcRenderer.invoke("dbzs:workspace:get-state") as Promise<WorkspaceState>,
   setWorkspaceState: (state: WorkspaceState) =>
     ipcRenderer.invoke("dbzs:workspace:set-state", state) as Promise<WorkspaceState>,

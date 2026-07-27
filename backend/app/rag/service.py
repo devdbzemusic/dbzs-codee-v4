@@ -32,7 +32,7 @@ from app.core.config import get_app_data_dir
 from app.core.context_policy import is_context_path_allowed
 from app.rag.models import RetrievalQuery
 
-IGNORED_DIRS = {".venv", "out", "__pycache__", ".pytest_cache"}
+IGNORED_DIRS = {".venv", "__pycache__", ".pytest_cache"}
 SECRET_NAMES = {".env", ".env.local", ".env.production", ".npmrc", ".pypirc", "credentials.json"}
 BINARY_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".zip", ".exe", ".dll", ".so", ".dylib", ".woff", ".woff2", ".pdf", ".db", ".sqlite"}
 TEXT_SUFFIXES = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".md", ".json", ".yaml", ".yml", ".toml", ".ini", ".txt", ".css", ".scss", ".html"}

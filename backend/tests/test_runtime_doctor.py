@@ -81,6 +81,29 @@ def test_runtime_dry_run_uses_runtime_service_command_builder(tmp_path: Path) ->
     assert dry.preset["gpu_layers"] == 0
 
 
+def test_runtime_doctor_strict_mode_skips_ollama_checks(tmp_path: Path, monkeypatch) -> None:
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    monkeypatch.setattr("app.runtime.doctor.get_model_discovery_mode", lambda: "project_local_strict")
+
+    report = build_runtime_doctor(models_dir=models_dir, ollama_dir=tmp_path / "ollama")
+
+    assert not any(check.id in ("ollama_exe", "ollama_models_dir", "port_11434") for check in report.checks)
+    assert any(check.id == "ollama_discovery" and check.status == "ok" for check in report.checks)
+
+
+def test_runtime_doctor_non_strict_mode_includes_ollama_checks(tmp_path: Path, monkeypatch) -> None:
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(exist_ok=True)
+    monkeypatch.setattr("app.runtime.doctor.get_model_discovery_mode", lambda: "local_with_ollama")
+
+    report = build_runtime_doctor(models_dir=models_dir, ollama_dir=tmp_path / "ollama")
+
+    assert any(check.id == "ollama_exe" for check in report.checks)
+    assert any(check.id == "ollama_models_dir" for check in report.checks)
+    assert any(check.id == "port_11434" for check in report.checks)
+
+
 def test_runtime_probe_disabled_by_default() -> None:
     response = probe_runtime(RuntimeProbeRequest(allow_start=False))
     assert response.allowed is False

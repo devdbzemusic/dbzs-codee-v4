@@ -1569,6 +1569,21 @@ export interface RestorePointFile {
   existed: boolean;
 }
 
+export type BackupReason = "startup" | "manual" | "pre-destructive";
+
+export interface BackupSummary {
+  id: string;
+  path: string;
+  createdAt: string;
+  reason: BackupReason;
+  fileCount: number;
+}
+
+export interface RestoreSummary {
+  restoredFiles: string[];
+  errors: string[];
+}
+
 export interface RestorePoint {
   id: string;
   workspaceRoot: string;

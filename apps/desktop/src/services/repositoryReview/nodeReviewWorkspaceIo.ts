@@ -20,7 +20,6 @@ async function walk(
     const abs = path.join(dir, entry.name);
     const rel = path.relative(root, abs).replace(/\\/g, "/");
     if (isExcludedRelativePath(rel)) continue;
-    if (rel === ".codee" || rel.startsWith(".codee/")) continue;
     if (entry.isDirectory()) {
       await walk(root, abs, out, depth + 1);
       continue;
@@ -45,6 +44,10 @@ export function createNodeReviewWorkspaceIO(): ReviewWorkspaceIO {
       return out;
     },
     async readText(workspaceRoot, relativePath) {
+      const rel = relativePath.replace(/\\/g, "/");
+      if (isExcludedRelativePath(rel) && !rel.startsWith(".codee/")) {
+        return null;
+      }
       try {
         const abs = path.join(normalizeRoot(workspaceRoot), relativePath);
         return await fs.readFile(abs, "utf8");

@@ -14,7 +14,6 @@ from app.rag.service import estimate_tokens
 
 IGNORED_DIRS = set(default_context_excluded_directories()) | {
     ".venv",
-    "out",
     ".pytest_cache",
     "__pycache__",
 }
