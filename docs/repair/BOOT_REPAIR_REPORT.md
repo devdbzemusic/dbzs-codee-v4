@@ -124,18 +124,21 @@ Alle 17 Reparaturschritte wurden mit Unit-Tests abgesichert (Desktop: Vitest, Ba
 
 ## Bekannte Restprobleme
 
-- Modellindex hat weiterhin keine inkrementelle Scan-Cache-Schicht — `cachedModelCount` ist damit weiterhin nicht belastbar, und Safe Mode kann den Modellindex noch nicht aus einem persistierten Cache laden.
 - Safe Mode setzt Phasen erst ab `backend-spawn` zurück — ein ursprünglicher Fehler in `filesystem-check` würde davon noch nicht profitieren.
-- Kein dedizierter Electron-E2E-Test (Playwright `_electron`) für den vollen 17-Phasen-Boot — nur Unit-/Struktur-Tests.
+- Die Live-Abnahmematrix für Fehlerstart, Retry und Safe Mode ist noch nicht vollständig manuell durchgespielt; aktuell sind diese Fälle über Unit-/Integrationstests bzw. den neuen Electron-Boot-E2E belastbar abgesichert.
 
 ## Nachgezogene Reparaturen
 
 - `filesystem-check` nutzt jetzt echte, aus `settings.json`/Umgebung aufgelöste Modell- und Runtime-Ziele statt leerer Platzhalterlisten. Geprüft werden der konfigurierte `modelsPath`, der effektive Ollama-Modellpfad sowie rekursiv aufgelöste `llama-server`-/`llama-cli`-Kandidaten unter `DBZS_WIN_RUNTIMES_DIR` bzw. `D:/win_runtimes`.
+- Der Modellindex besitzt jetzt einen persistierten Scan-Cache im User-Data-Cachebereich. GGUF-Einträge werden über absoluten Pfad, Dateigröße, `mtime`, Header-Hash und Metadatenversion inkrementell wiederverwendet; `cachedModelCount` wird real befüllt.
+- Safe Mode lädt den Modellindex jetzt cache-basiert statt ihn nur zu überspringen. Wenn kein Cache vorhanden ist, wird im Safe Mode ein leerer, tolerierter Indexzustand als bewusster Fallback markiert.
 - Runtime-Chat führt deterministische Workspace-Abfragen (`count_files`, `search_files`, `list_files`) jetzt als echten Tool-Flow ohne LLM-Start, ohne Clarification und ohne Warm-up aus.
 - Runtime-Routing verhindert den zuvor beobachteten Slot-Widerspruch jetzt hart an der Quelle: ein bereits entschiedener Work-Slot wird nicht mehr still von `quality_cpu` auf `fast_gpu` umgebogen.
 - Warm-up-Diagnostik wurde für Qwen-/Reasoning-Fälle auf Request-/Response-Metadaten, Streaming-Events, Tokenzählung und Parser-Entscheid erweitert.
 - Ein erfolgreicher Resident-Fallback läuft sichtbar degradiert weiter und wird in Run-Diagnostik sowie UI explizit markiert.
-- Die bisher als Altlast geführten `RuntimeService`-Tests sind im aktuellen Stand nicht mehr rot: `uv run pytest -q` lief am 27. Juli 2026 vollständig grün durch (`400 passed`).
+- Die Backend-Health-/Boot-Verträge sind jetzt zusätzlich auf Python-Seite als Pydantic-Modelle gespiegelt (`/health/startup`, `/health/ready`, Resident-Model-Daten), statt nur implizit strukturierte Dicts zurückzugeben.
+- Ein echter Electron-Playwright-Boot-Test (`apps/desktop/e2e/boot.spec.ts`) prüft jetzt Splash zuerst, verstecktes Hauptfenster bis zum Render-Ack, `main-window-rendered` vor `main-app-released` und die finale Freigabe des Hauptfensters.
+- Die bisher als Altlast geführten `RuntimeService`-Tests sind im aktuellen Stand nicht mehr rot: `uv run pytest -q` lief am 27. Juli 2026 vollständig grün durch (`404 passed`).
 
 ## Produktionsfreigabe
 
@@ -143,6 +146,7 @@ Alle 17 Reparaturschritte wurden mit Unit-Tests abgesichert (Desktop: Vitest, Ba
 - [x] Desktop-Tests erfolgreich
 - [x] Backend-Tests erfolgreich (bis auf bekannte Altfehler)
 - [x] Desktop-Build erfolgreich
+- [x] Electron-Boot-E2E erfolgreich
 - [x] Normalstart erfolgreich (live verifiziert)
 - [ ] Fehlerstart erfolgreich geprüft (Tests B-G der manuellen Matrix noch nicht einzeln live durchgespielt)
 - [ ] Retry erfolgreich geprüft (live)

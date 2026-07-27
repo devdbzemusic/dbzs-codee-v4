@@ -20,26 +20,24 @@ from app.models.index_service import ModelIndexService
 logger = logging.getLogger(__name__)
 
 
-def _counts(scanned: int, candidates: int, invalid: int) -> dict[str, object]:
-    """Structured progress counts (repair spec §14). No incremental-scan
-    cache layer exists in ModelIndexService yet, so cachedModelCount is
-    always 0 -- reported honestly as "not implemented", not fabricated."""
+def _counts(scanned: int, candidates: int, invalid: int, cached: int = 0) -> dict[str, object]:
+    """Structured progress counts (repair spec §14)."""
     return {
         "scannedFileCount": scanned,
         "candidateCount": candidates,
         "validModelCount": max(0, scanned - invalid),
         "invalidModelCount": invalid,
-        "cachedModelCount": 0,
+        "cachedModelCount": cached,
     }
 
 
-async def run_model_index_startup(store: BootStateStore) -> None:
+async def run_model_index_startup(store: BootStateStore, *, cache_only: bool = False) -> None:
     await store.set_component(
         "modelRegistry",
         "running",
         progress=0,
         total=0,
-        message="Scanning model catalog...",
+        message="Loading model index from cache..." if cache_only else "Scanning model catalog...",
         data=_counts(0, 0, 0),
     )
 
@@ -68,11 +66,24 @@ async def run_model_index_startup(store: BootStateStore) -> None:
     service = ModelIndexService(discovery_mode=get_model_discovery_mode())
 
     try:
-        index = await asyncio.to_thread(
-            service.build_index,
-            on_progress=on_progress,
-            on_model_error=on_model_error,
-        )
+        if cache_only:
+            index = await asyncio.to_thread(service.load_cached_index)
+            if index is None:
+                await store.set_component(
+                    "modelRegistry",
+                    "success",
+                    progress=0,
+                    total=0,
+                    message="Sicherer Modus: kein Modellindex-Cache vorhanden, leerer Index wird toleriert.",
+                    data=_counts(0, 0, 0, 0),
+                )
+                return
+        else:
+            index = await asyncio.to_thread(
+                service.build_index,
+                on_progress=on_progress,
+                on_model_error=on_model_error,
+            )
     except Exception as exc:
         logger.error("Model index startup task failed: %s", exc)
         await store.set_component(
@@ -85,7 +96,9 @@ async def run_model_index_startup(store: BootStateStore) -> None:
         return
 
     model_count = len(index.models)
-    total_scanned = model_count + len(errors)
+    raw_metrics = getattr(getattr(service, "last_build_metrics", None), "as_dict", lambda: {})()
+    metrics = raw_metrics if isinstance(raw_metrics, dict) and raw_metrics else _counts(model_count + len(errors), model_count + len(errors), len(errors))
+    total_scanned = max(model_count + len(errors), int(metrics.get("scannedFileCount", 0)))
     if errors:
         message = f"Indexed {model_count} models ({len(errors)} skipped due to errors)"
         await store.set_component(
@@ -94,7 +107,7 @@ async def run_model_index_startup(store: BootStateStore) -> None:
             progress=model_count,
             total=model_count,
             message=message,
-            data={"modelErrors": list(errors.values()), **_counts(total_scanned, total_scanned, len(errors))},
+            data={"modelErrors": list(errors.values()), **metrics},
         )
     else:
         await store.set_component(
@@ -102,6 +115,10 @@ async def run_model_index_startup(store: BootStateStore) -> None:
             "success",
             progress=model_count,
             total=model_count,
-            message=f"Indexed {model_count} models",
-            data=_counts(model_count, model_count, 0),
+            message=(
+                f"Modellindex aus Cache geladen ({model_count} Modelle)"
+                if cache_only
+                else f"Indexed {model_count} models"
+            ),
+            data=metrics if metrics else _counts(model_count, model_count, 0),
         )

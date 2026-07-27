@@ -4,6 +4,7 @@ import time
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
+from app.api.health_contracts import BootReadyResponseModel, BootStartupResponseModel
 from app.core.boot_state import get_boot_state_store
 from app.core.config import APP_NAME, APP_VERSION
 
@@ -40,7 +41,7 @@ def get_health_live() -> dict[str, object]:
     }
 
 
-@router.get("/health/startup")
+@router.get("/health/startup", response_model=BootStartupResponseModel)
 def get_health_startup() -> dict[str, object]:
     """Structured, multi-component boot progress. Always answers 200 --
     this is a status report, not a readiness gate (that's /health/ready).
@@ -49,7 +50,7 @@ def get_health_startup() -> dict[str, object]:
     return get_boot_state_store().snapshot()
 
 
-@router.get("/health/ready")
+@router.get("/health/ready", response_model=BootReadyResponseModel)
 def get_health_ready() -> JSONResponse:
     """Final readiness gate. `ready` is true once database/modelRegistry/
     runtimeManager have all succeeded; a failed residentModel alone degrades

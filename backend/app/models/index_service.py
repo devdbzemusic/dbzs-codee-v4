@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+import hashlib
 import json
 import re
 from typing import Any, Callable
@@ -9,7 +11,7 @@ from typing import Any, Callable
 OnIndexProgress = Callable[[int, int], None]
 OnIndexModelError = Callable[[str, Exception], None]
 
-from app.core.config import get_models_dir, get_ollama_dir, get_ollama_models_dir
+from app.core.config import get_app_data_dir, get_models_dir, get_ollama_dir, get_ollama_models_dir
 # from app.models.index_service import ModelIndexService  # Zirkulärer Import entfernt
 from app.models.launcher import normalize_launcher
 from app.models.schemas import IndexedModel, ModelIndex, ModelIndexSummary, ModelRuntimeHints, RecommendedUse
@@ -40,6 +42,28 @@ FUNCTIONGEMMA_DEFAULT_PROFILE: dict[str, Any] = {
     },
 }
 
+MODEL_INDEX_CACHE_SCHEMA_VERSION = 1
+MODEL_INDEX_CACHE_METADATA_VERSION = 1
+MODEL_INDEX_CACHE_HEADER_BYTES = 4096
+
+
+@dataclass
+class ModelIndexBuildMetrics:
+    scanned_file_count: int = 0
+    candidate_count: int = 0
+    valid_model_count: int = 0
+    invalid_model_count: int = 0
+    cached_model_count: int = 0
+
+    def as_dict(self) -> dict[str, int]:
+        return {
+            "scannedFileCount": self.scanned_file_count,
+            "candidateCount": self.candidate_count,
+            "validModelCount": self.valid_model_count,
+            "invalidModelCount": self.invalid_model_count,
+            "cachedModelCount": self.cached_model_count,
+        }
+
 
 class ModelIndexService:
     def __init__(
@@ -47,12 +71,16 @@ class ModelIndexService:
         models_dir: Path | None = None,
         ollama_dir: Path | None = None,
         ollama_models_dir: Path | None = None,
+        cache_dir: Path | None = None,
         discovery_mode: ModelDiscoveryMode = "local_with_ollama",
     ) -> None:
         self.models_dir = models_dir or get_models_dir()
         self.ollama_dir = ollama_dir or get_ollama_dir()
         self.ollama_models_dir = ollama_models_dir or get_ollama_models_dir()
+        self.cache_dir = cache_dir or (get_app_data_dir() / "cache")
+        self.cache_path = self.cache_dir / "model-index-cache.json"
         self.discovery_mode = discovery_mode
+        self.last_build_metrics = ModelIndexBuildMetrics()
         self.discovery_service = ModelDiscoveryService(
             mode=discovery_mode,
             models_dir=self.models_dir,
@@ -72,6 +100,7 @@ class ModelIndexService:
         without aborting the whole scan. Both are no-ops when omitted, so
         the existing lazy GET /models/index call path is unaffected.
         """
+        self.last_build_metrics = ModelIndexBuildMetrics()
         catalog_path = self.models_dir / "models.catalog.json"
         if catalog_path.exists():
             index = self._from_catalog(catalog_path, on_progress=on_progress, on_model_error=on_model_error)
@@ -85,10 +114,11 @@ class ModelIndexService:
 
         ollama_models = self._ollama_models()
         if not ollama_models:
+            self._persist_cache(index)
             return index
 
         # local_with_ollama or cloud_enabled: include Ollama
-        return _build_index(
+        merged = _build_index(
             generated_from=f"{index.generated_from};ollama:{self.ollama_dir}",
             models_dir=self.models_dir,
             runtime_dir=index.summary.runtime_dir,
@@ -96,6 +126,39 @@ class ModelIndexService:
             ollama_models_dir=str(self.ollama_models_dir),
             models=[*index.models, *ollama_models],
         )
+        self.last_build_metrics.valid_model_count = len(merged.models)
+        self._persist_cache(merged)
+        return merged
+
+    def load_cached_index(self) -> ModelIndex | None:
+        payload = self._load_cache_payload()
+        if not payload:
+            return None
+        index_payload = payload.get("index")
+        if not isinstance(index_payload, dict):
+            return None
+        try:
+            index = ModelIndex.model_validate(index_payload)
+        except Exception:
+            return None
+        metrics_payload = payload.get("metrics")
+        if isinstance(metrics_payload, dict):
+            self.last_build_metrics = ModelIndexBuildMetrics(
+                scanned_file_count=int(metrics_payload.get("scannedFileCount", 0)),
+                candidate_count=int(metrics_payload.get("candidateCount", 0)),
+                valid_model_count=int(metrics_payload.get("validModelCount", len(index.models))),
+                invalid_model_count=int(metrics_payload.get("invalidModelCount", 0)),
+                cached_model_count=int(metrics_payload.get("cachedModelCount", len(index.models))),
+            )
+        else:
+            self.last_build_metrics = ModelIndexBuildMetrics(
+                scanned_file_count=len(index.models),
+                candidate_count=len(index.models),
+                valid_model_count=len(index.models),
+                invalid_model_count=0,
+                cached_model_count=len(index.models),
+            )
+        return index
 
     def _from_catalog(
         self,
@@ -113,6 +176,7 @@ class ModelIndexService:
         # V2-Kompatibilität: Unterstütze sowohl "models" als auch "artifacts"
         entries = catalog.get("models", []) or catalog.get("artifacts", [])
         total = len(entries)
+        invalid_count = 0
 
         for index, entry in enumerate(entries):
             try:
@@ -180,6 +244,7 @@ class ModelIndexService:
                     )
                 )
             except Exception as exc:  # noqa: BLE001 - one corrupt entry must not abort the whole index
+                invalid_count += 1
                 if on_model_error is not None:
                     identifier = str(entry.get("id") or entry.get("name") or entry.get("path") or f"entry[{index}]")
                     on_model_error(identifier, exc)
@@ -187,7 +252,7 @@ class ModelIndexService:
                 if on_progress is not None:
                     on_progress(index + 1, total)
 
-        return _build_index(
+        built = _build_index(
             generated_from=f"catalog:{catalog_path}",
             models_dir=self.models_dir,
             runtime_dir=catalog.get("runtime_dir"),
@@ -195,6 +260,14 @@ class ModelIndexService:
             ollama_models_dir=str(self.ollama_models_dir) if self.ollama_models_dir.exists() else None,
             models=models,
         )
+        self.last_build_metrics = ModelIndexBuildMetrics(
+            scanned_file_count=total,
+            candidate_count=total,
+            valid_model_count=len(built.models),
+            invalid_model_count=invalid_count,
+            cached_model_count=0,
+        )
+        return built
 
     def _from_filesystem(
         self,
@@ -205,13 +278,34 @@ class ModelIndexService:
         models: list[IndexedModel] = []
         runtime_by_id = self._runtime_by_id()
         state_by_id = self._state_by_id()
+        cache_payload = self._load_cache_payload()
+        cache_entries = cache_payload.get("ggufEntries", {}) if cache_payload else {}
+        if not isinstance(cache_entries, dict):
+            cache_entries = {}
+        next_cache_entries: dict[str, dict[str, object]] = {}
+        invalid_count = 0
+        cached_count = 0
 
         gguf_paths = [p for p in sorted(self.models_dir.rglob("*.gguf")) if p.is_file()]
         total = len(gguf_paths)
 
         for index, model_path in enumerate(gguf_paths):
             try:
-                path = str(model_path)
+                path = str(model_path.resolve())
+                signature = _build_file_signature(model_path)
+                cached_entry = cache_entries.get(path)
+                if isinstance(cached_entry, dict) and cached_entry.get("signature") == signature:
+                    cached_model_payload = cached_entry.get("model")
+                    if isinstance(cached_model_payload, dict):
+                        cached_model = IndexedModel.model_validate(cached_model_payload)
+                        models.append(cached_model)
+                        next_cache_entries[path] = {
+                            "signature": signature,
+                            "model": cached_model.model_dump(mode="json"),
+                        }
+                        cached_count += 1
+                        continue
+
                 model_id = _stable_id(path)
                 runtime_entry = runtime_by_id.get(model_id, {})
                 runtime = runtime_entry.get("runtime", {})
@@ -224,52 +318,56 @@ class ModelIndexService:
                 name = model_path.stem
                 health_status = _resolve_health_status(health, runtime_entry)
 
-                models.append(
-                    IndexedModel(
-                        id=model_id,
+                model = IndexedModel(
+                    id=model_id,
+                    name=name,
+                    path=path,
+                    format="gguf",
+                    artifact_type=artifact_type,
+                    size_bytes=size_bytes,
+                    size_gb=round(size_bytes / 1024**3, 3),
+                    quantization=_infer_quantization(name),
+                    backend="llama.cpp",
+                    runtime_launcher="llama-server",
+                    capabilities=capabilities,
+                    modality=modality,
+                    role=None,
+                    recommended_use=_recommended_use(
                         name=name,
-                        path=path,
-                        format="gguf",
                         artifact_type=artifact_type,
-                        size_bytes=size_bytes,
-                        size_gb=round(size_bytes / 1024**3, 3),
-                        quantization=_infer_quantization(name),
-                        backend="llama.cpp",
-                        runtime_launcher="llama-server",
                         capabilities=capabilities,
                         modality=modality,
                         role=None,
-                        recommended_use=_recommended_use(
-                            name=name,
-                            artifact_type=artifact_type,
-                            capabilities=capabilities,
-                            modality=modality,
-                            role=None,
-                            health_status=health_status,
-                        ),
-                        compatibility=_compatibility(
-                            artifact_type,
-                            "llama-server",
-                            health_status,
-                        ),
-                        runtime=ModelRuntimeHints(
-                            ctx=runtime.get("ctx"),
-                            gpu_layers=runtime.get("gpu_layers"),
-                            server_enabled=bool(server.get("enabled", False)),
-                            preferred_port=server.get("preferred_port"),
-                            health_status=health_status,
-                            provider="llama.cpp",
-                        ),
-                    )
+                        health_status=health_status,
+                    ),
+                    compatibility=_compatibility(
+                        artifact_type,
+                        "llama-server",
+                        health_status,
+                    ),
+                    runtime=ModelRuntimeHints(
+                        ctx=runtime.get("ctx"),
+                        gpu_layers=runtime.get("gpu_layers"),
+                        server_enabled=bool(server.get("enabled", False)),
+                        preferred_port=server.get("preferred_port"),
+                        health_status=health_status,
+                        provider="llama.cpp",
+                    ),
                 )
+                models.append(model)
+                next_cache_entries[path] = {
+                    "signature": signature,
+                    "model": model.model_dump(mode="json"),
+                }
             except Exception as exc:  # noqa: BLE001 - one corrupt entry must not abort the whole index
+                invalid_count += 1
                 if on_model_error is not None:
                     on_model_error(str(model_path), exc)
             finally:
                 if on_progress is not None:
                     on_progress(index + 1, total)
 
-        return _build_index(
+        built = _build_index(
             generated_from=f"filesystem:{self.models_dir}",
             models_dir=self.models_dir,
             runtime_dir=None,
@@ -277,6 +375,21 @@ class ModelIndexService:
             ollama_models_dir=str(self.ollama_models_dir) if self.ollama_models_dir.exists() else None,
             models=models,
         )
+        self.last_build_metrics = ModelIndexBuildMetrics(
+            scanned_file_count=total,
+            candidate_count=total,
+            valid_model_count=len(built.models),
+            invalid_model_count=invalid_count,
+            cached_model_count=cached_count,
+        )
+        if cache_payload is None:
+            cache_payload = self._new_cache_payload()
+        cache_payload["ggufEntries"] = next_cache_entries
+        cache_payload["metrics"] = self.last_build_metrics.as_dict()
+        cache_payload["index"] = built.model_dump(mode="json")
+        cache_payload["generatedAt"] = datetime.now(UTC).isoformat()
+        self._write_cache_payload(cache_payload)
+        return built
 
     def register_catalog_model_profile(self, profile: dict[str, Any]) -> str | None:
         """Atomically merge a single model entry into models.catalog.json.
@@ -463,6 +576,48 @@ class ModelIndexService:
             )
         return models
 
+    def _new_cache_payload(self) -> dict[str, object]:
+        return {
+            "schemaVersion": MODEL_INDEX_CACHE_SCHEMA_VERSION,
+            "metadataVersion": MODEL_INDEX_CACHE_METADATA_VERSION,
+            "modelsDir": str(self.models_dir.resolve()),
+            "discoveryMode": self.discovery_mode,
+        }
+
+    def _load_cache_payload(self) -> dict[str, object] | None:
+        if not self.cache_path.exists():
+            return None
+        try:
+            payload = _read_json(self.cache_path)
+        except Exception:
+            return None
+        if not isinstance(payload, dict):
+            return None
+        if int(payload.get("schemaVersion", -1)) != MODEL_INDEX_CACHE_SCHEMA_VERSION:
+            return None
+        if int(payload.get("metadataVersion", -1)) != MODEL_INDEX_CACHE_METADATA_VERSION:
+            return None
+        if str(payload.get("modelsDir", "")) != str(self.models_dir.resolve()):
+            return None
+        if str(payload.get("discoveryMode", "")) != self.discovery_mode:
+            return None
+        return payload
+
+    def _write_cache_payload(self, payload: dict[str, object]) -> None:
+        try:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            _write_json(self.cache_path, payload)
+        except Exception:
+            # Cache persistence is best-effort; never fail the live index build.
+            return
+
+    def _persist_cache(self, index: ModelIndex) -> None:
+        payload = self._load_cache_payload() or self._new_cache_payload()
+        payload["metrics"] = self.last_build_metrics.as_dict()
+        payload["index"] = index.model_dump(mode="json")
+        payload["generatedAt"] = datetime.now(UTC).isoformat()
+        self._write_cache_payload(payload)
+
 
 def _read_json(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as f:
@@ -476,8 +631,20 @@ def _write_json(path: Path, data: dict) -> None:
 
 
 def _stable_id(value: str) -> str:
-    import hashlib
     return hashlib.sha1(value.encode("utf-8")).hexdigest()[:16]
+
+
+def _build_file_signature(path: Path) -> dict[str, object]:
+    stat = path.stat()
+    with path.open("rb") as handle:
+      header_hash = hashlib.sha1(handle.read(MODEL_INDEX_CACHE_HEADER_BYTES)).hexdigest()
+    return {
+        "absolutePath": str(path.resolve()),
+        "sizeBytes": stat.st_size,
+        "mtimeNs": stat.st_mtime_ns,
+        "headerHash": header_hash,
+        "metadataVersion": MODEL_INDEX_CACHE_METADATA_VERSION,
+    }
 
 
 def _build_index(

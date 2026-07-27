@@ -204,3 +204,45 @@ def test_model_index_scans_ollama_manifests(tmp_path: Path) -> None:
     assert index.summary.ollama_ready == 1
     assert index.models[0].name == "qwen2.5-coder:latest"
     assert index.models[0].runtime_launcher == "ollama"
+
+
+def test_model_index_reuses_cached_entries_when_file_signature_is_unchanged(tmp_path: Path) -> None:
+    model_path = tmp_path / "tiny-coder-Q4_K_M.gguf"
+    model_path.write_bytes(b"GGUF-cache")
+    cache_dir = tmp_path / "cache"
+
+    service = ModelIndexService(
+        models_dir=tmp_path,
+        ollama_models_dir=tmp_path / "empty-ollama",
+        cache_dir=cache_dir,
+    )
+    first = service.build_index()
+
+    assert first.summary.total == 1
+    assert service.last_build_metrics.cached_model_count == 0
+
+    second = service.build_index()
+
+    assert second.summary.total == 1
+    assert service.last_build_metrics.cached_model_count == 1
+    assert service.load_cached_index() is not None
+
+
+def test_model_index_invalidates_cache_when_file_changes(tmp_path: Path) -> None:
+    model_path = tmp_path / "tiny-coder-Q4_K_M.gguf"
+    model_path.write_bytes(b"GGUF-v1")
+    cache_dir = tmp_path / "cache"
+
+    service = ModelIndexService(
+        models_dir=tmp_path,
+        ollama_models_dir=tmp_path / "empty-ollama",
+        cache_dir=cache_dir,
+    )
+    service.build_index()
+    assert service.last_build_metrics.cached_model_count == 0
+
+    model_path.write_bytes(b"GGUF-v2-different")
+    rebuilt = service.build_index()
+
+    assert rebuilt.summary.total == 1
+    assert service.last_build_metrics.cached_model_count == 0
