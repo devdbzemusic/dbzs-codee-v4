@@ -40,6 +40,9 @@ export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
   const applyDraft = useSettingsDraftStore((state) => state.applyDraft);
   const settingsError = useSettingsStore((state) => state.error);
   const backendHealth = useSettingsStore((state) => state.backendHealth);
+  const loadInitialState = useSettingsStore((state) => state.loadInitialState);
+  const refreshBackendHealth = useSettingsStore((state) => state.refreshBackendHealth);
+  const setError = useSettingsStore((state) => state.setError);
   const { index: modelIndex, isLoading: modelIndexLoading, error: modelIndexError, loadModelIndex } = useModelIndexStore();
   const backendReady = backendHealth?.status === "ok";
 
@@ -77,6 +80,22 @@ export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
 
   const dirtyCount = Object.keys(draft).length;
 
+  const reloadSettingsConnection = async () => {
+    setError(null);
+    const healthy = await refreshBackendHealth();
+    if (!healthy) {
+      const reload = window.dbzs.reloadBackend;
+      if (reload) {
+        try {
+          await reload();
+        } catch {
+          // Best-effort fallback — the explicit health error is shown below.
+        }
+      }
+    }
+    await loadInitialState();
+  };
+
   const navigateToSetting = (key: string) => {
     const def = getSettingDefinition(key as keyof AppSettings);
     if (def) {
@@ -94,6 +113,24 @@ export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
   return (
     <section className="flex h-full min-h-0 flex-col border border-dbzs-border bg-dbzs-panelSoft p-4">
       <SettingsPageHeader compact={compact} />
+      {!backendReady ? (
+        <div className="mb-3 rounded border border-dbzs-amber/40 bg-dbzs-amber/10 px-3 py-2 text-[11px] text-dbzs-amber">
+          <div className="font-medium">Backend nicht erreichbar</div>
+          <div className="mt-1 leading-5">
+            Einstellungen können aktuell nicht direkt gespeichert werden. Text-, Auswahl- und Toggle-Änderungen
+            bleiben lokal vorgemerkt, bis das Backend wieder erreichbar ist.
+          </div>
+          <div className="mt-2">
+            <button
+              className="border border-dbzs-amber/50 bg-dbzs-bg px-2 py-1 text-[11px] text-dbzs-amber hover:border-dbzs-amber"
+              onClick={() => void reloadSettingsConnection()}
+              type="button"
+            >
+              Backend prüfen / neu laden
+            </button>
+          </div>
+        </div>
+      ) : null}
       <SettingsSearch
         hits={hits}
         onChange={setQuery}
@@ -133,9 +170,11 @@ export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
         <p className="mt-2 text-[11px] text-dbzs-red">{settingsError ?? saveError}</p>
       ) : null}
       <SettingsFooter
+        backendReady={backendReady}
         dirtyCount={dirtyCount}
         error={saveError}
         onDiscard={discardDraft}
+        onRetry={() => void reloadSettingsConnection()}
         onSave={() => void applyDraft()}
         saving={saving}
       />

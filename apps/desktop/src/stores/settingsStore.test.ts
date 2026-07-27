@@ -128,6 +128,19 @@ describe("useSettingsStore", () => {
     expect(useSettingsStore.getState().settingsRevision).toBe(1);
   });
 
+  it("marks backend as unavailable when patch persistence fails due to connectivity", async () => {
+    expect(window.dbzs.patchSettings).toBeDefined();
+    vi.mocked(window.dbzs.patchSettings!).mockRejectedValueOnce(new Error("fetch failed"));
+
+    const saved = await useSettingsStore.getState().patchSettings({
+      idleUnloadWorkModelsMinutes: 0
+    });
+
+    expect(saved).toBe(false);
+    expect(useSettingsStore.getState().backendHealth).toBeNull();
+    expect(useSettingsStore.getState().error).toContain("Backend offline");
+  });
+
   it("marks utility model changes as role-model updates", async () => {
     const saved = await useSettingsStore.getState().patchSettings({
       defaultUtilityModelId: "utility-model-id"

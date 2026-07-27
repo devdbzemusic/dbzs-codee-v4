@@ -15,6 +15,7 @@ interface SettingFieldProps {
 
 export function SettingField({ definition, modelOptions = [] }: SettingFieldProps) {
   const settings = useSettingsStore((state) => state.settings);
+  const backendHealth = useSettingsStore((state) => state.backendHealth);
   const diagnostics = useSettingsStore((state) => state.diagnostics);
   const draft = useSettingsDraftStore((state) => state.draft);
   const fieldErrors = useSettingsDraftStore((state) => state.fieldErrors);
@@ -27,6 +28,7 @@ export function SettingField({ definition, modelOptions = [] }: SettingFieldProp
   const dirty = draftValue !== undefined;
   const error = fieldErrors[String(key)];
   const editable = isEditableClassification(definition.classification) && definition.control !== "readonly";
+  const backendReady = backendHealth?.status === "ok";
   const envHints: Record<string, string | undefined> = {};
   for (const envName of definition.environmentOverrides ?? []) {
     // Presence-only: diagnostics reports source without exposing secret values.
@@ -62,9 +64,10 @@ export function SettingField({ definition, modelOptions = [] }: SettingFieldProp
 
   const commitImmediate = (next: AppSettings[typeof key]) => {
     if (
-      definition.control === "toggle" ||
-      definition.control === "select" ||
-      definition.control === "model_select"
+      backendReady &&
+      (definition.control === "toggle" ||
+        definition.control === "select" ||
+        definition.control === "model_select")
     ) {
       void patchSettings({ [key]: next } as Partial<AppSettings>);
       return;
