@@ -2,6 +2,13 @@
 
 Stand: 2026-07-27
 
+## Aktueller Arbeitsbranch
+
+- aktiver Arbeitsbranch: `codex/runtime-chat-overhaul-conversation-first`
+- Sicherheits-Backup-Branch: `codex/backup-runtime-chat-overhaul-2026-07-27`
+- physischer Snapshot:
+  `C:\Users\ralle\source\repos\_backups\dbzs-codee-project-backup-2026-07-27-runtime-chat-overhaul`
+
 ## Repo-Wahrheit
 
 - aktiver GitHub-Remote: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
@@ -37,17 +44,44 @@ Die aktive Detailquelle fuer diesen Nachweis ist:
 - [scripts/run-desktop-capability-suite.mjs](C:/Users/ralle/source/repos/dbzs-codee-project/scripts/run-desktop-capability-suite.mjs)
   - Root-Capability-Befehl fuehrt den Desktop-Anteil jetzt wirklich mit `RUN_CAPABILITY_SUITE=1` aus
 
+## Zusaetzlich heute umgesetzt: Runtime-Chat-Overhaul
+
+- [apps/desktop/src/components/RuntimeChatTab.tsx](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/components/RuntimeChatTab.tsx)
+  - Hauptansicht auf `conversation first` umgestellt und in kleinere Einheiten zerlegt
+- [apps/desktop/src/components/runtime-chat/RuntimeChatHeader.tsx](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/components/runtime-chat/RuntimeChatHeader.tsx)
+  - kompakter Header mit Workspace-Kontext und sekundaeren Panel-Toggles
+- [apps/desktop/src/components/runtime-chat/RuntimeChatConversationFeed.tsx](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/components/runtime-chat/RuntimeChatConversationFeed.tsx)
+  - natuerlicher Leerzustand, ruhigerer Nachrichtenfluss, kompakter Run-Block
+- [apps/desktop/src/components/runtime-chat/RuntimeChatComposer.tsx](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/components/runtime-chat/RuntimeChatComposer.tsx)
+  - freierer Composer mit klarer Fortsetzungslogik fuer kurze Antworten
+- [apps/desktop/src/components/runtime-chat/RuntimeChatSecondaryPanels.tsx](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/components/runtime-chat/RuntimeChatSecondaryPanels.tsx)
+  - Diagnose, Slots, Approvals und Panels explizit in die Sekundaerebene verschoben
+- [apps/desktop/src/services/conversationMetaIntent.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/conversationMetaIntent.ts)
+  - Statusfragen wie `Wie weit bist du?` und `Wo stehen wir?` werden direkt als Meta-Intent erkannt
+- [apps/desktop/src/services/workflowContinuation.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/workflowContinuation.ts)
+  - `weiter` wird als natuerliche Fortsetzung eines aktiven Workflows behandelt
+
+## Frisch verifizierte Checks fuer den Runtime-Chat-Umbau
+
+- `pnpm --filter @dbzs/desktop exec tsc --noEmit -p tsconfig.web.json`
+- `pnpm --filter @dbzs/desktop exec vitest run src/components/RuntimeChatTab.test.tsx src/services/conversationMetaIntent.test.ts src/services/workflowContinuation.review.test.ts`
+- `RUN_CAPABILITY_SUITE=1 pnpm --filter @dbzs/desktop exec vitest run src/testing/codingAssistant/tuningLabCapabilitySuite.test.ts`
+- `cd backend && uv run pytest tests/test_runtime_chat_tuning_lab_fixture.py -q`
+- lokaler App-Start ueber `start-dev.ps1` erfolgreich
+
 ## Aktive offene Aufgaben
 
 ### P0
 
-- aktuelle Repair-Run-Aenderungen gezielt committen
+- aktuelle Runtime-Chat-Overhaul-Aenderungen gezielt committen
 - Branch sauber pushen
 - echte GitHub-CI-Strategie fuer `push` und `pull_request` entscheiden und dokumentieren
 - mindestens einen echten GitHub-Workflow-Lauf nach Reaktivierung dokumentieren
 
 ### P1
 
+- laufende Runtime-Chat-UX in echter Session weiter feinjustieren
+- Vite-Warnungen fuer gemischte statische/dynamische Imports spaeter entflechten
 - Windows-Golden-Path auf frischer Umgebung dokumentiert abnehmen
 - Branch Protection und Merge-Gates fuer `main` sauber nachziehen
 - Offline-Review-Inventory gegen `.codee`-Artefakte haerten:

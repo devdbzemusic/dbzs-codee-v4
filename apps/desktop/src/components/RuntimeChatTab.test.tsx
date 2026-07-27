@@ -160,6 +160,44 @@ describe("RuntimeChatTab patch card", () => {
     container.remove();
   });
 
+  it("shows a conversation-first empty state with natural examples", () => {
+    useRuntimeChatStore.setState({
+      messages: [],
+      patchProposalsById: {},
+      patchPreviewsById: {},
+      agentActionsById: {},
+      activePatchProposal: null,
+      activePatchPreview: null,
+      patchState: null,
+      patchError: null,
+      patchApplyResult: null,
+      patchValidationResult: null
+    });
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <RuntimeChatTab
+          activeFile={null}
+          status={{ state: "running", provider: "ollama", model_id: "phi", model_name: "phi", port: 1234, pid: 1, endpoint: "http://localhost:1234", message: "Runtime aktiv" }}
+          workspaceRoot="D:/repo"
+          workspaceName="dbzs-codee"
+          workspaceFiles={[]}
+        />
+      );
+    });
+
+    expect(container.textContent).toContain("Beschreibe einfach natürlich dein Ziel");
+    expect(container.textContent).toContain("Wie weit bist du gerade?");
+    expect(container.textContent).not.toContain("Skills oben aktivieren");
+
+    root.unmount();
+    container.remove();
+  });
+
   it("renders plan approval buttons for a parsed plan proposal in the chat", () => {
     const merged = mergeAssistantMessageState({
       id: "msg-plan-ui",

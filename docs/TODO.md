@@ -4,9 +4,33 @@ Stand: 2026-07-27
 
 ## Jetzt direkt
 
-- [ ] Repair-Run-Aenderungen gezielt committen
-- [ ] Branch `codex/godfiles-split-top3` sauber pushen
+- [ ] Runtime-Chat-Overhaul-Aenderungen gezielt committen
+- [ ] Branch `codex/runtime-chat-overhaul-conversation-first` sauber pushen
 - [ ] nur fachliche Dateien committen, nicht `.cache/backend-build/*`
+- [ ] Runtime-Chat in der laufenden App weiter auf Auto-Fortsetzung und ruhigere UX pruefen
+
+## Runtime-Chat-Overhaul
+
+- [x] Git-Backup-Branch vor dem Umbau angelegt:
+      `codex/backup-runtime-chat-overhaul-2026-07-27`
+- [x] physischer Projektsnapshot verifiziert:
+      `C:\Users\ralle\source\repos\_backups\dbzs-codee-project-backup-2026-07-27-runtime-chat-overhaul`
+- [x] eigener Arbeitsbranch fuer den Umbau angelegt:
+      `codex/runtime-chat-overhaul-conversation-first`
+- [x] `RuntimeChatTab` in kleinere Conversation-First-Komponenten zerlegt:
+      `RuntimeChatHeader`, `RuntimeChatConversationFeed`,
+      `RuntimeChatComposer`, `RuntimeChatSecondaryPanels`
+- [x] kurze Statusfragen als Meta-Intent verdrahtet:
+      `Wie weit bist du?`, `Wo stehen wir?`
+- [x] knappe Fortsetzung `weiter` als natuerliche Workflow-Fortsetzung akzeptiert
+- [x] Runtime-Chat-Goldpfade erneut bestaetigt:
+      Web-Typecheck, gezielte Vitest-Laeufe,
+      Desktop-Tuning-Lab und Backend-Tuning-Lab gruen
+- [x] lokaler App-Start nach dem Umbau erfolgreich:
+      `start-dev.ps1`
+- [ ] laufende Runtime-Chat-UX in echter Session weiter feinjustieren
+- [ ] Vite-Warnungen zu gemischten statischen/dynamischen Imports in
+      `backendClient.ts` und `providerRuntimeEvents.ts` spaeter gezielt entflechten
 
 ## Main-Readiness und GitHub-Hygiene
 
