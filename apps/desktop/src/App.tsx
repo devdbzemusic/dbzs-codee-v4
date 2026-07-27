@@ -18,6 +18,7 @@ import {
   type WorkspaceFile,
   type WorkspaceProjectFile
 } from "@dbzs/shared";
+import { useRef } from "react";
 import { useAgentRegistryStore } from "@/stores/agentRegistryStore";
 import { useDocsAnalysisStore } from "@/stores/docsAnalysisStore";
 import { useDebugAgentStore } from "@/stores/debugAgentStore";
@@ -306,6 +307,7 @@ function AppShell() {
   const [runtimeChatWindowOpen, setRuntimeChatWindowOpen] = useState(false);
   const [sharedChatContext, setSharedChatContext] = useState<RuntimeChatContextSnapshot | null>(null);
   const [bootState, setBootState] = useState<BootState | null>(null);
+  const trackedFrontendBootRunRef = useRef<string | null>(null);
   const [plannerPlan, setPlannerPlan] = useState<PlannerPlan | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [symbolQuery, setSymbolQuery] = useState("");
@@ -315,6 +317,24 @@ function AppShell() {
   const [relatedResults, setRelatedResults] = useState<Array<{ filePath: string; reason: string; matchedSymbols: string[]; score: number }>>([]);
   const [indexBuildBusy, setIndexBuildBusy] = useState(false);
   const [indexError, setIndexError] = useState<string | null>(null);
+  const activeTrackedFrontendPhase = (() => {
+    const trackedPhaseIds = new Set([
+      "frontend-bridge",
+      "frontend-config-sync",
+      "workspace-restore",
+      "agents-roles-models"
+    ]);
+    const current = bootState?.currentPhaseId
+      ? bootState.phases.find((phase) => phase.id === bootState.currentPhaseId && trackedPhaseIds.has(phase.id))
+      : null;
+    if (current && (current.state === "running" || current.state === "retrying")) {
+      return current;
+    }
+    return bootState?.phases.find((phase) => trackedPhaseIds.has(phase.id) && phase.state === "running") ?? null;
+  })();
+  const trackedFrontendPhaseKey = activeTrackedFrontendPhase
+    ? `${activeTrackedFrontendPhase.id}:${activeTrackedFrontendPhase.retryCount}:${activeTrackedFrontendPhase.startedAt ?? 0}:${activeTrackedFrontendPhase.state}`
+    : null;
   const contextEngine = projectMemory ? new ContextEngineService(projectMemory, workspaceFiles) : null;
   const retrievalService = new ContextRetrievalService(codeIndexService, projectMemory);
   const runtimeContextSummary = contextEngine ? contextEngine.buildAgentContext("coder") : null;
@@ -451,8 +471,17 @@ function AppShell() {
   // with the backend-side phases — reporting completion is what lets the
   // orchestrator's "main-app-released" phase (16) actually wait on it.
   useEffect(() => {
-    let cancelled = false;
     const report = window.dbzs.reportBootPhaseState;
+    const activePhaseId = activeTrackedFrontendPhase?.id ?? null;
+    if (!activePhaseId || !trackedFrontendPhaseKey) {
+      return;
+    }
+    if (trackedFrontendBootRunRef.current === trackedFrontendPhaseKey) {
+      return;
+    }
+    trackedFrontendBootRunRef.current = trackedFrontendPhaseKey;
+
+    let cancelled = false;
 
     function errorMessage(err: unknown): string {
       return err instanceof Error ? err.message : String(err);
@@ -462,13 +491,6 @@ function AppShell() {
       return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
-    // The main window is created hidden and starts loading immediately —
-    // this effect can genuinely run before the backend has finished cold
-    // starting. A single getBackendHealth() attempt would fail outright in
-    // that (normal, expected) case, and since this effect only runs once
-    // per mount, there is no other trigger that would ever retry it. Poll
-    // instead of failing on the first miss; only report "failed" once this
-    // budget is truly exhausted.
     async function waitForBackendBridge(): Promise<void> {
       const maxAttempts = 60; // ~30s at 500ms — generous cold-start budget
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -483,68 +505,95 @@ function AppShell() {
       }
     }
 
-    async function runTrackedBoot(): Promise<void> {
-      try {
-        await waitForBackendBridge();
-        if (cancelled) return;
-        await report?.("frontend-bridge", "success", "IPC-Bridge verbunden.");
-      } catch (err) {
-        await report?.("frontend-bridge", "failed", errorMessage(err));
-        return;
-      }
-
-      await loadInitialState();
-      if (cancelled) return;
-      const settingsError = useSettingsStore.getState().error;
-      if (settingsError) {
-        await report?.("frontend-config-sync", "failed", settingsError);
-        return;
-      }
-      await report?.("frontend-config-sync", "success", "Einstellungen synchronisiert.");
-
-      // Safe Mode (spec §20): no automatic workspace restore, no agent
-      // autostarts. Both phases still report a real terminal outcome
-      // ("success" with a message noting the skip) -- reportBootPhaseState
-      // only has success/failed, there is no separate frontend "skipped".
-      const safeMode = (await window.dbzs.isBootSafeMode?.()) ?? false;
-
-      if (safeMode) {
-        await report?.("workspace-restore", "success", "Sicherer Modus: Workspace-Wiederherstellung übersprungen.");
-      } else {
-        await Promise.all([loadWorkspaceState(), loadAllowedCommands()]);
-        if (cancelled) return;
-        const workspaceStateError = useWorkspaceStore.getState().error;
-        if (workspaceStateError) {
-          await report?.("workspace-restore", "failed", workspaceStateError);
+    async function runTrackedBootFrom(startPhaseId: string): Promise<void> {
+      if (startPhaseId === "frontend-bridge") {
+        try {
+          await waitForBackendBridge();
+          if (cancelled) return;
+          await report?.("frontend-bridge", "success", "IPC-Bridge verbunden.");
+        } catch (err) {
+          await report?.("frontend-bridge", "failed", errorMessage(err));
           return;
         }
-        await report?.("workspace-restore", "success", "Workspace wiederhergestellt.");
+      }
+
+      if (startPhaseId === "frontend-bridge" || startPhaseId === "frontend-config-sync") {
+        await loadInitialState();
+        if (cancelled) return;
+        const settingsError = useSettingsStore.getState().error;
+        if (settingsError) {
+          await report?.("frontend-config-sync", "failed", settingsError);
+          return;
+        }
+        await report?.("frontend-config-sync", "success", "Einstellungen synchronisiert.");
+      }
+
+      const safeMode = (await window.dbzs.isBootSafeMode?.()) ?? false;
+
+      if (startPhaseId === "frontend-bridge" || startPhaseId === "frontend-config-sync" || startPhaseId === "workspace-restore") {
+        if (safeMode) {
+          await report?.("workspace-restore", "success", "Sicherer Modus: Workspace-Wiederherstellung übersprungen.");
+        } else {
+          await Promise.all([loadWorkspaceState(), loadAllowedCommands()]);
+          if (cancelled) return;
+          const workspaceStateError = useWorkspaceStore.getState().error;
+          if (workspaceStateError) {
+            await report?.("workspace-restore", "failed", workspaceStateError);
+            return;
+          }
+          await report?.("workspace-restore", "success", "Workspace wiederhergestellt.");
+        }
       }
 
       if (safeMode) {
-        await report?.("agents-roles-models", "success", "Sicherer Modus: Agenten-Autostarts übersprungen.");
+        if (
+          startPhaseId === "frontend-bridge" ||
+          startPhaseId === "frontend-config-sync" ||
+          startPhaseId === "workspace-restore" ||
+          startPhaseId === "agents-roles-models"
+        ) {
+          await report?.("agents-roles-models", "success", "Sicherer Modus: Agenten-Autostarts übersprungen.");
+        }
         return;
       }
 
-      await Promise.all([loadModelIndex(), loadRuntimeStatus(), loadAgents(), loadTasks(), loadJobs()]);
-      if (cancelled) return;
-      const groupError =
-        useModelIndexStore.getState().error ||
-        useRuntimeStore.getState().error ||
-        useAgentRegistryStore.getState().error ||
-        useTaskBoardStore.getState().error;
-      if (groupError) {
-        await report?.("agents-roles-models", "failed", groupError);
-        return;
+      if (
+        startPhaseId === "frontend-bridge" ||
+        startPhaseId === "frontend-config-sync" ||
+        startPhaseId === "workspace-restore" ||
+        startPhaseId === "agents-roles-models"
+      ) {
+        await Promise.all([loadModelIndex(), loadRuntimeStatus(), loadAgents(), loadTasks(), loadJobs()]);
+        if (cancelled) return;
+        const groupError =
+          useModelIndexStore.getState().error ||
+          useRuntimeStore.getState().error ||
+          useAgentRegistryStore.getState().error ||
+          useTaskBoardStore.getState().error;
+        if (groupError) {
+          await report?.("agents-roles-models", "failed", groupError);
+          return;
+        }
+        await report?.("agents-roles-models", "success", "Agenten und Modelle geladen.");
       }
-      await report?.("agents-roles-models", "success", "Agenten und Modelle geladen.");
     }
 
-    void runTrackedBoot();
+    void runTrackedBootFrom(activePhaseId);
     return () => {
       cancelled = true;
     };
-  }, [loadAgents, loadAllowedCommands, loadInitialState, loadJobs, loadModelIndex, loadRuntimeStatus, loadTasks, loadWorkspaceState]);
+  }, [
+    activeTrackedFrontendPhase?.id,
+    trackedFrontendPhaseKey,
+    loadAgents,
+    loadAllowedCommands,
+    loadInitialState,
+    loadJobs,
+    loadModelIndex,
+    loadRuntimeStatus,
+    loadTasks,
+    loadWorkspaceState
+  ]);
 
   // Post-boot recovery: if the backend goes down and comes back after the
   // app is already running (e.g. a manual "reload backend" from Settings),

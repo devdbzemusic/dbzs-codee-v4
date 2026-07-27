@@ -522,9 +522,15 @@ function configureDbzsWindowSecurity(window: BrowserWindow): void {
 
 async function getRendererSafeSettings(settings?: AppSettings): Promise<AppSettings> {
   const rawSettings = settings ?? await requestBackend<AppSettings>("/settings");
-  const diagnostics = await requestBackend<{
-    effectiveSources?: Record<string, string>;
-  }>("/settings/diagnostics").catch(() => null);
+  // Boot/UI readiness must not block on diagnostics. These flags only
+  // enrich the renderer's settings view, so we cap the wait aggressively
+  // and fall back to "not configured" if diagnostics are slow or absent.
+  const diagnostics = await Promise.race([
+    requestBackend<{
+      effectiveSources?: Record<string, string>;
+    }>("/settings/diagnostics").catch(() => null),
+    delay(1_500).then(() => null)
+  ]);
   return sanitizeSettingsForRenderer({
     ...rawSettings,
     openaiConfigured: diagnostics?.effectiveSources?.openaiApiKey !== undefined

@@ -22,9 +22,9 @@ export const BootComponentStateSchema = z.enum([
 
 export const BootComponentErrorSchema = z.object({
   code: z.string(),
-  technicalDetail: z.string().optional(),
+  technicalDetail: z.string().nullable().optional(),
   exitCode: z.number().nullable().optional(),
-  stderrTail: z.string().optional()
+  stderrTail: z.string().nullable().optional()
 });
 
 export const BootReadinessComponentSchema = z.object({
