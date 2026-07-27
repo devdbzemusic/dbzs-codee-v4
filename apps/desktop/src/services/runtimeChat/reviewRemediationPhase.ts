@@ -7,6 +7,7 @@ import type { UserExecutionIntent } from "@/services/executionIntent";
 import {
   buildFindingSelectionQuestion,
   buildReviewSelectionQuestion,
+  extractRemediationScope,
   extractReviewId,
   loadReviewFindingsForRemediation,
   REVIEW_REMEDIATION_WORKFLOW_ID
@@ -14,7 +15,8 @@ import {
 import {
   beginReviewRemediationQuestion,
   createReviewRemediationSelection,
-  readReviewRemediationSelection
+  readReviewRemediationSelection,
+  writeReviewRemediationSelection
 } from "@/services/reviewRemediationSelection";
 
 function createMessageId(prefix: string): string {
@@ -168,12 +170,33 @@ export async function runReviewRemediationPhase(
     (await readReviewRemediationSelection(remediationWorkspaceRoot)) ??
     createReviewRemediationSelection(remediationWorkspaceRoot);
   const explicitReviewId = extractReviewId(trimmedContent);
+  const explicitScope = extractRemediationScope(trimmedContent);
   if (
     selection.status === "cancelled" ||
     selection.status === "consumed" ||
     (explicitReviewId && selection.reviewId !== explicitReviewId)
   ) {
     selection = createReviewRemediationSelection(remediationWorkspaceRoot);
+  }
+  if (selection.status !== "complete" && explicitReviewId) {
+    const explicitReview = reviews.find((candidate) => candidate.reviewId === explicitReviewId);
+    if (explicitReview) {
+      selection = {
+        ...selection,
+        reviewId: explicitReview.reviewId,
+        scope:
+          explicitScope === "individual"
+            ? "selected"
+            : explicitScope ?? selection.scope ?? "p0_p2",
+        selectedFindingIds: explicitScope === "individual" ? selection.selectedFindingIds : [],
+        reviewConfirmed: true,
+        scopeConfirmed: true,
+        status: "complete",
+        pendingQuestionId: null,
+        updatedAt: new Date().toISOString()
+      };
+      await writeReviewRemediationSelection(remediationWorkspaceRoot, selection);
+    }
   }
   if (selection.status !== "complete") {
     const questionId = `review-remediation-selection-${Date.now().toString(36)}-${Math.random()
