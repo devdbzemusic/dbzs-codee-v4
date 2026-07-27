@@ -147,17 +147,17 @@ function defaultUserMessage(outcome: RuntimeRunOutcome): string {
     case "cancelled":
       return "Lauf abgebrochen";
     case "context_overflow":
-      return "Die Anfrage ist größer als das aktuelle Runtime-Kontextfenster. Bitte weniger Kontext senden oder ein Profil mit größerem Kontext starten.";
+      return "Ich habe zu viel Kontext für das aktuelle Modell gesammelt. Wenn du willst, machen wir mit weniger Kontext weiter oder wechseln auf ein passenderes Profil.";
     case "empty_final_answer":
-      return "Das Modell hat keine verwertbare Endantwort geliefert.";
+      return "Ich habe keine verwertbare Endantwort vom Modell bekommen. Wir können die Anfrage direkt noch einmal kleiner oder klarer versuchen.";
     case "agent_output_invalid":
-      return "Das Modell hat geantwortet, die Ausgabe konnte aber nicht als gültige Endantwort verarbeitet werden.";
+      return "Ich habe eine Antwort bekommen, konnte sie aber nicht sauber als nutzbare Endantwort übernehmen.";
     case "agent_loop_incomplete":
-      return "Der Agent-Loop endete ohne gültige fachliche Endantwort.";
+      return "Der Agentenlauf ist ohne sauberen Abschluss geendet. Ich kann den nächsten Versuch gezielter und kompakter ansetzen.";
     case "tool_loop_failed":
-      return "Ein Tool-Aufruf blieb offen oder ist fehlgeschlagen; keine gültige Endantwort.";
+      return "Ein Tool-Schritt ist schiefgelaufen, deshalb habe ich den Lauf ohne unsaubere Endantwort gestoppt.";
     case "generation_failed":
-      return "Die Modellgenerierung ist fehlgeschlagen.";
+      return "Die Generierung ist unterwegs abgebrochen. Wir können denselben Schritt erneut oder mit weniger Last versuchen.";
     case "first_token_timeout":
       return "First-Token-Timeout: Modell war erreichbar, lieferte aber kein erstes Token rechtzeitig.";
     case "process_start_timeout":
@@ -175,11 +175,11 @@ function defaultUserMessage(outcome: RuntimeRunOutcome): string {
     case "generation_timeout":
       return "Generation-Timeout: Gesamte Generierung überschritt das Zeitlimit.";
     case "runtime_oom":
-      return "Runtime Out-of-Memory: Modell oder Kontext passt nicht in den aktuellen Slot.";
+      return "Das aktuelle Modell oder der Kontext passt gerade nicht in den gewählten Slot. Ich kann mit kleinerem Profil oder anderem Modell weitermachen.";
     case "warmup_failed":
-      return "Das Rollenmodell konnte nicht inferenzbereit gestartet werden.";
+      return "Das Rollenmodell ist nicht sauber inferenzbereit geworden. Sinnvoll wäre jetzt ein kleineres Profil, ein anderes Modell oder ein degradiertes Weiterarbeiten.";
     case "runtime_start_failed":
-      return "Das Arbeitsmodell konnte nicht gestartet werden.";
+      return "Das Arbeitsmodell konnte nicht starten. Ich kann als Nächstes einen Retry, ein anderes Profil oder ein anderes Modell anbieten.";
     case "answer_relevance_failed":
       return "Die Antwort war thematisch nicht an den aktiven Auftrag gebunden.";
     case "execution_no_action":
@@ -204,7 +204,7 @@ function defaultUserMessage(outcome: RuntimeRunOutcome): string {
     case "runtime_error":
     case "runtime_timeout":
     case "runtime_unreachable":
-      return "Interner Runtime-Fehler während der Finalisierung.";
+      return "Die Runtime hat den Lauf nicht sauber zu Ende gebracht. Wenn du willst, arbeiten wir direkt mit einer stabileren Recovery-Option weiter.";
     default: {
       const _exhaustive: never = outcome;
       return _exhaustive;

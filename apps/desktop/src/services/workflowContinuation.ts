@@ -46,6 +46,7 @@ const NEW_TASK_PATTERNS = [
 ];
 
 const WORKFLOW_ANSWER_PATTERNS = [
+  /^(ja|jap|yes|yep|genau|passt|okay|ok|klar|gerne|mach das|mach weiter|weiter so)\b/i,
   /^a\s*[-–—:]/i,
   /^b\s*[-–—:]/i,
   /^option\s*[ab]/i,
@@ -54,6 +55,17 @@ const WORKFLOW_ANSWER_PATTERNS = [
   /für\s+(gitarre|bass)/i,
   /übungsziel/i,
   /\bbpm\b/i
+];
+
+const INDEPENDENT_CHAT_PATTERNS = [
+  /^erkl(ä|a)r/i,
+  /^explain\b/i,
+  /^what is\b/i,
+  /^was ist\b/i,
+  /^schreibe mir\b/i,
+  /^write me\b/i,
+  /^erz(ä|a)hl/i,
+  /^tell me\b/i
 ];
 
 export function isExplicitNewTaskMessage(message: string): boolean {
@@ -121,6 +133,12 @@ export function isDirectWorkflowAnswer(
     return false;
   }
   return cleaned.length <= 280;
+}
+
+function looksLikeIndependentChat(message: string): boolean {
+  const cleaned = message.trim();
+  if (!cleaned) return false;
+  return INDEPENDENT_CHAT_PATTERNS.some((pattern) => pattern.test(cleaned));
 }
 
 export type WorkflowContinuationReason =
@@ -259,13 +277,24 @@ export function resolveWorkflowContinuation(input: {
   }
 
   if (isChatTask(classifiedTaskType)) {
-    // Independent chat must not silently inherit the old workflow.
+    if (looksLikeIndependentChat(message)) {
+      return {
+        useActiveContract: false,
+        taskType: classifiedTaskType,
+        reason: "workflow_ambiguity",
+        contract,
+        needsAmbiguityAsk: true
+      };
+    }
+
+    // Codex-like default: short ambiguous chat continues the active thread
+    // unless the user clearly pivots into a separate, independent topic.
     return {
-      useActiveContract: false,
-      taskType: classifiedTaskType,
-      reason: "workflow_ambiguity",
+      useActiveContract: true,
+      taskType: contract.taskType,
+      reason: "active_workflow_continue",
       contract,
-      needsAmbiguityAsk: true
+      needsAmbiguityAsk: false
     };
   }
 

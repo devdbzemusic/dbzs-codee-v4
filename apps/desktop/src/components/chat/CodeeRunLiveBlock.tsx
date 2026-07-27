@@ -58,6 +58,7 @@ export function CodeeRunLiveBlock({
     run.degraded === true ||
     run.selectionSource === "explicit_fallback" ||
     run.selectionSource === "resident_continue";
+  const showExpandedByDefault = isFailedTerminal || isDegradedRun || Boolean(run.repositoryReview);
 
   const activeEvent = useMemo(() => {
     if (run.events.length === 0) return null;
@@ -137,9 +138,12 @@ export function CodeeRunLiveBlock({
   };
 
   return (
-    <div className="my-3 rounded-lg border border-dbzs-border bg-dbzs-panel p-3 text-xs leading-relaxed text-dbzs-text shadow-sm">
+    <details
+      className="my-3 rounded-lg border border-dbzs-border bg-dbzs-panel p-3 text-xs leading-relaxed text-dbzs-text shadow-sm"
+      open={showExpandedByDefault}
+    >
       {/* Run Header */}
-      <div className="flex items-center justify-between border-b border-dbzs-border/60 pb-2">
+      <summary className="flex cursor-pointer list-none items-center justify-between border-b border-dbzs-border/60 pb-2">
         <div className="flex items-center gap-2">
           <span className="flex h-2 w-2 relative">
             <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isSuccessfulCompletion ? "bg-green-400" : isFailedTerminal ? "bg-red-400" : "bg-dbzs-cyan"}`}></span>
@@ -165,6 +169,10 @@ export function CodeeRunLiveBlock({
             </button>
           )}
         </div>
+      </summary>
+
+      <div className="mt-2 text-[10px] text-dbzs-textSoft">
+        {activeEvent?.message ?? statusLabel()}
       </div>
 
       {(run.workflowLabel ||
@@ -580,6 +588,6 @@ export function CodeeRunLiveBlock({
           Diagnose-Protokoll exportieren (JSON)
         </button>
       </div>
-    </div>
+    </details>
   );
 }

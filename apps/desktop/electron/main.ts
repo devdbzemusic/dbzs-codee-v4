@@ -1681,6 +1681,19 @@ ipcMain.handle("dbzs:file:open-dialog", async () => {
   return readWorkspaceFile(result.filePaths[0]);
 });
 
+ipcMain.handle("dbzs:fs:read-file", async (_event, filePath: string, encoding = "utf-8") => {
+  return fs.readFile(filePath, encoding as BufferEncoding);
+});
+
+ipcMain.handle("dbzs:fs:write-file", async (_event, filePath: string, content: string) => {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, content, "utf-8");
+});
+
+ipcMain.handle("dbzs:fs:stat", async (_event, filePath: string) => {
+  return fs.stat(filePath);
+});
+
 ipcMain.handle("dbzs:file:save", async (_event, request: SaveFileRequest) => {
   await fs.writeFile(request.path, request.content, "utf-8");
   return readWorkspaceFile(request.path);

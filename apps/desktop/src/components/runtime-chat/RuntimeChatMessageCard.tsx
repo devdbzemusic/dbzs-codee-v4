@@ -31,6 +31,7 @@ export function RuntimeChatMessageCard({
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
   const isAssistant = message.role === "assistant";
+  const isQuestionPrompt = Boolean(message.actions?.some((action) => action.kind === "answer_question"));
   const isAnalysisProtocol = isSystem && message.content.startsWith("[Analyse-Protokoll]");
   const isCollapsedSystem = isSystem && !isAnalysisProtocol && message.content.length > 280;
 
@@ -102,7 +103,9 @@ export function RuntimeChatMessageCard({
     ? "border border-dbzs-border/60 bg-dbzs-panel"
     : isAssistant
       ? "border border-dbzs-cyan/40 bg-dbzs-cyan/5"
-      : "border border-dbzs-border/60 bg-dbzs-panelSoft";
+      : isQuestionPrompt
+        ? "border border-dbzs-border/40 bg-dbzs-bg/50"
+        : "border border-dbzs-border/60 bg-dbzs-panelSoft";
   const retrievalDroppedItems = message.retrievalManifest?.droppedItems ?? [];
   const contextSections = message.contextManifest?.sections ?? [];
   const contextDroppedSections = message.contextManifest?.droppedSections ?? [];
@@ -133,10 +136,12 @@ export function RuntimeChatMessageCard({
               ? "bg-dbzs-border/40 text-dbzs-text"
               : isAssistant
                 ? "bg-dbzs-cyan/20 text-dbzs-cyan"
-                : "bg-dbzs-muted/20 text-dbzs-muted"
+                : isQuestionPrompt
+                  ? "bg-dbzs-border/20 text-dbzs-textSoft"
+                  : "bg-dbzs-muted/20 text-dbzs-muted"
           }`}
         >
-          {isUser ? "Du" : isAssistant ? "Assistent" : "System"}
+          {isUser ? "Du" : isAssistant ? "Assistent" : isQuestionPrompt ? "Rueckfrage" : "System"}
         </span>
       </div>
 
