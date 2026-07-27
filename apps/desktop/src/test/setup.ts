@@ -1,3 +1,5 @@
+import "@testing-library/jest-dom/vitest";
+
 /*
  * DBZS – Division By Zeros
  * Datei: setup.ts

@@ -510,13 +510,27 @@ export interface RuntimeTimeoutPolicy {
 }
 
 export interface RuntimeWarmupDiagnostics {
-  processStartMs: number;
-  endpointReadyMs: number;
-  modelLoadMs: number;
-  promptEvalMs: number;
-  firstTokenMs: number;
-  totalWarmupMs: number;
-  tokenCount: number;
+  endpoint?: string;
+  apiMode?: string;
+  requestMethod?: string;
+  requestBody?: string;
+  httpStatus?: number;
+  contentType?: string;
+  responseHeaders?: Record<string, string>;
+  streamEvents?: string[];
+  parserDecision?: string;
+  chatTemplateUsed?: string;
+  stopSequencesUsed?: string[];
+  maxTokens?: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  processStartMs?: number;
+  endpointReadyMs?: number;
+  modelLoadMs?: number;
+  promptEvalMs?: number;
+  firstTokenMs?: number;
+  totalWarmupMs?: number;
+  tokenCount?: number;
   finishReason?: string;
   readinessStage?: RuntimeReadinessStage;
   streamMode?: boolean;

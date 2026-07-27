@@ -6,6 +6,7 @@
  */
 
 import type { ModelTargetAgent, RuntimeWarmupDiagnostics } from "@dbzs/shared";
+export type { RuntimeWarmupDiagnostics } from "@dbzs/shared";
 
 export type TimeoutStage = "routing" | "bootstrap" | "context" | "firstToken" | "total";
 

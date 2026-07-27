@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { SafeModeOverlay } from "./SafeModeOverlay";
+import { SafeModeOverlay } from "../components/SafeModeOverlay";
 
 // Mock der Electron Preload API
 const mockDbzsApi = {

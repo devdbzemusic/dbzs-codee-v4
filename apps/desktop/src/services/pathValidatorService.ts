@@ -1,4 +1,5 @@
 import type { IndexedModel } from "@dbzs/shared";
+import { useModelIndexStore } from "@/stores/modelIndexStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 
 export interface PathValidationResult {
@@ -29,19 +30,21 @@ class PathValidatorService {
    */
   async validateModelPaths(model: IndexedModel): Promise<PathValidationResult> {
     const errors: string[] = [];
+    const runtimeDir = useModelIndexStore.getState().index?.summary.runtime_dir;
+    const modelPath = model.path;
+    const provider = model.runtime.provider || model.backend;
 
     // 1. Prüfe die Modelldatei selbst
-    if (!(await this.fileExists(model.filePath))) {
-      errors.push(`Modelldatei nicht gefunden: ${model.filePath}`);
+    if (!(await this.fileExists(modelPath))) {
+      errors.push(`Modelldatei nicht gefunden: ${modelPath}`);
     }
 
-    // 2. Prüfe die zugehörige Runtime-Executable
-    if (model.provider === "llama.cpp") {
-      const llamaCppPath = useSettingsStore.getState().settings.llamaCppPath;
-      if (!(await this.fileExists(llamaCppPath))) {
-        errors.push(`Llama.cpp Executable nicht gefunden: ${llamaCppPath}`);
+    // 2. Prüfe das zugehörige Runtime-Verzeichnis, sofern der Modellindex eines kennt.
+    if (provider === "llama.cpp") {
+      if (!(await this.fileExists(runtimeDir))) {
+        errors.push(`Llama.cpp Runtime-Verzeichnis nicht gefunden: ${runtimeDir ?? "unbekannt"}`);
       }
-    } else if (model.provider === "ollama") {
+    } else if (provider === "ollama") {
       // Für Ollama könnte man prüfen, ob der Ollama-Server läuft,
       // was aber über eine reine Pfad-Validierung hinausgeht.
     }

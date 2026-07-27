@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { validateResolvedRuntimeRoute, type ResolvedRuntimeRoute } from "./runtimeRouteValidator";
-import type { ModelSelectionDecision } from "./modelSelectionBroker";
 
 describe("validateResolvedRuntimeRoute", () => {
   const baseRoute: ResolvedRuntimeRoute = {
@@ -19,28 +18,20 @@ describe("validateResolvedRuntimeRoute", () => {
   });
 
   it("sollte 'ok' zurückgeben, wenn der Slot des Brokers mit dem der Route übereinstimmt", () => {
-    const brokerDecision: ModelSelectionDecision = {
-      decisionId: "1",
-      targetAgent: "coder",
-      slotId: "fast_gpu",
+    const brokerDecision = {
+      slotId: "fast_gpu" as const,
       resolvedModelId: "test-model",
       resolvedModelName: "Test Model",
-      reason: ["test"],
-      selectionSource: "automatic"
     };
     const result = validateResolvedRuntimeRoute(baseRoute, brokerDecision);
     expect(result.ok).toBe(true);
   });
 
   it("sollte 'ok' zurückgeben, wenn der Broker keinen Slot vorgibt", () => {
-    const brokerDecision: ModelSelectionDecision = {
-      decisionId: "1",
-      targetAgent: "coder",
+    const brokerDecision = {
       slotId: null, // Broker gibt keinen Slot vor
       resolvedModelId: "test-model",
       resolvedModelName: "Test Model",
-      reason: ["test"],
-      selectionSource: "automatic"
     };
     const result = validateResolvedRuntimeRoute(baseRoute, brokerDecision);
     expect(result.ok).toBe(true);
@@ -51,14 +42,10 @@ describe("validateResolvedRuntimeRoute", () => {
       ...baseRoute,
       slotId: "quality_cpu" // Abweichender Slot
     };
-    const brokerDecision: ModelSelectionDecision = {
-      decisionId: "1",
-      targetAgent: "coder",
-      slotId: "fast_gpu", // Broker wollte diesen Slot
+    const brokerDecision = {
+      slotId: "fast_gpu" as const, // Broker wollte diesen Slot
       resolvedModelId: "test-model",
       resolvedModelName: "Test Model",
-      reason: ["test"],
-      selectionSource: "automatic"
     };
     const result = validateResolvedRuntimeRoute(route, brokerDecision);
     expect(result.ok).toBe(false);
