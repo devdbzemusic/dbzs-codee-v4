@@ -44,6 +44,12 @@ jobs:
         run: uv sync --frozen
         working-directory: backend
 
+      - name: Repo health
+        run: pnpm repo:health
+
+      - name: Contract verification
+        run: pnpm contracts:verify
+
       - name: Typecheck
         run: pnpm typecheck
 

@@ -24,6 +24,7 @@ from app.runtime.schemas import (
     RuntimeSlotId,
     RuntimeSlotStatus,
     RuntimeStatus,
+    RuntimeErrorContractModel,
     RuntimeWarmupResult,
     StartModelRequest,
     RuntimeToolRegistry,
@@ -58,6 +59,52 @@ def get_runtime_service() -> RuntimeService:
         )
         _runtime_service_discovery_mode = discovery_mode
     return _runtime_service
+
+
+def _runtime_error_detail(exc: RuntimeError) -> dict[str, object]:
+    message = str(exc)
+    lowered = message.lower()
+    code = "runtime_internal_error"
+    recoverable = False
+    recommended_action = "Diagnose prüfen und Runtime-Konfiguration kontrollieren."
+
+    if "target_slot_unavailable" in lowered:
+        code = "target_slot_unavailable"
+        recoverable = True
+        recommended_action = "Runtime-Slot starten oder kompatiblen Fallback verwenden."
+    elif "timed out" in lowered or "timeout" in lowered:
+        code = "provider_timeout"
+        recoverable = True
+        recommended_action = "Kürzere Anfrage senden oder ein schnelleres Modell wählen."
+    elif "warmup_timeout" in lowered:
+        code = "warmup_timeout"
+        recoverable = True
+        recommended_action = "Warm-up erneut versuchen oder Safe Mode / Fallback nutzen."
+    elif "warmup_http_failed" in lowered:
+        code = "warmup_http_failed"
+        recoverable = True
+        recommended_action = "HTTP-Diagnostik und Runtime-Endpoint prüfen."
+    elif "warmup_empty_response" in lowered:
+        code = "warmup_empty_response"
+        recoverable = True
+        recommended_action = "Warm-up-Diagnose mit Rohantwort prüfen und Fallback erwägen."
+    elif "binding_mismatch" in lowered:
+        code = "binding_mismatch"
+        recoverable = False
+        recommended_action = "Routing- und Slot-Bindung korrigieren."
+    elif "request failed" in lowered:
+        code = "provider_request_failed"
+        recoverable = True
+        recommended_action = "Provider-/Endpoint-Fehler prüfen und Anfrage erneut senden."
+
+    payload = RuntimeErrorContractModel(
+        code=code,
+        message=message,
+        recoverable=recoverable,
+        diagnosticContext={"source": "runtime-api"},
+        recommendedAction=recommended_action,
+    )
+    return payload.model_dump()
 
 
 @router.get("/status")
@@ -229,7 +276,7 @@ def tokenize_for_slot(
     try:
         return TokenizeResponse(token_count=service.tokenize(slot_id, request.text))
     except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise HTTPException(status_code=409, detail=_runtime_error_detail(exc)) from exc
 
 
 @router.post("/slots/{slot_id}/warmup")
@@ -293,7 +340,7 @@ def chat_with_runtime(
     try:
         return service.chat(request)
     except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise HTTPException(status_code=409, detail=_runtime_error_detail(exc)) from exc
 
 
 @router.post("/chat/stream")
@@ -322,7 +369,7 @@ def chat_with_runtime_stream(
             )
             yield f"data: {done_payload}\n\n"
         except RuntimeError as exc:
-            error_payload = json.dumps({"type": "error", "message": str(exc)})
+            error_payload = json.dumps({"type": "error", "message": str(exc), "error": _runtime_error_detail(exc)})
             yield f"data: {error_payload}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -370,7 +417,7 @@ def post_model_test(
     try:
         return run_model_test(service).to_dict()
     except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise HTTPException(status_code=409, detail=_runtime_error_detail(exc)) from exc
 
 
 @router.get("/hardware/fingerprint")

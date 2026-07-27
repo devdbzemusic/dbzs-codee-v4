@@ -5,8 +5,13 @@ export type { RuntimeSlotDefinition, RuntimeSlotId, RuntimeSlotRole, RuntimeTask
 export { RUNTIME_SLOT_DEFINITIONS } from "./runtime/runtimeSlots.js";
 export * from "./context/contextContracts.js";
 export * from "./interaction/interactionContracts.js";
-export * from "./boot.js";
-export * from "./bootReadinessSchema.js";
+export * from "./boot/index.js";
+export * from "./runtime/index.js";
+export * from "./workspace/index.js";
+export * from "./review/index.js";
+export * from "./jobs/index.js";
+export * from "./agents/index.js";
+export * from "./runtimeErrorSchema.js";
 
 export type TerminalShell = "powershell" | "cmd" | "pwsh";
 

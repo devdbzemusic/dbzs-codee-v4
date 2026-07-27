@@ -17,12 +17,19 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: uv sync --frozen
         working-directory: backend
-      - name: Smoke-Check vor Live-Acceptance
+      - name: Gate boot-core
         run: pnpm smoke-test
 
-      - name: Lokale llama-server-Abnahme
+      - name: Gate runtime-readiness
         run: pnpm acceptance:live
-      - name: Antigravity optional prüfen
+
+      - name: Gate fallback-path
+        run: cd backend && uv run pytest tests/test_runtime_warmup.py tests/test_runtime_service.py -q
+
+      - name: Gate review-path-smoke
+        run: pnpm --filter @dbzs/desktop exec vitest run src/services/runtimeChat/reviewRemediationPhase.test.ts
+
+      - name: Gate antigravity-optional
         if: ${{ env.GEMINI_API_KEY != '' }}
         run: uv run --group antigravity pytest tests/test_antigravity_service.py -q
         working-directory: backend

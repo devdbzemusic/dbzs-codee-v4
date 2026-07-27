@@ -335,7 +335,22 @@ async function requestBackend<T>(pathname: string, init?: RequestInit): Promise<
   if (!response.ok) {
     let details = "";
     try {
-      details = await response.text();
+      const text = await response.text();
+      try {
+        const parsed = JSON.parse(text) as { detail?: string | { message?: string; code?: string; recommendedAction?: string } };
+        if (typeof parsed.detail === "string") {
+          details = parsed.detail;
+        } else if (parsed.detail && typeof parsed.detail === "object") {
+          const message = parsed.detail.message ?? text;
+          const code = parsed.detail.code ? ` [${parsed.detail.code}]` : "";
+          const action = parsed.detail.recommendedAction ? ` Empfehlung: ${parsed.detail.recommendedAction}` : "";
+          details = `${message}${code}${action}`;
+        } else {
+          details = text;
+        }
+      } catch {
+        details = text;
+      }
     } catch {
       details = "";
     }
