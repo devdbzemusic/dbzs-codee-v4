@@ -27,7 +27,6 @@ import { useTaskBoardStore } from "@/stores/taskBoardStore";
 import { useTestAgentStore } from "@/stores/testAgentStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useGitStore } from "@/stores/gitStore";
-import { shouldSyncWorkspaceSettings } from "@/utils/workspaceState";
 import { DebugAgentPanel } from "@/components/DebugAgentPanel";
 import { DiffPanel } from "@/components/DiffPanel";
 import { FileToolsPanel } from "@/components/FileToolsPanel";
@@ -41,7 +40,6 @@ const EditorTabPanel = lazy(() =>
 );
 import { RuntimeModelsTab } from "@/components/notebook/RuntimeModelsTab";
 import { JobsNotebookTab } from "@/components/notebook/JobsNotebookTab";
-import { useNotebookStore } from "@/stores/notebookStore";
 import { PlatformDiagnosticsPanel } from "@/components/PlatformDiagnosticsPanel";
 import { ReviewGatePanel } from "@/components/ReviewGatePanel";
 import { ToastContainer } from "@/components/ToastContainer";
@@ -56,6 +54,10 @@ import {
   TestAgentPanel as AppShellTestAgentPanel
 } from "@/components/appShellPanels";
 import {
+  AppShellFooter,
+  AppShellRightSidebar
+} from "@/components/appShellSections";
+import {
   CollapsedPanelButton as AppShellCollapsedPanelButton,
   PanelHeader as AppShellPanelHeader,
   PanelTitle as AppShellPanelTitle,
@@ -63,10 +65,17 @@ import {
   StatusPill as AppShellStatusPill
 } from "@/components/appShellPrimitives";
 import { useAppMenuActions } from "@/hooks/useAppMenuActions";
+import {
+  useAppGridLayoutVars,
+  useAppKeyboardShortcuts,
+  useBackendLifecycleSync,
+  useRuntimeChatWindowSync,
+  useTrackedFrontendBoot,
+  useWorkspaceProjectSync
+} from "@/hooks/useAppShellLifecycle";
 import { useJobSpoolerStore } from "@/stores/jobSpoolerStore";
 import { useCommandPaletteStore } from "@/stores/commandPaletteStore";
 import { backendClient } from "@/services/backendClient";
-import { initRuntimeChatSync } from "@/services/runtimeChatSync";
 import { backendUiStatus, formatBootStateForUi } from "@/services/bootUiFormatter";
 import { RuntimeChatTab } from "@/components/RuntimeChatTab";
 import type { RuntimeChatContextSnapshot } from "@/types/runtimeChatWindow";
@@ -76,9 +85,7 @@ import {
   openPlatformDiagnosticsWindow
 } from "@/utils/platformDiagnosticsWindow";
 import {
-  closeRuntimeChatWindow,
-  openRuntimeChatWindow,
-  toRuntimeChatContextFile
+  openRuntimeChatWindow
 } from "@/utils/runtimeChatWindow";
 
 const MIN_SIDE_PANEL_WIDTH = 220;
@@ -389,368 +396,7 @@ function AppShell() {
     ? sharedChatContext?.contextHint ?? runtimeContextHint
     : runtimeContextHint;
 
-  useEffect(() => initRuntimeChatSync(), []);
-
-  useEffect(() => {
-    const onWindowState = window.dbzs.onRuntimeChatWindowState;
-    if (!onWindowState) {
-      return;
-    }
-
-    return onWindowState(({ open }) => {
-      setRuntimeChatWindowOpen(open);
-    });
-  }, []);
-
-  useEffect(() => {
-    const getContext = window.dbzs.getRuntimeChatContext;
-    const onContext = window.dbzs.onRuntimeChatContext;
-    if (getContext) {
-      void getContext().then((context) => {
-        setSharedChatContext(context);
-      });
-    }
-
-    if (!onContext) {
-      return;
-    }
-
-    return onContext((context) => {
-      setSharedChatContext(context);
-    });
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    window.dbzs.getBootState?.().then((initial) => {
-      if (!cancelled) {
-        setBootState(initial);
-      }
-    });
-    const unsubscribe = window.dbzs.onBootState?.((next) => setBootState(next));
-    return () => {
-      cancelled = true;
-      unsubscribe?.();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (runtimeChatOnlyMode || platformDiagnosticsOnlyMode || settingsOnlyMode) {
-      return;
-    }
-
-    const publish = window.dbzs.publishRuntimeChatContext;
-    if (!publish) {
-      return;
-    }
-
-    void publish({
-      activeFile:
-        activeTab && isFileEditorTab(activeTab) ? toRuntimeChatContextFile(activeTab) : null,
-      contextHint: runtimeContextHint,
-      workspaceRoot: workspaceState.projectPath,
-      workspaceName: workspaceState.projectName,
-      workspaceFiles
-    }).catch(() => undefined);
-  }, [
-    activeTab,
-    runtimeChatOnlyMode,
-    platformDiagnosticsOnlyMode,
-    settingsOnlyMode,
-    runtimeContextHint,
-    workspaceFiles,
-    workspaceState.projectName,
-    workspaceState.projectPath
-  ]);
-
-  // Tracked boot phases 12-15 (frontend-bridge, frontend-config-sync,
-  // workspace-restore, agents-roles-models): reports genuine completion back
-  // to the main-process BootOrchestrator via dbzs:boot:report-phase, instead
-  // of firing blind on mount with no readiness gate. The main window is
-  // created hidden during boot, so this effect already runs concurrently
-  // with the backend-side phases — reporting completion is what lets the
-  // orchestrator's "main-app-released" phase (16) actually wait on it.
-  useEffect(() => {
-    const report = window.dbzs.reportBootPhaseState;
-    const activePhaseId = activeTrackedFrontendPhase?.id ?? null;
-    if (!activePhaseId || !trackedFrontendPhaseKey) {
-      return;
-    }
-    if (trackedFrontendBootRunRef.current === trackedFrontendPhaseKey) {
-      return;
-    }
-    trackedFrontendBootRunRef.current = trackedFrontendPhaseKey;
-
-    let cancelled = false;
-
-    function errorMessage(err: unknown): string {
-      return err instanceof Error ? err.message : String(err);
-    }
-
-    function sleep(ms: number): Promise<void> {
-      return new Promise((resolve) => setTimeout(resolve, ms));
-    }
-
-    async function waitForBackendBridge(): Promise<void> {
-      const maxAttempts = 60; // ~30s at 500ms — generous cold-start budget
-      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-        if (cancelled) return;
-        try {
-          await window.dbzs.getBackendHealth();
-          return;
-        } catch (err) {
-          if (attempt === maxAttempts - 1) throw err;
-          await sleep(500);
-        }
-      }
-    }
-
-    async function runTrackedBootFrom(startPhaseId: string): Promise<void> {
-      if (startPhaseId === "frontend-bridge") {
-        try {
-          await waitForBackendBridge();
-          if (cancelled) return;
-          await report?.("frontend-bridge", "success", "IPC-Bridge verbunden.");
-        } catch (err) {
-          await report?.("frontend-bridge", "failed", errorMessage(err));
-          return;
-        }
-      }
-
-      if (startPhaseId === "frontend-bridge" || startPhaseId === "frontend-config-sync") {
-        await loadInitialState();
-        if (cancelled) return;
-        const settingsError = useSettingsStore.getState().error;
-        if (settingsError) {
-          await report?.("frontend-config-sync", "failed", settingsError);
-          return;
-        }
-        await report?.("frontend-config-sync", "success", "Einstellungen synchronisiert.");
-      }
-
-      const safeMode = (await window.dbzs.isBootSafeMode?.()) ?? false;
-
-      if (startPhaseId === "frontend-bridge" || startPhaseId === "frontend-config-sync" || startPhaseId === "workspace-restore") {
-        if (safeMode) {
-          await report?.("workspace-restore", "success", "Sicherer Modus: Workspace-Wiederherstellung übersprungen.");
-        } else {
-          await Promise.all([loadWorkspaceState(), loadAllowedCommands()]);
-          if (cancelled) return;
-          const workspaceStateError = useWorkspaceStore.getState().error;
-          if (workspaceStateError) {
-            await report?.("workspace-restore", "failed", workspaceStateError);
-            return;
-          }
-          await report?.("workspace-restore", "success", "Workspace wiederhergestellt.");
-        }
-      }
-
-      if (safeMode) {
-        if (
-          startPhaseId === "frontend-bridge" ||
-          startPhaseId === "frontend-config-sync" ||
-          startPhaseId === "workspace-restore" ||
-          startPhaseId === "agents-roles-models"
-        ) {
-          await report?.("agents-roles-models", "success", "Sicherer Modus: Agenten-Autostarts übersprungen.");
-        }
-        return;
-      }
-
-      if (
-        startPhaseId === "frontend-bridge" ||
-        startPhaseId === "frontend-config-sync" ||
-        startPhaseId === "workspace-restore" ||
-        startPhaseId === "agents-roles-models"
-      ) {
-        await Promise.all([loadModelIndex(), loadRuntimeStatus(), loadAgents(), loadTasks(), loadJobs()]);
-        if (cancelled) return;
-        const groupError =
-          useModelIndexStore.getState().error ||
-          useRuntimeStore.getState().error ||
-          useAgentRegistryStore.getState().error ||
-          useTaskBoardStore.getState().error;
-        if (groupError) {
-          await report?.("agents-roles-models", "failed", groupError);
-          return;
-        }
-        await report?.("agents-roles-models", "success", "Agenten und Modelle geladen.");
-      }
-    }
-
-    void runTrackedBootFrom(activePhaseId);
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    activeTrackedFrontendPhase?.id,
-    trackedFrontendPhaseKey,
-    loadAgents,
-    loadAllowedCommands,
-    loadInitialState,
-    loadJobs,
-    loadModelIndex,
-    loadRuntimeStatus,
-    loadTasks,
-    loadWorkspaceState
-  ]);
-
-  // Post-boot recovery: if the backend goes down and comes back after the
-  // app is already running (e.g. a manual "reload backend" from Settings),
-  // re-sync the stores. Skips the very first "ready" transition, since the
-  // tracked-boot effect above already performed that initial load — firing
-  // both would double the network calls right after cold boot.
-  useEffect(() => {
-    const getStatus = window.dbzs.getBackendStartupStatus;
-    const onStatus = window.dbzs.onBackendStartupStatus;
-    if (!getStatus || !onStatus) {
-      return;
-    }
-
-    let hasSeenInitialStatus = false;
-
-    const reloadBackendStores = () => {
-      void loadInitialState();
-      void loadModelIndex();
-      void loadRuntimeStatus();
-      void loadAgents();
-      void loadTasks();
-      void loadJobs();
-      const workspace = useWorkspaceStore.getState();
-      if (workspace.state.projectPath) {
-        void workspace.scanFiles();
-        void loadProjectMemory(workspace.state.projectPath);
-        void refreshGitStatus();
-      }
-    };
-
-    void getStatus().then((status) => {
-      setBackendStartupStatus(status);
-      hasSeenInitialStatus = true;
-    });
-
-    const unsubscribe = onStatus((status) => {
-      setBackendStartupStatus(status);
-      if (status.state === "ready") {
-        if (hasSeenInitialStatus) {
-          reloadBackendStores();
-        }
-        hasSeenInitialStatus = true;
-      }
-    });
-
-    return unsubscribe;
-  }, [loadAgents, loadInitialState, loadJobs, loadModelIndex, loadProjectMemory, loadRuntimeStatus, loadTasks, refreshGitStatus, setBackendStartupStatus]);
-
   const effectiveBackendStartupStatus = deriveBootAwareBackendStatus(bootState, backendStartupStatus);
-
-  useEffect(() => {
-    if (backendHealth?.status !== "ok") {
-      return;
-    }
-
-    void loadRuntimeStatus();
-    void loadTasks();
-    void loadJobs();
-    const projectPath = useWorkspaceStore.getState().state.projectPath;
-    if (projectPath) {
-      void loadProjectMemory(projectPath);
-      void refreshGitStatus();
-    }
-
-    const interval = window.setInterval(() => {
-      void loadRuntimeStatus();
-    }, 15_000);
-
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, [backendHealth?.status, loadJobs, loadProjectMemory, loadRuntimeStatus, loadTasks, refreshGitStatus]);
-
-  useEffect(() => {
-    const syncStandaloneView = () => {
-      setStandaloneView(readStandaloneView());
-    };
-    window.addEventListener("hashchange", syncStandaloneView);
-    window.addEventListener("popstate", syncStandaloneView);
-    return () => {
-      window.removeEventListener("hashchange", syncStandaloneView);
-      window.removeEventListener("popstate", syncStandaloneView);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!shouldSyncWorkspaceSettings(workspaceStateLoaded)) {
-      return;
-    }
-
-    void updateWorkspaceState({ maxFileScanCount: settings.maxFileScanCount });
-  }, [settings.maxFileScanCount, updateWorkspaceState, workspaceStateLoaded]);
-
-  useEffect(() => {
-    if (workspaceState.projectPath) {
-      setDocsWorkspaceRoot(workspaceState.projectPath);
-    }
-  }, [workspaceState.projectPath, setDocsWorkspaceRoot]);
-
-  useEffect(() => {
-    if (workspaceState.projectPath || !activeTab) {
-      return;
-    }
-
-    const workspace = activeTab.path.includes("/")
-      ? activeTab.path.split("/").slice(0, -1).join("/")
-      : activeTab.path.includes("\\")
-        ? activeTab.path.split("\\").slice(0, -1).join("\\")
-        : "";
-
-    if (workspace) {
-      setDocsWorkspaceRoot(workspace);
-    }
-  }, [activeTab, setDocsWorkspaceRoot, workspaceState.projectPath]);
-
-  useEffect(() => {
-    void loadProjectMemory(workspaceState.projectPath);
-  }, [loadProjectMemory, workspaceState.projectPath]);
-
-  useEffect(() => {
-    if (!workspaceState.projectPath) return;
-    void useRuntimeChatStore.getState().checkForPendingQuestion(workspaceState.projectPath);
-  }, [workspaceState.projectPath]);
-
-  useEffect(() => {
-    if (workspaceFiles.length === 0) {
-      return;
-    }
-
-    void setDetectedWorkspaceData(workspaceFiles);
-  }, [setDetectedWorkspaceData, workspaceFiles]);
-
-  useEffect(() => {
-    if (!workspaceState.projectPath) {
-      return;
-    }
-
-    setIndexBuildBusy(true);
-    setIndexError(null);
-    void codeIndexService
-      .buildWorkspaceIndex(workspaceState.projectPath)
-      .then(() => {
-        setIndexBuildBusy(false);
-      })
-      .catch((error) => {
-        setIndexError(error instanceof Error ? error.message : "Code-Index konnte nicht erstellt werden.");
-        setIndexBuildBusy(false);
-      });
-  }, [workspaceState.projectPath, workspaceFiles]);
-
-  useEffect(() => {
-    if (!workspaceState.projectPath) {
-      return;
-    }
-
-    void refreshGitStatus();
-  }, [refreshGitStatus, workspaceState.projectPath]);
 
   useEffect(() => {
     if (!plannerPlan) {
@@ -779,69 +425,6 @@ function AppShell() {
       );
     }
   };
-
-  useEffect(() => {
-    const handleShortcut = (event: KeyboardEvent) => {
-      if (!event.ctrlKey && !event.metaKey) {
-        return;
-      }
-
-      if (event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        openCommandPalette();
-        return;
-      }
-
-      if (!event.ctrlKey) return;
-
-      if (event.key >= "1" && event.key <= "5") {
-        event.preventDefault();
-        const tabs = ["mission-control", "cdee", "runtime", "jobs", "editor"] as const;
-        useNotebookStore.getState().setActiveTab(tabs[Number(event.key) - 1]);
-        return;
-      }
-
-      if (event.key.toLowerCase() === "o") {
-        event.preventDefault();
-        void openFile();
-      }
-
-      if (event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        if (event.shiftKey) {
-          void saveActiveFileAs();
-        } else {
-          void saveActiveFile();
-        }
-        return;
-      }
-
-      if (event.key.toLowerCase() === "n") {
-        event.preventDefault();
-        if (event.shiftKey && event.altKey) {
-          void useWorkspaceStore.getState().createNewFolder();
-        } else if (event.shiftKey) {
-          void useWorkspaceStore.getState().createProject();
-        } else {
-          void useWorkspaceStore.getState().createNewFile();
-        }
-        return;
-      }
-
-      if (event.key === ",") {
-        event.preventDefault();
-        void window.dbzs.openSettingsWindow?.();
-      }
-
-      if (event.shiftKey && event.key.toLowerCase() === "r") {
-        event.preventDefault();
-        void handleOpenRuntimeChatWindow();
-      }
-    };
-
-    window.addEventListener("keydown", handleShortcut);
-    return () => window.removeEventListener("keydown", handleShortcut);
-  }, [openFile, saveActiveFile, saveActiveFileAs, openCommandPalette, setError]);
 
   const backendOnline = backendHealth?.status === "ok";
   const openJobCount = jobs.filter((job) =>
@@ -912,12 +495,72 @@ function AppShell() {
     workspaceState.projectPath
   ]);
 
-  useEffect(() => {
-    const root = document.documentElement;
-    root.style.setProperty("--dbzs-grid-rows", `64px minmax(0, 1fr) ${visibleTerminalHeight}px`);
-    root.style.setProperty("--dbzs-grid-columns", `${visibleLeftWidth}px minmax(0, 1fr) ${visibleRightWidth}px`);
-    root.style.setProperty("--dbzs-footer-columns", `minmax(0, 1fr) ${visibleRightWidth}px`);
-  }, [visibleLeftWidth, visibleRightWidth, visibleTerminalHeight]);
+  useRuntimeChatWindowSync({
+    activeTab: activeTab && isFileEditorTab(activeTab) ? activeTab : null,
+    platformDiagnosticsOnlyMode,
+    runtimeChatOnlyMode,
+    settingsOnlyMode,
+    runtimeContextHint,
+    setBootState,
+    setRuntimeChatWindowOpen,
+    setSharedChatContext,
+    workspaceFiles,
+    workspaceProjectName: workspaceState.projectName,
+    workspaceProjectPath: workspaceState.projectPath
+  });
+
+  useTrackedFrontendBoot({
+    activeTrackedFrontendPhase,
+    trackedFrontendPhaseKey,
+    trackedFrontendBootRunRef,
+    loadAgents,
+    loadAllowedCommands,
+    loadInitialState,
+    loadJobs,
+    loadModelIndex,
+    loadRuntimeStatus,
+    loadTasks,
+    loadWorkspaceState
+  });
+
+  useBackendLifecycleSync({
+    backendHealthStatus: backendHealth?.status,
+    loadAgents,
+    loadInitialState,
+    loadJobs,
+    loadModelIndex,
+    loadProjectMemory,
+    loadRuntimeStatus,
+    loadTasks,
+    refreshGitStatus,
+    setBackendStartupStatus
+  });
+
+  useWorkspaceProjectSync({
+    activeTab,
+    loadProjectMemory,
+    refreshGitStatus,
+    setDetectedWorkspaceData,
+    setDocsWorkspaceRoot,
+    setIndexBuildBusy,
+    setIndexError,
+    settingsMaxFileScanCount: settings.maxFileScanCount,
+    setStandaloneView,
+    updateWorkspaceState,
+    workspaceFiles,
+    workspaceStateLoaded,
+    workspaceProjectPath: workspaceState.projectPath
+  });
+
+  useAppKeyboardShortcuts({
+    handleOpenRuntimeChatWindow,
+    openCommandPalette,
+    openFile,
+    saveActiveFile,
+    saveActiveFileAs
+  });
+
+  useAppGridLayoutVars(visibleLeftWidth, visibleRightWidth, visibleTerminalHeight);
 
   if (settingsOnlyMode) {
     return (
@@ -1261,21 +904,12 @@ function AppShell() {
             runtime={<RuntimeModelsTab />}
           />
 
-          <aside className="relative flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-dbzs-border bg-dbzs-panel">
-            {rightPanelCollapsed ? (
-              <AppShellCollapsedPanelButton
-                label="AI / Agents oeffnen"
-                onClick={() => setRightPanelCollapsed(false)}
-                side="right"
-              />
-            ) : (
-              <>
-                <AppShellPanelHeader
-                  description="Lokale Modelle aus D:\\Models werden verifiziert."
-                  onCollapse={() => setRightPanelCollapsed(true)}
-                  title="AI / Agents"
-                />
-                <div className="panel-scroll space-y-4 px-4 pb-4">
+          <AppShellRightSidebar
+            collapsed={rightPanelCollapsed}
+            onCollapse={() => setRightPanelCollapsed(true)}
+            onExpand={() => setRightPanelCollapsed(false)}
+            onResize={startSidePanelResize("right")}
+          >
               <DebugAgentPanel
                 analyses={debugAnalyses}
                 affectedFiles={debugAffectedFiles}
@@ -1418,32 +1052,16 @@ function AppShell() {
               <DiffPanel />
               <FileToolsPanel />
               <AppShellSettingsPanel compact />
-            </div>
-              </>
-            )}
-            {!rightPanelCollapsed ? (
-              <AppShellResizeHandle
-                label="AI-Panel-Breite anpassen"
-                onPointerDown={startSidePanelResize("right")}
-                side="left"
-              />
-            ) : null}
-          </aside>
+          </AppShellRightSidebar>
         </section>
 
-        <footer className="app-footer-grid relative grid min-h-0 overflow-hidden border-t border-dbzs-border bg-dbzs-panel">
-          <AppShellResizeHandle
-            label="Terminal-Hoehe anpassen"
-            onPointerDown={startTerminalResize}
-            side="top"
-          />
-          <section className="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-dbzs-border">
-            <AppShellPanelHeader
-              description={terminalCollapsed ? "" : "AusfÃ¼hrung wird erst mit SicherheitsprÃ¼fung aktiviert."}
-              onCollapse={() => setTerminalCollapsed((value) => !value)}
-              title="Terminal / Logs / Git"
-            />
-            {terminalCollapsed ? null : (
+        <AppShellFooter
+          onResize={startTerminalResize}
+          onToggleTerminal={() => setTerminalCollapsed((value) => !value)}
+          rightPanelCollapsed={rightPanelCollapsed}
+          systemLoading={isLoading}
+          terminalCollapsed={terminalCollapsed}
+          terminalContent={(
             <div className="panel-scroll mx-4 space-y-3 pb-3">
               <div className="border border-dbzs-border bg-[#05080c] p-3 font-mono text-xs text-dbzs-muted">
                 <p>{">"} DBZS Phase 1 gestartet</p>
@@ -1459,20 +1077,8 @@ function AppShell() {
               </div>
               <GitPanel />
             </div>
-            )}
-          </section>
-
-          <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-            {rightPanelCollapsed ? null : (
-              <>
-            <AppShellPanelTitle title="System" description="Lokale App-Einstellungen" />
-            <div className="panel-scroll px-4 pb-4 text-xs text-dbzs-muted">
-              {isLoading ? "Synchronisiere Settings ..." : "Settings lokal synchronisiert"}
-            </div>
-              </>
-            )}
-          </section>
-        </footer>
+          )}
+        />
       </div>
       <ToastContainer />
       <CommandPalette />

@@ -6,4 +6,4 @@ export type {
   ProjectCreationResult,
   SaveFileRequest,
   SaveFileAsRequest,
-} from "../index.js";
+} from "./workspaceContracts.js";
