@@ -143,6 +143,7 @@ describe("handleResidentFallback", () => {
     expect(result.fallbackInitiated).toBe(true);
     expect(result.finalRoute.modelId).toBe("resident-model");
     expect(result.finalRoute.selectionSource).toBe("explicit_fallback");
+    expect(result.degradedReason).toContain("Residenter Fallback aktiv");
     expect(result.warmupResult.ok).toBe(true);
     expect(mockAppendRunEvent).toHaveBeenCalledWith(expect.anything(), "runtime.fallback.initiated", expect.any(String), expect.any(Object));
     expect(runtimeSlotManager.warmupInference).toHaveBeenCalledWith("quality_cpu", "resident-model", 15000, expect.any(Object));

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { BackendStartupStatus } from "@dbzs/shared";
-import { formatBootStateForUi } from "./bootUiFormatter";
+import { backendUiStatus, formatBootStateForUi } from "./bootUiFormatter";
 
 describe("formatBootStateForUi", () => {
   const makeStatus = (overrides: Partial<BackendStartupStatus>): BackendStartupStatus => ({
@@ -31,9 +31,20 @@ describe("formatBootStateForUi", () => {
     expect(formatBootStateForUi(status)).toBe("Backend: startet");
   });
 
+  it("sollte 'Backend: startet' für den Zustand 'live' zurückgeben", () => {
+    const status = makeStatus({ state: "live", message: "Endpoint erreichbar" });
+    expect(formatBootStateForUi(status)).toBe("Backend: startet");
+  });
+
   it("sollte 'Backend: online' für den Zustand 'ready' zurückgeben", () => {
     const status = makeStatus({ state: "ready", message: "Bereit" });
     expect(formatBootStateForUi(status)).toBe("Backend: online");
+  });
+
+  it("sollte 'Backend: beeinträchtigt' für den Zustand 'degraded' zurückgeben", () => {
+    const status = makeStatus({ state: "degraded", message: "Fallback aktiv" });
+    expect(formatBootStateForUi(status)).toBe("Backend: beeinträchtigt");
+    expect(backendUiStatus(status)).toBe("degraded");
   });
 
   it("sollte 'Backend: Fehler' für den Zustand 'failed' zurückgeben", () => {

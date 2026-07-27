@@ -108,13 +108,20 @@ function deriveBootAwareBackendStatus(
   const backendLivePhase = bootState.phases.find((phase) => phase.id === "backend-live") ?? null;
   const backendReadyPhase = bootState.phases.find((phase) => phase.id === "backend-ready") ?? null;
 
-  if (backendReadyPhase?.state === "success" || bootState.status === "ready" || bootState.status === "degraded") {
+  if (backendReadyPhase?.state === "success" || bootState.status === "ready") {
     return {
       state: "ready",
-      message:
-        bootState.status === "degraded"
-          ? backendReadyPhase?.message || "Backend bereit, aber mit eingeschränkten optionalen Komponenten."
-          : backendReadyPhase?.message || "Backend vollständig bereit.",
+      message: backendReadyPhase?.message || "Backend vollständig bereit.",
+      port,
+      ownership,
+      instanceId
+    };
+  }
+
+  if (bootState.status === "degraded") {
+    return {
+      state: "degraded",
+      message: backendReadyPhase?.message || "Backend bereit, aber mit eingeschränkten optionalen Komponenten.",
       port,
       ownership,
       instanceId
@@ -129,7 +136,7 @@ function deriveBootAwareBackendStatus(
       backendLivePhase?.state === "success")
   ) {
     return {
-      state: "starting",
+      state: backendLivePhase?.state === "success" ? "live" : "starting",
       message:
         currentPhase?.message ||
         backendLivePhase?.message ||

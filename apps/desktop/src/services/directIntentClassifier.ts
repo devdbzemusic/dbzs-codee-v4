@@ -13,6 +13,41 @@ export interface DirectIntent {
   };
 }
 
+function normalizePatternToken(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/-dateien$|-files$|-modelle$|-models$/i, "")
+    .replace(/-+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function toExtensionPattern(token: string): string {
+  const normalized = normalizePatternToken(token);
+  if (!normalized) {
+    return "*";
+  }
+  if (normalized.startsWith(".")) {
+    return `*${normalized}`;
+  }
+  if (normalized.includes(".")) {
+    return normalized.startsWith("*") ? normalized : `*.${normalized}`;
+  }
+  return `*.${normalized}`;
+}
+
+function toSearchPattern(token: string): string {
+  const normalized = normalizePatternToken(token);
+  if (!normalized) {
+    return "*";
+  }
+  if (normalized.startsWith(".")) {
+    return `*${normalized}*`;
+  }
+  return normalized.includes(".") ? `*${normalized}*` : `*${normalized}*`;
+}
+
 /**
  * Erkennt einfache, deterministische Anfragen, die direkt von einem Tool ohne LLM beantwortet werden können.
  * PRIORITÄT 1
@@ -25,8 +60,7 @@ export function directIntentClassifier(input: string): DirectIntent | null {
     /^(zähle|count)\s+(alle|all)\s+(.+?)\s*(dateien|files|modelle|models)?\s*(im|in)\s+(ws|workspace)$/
   );
   if (countMatch) {
-    const patternPart = countMatch[3];
-    const pattern = patternPart.includes(".") ? `*${patternPart}` : `*.${patternPart}`;
+    const pattern = toExtensionPattern(countMatch[3]);
     return {
       intent: "workspace_query",
       operation: "count_files",
@@ -48,8 +82,7 @@ export function directIntentClassifier(input: string): DirectIntent | null {
     /^(suche|find|search)\s+(alle|all)\s+(.+?)\s*(dateien|files)?\s*(im|in)?\s*(ws|workspace)?$/
   );
   if (searchMatch) {
-    const patternPart = searchMatch[3];
-    const pattern = patternPart.includes(".") ? `*${patternPart}` : `*${patternPart}*`;
+    const pattern = toSearchPattern(searchMatch[3]);
     return {
       intent: "workspace_query",
       operation: "search_files",
@@ -71,8 +104,7 @@ export function directIntentClassifier(input: string): DirectIntent | null {
     /^(liste|list)\s+(alle|all)\s+(.+?)\s*(dateien|files)?\s*(im|in)?\s*(ws|workspace)?$/
   );
   if (listMatch) {
-    const patternPart = listMatch[3];
-    const pattern = patternPart.includes(".") ? `*${patternPart}` : `*.${patternPart}`;
+    const pattern = toExtensionPattern(listMatch[3]);
     return {
       intent: "workspace_query",
       operation: "list_files",

@@ -649,6 +649,20 @@ export const runtimeSlotManager = {
           readiness_stage?: string | null;
           stream_mode?: boolean;
           tool_call_detected?: boolean;
+          endpoint?: string | null;
+          api_mode?: string | null;
+          request_method?: string | null;
+          request_body?: string | null;
+          http_status?: number | null;
+          content_type?: string | null;
+          response_headers?: Record<string, string> | null;
+          stream_events?: string[] | null;
+          parser_decision?: string | null;
+          chat_template_used?: string | null;
+          stop_sequences_used?: string[] | null;
+          max_tokens?: number | null;
+          prompt_tokens?: number | null;
+          completion_tokens?: number | null;
           raw_response_preview?: string | null;
           stderr_tail?: string | null;
         } | null;
@@ -657,6 +671,20 @@ export const runtimeSlotManager = {
       const mapDiagnostics = (): RuntimeWarmupDiagnostics | undefined => {
         if (!data.diagnostics) return undefined;
         return {
+          endpoint: data.diagnostics.endpoint ?? undefined,
+          apiMode: data.diagnostics.api_mode ?? undefined,
+          requestMethod: data.diagnostics.request_method ?? undefined,
+          requestBody: data.diagnostics.request_body ?? undefined,
+          httpStatus: data.diagnostics.http_status ?? undefined,
+          contentType: data.diagnostics.content_type ?? undefined,
+          responseHeaders: data.diagnostics.response_headers ?? undefined,
+          streamEvents: data.diagnostics.stream_events ?? undefined,
+          parserDecision: data.diagnostics.parser_decision ?? undefined,
+          chatTemplateUsed: data.diagnostics.chat_template_used ?? undefined,
+          stopSequencesUsed: data.diagnostics.stop_sequences_used ?? undefined,
+          maxTokens: data.diagnostics.max_tokens ?? undefined,
+          promptTokens: data.diagnostics.prompt_tokens ?? undefined,
+          completionTokens: data.diagnostics.completion_tokens ?? undefined,
           processStartMs: data.diagnostics.process_start_ms ?? 0,
           endpointReadyMs: data.diagnostics.endpoint_ready_ms ?? 0,
           modelLoadMs: data.diagnostics.model_load_ms ?? 0,

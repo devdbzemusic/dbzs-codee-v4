@@ -468,6 +468,27 @@ describe("useRuntimeChatStore", () => {
     expect(sendChatStreamMock).toHaveBeenCalled();
   });
 
+  it("answers deterministic workspace queries without routing or runtime start", async () => {
+    useWorkspaceStore.setState({
+      files: [
+        { path: "C:/workspace/demo/models/a.gguf", relativePath: "models/a.gguf", content: "", type: "file" },
+        { path: "C:/workspace/demo/models/b.gguf", relativePath: "models/b.gguf", content: "", type: "file" },
+        { path: "C:/workspace/demo/README.md", relativePath: "README.md", content: "", type: "file" }
+      ] as any
+    });
+
+    const sent = await useRuntimeChatStore
+      .getState()
+      .sendMessage("Zähle alle gguf modelle im Workspace", runningStatus, null);
+
+    expect(sent).toBe(true);
+    expect(resolveRoutingMock).not.toHaveBeenCalled();
+    expect(startSlotMock).not.toHaveBeenCalled();
+    expect(warmupInferenceMock).not.toHaveBeenCalled();
+    expect(sendChatStreamMock).not.toHaveBeenCalled();
+    expect(useRuntimeChatStore.getState().messages.at(-1)?.content).toContain("2 Dateien passend zu `*.gguf`");
+  });
+
   it("keeps trivial auto chat on the casual runtime-chat path", async () => {
     vi.mocked(backendClient.getRuntimeStatus).mockResolvedValue(runningStatus);
 

@@ -124,11 +124,18 @@ Alle 17 Reparaturschritte wurden mit Unit-Tests abgesichert (Desktop: Vitest, Ba
 
 ## Bekannte Restprobleme
 
-- Modellindex hat keine inkrementelle Scan-Cache-Schicht — `cachedModelCount` ist strukturell immer 0; Safe Mode überspringt den Modellindex daher komplett statt "nur aus Cache" zu laden.
-- `filesystem-check`s Modellpfad- und Runtime-Executable-Prüfungen sind mangels Backend-seitiger Pfadauskunft aktuell Best-Effort-Platzhalter (leere Kandidatenlisten).
-- Safe Mode setzt Phasen erst ab `backend-spawn` zurück — ein ursprünglicher Fehler in `filesystem-check` würde davon nicht profitieren.
-- 15 vorbestehende `RuntimeService`-Testfehler (Konstruktion via `__new__`) bleiben unangetastet, außerhalb des Scopes dieses Repairs.
+- Modellindex hat weiterhin keine inkrementelle Scan-Cache-Schicht — `cachedModelCount` ist damit weiterhin nicht belastbar, und Safe Mode kann den Modellindex noch nicht aus einem persistierten Cache laden.
+- Safe Mode setzt Phasen erst ab `backend-spawn` zurück — ein ursprünglicher Fehler in `filesystem-check` würde davon noch nicht profitieren.
 - Kein dedizierter Electron-E2E-Test (Playwright `_electron`) für den vollen 17-Phasen-Boot — nur Unit-/Struktur-Tests.
+
+## Nachgezogene Reparaturen
+
+- `filesystem-check` nutzt jetzt echte, aus `settings.json`/Umgebung aufgelöste Modell- und Runtime-Ziele statt leerer Platzhalterlisten. Geprüft werden der konfigurierte `modelsPath`, der effektive Ollama-Modellpfad sowie rekursiv aufgelöste `llama-server`-/`llama-cli`-Kandidaten unter `DBZS_WIN_RUNTIMES_DIR` bzw. `D:/win_runtimes`.
+- Runtime-Chat führt deterministische Workspace-Abfragen (`count_files`, `search_files`, `list_files`) jetzt als echten Tool-Flow ohne LLM-Start, ohne Clarification und ohne Warm-up aus.
+- Runtime-Routing verhindert den zuvor beobachteten Slot-Widerspruch jetzt hart an der Quelle: ein bereits entschiedener Work-Slot wird nicht mehr still von `quality_cpu` auf `fast_gpu` umgebogen.
+- Warm-up-Diagnostik wurde für Qwen-/Reasoning-Fälle auf Request-/Response-Metadaten, Streaming-Events, Tokenzählung und Parser-Entscheid erweitert.
+- Ein erfolgreicher Resident-Fallback läuft sichtbar degradiert weiter und wird in Run-Diagnostik sowie UI explizit markiert.
+- Die bisher als Altlast geführten `RuntimeService`-Tests sind im aktuellen Stand nicht mehr rot: `uv run pytest -q` lief am 27. Juli 2026 vollständig grün durch (`400 passed`).
 
 ## Produktionsfreigabe
 

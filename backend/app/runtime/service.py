@@ -599,7 +599,7 @@ class RuntimeService:
         ]
         timeout_seconds = max(1.0, timeout_ms / 1000.0)
 
-        def _post(payload: dict[str, Any]) -> tuple[bytes, str]:
+        def _post(payload: dict[str, Any]) -> tuple[bytes, str, int | None, dict[str, str]]:
             body = json.dumps(payload).encode("utf-8")
             http_request = request.Request(
                 f"{endpoint}/v1/chat/completions",
@@ -612,11 +612,16 @@ class RuntimeService:
             )
             with request.urlopen(http_request, timeout=timeout_seconds) as response:
                 content_type = ""
+                headers: dict[str, str] = {}
                 try:
                     content_type = str(response.headers.get("Content-Type") or "")
                 except Exception:
                     content_type = ""
-                return response.read(), content_type
+                try:
+                    headers = {str(key): str(value) for key, value in response.headers.items()}
+                except Exception:
+                    headers = {}
+                return response.read(), content_type, getattr(response, "status", None), headers
 
         content_parts: list[str] = []
         finish_reason: str | None = None
@@ -626,16 +631,28 @@ class RuntimeService:
         prompt_eval_ms = 0
         tool_call_detected = False
         raw_response_preview = ""
+        http_status: int | None = None
+        response_headers: dict[str, str] | None = None
+        stream_events: list[str] = []
+        parser_decision: str | None = None
+        request_method = "POST"
+        api_mode = "chat"
+        max_tokens = 8
+        request_body_preview: str | None = None
+        prompt_tokens: int | None = None
+        completion_tokens: int | None = None
+        content_type = ""
 
         try:
             stream_payload = {
                 "messages": messages,
-                "max_tokens": 8,
+                "max_tokens": max_tokens,
                 "temperature": 0,
                 "stream": True,
                 "stream_options": {"include_usage": True},
             }
-            raw_body, content_type = _post(stream_payload)
+            request_body_preview = json.dumps(stream_payload, ensure_ascii=False)[:8192]
+            raw_body, content_type, http_status, response_headers = _post(stream_payload)
             prompt_eval_seen = True
             prompt_eval_ms = elapsed_ms()
 
@@ -651,19 +668,27 @@ class RuntimeService:
 
             if isinstance(parsed_json, dict):
                 stream_mode = False
+                parser_decision = "non_stream_json"
                 choices = parsed_json.get("choices")
+                usage = parsed_json.get("usage")
+                if isinstance(usage, dict):
+                    prompt_tokens = usage.get("prompt_tokens")
+                    completion_tokens = usage.get("completion_tokens")
                 if isinstance(choices, list) and choices and isinstance(choices[0], dict):
                     message = choices[0].get("message")
                     if isinstance(message, dict):
                         text_content = message.get("content")
                         if isinstance(text_content, str) and text_content:
                             content_parts.append(text_content)
+                            stream_events.append("message.content")
                         else:
                             reasoning_content = message.get("reasoning_content")
                             if isinstance(reasoning_content, str) and reasoning_content:
                                 content_parts.append(reasoning_content)
+                                stream_events.append("message.reasoning_content")
                         if isinstance(message.get("tool_calls"), list) and message["tool_calls"]:
                             tool_call_detected = True
+                            stream_events.append("message.tool_calls")
                     finish_reason = choices[0].get("finish_reason")
                     if isinstance(finish_reason, str) and finish_reason:
                         pass
@@ -672,30 +697,38 @@ class RuntimeService:
                     if content_parts and first_token_ms == 0:
                         first_token_ms = elapsed_ms()
             else:
+                parser_decision = "stream_sse"
                 for line in text.splitlines():
+                    if line.startswith("data:"):
+                        stream_events.append("sse.data")
                     chunk = parse_llama_server_sse_line(line)
                     if chunk:
                         if first_token_ms == 0:
                             first_token_ms = elapsed_ms()
                         content_parts.append(chunk)
+                        stream_events.append("delta.content_or_reasoning")
                     elif parse_llama_server_sse_has_tool_call(line):
                         tool_call_detected = True
                         if first_token_ms == 0:
                             first_token_ms = elapsed_ms()
+                        stream_events.append("delta.tool_calls")
                     reason = parse_llama_server_sse_finish_reason(line)
                     if reason:
                         finish_reason = reason
+                        stream_events.append(f"finish:{reason}")
 
             # Fallback: generation proof via non-stream if SSE produced nothing.
             if not "".join(content_parts).strip() and not tool_call_detected:
                 non_stream_payload = {
                     "messages": messages,
-                    "max_tokens": 8,
+                    "max_tokens": max_tokens,
                     "temperature": 0,
                     "stream": False,
                 }
-                raw_body, _content_type = _post(non_stream_payload)
+                request_body_preview = json.dumps(non_stream_payload, ensure_ascii=False)[:8192]
+                raw_body, content_type, http_status, response_headers = _post(non_stream_payload)
                 stream_mode = False
+                parser_decision = "stream_then_non_stream_fallback"
                 # Keep whichever attempt's raw body is more informative — an
                 # unexpected streaming shape is usually the actual symptom;
                 # only fall back to the non-stream body if the stream attempt
@@ -703,6 +736,10 @@ class RuntimeService:
                 if not raw_response_preview:
                     raw_response_preview = raw_body.decode("utf-8", errors="replace")[:8192]
                 data = json.loads(raw_body.decode("utf-8"))
+                usage = data.get("usage") if isinstance(data, dict) else None
+                if isinstance(usage, dict):
+                    prompt_tokens = usage.get("prompt_tokens")
+                    completion_tokens = usage.get("completion_tokens")
                 choices = data.get("choices") if isinstance(data, dict) else None
                 if isinstance(choices, list) and choices and isinstance(choices[0], dict):
                     message = choices[0].get("message")
@@ -711,13 +748,16 @@ class RuntimeService:
                         if isinstance(text_content, str) and text_content:
                             content_parts = [text_content]
                             first_token_ms = elapsed_ms()
+                            stream_events.append("fallback.message.content")
                         else:
                             reasoning_content = message.get("reasoning_content")
                             if isinstance(reasoning_content, str) and reasoning_content:
                                 content_parts = [reasoning_content]
                                 first_token_ms = elapsed_ms()
+                                stream_events.append("fallback.message.reasoning_content")
                         if isinstance(message.get("tool_calls"), list) and message["tool_calls"]:
                             tool_call_detected = True
+                            stream_events.append("fallback.message.tool_calls")
                     finish_reason = choices[0].get("finish_reason")
                     if not isinstance(finish_reason, str) or not finish_reason:
                         finish_reason = "stop"
@@ -737,6 +777,18 @@ class RuntimeService:
                     else "endpoint_reachable"
                 ),
                 diagnostics=RuntimeWarmupDiagnostics(
+                    endpoint=f"{endpoint}/v1/chat/completions",
+                    api_mode=api_mode,
+                    request_method=request_method,
+                    request_body=request_body_preview,
+                    http_status=http_status,
+                    content_type=content_type,
+                    response_headers=response_headers,
+                    stream_events=stream_events or None,
+                    parser_decision=parser_decision,
+                    max_tokens=max_tokens,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
                     endpoint_ready_ms=endpoint_ready_ms,
                     prompt_eval_ms=prompt_eval_ms,
                     first_token_ms=first_token_ms,
@@ -804,6 +856,18 @@ class RuntimeService:
                     "prompt_eval_verified" if prompt_eval_seen else "endpoint_reachable"
                 ),
                 diagnostics=RuntimeWarmupDiagnostics(
+                    endpoint=f"{endpoint}/v1/chat/completions",
+                    api_mode=api_mode,
+                    request_method=request_method,
+                    request_body=request_body_preview,
+                    http_status=http_status,
+                    content_type=content_type,
+                    response_headers=response_headers,
+                    stream_events=stream_events or None,
+                    parser_decision=parser_decision,
+                    max_tokens=max_tokens,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
                     endpoint_ready_ms=endpoint_ready_ms,
                     prompt_eval_ms=prompt_eval_ms,
                     first_token_ms=first_token_ms,
@@ -830,6 +894,18 @@ class RuntimeService:
             "inference_ready" if stream_mode else "token_generation_verified"
         )
         diagnostics = RuntimeWarmupDiagnostics(
+            endpoint=f"{endpoint}/v1/chat/completions",
+            api_mode=api_mode,
+            request_method=request_method,
+            request_body=request_body_preview,
+            http_status=http_status,
+            content_type=content_type,
+            response_headers=response_headers,
+            stream_events=stream_events or None,
+            parser_decision=parser_decision,
+            max_tokens=max_tokens,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
             endpoint_ready_ms=endpoint_ready_ms,
             model_load_ms=endpoint_ready_ms,
             prompt_eval_ms=prompt_eval_ms,

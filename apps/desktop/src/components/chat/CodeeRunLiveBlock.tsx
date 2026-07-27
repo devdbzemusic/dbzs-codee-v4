@@ -54,6 +54,10 @@ export function CodeeRunLiveBlock({
       run.outcome !== "success" &&
       run.outcome !== "needs_user_input" &&
       run.outcome !== "cancelled");
+  const isDegradedRun =
+    run.degraded === true ||
+    run.selectionSource === "explicit_fallback" ||
+    run.selectionSource === "resident_continue";
 
   const activeEvent = useMemo(() => {
     if (run.events.length === 0) return null;
@@ -213,6 +217,13 @@ export function CodeeRunLiveBlock({
           )}
           {run.fallbackReason && <div>Fallback: {run.fallbackReason}</div>}
           {run.outcome && <div>Outcome: {run.outcome}</div>}
+        </div>
+      )}
+
+      {isDegradedRun && (
+        <div className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-100">
+          Run im degradierten Modus fortgesetzt.
+          {run.degradedReason || run.fallbackReason ? ` ${run.degradedReason ?? run.fallbackReason}` : ""}
         </div>
       )}
 
