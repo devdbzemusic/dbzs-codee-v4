@@ -15,7 +15,7 @@
     "test:agent-web": "pnpm --filter @dbzs/desktop test:agent-web",
     "test:chat-actions": "pnpm --filter @dbzs/desktop test:chat-actions",
     "test:chat-file-apply": "pnpm --filter @dbzs/desktop test:chat-file-apply",
-    "test:capabilities": "pnpm --filter @dbzs/desktop test:capabilities && cd backend && uv run pytest tests/test_coding_assistant_capabilities.py tests/test_coding_assistant_scenarios.py tests/test_runtime_chat_tuning_lab_fixture.py -q",
+    "test:capabilities": "node scripts/run-desktop-capability-suite.mjs && cd backend && uv run pytest tests/test_coding_assistant_capabilities.py tests/test_coding_assistant_scenarios.py tests/test_runtime_chat_tuning_lab_fixture.py -q",
     "test:coding-loop": "cd backend && uv run pytest tests/test_coding_loop_acceptance.py -q",
     "test:tuning-lab": "cd backend && uv run pytest tests/test_runtime_chat_tuning_lab_fixture.py -q",
     "test:rag-index": "cd backend && uv run pytest tests/test_workspace_index.py -q",

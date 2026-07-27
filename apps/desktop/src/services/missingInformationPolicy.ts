@@ -49,7 +49,7 @@ const OPEN_FEATURE_PATTERN = /(neue?\s+funktion|neues?\s+feature|new\s+(function
 const SMALL_CHANGE_HINT_PATTERN =
   /(fix|bug|fehler|patch|klein|small|anpassen|rename|umbenennen|update|korrigier|refine|adjust)/i;
 const QUICK_ACCEPTANCE_HINT_PATTERN =
-  /(soll|should|wenn|when|danach|after|fixe?|behebe|repair|render|anzeigen|sichtbar|test|grün|green)/i;
+  /(soll|should|wenn|when|danach|after|render|anzeigen|sichtbar|test|grün|green)/i;
 
 function questionId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -89,7 +89,7 @@ function checkCoding(
   const isOpenFeatureIntent = OPEN_FEATURE_PATTERN.test(message);
   const isSmallChange =
     taskType === "small_code_change" || (!isOpenFeatureIntent && SMALL_CHANGE_HINT_PATTERN.test(message));
-  const shouldAskTarget = !hasTarget && !ctx.hasFileContext && !isSmallChange;
+  const shouldAskTarget = !hasTarget && !ctx.hasFileContext;
 
   checks.push({
     field: "target",
@@ -119,7 +119,8 @@ function checkCoding(
   const shouldAskAcceptance =
     taskType === "large_code_change" ||
     taskType === "refactoring" ||
-    isOpenFeatureIntent;
+    isOpenFeatureIntent ||
+    (!hasAcceptance && !hasTarget && !ctx.hasFileContext);
   checks.push({
     field: "acceptance_criteria",
     present: hasAcceptance || !shouldAskAcceptance,
@@ -134,7 +135,7 @@ function checkCoding(
     })
   });
 
-  if (taskType === "refactoring") {
+  if (taskType === "refactoring" || taskType === "large_code_change") {
     const hasScope = fieldAnswered(ctx.state, "scope_boundary") || SCOPE_HINT_PATTERN.test(message);
     checks.push({
       field: "scope_boundary",
