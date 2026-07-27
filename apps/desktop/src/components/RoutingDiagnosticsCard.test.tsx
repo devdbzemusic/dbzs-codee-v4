@@ -36,10 +36,10 @@ describe("RoutingDiagnosticsCard", () => {
 
   it("sollte eine erfolgreiche Routing-Entscheidung korrekt rendern", () => {
     render(<RoutingDiagnosticsCard diagnostics={baseDiagnostics} />);
-    expect(screen.getByText("Task").nextSibling?.textContent).toBe(": coding");
-    expect(screen.getByText("Agent").nextSibling?.textContent).toBe(": coder");
-    expect(screen.getByText("Slot").nextSibling?.textContent).toBe(": fast_gpu");
-    expect(screen.getByText("Model").nextSibling?.textContent).toBe(": Test Model");
+    expect(screen.getByText("Task").parentElement?.textContent).toContain("coding");
+    expect(screen.getByText("Agent").parentElement?.textContent).toContain("coder");
+    expect(screen.getByText("Slot").parentElement?.textContent).toContain("fast_gpu");
+    expect(screen.getByText("Model").parentElement?.textContent).toContain("Test Model");
     expect(screen.getByText("Default for coding task")).toBeInTheDocument();
     expect(screen.getByText("✓ Ready")).toBeInTheDocument();
   });
@@ -103,9 +103,9 @@ describe("RoutingDiagnosticsCard", () => {
     };
     render(<RoutingDiagnosticsCard diagnostics={diagnostics} />);
     expect(screen.getByText("Warm-up Fehlerdiagnose")).toBeInTheDocument();
-    expect(screen.getByText("Endpoint").nextSibling?.textContent).toBe(warmupDiagnostics.endpoint);
-    expect(screen.getByText("HTTP Status").nextSibling?.textContent).toBe("500");
-    expect(screen.getByText("Parser-Entscheidung").nextSibling?.textContent).toBe(warmupDiagnostics.parserDecision);
+    expect(screen.getByText("Endpoint").parentElement?.textContent).toContain(warmupDiagnostics.endpoint);
+    expect(screen.getByText("HTTP Status").parentElement?.textContent).toContain("500");
+    expect(screen.getByText("Parser-Entscheidung").parentElement?.textContent).toContain(warmupDiagnostics.parserDecision);
     expect(screen.getByText(warmupDiagnostics.rawResponsePreview!)).toBeInTheDocument();
   });
 

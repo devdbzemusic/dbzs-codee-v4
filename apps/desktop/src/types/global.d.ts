@@ -82,7 +82,9 @@ declare global {
   interface Window {
     dbzs: {
       getAppInfo: () => Promise<AppInfo>;
+      restartApp?: () => Promise<void> | void;
       getBackendHealth: () => Promise<BackendHealth>;
+      getAppPath?: (name: string) => Promise<string>;
       getSettings: () => Promise<AppSettings>;
       updateSettings: (settings: AppSettings) => Promise<AppSettings>;
       patchSettings?: (request: SettingsPatchRequest) => Promise<SettingsPatchResponse>;
@@ -94,6 +96,11 @@ declare global {
       createNewProject?: () => Promise<ProjectCreationResult | null>;
       scanProjectFiles?: (projectPath: string) => Promise<WorkspaceProjectFile[]>;
       readProjectFile?: (filePath: string) => Promise<WorkspaceFile | null>;
+      fs?: {
+        readFile: (filePath: string, encoding?: string) => Promise<string>;
+        writeFile: (filePath: string, content: string) => Promise<void>;
+        stat: (filePath: string) => Promise<unknown>;
+      };
       listReviewArtifacts?: (workspaceRoot: string) => Promise<ReviewArtifactSummary[]>;
       openReviewArtifact?: (
         workspaceRoot: string,

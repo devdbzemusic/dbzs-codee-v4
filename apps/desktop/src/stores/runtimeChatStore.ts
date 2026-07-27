@@ -150,9 +150,9 @@ import {
 import {
   createPhaseTimeoutController,
   outcomeForPhaseTimeout,
-  residentSlotTimeoutOverrides,
   type PhaseTimeoutKind
 } from "@/services/runtimePhaseTimeouts";
+import { validateResolvedRuntimeRoute } from "@/services/runtimeRouteValidator";
 import {
   assessResourcePlanRisk,
   buildResourceRiskQuestion,
@@ -3479,7 +3479,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
         appendRunEvent(
           {
             ...updateRunStatus(r, "failed"),
-            outcome: "runtime_route_inconsistent" satisfies RuntimeRunOutcome,
+            outcome: "internal_error" satisfies RuntimeRunOutcome,
             error: { code: "runtime_route_inconsistent", message: validationError, phase: "routing" }
           },
           "chat.failed",
@@ -5010,7 +5010,8 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
               warmupDiagnostics: warmupResult.diagnostics,
               error: {
                 code: warmupResult.error === "runtime_oom" ? "runtime_oom" : "warmup_failed",
-                message: warmupResult.detail ?? "Warm-up fehlgeschlagen"
+                message: warmupResult.detail ?? "Warm-up fehlgeschlagen",
+                phase: "warmup"
               }
             });
             const roleLabel =

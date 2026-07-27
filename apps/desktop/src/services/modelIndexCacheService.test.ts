@@ -25,9 +25,47 @@ describe("modelIndexCacheService", () => {
   });
 
   const validIndex: ModelIndex = {
-    schemaVersion: 1,
-    createdAt: new Date().toISOString(),
-    models: [{ id: "test-model", name: "Test Model", filePath: "/models/test.gguf", capabilities: ["chat"] }]
+    generated_from: "catalog:/models/models.catalog.json",
+    summary: {
+      models_dir: "/models",
+      runtime_dir: "/runtimes/llama.cpp",
+      ollama_dir: null,
+      ollama_models_dir: null,
+      total: 1,
+      gguf_total: 1,
+      ollama_total: 0,
+      llama_server_ready: 1,
+      ollama_ready: 0,
+      coding_candidates: 1,
+      vision_candidates: 0,
+      adapters: 0,
+      unsupported: 0
+    },
+    models: [{
+      id: "test-model",
+      name: "Test Model",
+      path: "/models/test.gguf",
+      format: "gguf",
+      artifact_type: "model",
+      size_bytes: 1000,
+      size_gb: 0.001,
+      quantization: "Q4_K_M",
+      backend: "llama.cpp",
+      runtime_launcher: "llama-server",
+      capabilities: ["chat"],
+      modality: ["text"],
+      role: "CODE_MODEL",
+      recommended_use: "primary_coding",
+      compatibility: "llama_server_ready",
+      runtime: {
+        ctx: 8192,
+        gpu_layers: 99,
+        server_enabled: true,
+        preferred_port: 8081,
+        health_status: "ok",
+        provider: "llama.cpp"
+      }
+    }]
   };
 
   it("sollte null zurückgeben, wenn die Cache-Datei nicht existiert", async () => {

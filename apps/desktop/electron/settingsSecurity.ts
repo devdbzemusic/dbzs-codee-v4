@@ -5,12 +5,9 @@ type RendererSafeSettings = AppSettings & {
   anthropicConfigured?: boolean;
 };
 
-const SECRET_KEYS = new Set<keyof AppSettings>([
-  "openaiApiKey",
-  "anthropicApiKey",
-]);
+const SECRET_KEYS = ["openaiApiKey", "anthropicApiKey"] as const;
 
-const RENDERER_ONLY_KEYS = new Set(["openaiConfigured", "anthropicConfigured"]);
+const RENDERER_ONLY_KEYS = ["openaiConfigured", "anthropicConfigured"] as const;
 
 function preserveSecret(nextValue: unknown, currentValue: string): string {
   if (typeof nextValue !== "string") {
@@ -47,7 +44,7 @@ export function mergeFullSettingsUpdateForBackend(
   };
 
   for (const key of SECRET_KEYS) {
-    merged[key] = preserveSecret(next[key], current[key]) as never;
+    merged[key] = preserveSecret(next[key], current[key]);
   }
 
   return merged;

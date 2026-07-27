@@ -160,7 +160,7 @@ export function RuntimeChatTab({
 
     if (isSending && activeRun && !activeRun.firstTokenAt) {
       const currentStep = activeRun.events[activeRun.events.length - 1];
-      return currentStep?.summary ?? "Wird ausgeführt...";
+      return currentStep?.message ?? "Wird ausgeführt...";
     }
 
     if (lastRouting?.modelName) {
