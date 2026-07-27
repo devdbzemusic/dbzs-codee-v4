@@ -10,6 +10,7 @@ export interface FallbackHandlerResult {
   warmupResult: WarmupResult;
   finalRoute: RuntimeChatRoutingInfo;
   modelToStart: string;
+  degradedReason?: string;
   fallbackRejection?: FallbackRejectionInfo;
   fallbackInitiated: boolean;
 }
@@ -89,10 +90,11 @@ export async function handleResidentFallback(
 
     const finalRoute = { ...initialRoute, modelId: residentFallback.modelId, modelName: residentFallback.modelName, slotId: residentFallback.slotId, selectionSource: "explicit_fallback" as const };
     const modelToStart = residentFallback.modelId;
+    const degradedReason = `Residenter Fallback aktiv: ${initialRoute.modelName ?? initialRoute.modelId} war nicht inferenzbereit (${initialWarmupResult.detail ?? "Warm-up fehlgeschlagen"}).`;
 
     const warmupResult = await runtimeSlotManager.warmupInference(finalRoute.slotId, finalRoute.modelId, 15_000, signal);
 
-    return { warmupResult, finalRoute, modelToStart, fallbackInitiated: true };
+    return { warmupResult, finalRoute, modelToStart, degradedReason, fallbackInitiated: true };
   }
 
   return { warmupResult: initialWarmupResult, finalRoute: initialRoute, modelToStart: initialModelToStart, fallbackInitiated: false };

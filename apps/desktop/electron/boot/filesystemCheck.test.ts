@@ -2,7 +2,12 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { MIN_FREE_SPACE_BYTES, runFilesystemCheck, type FilesystemCheckInput } from "./filesystemCheck.js";
+import {
+  MIN_FREE_SPACE_BYTES,
+  resolveFilesystemCheckTargets,
+  runFilesystemCheck,
+  type FilesystemCheckInput
+} from "./filesystemCheck.js";
 
 function baseInput(root: string, overrides: Partial<FilesystemCheckInput> = {}): FilesystemCheckInput {
   return {
@@ -93,5 +98,28 @@ describe("runFilesystemCheck", () => {
 
   it("exposes MIN_FREE_SPACE_BYTES as 500 MB", () => {
     expect(MIN_FREE_SPACE_BYTES).toBe(500 * 1024 * 1024);
+  });
+
+  it("resolves configured model and runtime paths from userData settings", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "dbzs-fs-check-"));
+    const userDataDir = path.join(root, "userData");
+    mkdirSync(userDataDir, { recursive: true });
+    const modelsDir = path.join(root, "models-custom");
+    const runtimeRoot = path.join(root, "win_runtimes");
+    const llamaDir = path.join(runtimeRoot, "llama", "bin");
+    mkdirSync(llamaDir, { recursive: true });
+    writeFileSync(path.join(userDataDir, "settings.json"), JSON.stringify({ modelsPath: modelsDir }));
+    writeFileSync(path.join(llamaDir, "llama-server.exe"), "");
+
+    const result = resolveFilesystemCheckTargets({
+      userDataDir,
+      env: {
+        DBZS_WIN_RUNTIMES_DIR: runtimeRoot
+      } as NodeJS.ProcessEnv,
+      platform: "win32"
+    });
+
+    expect(result.modelRoots).toContain(path.normalize(modelsDir));
+    expect(result.runtimeExecutableCandidates).toContain(path.join(llamaDir, "llama-server.exe"));
   });
 });

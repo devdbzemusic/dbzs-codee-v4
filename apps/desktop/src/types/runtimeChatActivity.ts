@@ -37,6 +37,7 @@ export interface RuntimeChatRoutingInfo {
   configuredModelId?: string | null;
   selectionSource?: string | null;
   fallbackReason?: string | null;
+  degradedReason?: string | null;
   settingsRevision?: number | null;
   warmupStatus?: "pending" | "ready" | "failed" | "skipped" | null;
 }

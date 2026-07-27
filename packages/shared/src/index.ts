@@ -151,7 +151,14 @@ export interface BackendHealth {
   version: string;
 }
 
-export type BackendStartupState = "idle" | "starting" | "ready" | "failed" | "stopped";
+export type BackendStartupState =
+  | "idle"
+  | "starting"
+  | "live"
+  | "ready"
+  | "degraded"
+  | "failed"
+  | "stopped";
 
 /**
  * "spawned-by-desktop": this process instance was launched by the current
@@ -2161,6 +2168,10 @@ export interface RuntimeChatRun {
   configuredModelId?: string;
   selectionSource?: string;
   fallbackReason?: string;
+  /** True when the run completed via a degraded-but-usable route such as resident fallback. */
+  degraded?: boolean;
+  /** Human-readable reason why the run is degraded. */
+  degradedReason?: string;
   /** Set when an automatic resident-model fallback was considered but rejected as incompatible. */
   fallbackRejection?: FallbackRejectionInfo;
   settingsRevision?: number;

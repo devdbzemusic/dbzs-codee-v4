@@ -368,8 +368,7 @@ export interface RuntimeChatSendOptions {
 
 
 function resolveContextSlotId(taskType: string, slotId?: string | null): "quality_cpu" | "fast_gpu" | "utility" {
-  if ((slotId === "quality_cpu" || slotId === "fast_gpu" || slotId === "utility") &&
-      RUNTIME_SLOT_DEFINITIONS[slotId].supportedTasks.includes(taskType as never)) {
+  if (slotId === "quality_cpu" || slotId === "fast_gpu" || slotId === "utility") {
     return slotId;
   }
 
@@ -4977,6 +4976,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
           if (fallbackOutcome.fallbackInitiated) {
             modelToStart = fallbackOutcome.modelToStart;
             routing = { ...routing, ...fallbackOutcome.finalRoute };
+            routing.fallbackReason = fallbackOutcome.degradedReason ?? routing.fallbackReason ?? null;
             finalRoute = routing;
             if (fallbackOutcome.finalRoute.slotId && fallbackOutcome.finalRoute.slotId !== "orchestrator_cpu") {
               contextSlotId = fallbackOutcome.finalRoute.slotId;
@@ -4987,8 +4987,16 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
               modelId: routing.modelId ?? undefined,
               modelName: routing.modelName ?? undefined,
               slotId: routing.slotId ?? undefined,
-              selectionSource: routing.selectionSource ?? undefined
+              selectionSource: routing.selectionSource ?? undefined,
+              fallbackReason: routing.fallbackReason ?? undefined
             });
+            updateActiveRun((r) => ({
+              ...r,
+              selectionSource: routing.selectionSource ?? r.selectionSource,
+              fallbackReason: routing.fallbackReason ?? r.fallbackReason,
+              degraded: true,
+              degradedReason: fallbackOutcome.degradedReason ?? r.degradedReason
+            }));
           } else if (fallbackOutcome.fallbackRejection) {
             const fallbackRejection = fallbackOutcome.fallbackRejection;
             updateActiveRun((r) =>

@@ -23,6 +23,10 @@ export function backendUiStatus(status: BackendStartupStatus | null): BackendUiS
   switch (status.state) {
     case "ready":
       return "ready";
+    case "degraded":
+      return "degraded";
+    case "live":
+      return "live";
     case "starting":
     case "idle":
       return "starting";

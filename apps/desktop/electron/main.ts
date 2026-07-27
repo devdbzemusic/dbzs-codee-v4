@@ -95,6 +95,7 @@ import type {
 import { BOOT_PHASE_DEFINITIONS } from "./boot/bootPhaseDefinitions.js";
 import { BootOrchestrator } from "./boot/bootOrchestrator.js";
 import { BackendReadinessProbe } from "./boot/backendReadinessProbe.js";
+import { resolveFilesystemCheckTargets } from "./boot/filesystemCheck.js";
 import { createPhaseRunners } from "./boot/phaseRunners.js";
 import { registerBootEventBridge } from "./boot/bootEventBridge.js";
 import { WindowCoordinator } from "./boot/windowCoordinator.js";
@@ -2053,6 +2054,9 @@ app.whenReady().then(async () => {
   const coordinator = getWindowCoordinator();
   coordinator.createSplashWindow();
   createWindow(); // hidden — starts loading in the background immediately
+  const filesystemTargets = resolveFilesystemCheckTargets({
+    userDataDir: app.getPath("userData")
+  });
 
   const runners = createPhaseRunners({
     backendStartup: startup,
@@ -2063,20 +2067,14 @@ app.whenReady().then(async () => {
       logDir: path.join(app.getPath("userData"), "logs"),
       tempDir: app.getPath("temp"),
       databaseDir: app.getPath("userData"),
-      // No configured local-model directories are known desktop-side today
-      // (that's the backend's SettingsService's concern) -- an empty list
-      // means "nothing to check here", not "no models configured".
-      modelRoots: [],
+      modelRoots: filesystemTargets.modelRoots,
       isBackendLaunchAvailable: () =>
         isBackendLaunchAvailable({
           isPackaged: app.isPackaged,
           resourcesPath: process.resourcesPath,
           devBackendCwd: backendCwd()
         }),
-      // No reliable universal runtime-executable path is known desktop-side
-      // (llama.cpp binaries are resolved per-model by the backend) -- see
-      // filesystemCheck.ts's docstring for why an empty list is honest here.
-      runtimeExecutableCandidates: []
+      runtimeExecutableCandidates: filesystemTargets.runtimeExecutableCandidates
     },
     loadLocalConfig: async () => {
       // Work already performed above, eagerly — this phase just confirms it.

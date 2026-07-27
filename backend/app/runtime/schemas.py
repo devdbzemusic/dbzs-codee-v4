@@ -287,6 +287,20 @@ RuntimeReadinessStage = Literal[
 
 
 class RuntimeWarmupDiagnostics(BaseModel):
+    endpoint: str | None = None
+    api_mode: str | None = None
+    request_method: str | None = None
+    request_body: str | None = None
+    http_status: int | None = None
+    content_type: str | None = None
+    response_headers: dict[str, str] | None = None
+    stream_events: list[str] | None = None
+    parser_decision: str | None = None
+    chat_template_used: str | None = None
+    stop_sequences_used: list[str] | None = None
+    max_tokens: int | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
     process_start_ms: int = 0
     endpoint_ready_ms: int = 0
     model_load_ms: int = 0

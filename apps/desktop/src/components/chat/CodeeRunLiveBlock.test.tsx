@@ -127,4 +127,19 @@ describe("CodeeRunLiveBlock review UX", () => {
     expect(container.textContent).toContain("Findings beheben");
     expect(container.textContent).toContain("Review erneut ausführen");
   });
+
+  it("zeigt einen degradierten Resident-Fallback sichtbar an", () => {
+    const run = makeRun({
+      status: "streaming",
+      selectionSource: "explicit_fallback",
+      degraded: true,
+      degradedReason: "Residenter Fallback aktiv: Rollenmodell war nicht inferenzbereit."
+    });
+    act(() => {
+      root.render(<CodeeRunLiveBlock run={run} onCancel={() => {}} isSending workspaceRoot="C:/workspace" />);
+    });
+
+    expect(container.textContent).toContain("Run im degradierten Modus fortgesetzt");
+    expect(container.textContent).toContain("Residenter Fallback aktiv");
+  });
 });
