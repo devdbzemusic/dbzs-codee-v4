@@ -71,7 +71,7 @@ export const useRuntimeStore = create<RuntimeState>((set) => ({
     set({ isRefreshing: true, error: null });
     try {
       const status = await backendClient.getRuntimeStatus();
-      set({ status, isRefreshing: false });
+      set({ status, isRefreshing: false, error: null });
     } catch (error) {
       try {
         const status = await loadStatusFromSlots();
