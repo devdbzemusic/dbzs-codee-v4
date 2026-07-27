@@ -1,22 +1,54 @@
 # TODO
 
-Stand: 2026-07-27
+Stand: 2026-07-28
 
 ## Jetzt direkt
 
-- [ ] Runtime-Chat-Overhaul-Aenderungen gezielt committen
-- [ ] Branch `codex/runtime-chat-overhaul-conversation-first` sauber pushen
-- [ ] nur fachliche Dateien committen, nicht `.cache/backend-build/*`
-- [ ] Runtime-Chat in der laufenden App weiter auf Auto-Fortsetzung und ruhigere UX pruefen
+- [ ] GUI-Golden-Path manuell durchlaufen (10 Kriterien, siehe `Pläne/DBZS_CODEE_PERSONAL_PRODUCTION_PLAN.md`) — in dieser Sandbox nicht moeglich (`ELECTRON_RUN_AS_NODE=1` verhindert echten Electron-GUI-Start)
+- [ ] Typfehler in `apps/desktop/electron/atomicFileWrite.ts`/`.test.ts` beheben (`AtomicWriteFs.mkdir` vs. `node:fs/promises`-Signatur)
+- [ ] vier offene Kleinaenderungen pruefen (fertigstellen/verwerfen/committen):
+      `skillRunPersistenceService.ts`, `executionHandoff.ts`, `executionIntent.ts(.test)`
+- [ ] Backup-Restore einmal echt in der laufenden App durchklicken (Diagnostics-Tab)
 
-## Runtime-Chat-Overhaul
+## Erledigt: PR #4 (Runtime-Chat-Overhaul + Personal Production Stabilization)
+
+- [x] Runtime-Chat-Overhaul-Aenderungen committet (bereits vor dieser Session: `89ab9f6`, `59ef0a2`, `525b054`)
+- [x] Branch `codex/runtime-chat-overhaul-conversation-first` sauber gepusht
+- [x] nur fachliche Dateien committet, nicht `.cache/backend-build/*`
+- [x] PR #4 erstellt, geprueft (`MERGEABLE`, `CLEAN`) und per Merge-Commit in `main` gemergt
+- [x] Feature-Branch lokal und remote geloescht
+
+## Personal Production Stabilization (heute, Basis: `Pläne/DBZS_CODEE_PERSONAL_PRODUCTION_PLAN.md`)
+
+- [x] Default-Bug in `backend/app/models/discovery_mode.py` behoben (`project_local_strict` statt `local_with_ollama`)
+- [x] `backend/app/runtime/doctor.py`: Ollama-Checks im Strict-Mode entfernt/entrümpelt, Tests ergaenzt
+- [x] G:/D:-Pfad-Fallbacks in `backend/app/core/config.py` gegen echte Maschine verifiziert (existieren)
+- [x] toter Ollama/Cloud-Code in `modelProviders.ts`/`modelRouterService.ts` mit Warnkommentaren gekennzeichnet
+- [x] gemeinsamer Exclude-Contract (`context-excludes.json` + TS/Python-Policy) um `.cache`, `playwright-report`,
+      `test-results`, `.next`, `.turbo` sowie neuen `excludedFilePatterns`-Glob (`*.log`, `.env`, `.env.*`) erweitert
+- [x] sieben vormals unabhaengige Exclude-Listen auf den gemeinsamen Contract migriert
+      (`reviewPathUtils.ts`, `nodeReviewWorkspaceIo.ts`, `workspaceService.ts`, `rag/service.py`,
+      `docs_analysis/service.py`, `context_pack/service.py`, `agent_workbench/tools.py`)
+- [x] Freigabepflicht im `"full"`-Agent-Profil fuer Dateiänderungen ergaenzt (`agentToolProfile.ts`)
+- [x] ungeschuetzte `dbzs:fs:*`/`dbzs:file:save`-IPC-Handler in `main.ts` auf Workspace-/userData-Grenzen
+      beschraenkt, plus Restore-Point vor Ueberschreiben
+- [x] Crash-Flush-Hooks (`uncaughtException`/`unhandledRejection`/`will-quit`) mit Secret-Redaction ergaenzt
+- [x] `.env`-Leseausschluss verifiziert und echten Bypass in `nodeReviewWorkspaceIo.ts` geschlossen
+- [x] neuer `backupService.ts`: Settings/Codee-DBs/Workspace-`.codee` (ohne Restore-Points)/Modellprofile,
+      Rolling-Retention (14), Restore-Funktion; `rag.sqlite3` und Modellgewichte bewusst ausgeschlossen
+- [x] UI-Einstiegspunkt fuer Backup/Restore im Diagnostics-Tab (`DiagnosticsStorageTab.tsx`)
+- [x] `.gitignore`-Bug behoben: `models/`-Regel schloss `backend/app/models/` (echtes Source-Package)
+      versehentlich aus — 8 Dateien waren nie versioniert, jetzt per Negation gefixt und getrackt
+- [x] Typecheck, Backend-Pytest (betroffene Suiten), Frontend-Vitest (betroffene Suiten), `electron-vite build`
+      — alle gruen
+- [ ] interaktiver Golden-Path-Durchlauf (siehe oben, nicht in dieser Sandbox moeglich)
+
+## Runtime-Chat-Overhaul (aus der vorherigen Session, jetzt in `main`)
 
 - [x] Git-Backup-Branch vor dem Umbau angelegt:
       `codex/backup-runtime-chat-overhaul-2026-07-27`
 - [x] physischer Projektsnapshot verifiziert:
       `C:\Users\ralle\source\repos\_backups\dbzs-codee-project-backup-2026-07-27-runtime-chat-overhaul`
-- [x] eigener Arbeitsbranch fuer den Umbau angelegt:
-      `codex/runtime-chat-overhaul-conversation-first`
 - [x] `RuntimeChatTab` in kleinere Conversation-First-Komponenten zerlegt:
       `RuntimeChatHeader`, `RuntimeChatConversationFeed`,
       `RuntimeChatComposer`, `RuntimeChatSecondaryPanels`
@@ -37,7 +69,7 @@ Stand: 2026-07-27
 - [x] aktives GitHub-Repository live verifiziert:
       `devdbzemusic/dbzs-codee-v4`
 - [x] `origin/main`-Stand live verifiziert:
-      `97063959fb54fbc6ba220797773174b4bf990732`
+      `934d907650b75855bd5d6487fa5ceaa850ac5a64` (Merge von PR #4)
 - [x] offene PRs live verifiziert:
       aktuell keine
 - [x] Branch-Protection-Status live verifiziert:
@@ -56,19 +88,6 @@ Stand: 2026-07-27
 - [ ] Branch Protection / Merge-Gates fuer `main` sauber nachziehen
 - [ ] Windows-Golden-Path auf frischer Umgebung dokumentiert abnehmen
 
-## Repair-Run-Fixes aus diesem Block
-
-- [x] Missing-Information-Heuristik an aktuellen Conversational-Flow angepasst:
-      `apps/desktop/src/services/missingInformationPolicy.ts`
-- [x] Nutzertext fuer `context_overflow` verbessert:
-      `apps/desktop/src/services/runtimeRunFinalization.ts`
-- [x] Runtime-Chat-Testhelfer an aktuellen Delta-Callback-Fluss angepasst:
-      `apps/desktop/src/stores/runtimeChatStore.test.ts`
-- [x] Runtime-Test-Patching gegen `urllib.request` wiederhergestellt:
-      `backend/app/runtime/service.py`
-- [x] Desktop-Capability-Suite im Root-Skriptpfad korrekt aktiviert:
-      `scripts/run-desktop-capability-suite.mjs`, `package.json`
-
 ## Repository Review
 
 - [x] `full_repository`-Startpfad verifiziert:
@@ -82,9 +101,9 @@ Stand: 2026-07-27
 - [x] zielgerichteter Review-Vitest-Lauf war gruen
 - [x] Fixture-Lauf gegen
       `test-fixtures/coding-capability-project` war gruen
-- [ ] Offline-Review-Inventory haerten:
+- [x] Offline-Review-Inventory gehaertet:
       `apps/desktop/src/services/repositoryReview/nodeReviewWorkspaceIo.ts`
-      soll vorhandene `.codee`-Artefakte aus dem Inventory ausschliessen
+      schliesst jetzt vorhandene `.codee`-Artefakte und `.env` konsistent aus
 - [ ] Fehlerklassifikation fuer leere Review-Plaene verbessern
 - [ ] Diagnose-Export bei `batches: []` expliziter machen
 
@@ -93,3 +112,4 @@ Stand: 2026-07-27
 - [ ] weitere Zerlegung grosser Runtime-/Store-Dateien fortsetzen
 - [ ] Contract-Parity zwischen Shared und Backend weiter haerten
 - [ ] Windows-Golden-Path und Installer-Abnahme in aktive Runbooks ueberfuehren
+- [ ] gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren
