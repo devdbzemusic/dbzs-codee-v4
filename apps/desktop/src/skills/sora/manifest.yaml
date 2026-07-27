@@ -1,0 +1,29 @@
+schemaVersion: "1.0"
+id: sora
+kind: skill
+name: Sora
+version: 1.0.0
+description: Sora-Videoaufgaben planen, ohne Paketcode oder Netzwerkzugriff auszuführen
+mode: advisory
+targetAgents: [runtime_chat]
+activation: { intents: [video_generation], keywords: [sora, ai video], explicitOnly: true, autoSuggest: false }
+preconditions: []
+effects: [video_plan]
+domains: [video]
+cost: high
+latency: slow
+riskLevel: high
+sideEffects: [external_api_cost]
+idempotent: false
+permissions:
+  allowedTools: [ask_user, write_skill_artifact]
+  requiredTools: []
+  mayReadFiles: false
+  mayWriteFiles: false
+  mayRunCommands: false
+  mayInstallDependencies: false
+  mayUseNetwork: false
+compatibility: { requires: [], conflictsWith: [], composesWith: [], enables: [] }
+successSignals: [{ id: video_plan, description: Videoauftrag und Kostenannahmen sind beschrieben, required: true }]
+failureSignals: [{ id: unauthorized_api, description: API-Aufruf ohne Freigabe }]
+observability: { logs: [video plan completed], metrics: [clip_count] }

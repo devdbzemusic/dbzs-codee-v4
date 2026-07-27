@@ -1,0 +1,71 @@
+From 74284a697bb7ff7bb9a0276792cb3b2898dbc255 Mon Sep 17 00:00:00 2001
+From: Ralf <dbz.emusic@gmail.com>
+Date: Sat, 27 Jun 2026 02:10:52 +0200
+Subject: [PATCH 07/12] fix(chat): propagate abort signal
+
+- Add optional signal parameter to streamRuntimeChat()
+- Pass signal through to backendClient.streamRuntimeChat()
+- Update BackendBridge interface to support AbortSignal
+- Enable fetch-level cancellation from UI
+- Signal flows: store -> service -> backend -> fetch
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ apps/desktop/src/services/backendClient.ts           | 9 ++++++---
+ apps/desktop/src/services/runtimeChatStreamClient.ts | 5 +++--
+ 2 files changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/apps/desktop/src/services/backendClient.ts b/apps/desktop/src/services/backendClient.ts
+index 4482bea..813f0b1 100644
+--- a/apps/desktop/src/services/backendClient.ts
++++ b/apps/desktop/src/services/backendClient.ts
+@@ -93,7 +93,8 @@ export interface BackendBridge {
+   sendRuntimeChat: (request: RuntimeChatRequest) => Promise<RuntimeChatResponse>;
+   streamRuntimeChat?: (
+     request: RuntimeChatRequest,
+-    onChunk: (payload: { delta: string; totalLength: number }) => void
++    onChunk: (payload: { delta: string; totalLength: number }) => void,
++    signal?: AbortSignal
+   ) => Promise<RuntimeChatResponse>;
+   cancelRuntimeChatStream?: () => Promise<{ status: string }>;
+   listAgents: () => Promise<AgentRecord[]>;
+@@ -316,13 +317,15 @@ export const backendClient = {
+   sendRuntimeChat: (request: RuntimeChatRequest) => bridge().sendRuntimeChat(request),
+   streamRuntimeChat: (
+     request: RuntimeChatRequest,
+-    onChunk: (payload: { delta: string; totalLength: number }) => void
++    onChunk: (payload: { delta: string; totalLength: number }) => void,
++    signal?: AbortSignal
+   ) => {
+     const method = bridge().streamRuntimeChat;
+     if (!method) {
+       return Promise.reject(new Error("streamRuntimeChat is unavailable."));
+     }
+-    return method(request, onChunk);
++    // Pass signal if the bridge supports it; otherwise it's ignored
++    return signal ? method(request, onChunk, signal) : method(request, onChunk);
+   },
+   cancelRuntimeChatStream: () => {
+     const method = bridge().cancelRuntimeChatStream;
+diff --git a/apps/desktop/src/services/runtimeChatStreamClient.ts b/apps/desktop/src/services/runtimeChatStreamClient.ts
+index a34699f..b7c64e8 100644
+--- a/apps/desktop/src/services/runtimeChatStreamClient.ts
++++ b/apps/desktop/src/services/runtimeChatStreamClient.ts
+@@ -8,11 +8,12 @@ export interface RuntimeChatStreamCallbacks {
+ 
+ export async function streamRuntimeChat(
+   request: RuntimeChatRequest,
+-  callbacks: RuntimeChatStreamCallbacks
++  callbacks: RuntimeChatStreamCallbacks,
++  signal?: AbortSignal
+ ): Promise<RuntimeChatResponse> {
+   return backendClient.streamRuntimeChat(request, (payload: { delta: string; totalLength: number }) => {
+     callbacks.onDelta(payload.delta, payload.totalLength);
+-  }).then((response) => {
++  }, signal).then((response) => {
+     callbacks.onDone?.({
+       model_id: response.model_id,
+       model_name: response.model_name
+-- 
+2.53.0.windows.3
+

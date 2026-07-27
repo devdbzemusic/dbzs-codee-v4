@@ -1,0 +1,30 @@
+From 41651066903e0e9c5429527f830652a7d6e72d2f Mon Sep 17 00:00:00 2001
+From: Ralf <dbz.emusic@gmail.com>
+Date: Sat, 27 Jun 2026 02:10:47 +0200
+Subject: [PATCH 06/12] fix(runtime): expose chat_ready in slot status
+
+- Add chat_ready: bool = False field to RuntimeSlotStatus
+- Calculate as: state=='running' && endpoint exists && endpoint available
+- Gate frontend chat requests on chat_ready contract
+- Enable frontend to verify slot readiness before sending request
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ backend/app/runtime/schemas.py | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/backend/app/runtime/schemas.py b/backend/app/runtime/schemas.py
+index f5ea653..ab3c445 100644
+--- a/backend/app/runtime/schemas.py
++++ b/backend/app/runtime/schemas.py
+@@ -31,6 +31,7 @@ class RuntimeSlotStatus(RuntimeStatus):
+     device_policy: Literal["gpu", "cpu", "auto"] = "auto"
+     gpu_layers: int | None = None
+     context_size: int | None = None
++    chat_ready: bool = False
+ 
+ 
+ class RuntimeLogsResponse(BaseModel):
+-- 
+2.53.0.windows.3
+

@@ -64,6 +64,7 @@ import { useCommandPaletteStore } from "@/stores/commandPaletteStore";
 import { SettingsNotebook } from "@/settings";
 import { backendClient } from "@/services/backendClient";
 import { initRuntimeChatSync } from "@/services/runtimeChatSync";
+import { backendUiStatus, formatBootStateForUi } from "@/services/bootUiFormatter";
 import { RuntimeChatTab } from "@/components/RuntimeChatTab";
 import type { RuntimeChatContextSnapshot } from "@/types/runtimeChatWindow";
 import { readStandaloneView } from "@/utils/standaloneView";
@@ -811,6 +812,7 @@ function AppShell() {
           contextHint={chatContextHint}
           detached
           status={runtimeStatus}
+          backendStartupStatus={backendStartupStatus}
           workspaceFiles={chatWorkspaceFiles}
           workspaceName={chatWorkspaceName}
           workspaceRoot={chatWorkspaceRoot}
@@ -906,8 +908,15 @@ function AppShell() {
             <StatusPill label="Desktop" tone="green" value="bereit" />
             <StatusPill
               label="Backend"
-              tone={backendOnline ? "green" : "red"}
-              value={backendOnline ? "online" : "offline"}
+              tone={
+                backendUiStatus(backendStartupStatus) === "ready"
+                  ? "green"
+                  : backendUiStatus(backendStartupStatus) === "starting" ||
+                      backendUiStatus(backendStartupStatus) === "degraded"
+                    ? "amber"
+                    : "red"
+              }
+              value={formatBootStateForUi(backendStartupStatus).replace(/^Backend:\s*/, "")}
             />
             <StatusPill
               label="Modelle"
@@ -1042,6 +1051,7 @@ function AppShell() {
                     activeFile={activeTab && isFileEditorTab(activeTab) ? activeTab : null}
                     contextHint={runtimeContextHint}
                     status={runtimeStatus}
+                    backendStartupStatus={backendStartupStatus}
                     workspaceFiles={workspaceFiles}
                     workspaceName={workspaceState.projectName}
                     workspaceRoot={workspaceState.projectPath}

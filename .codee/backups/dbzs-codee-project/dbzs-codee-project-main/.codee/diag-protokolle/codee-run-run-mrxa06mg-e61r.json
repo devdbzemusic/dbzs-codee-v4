@@ -1,0 +1,84 @@
+{
+  "id": "run-mrxa06mg-e61r",
+  "userMessageId": "msg-mrxa06mg-user",
+  "status": "failed",
+  "startedAt": "2026-07-23T08:55:21.736Z",
+  "mode": "auto",
+  "profile": "ask",
+  "contextEnabled": true,
+  "workspaceRoot": "C:\\Users\\ralle\\source\\repos\\guitar-bass-academy",
+  "events": [
+    {
+      "id": "ev-mrxa06mg-n57",
+      "type": "chat.accepted",
+      "timestamp": "2026-07-23T08:55:21.736Z",
+      "message": "Nachricht angenommen",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-mrxa06mg-iy5",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-23T08:55:21.736Z",
+      "message": "Runtime-Status pruefen",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-mrxa06pl-atb",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-23T08:55:21.849Z",
+      "message": "Backend online · Residenter Slotstatus: qwen2.5-coder-3b-instruct-q8-0",
+      "durationMs": 113
+    },
+    {
+      "id": "ev-mrxa06pl-7a6",
+      "type": "routing.started",
+      "timestamp": "2026-07-23T08:55:21.849Z",
+      "message": "Modell-Routing",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-mrxa06pm-6vl",
+      "type": "routing.completed",
+      "timestamp": "2026-07-23T08:55:21.850Z",
+      "message": "Modell gewählt: qwen2.5-coder-7b-instruct-q4-k-m",
+      "meta": {
+        "rolloutStage": "canary-100",
+        "routingPath": "broker",
+        "canaryPercent": 100,
+        "shadowMode": false,
+        "shadowMatch": null,
+        "stopOnShadowMismatch": false
+      },
+      "durationMs": 1
+    },
+    {
+      "id": "ev-mrxa06pm-6qy",
+      "type": "chat.failed",
+      "timestamp": "2026-07-23T08:55:21.850Z",
+      "message": "invalid_phase_agent_pair phase=implementation agent=debugger",
+      "durationMs": 0
+    }
+  ],
+  "turns": [],
+  "toolCalls": [],
+  "fileChanges": [],
+  "commands": [],
+  "provider": "llama-cpp",
+  "modelId": "435e7d9425a4fe1f",
+  "modelName": "qwen2.5-coder-7b-instruct-q4-k-m",
+  "slotId": "fast_gpu",
+  "configuredModelId": "435e7d9425a4fe1f",
+  "selectionSource": "role_setting",
+  "settingsRevision": 2,
+  "warmupStatus": "pending",
+  "workflowLabel": "fix findings",
+  "phaseLabel": "implementation",
+  "targetAgentLabel": "debugger",
+  "finishedAt": "2026-07-23T08:55:21.850Z",
+  "outcome": "workflow_state_invalid",
+  "error": {
+    "code": "workflow_state_invalid",
+    "message": "invalid_phase_agent_pair phase=implementation agent=debugger",
+    "phase": "routing"
+  }
+}
