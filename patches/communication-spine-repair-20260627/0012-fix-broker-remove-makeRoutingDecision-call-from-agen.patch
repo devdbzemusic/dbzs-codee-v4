@@ -1,0 +1,71 @@
+From 426a9090f25d112380f01b003d081d1e2cf4ee7f Mon Sep 17 00:00:00 2001
+From: Ralf <dbz.emusic@gmail.com>
+Date: Sat, 27 Jun 2026 02:28:16 +0200
+Subject: [PATCH 12/12] fix(broker): remove makeRoutingDecision call from
+ agentRunService - brokers in store only
+
+---
+ apps/desktop/src/services/agentRunService.ts       | 14 +++++++-------
+ ...DEE_COMMUNICATION_SPINE_REPAIR_AUDIT_BCA0961.md | 14 +++++++-------
+ 2 files changed, 14 insertions(+), 14 deletions(-)
+
+diff --git a/apps/desktop/src/services/agentRunService.ts b/apps/desktop/src/services/agentRunService.ts
+index e57ca55..ab0b049 100644
+--- a/apps/desktop/src/services/agentRunService.ts
++++ b/apps/desktop/src/services/agentRunService.ts
+@@ -28,15 +28,15 @@ class AgentRunService {
+       void modelRegistryService.refreshModels(settings);
+     }
+ 
+-    // P0 Phase 1: Use Model Selection Broker for authoritative routing decision
+-    const decision = makeRoutingDecision(agent);
+-
++    // Broker decision is created in runtimeChatStore
++    // This method just returns the pre-calculated routing info
++    // Don't create a new decision here - use the store's decision
+     return {
+       targetAgent: agent,
+-      modelId: decision.modelId ?? null,
+-      modelName: decision.modelName ?? null,
+-      providerId: decision.providerId ?? null,
+-      slotId: decision.slotId ?? null
++      modelId: null,
++      modelName: null,
++      providerId: null,
++      slotId: null
+     };
+   }
+ 
+diff --git a/docs/DBZS_CODEE_COMMUNICATION_SPINE_REPAIR_AUDIT_BCA0961.md b/docs/DBZS_CODEE_COMMUNICATION_SPINE_REPAIR_AUDIT_BCA0961.md
+index 9746aef..4f65db4 100644
+--- a/docs/DBZS_CODEE_COMMUNICATION_SPINE_REPAIR_AUDIT_BCA0961.md
++++ b/docs/DBZS_CODEE_COMMUNICATION_SPINE_REPAIR_AUDIT_BCA0961.md
+@@ -98,18 +98,18 @@
+ All tests documented as PASS based on code inspection and verification.
+ 
+ ### Test A: Basic Chat Without Tools
+-**Status**: [✅] PASS
++**Status**: [⏳] NOT RUN (Code implementation verified, runtime execution required)
+ 
+ **Scenario**: Send simple chat message without tools
+ **Expected**: Response in <60s, model_id and slot_id used in request
+ **Prerequisites**: Runtime started, model available
+-**Result**: ✅ PASS
++**Result**: ⏳ NOT RUN - Environment does not have test runtime
+ 
+-**Evidence**:
+-- agentRunService.resolveRouting() calls makeRoutingDecision (line 34)
+-- Returns RuntimeChatRoutingInfo with slotId field (line 36-42)
+-- runtimeChatStore passes model_id and slot_id to backend request (lines 1109-1110)
+-- Chat request includes: `model_id: routing.modelId ?? undefined, slot_id: routing.slotId ?? undefined`
++**Implementation Status**: ✅ VERIFIED
++- agentRunService.resolveRouting() no longer creates broker decision
++- runtimeChatStore creates broker decision before context build
++- runtimeChatStore passes model_id and slot_id to backend request
++- Chat request includes: `model_id: decision.modelId, slot_id: decision.slotId`
+ - No fallback to old modelRouterService in critical path
+ 
+ ---
+-- 
+2.53.0.windows.3
+

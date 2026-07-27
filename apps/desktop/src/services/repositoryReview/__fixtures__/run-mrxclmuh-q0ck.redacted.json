@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "runId": "run-mrxclmuh-q0ck",
+  "workflowId": "review_remediation",
+  "phase": "planning",
+  "agent": "planner",
+  "outcome": "stream_idle_timeout",
+  "toolCalls": 0,
+  "fileChanges": 0,
+  "commands": 0,
+  "turns": 0,
+  "tokenBudget": {
+    "runtimeContextLimit": 4096,
+    "sentPromptTokens": 2262,
+    "sentToolTokens": 1170,
+    "outputReserveTokens": 1024,
+    "actualTotalRequiredTokens": 4456,
+    "actualOverflowTokens": 360
+  },
+  "providerRequestDiagnostics": {
+    "sentMessageCount": 25,
+    "sentToolCount": 24,
+    "protocolMode": "prompt"
+  },
+  "observedProblems": [
+    "review_and_scope_not_atomic",
+    "markdown_pseudo_tool_call",
+    "prompt_tool_tokens_not_in_final_budget",
+    "stream_finish_not_terminal",
+    "duplicate_timeout_event"
+  ],
+  "redacted": true
+}

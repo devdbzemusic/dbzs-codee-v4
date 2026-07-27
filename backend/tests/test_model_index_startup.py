@@ -63,5 +63,8 @@ async def test_model_index_startup_reports_warning_when_some_models_are_skipped(
         await run_model_index_startup(store)
 
     snapshot = store.snapshot()
+    data = snapshot["components"]["modelRegistry"]["data"]
     assert snapshot["components"]["modelRegistry"]["state"] == "warning"
-    assert "broken-model.gguf" in (snapshot["components"]["modelRegistry"]["error"] or "")
+    assert any(err["path"] == "broken-model.gguf" and err["code"] == "ValueError" for err in data["modelErrors"])
+    assert data["validModelCount"] == 1
+    assert data["invalidModelCount"] == 1

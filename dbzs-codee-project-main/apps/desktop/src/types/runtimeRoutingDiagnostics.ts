@@ -1,0 +1,79 @@
+/**
+ * P2 Phase 6: Runtime Routing Diagnostics
+ * 
+ * Tracks routing decision metadata for UI display and debugging.
+ * Shows task_type → agent → slot → model decision flow.
+ */
+
+import type { ModelTargetAgent } from "@dbzs/shared";
+
+export type TimeoutStage = "routing" | "bootstrap" | "context" | "firstToken" | "total";
+
+export interface RoutingDecision {
+  /** When the decision was made (ISO timestamp) */
+  decidedAt: string;
+  
+  /** Task classification (coding, chat, debug, etc.) */
+  taskType: string;
+  
+  /** Selected agent target */
+  targetAgent: ModelTargetAgent;
+  
+  /** Selected slot ID (fast_gpu, quality_cpu, etc.) */
+  slotId: string;
+  
+  /** Selected model ID */
+  modelId: string | null;
+  
+  /** Model display name */
+  modelName: string | null;
+  
+  /** Why this routing was chosen */
+  reason: string;
+  
+  /** Currently active timeout stage */
+  timeoutStage?: TimeoutStage;
+  
+  /** Timeout duration for current stage (ms) */
+  timeoutDuration?: number;
+
+  /** Active rollout stage label (legacy-0, canary-5, ...). */
+  rolloutStage?: string;
+
+  /** Effective routing path used for this run. */
+  routingPath?: "broker" | "legacy";
+
+  /** Configured canary percentage. */
+  canaryPercent?: number;
+
+  /** Shadow mode enabled for comparison logs. */
+  shadowMode?: boolean;
+
+  /** Shadow match state if available. */
+  shadowMatch?: boolean | null;
+
+  /** Whether mismatch should hard-stop current request. */
+  stopOnShadowMismatch?: boolean;
+}
+
+export interface RoutingDiagnostics {
+  /** Current routing decision */
+  decision: RoutingDecision | null;
+  
+  /** Pre-flight validation results */
+  validation: {
+    slotReady: boolean;
+    slotMessage?: string;
+    memoryAvailable: boolean;
+    memoryMessage?: string;
+    canStart: boolean;
+  };
+  
+  /** Error classification if request failed */
+  errorClassification?: {
+    errorType: string;
+    errorMessage: string;
+    retryable: boolean;
+    retryCount: number;
+  };
+}

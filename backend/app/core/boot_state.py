@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -26,12 +27,25 @@ COMPONENT_NAMES = ("database", "modelRegistry", "runtimeManager", "residentModel
 
 
 @dataclass
+class BootComponentError:
+    """Mirrors the shared BootComponentError TS type (packages/shared/src/boot.ts)."""
+
+    code: str
+    technical_detail: str | None = None
+    exit_code: int | None = None
+    stderr_tail: str | None = None
+
+
+@dataclass
 class BootComponentSnapshot:
     state: BootComponentState = "pending"
     progress: float | None = None
     total: float | None = None
     message: str | None = None
-    error: str | None = None
+    error: BootComponentError | None = None
+    # Structured payload beyond a free-text message (model-index counts,
+    # resident-model identity, ...) -- mirrors BootReadinessComponent.data.
+    data: dict[str, object] | None = None
     updated_at: float = field(default_factory=time.time)
 
 
@@ -45,6 +59,11 @@ class BootStateStore:
         }
         self._logs: list[dict[str, object]] = []
         self._started_at = time.time()
+        # Identifies this backend process instance -- desktop uses it (plus a
+        # boot nonce, see backendStartupService.ts) to tell "this is the
+        # instance I spawned" apart from "a different, pre-existing backend
+        # happens to be listening on this port".
+        self.instance_id = str(uuid.uuid4())
 
     async def set_component(
         self,
@@ -54,7 +73,8 @@ class BootStateStore:
         progress: float | None = None,
         total: float | None = None,
         message: str | None = None,
-        error: str | None = None,
+        error: BootComponentError | None = None,
+        data: dict[str, object] | None = None,
     ) -> None:
         if name not in COMPONENT_NAMES:
             raise ValueError(f"Unknown boot component: {name}")
@@ -68,6 +88,8 @@ class BootStateStore:
             if message is not None:
                 snapshot.message = message
             snapshot.error = error
+            if data is not None:
+                snapshot.data = data
             snapshot.updated_at = time.time()
             self._logs.append(
                 {
@@ -87,7 +109,17 @@ class BootStateStore:
                 "progress": snap.progress,
                 "total": snap.total,
                 "message": snap.message,
-                "error": snap.error,
+                "error": (
+                    {
+                        "code": snap.error.code,
+                        "technicalDetail": snap.error.technical_detail,
+                        "exitCode": snap.error.exit_code,
+                        "stderrTail": snap.error.stderr_tail,
+                    }
+                    if snap.error is not None
+                    else None
+                ),
+                "data": snap.data,
             }
             for name, snap in self._components.items()
         }
@@ -120,7 +152,24 @@ class BootStateStore:
             "status": status,
             "ready": ready,
             "progress": progress,
+            "instanceId": self.instance_id,
             "components": components,
+        }
+
+    def readiness_summary(self) -> dict[str, object]:
+        """The reduced, terminal-only view GET /health/ready serves --
+        distinct from snapshot() (GET /health/startup's per-component detail)
+        so the two endpoints can't be confused with one another again."""
+        full = self.snapshot()
+        components = full["components"]
+        mandatory = ("database", "modelRegistry", "runtimeManager")
+        optional = ("residentModel",)
+        return {
+            "status": full["status"],
+            "ready": full["ready"],
+            "instanceId": full["instanceId"],
+            "requiredComponents": {name: components[name]["state"] for name in mandatory},
+            "optionalComponents": {name: components[name]["state"] for name in optional},
         }
 
     def logs_since(self, index: int) -> tuple[list[dict[str, object]], int]:

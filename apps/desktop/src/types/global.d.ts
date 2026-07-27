@@ -332,7 +332,13 @@ declare global {
       onMenuAction?: (listener: (action: string) => void) => () => void;
       getBootState?: () => Promise<BootState>;
       onBootState?: (listener: (state: BootState) => void) => () => void;
-      reportBootPhase?: (phaseId: string, outcome: "success" | "failed", message: string) => Promise<void>;
+      reportBootPhaseState?: (
+        phaseId: string,
+        state: "success" | "failed",
+        message: string,
+        progress?: number,
+        metadata?: Record<string, unknown>
+      ) => Promise<void>;
       retryBootPhase?: (phaseId: string | null) => Promise<void>;
       restartBootBackend?: () => Promise<void>;
       useFallbackResidentModel?: () => Promise<void>;

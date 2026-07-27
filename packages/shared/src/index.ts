@@ -6,6 +6,7 @@ export { RUNTIME_SLOT_DEFINITIONS } from "./runtime/runtimeSlots.js";
 export * from "./context/contextContracts.js";
 export * from "./interaction/interactionContracts.js";
 export * from "./boot.js";
+export * from "./bootReadinessSchema.js";
 
 export type TerminalShell = "powershell" | "cmd" | "pwsh";
 
@@ -152,10 +153,21 @@ export interface BackendHealth {
 
 export type BackendStartupState = "idle" | "starting" | "ready" | "failed" | "stopped";
 
+/**
+ * "spawned-by-desktop": this process instance was launched by the current
+ * Electron session and may be stopped by it. "preexisting-local": a backend
+ * was already listening on the configured port before this session tried to
+ * spawn one -- it must never be killed by this instance. "unknown": ownership
+ * hasn't been determined yet (e.g. before the first ensureStarted() call).
+ */
+export type BackendProcessOwnership = "spawned-by-desktop" | "preexisting-local" | "unknown";
+
 export interface BackendStartupStatus {
   state: BackendStartupState;
   message: string | null;
   port: number;
+  ownership: BackendProcessOwnership;
+  instanceId: string | null;
 }
 
 export interface AppInfo {
@@ -507,6 +519,11 @@ export interface RuntimeWarmupDiagnostics {
   tokenCount: number;
   finishReason?: string;
   readinessStage?: RuntimeReadinessStage;
+  streamMode?: boolean;
+  toolCallDetected?: boolean;
+  /** First 8 KB of the raw HTTP response — only set on warmup_empty_response. */
+  rawResponsePreview?: string;
+  stderrTail?: string;
 }
 
 export type DroppedContextReason =
@@ -2035,7 +2052,8 @@ export type RuntimeChatEventType =
   | "chat.failed"
   | "chat.completed"
   | "chat.question_asked"
-  | "chat.answer_received";
+  | "chat.answer_received"
+  | "runtime.fallback.initiated";
 
 export interface RuntimeChatEvent {
   id: string;
@@ -2101,6 +2119,13 @@ export interface RuntimeChatError {
   requestId?: string;
 }
 
+/** Why an automatic fallback onto an already-resident model was rejected. */
+export interface FallbackRejectionInfo {
+  modelId: string;
+  modelName: string;
+  reason: string;
+}
+
 export interface RuntimeChatRun {
   id: string;
   userMessageId: string;
@@ -2115,11 +2140,15 @@ export interface RuntimeChatRun {
   /** Target runtime slot for this run. */
   slotId?: string;
   endpoint?: string;
+  /** Task classification for this run (coding, chat, debug, ...), when known. */
+  taskType?: string;
 
   /** Binding / diagnostics (optional; historical runs may omit). */
   configuredModelId?: string;
   selectionSource?: string;
   fallbackReason?: string;
+  /** Set when an automatic resident-model fallback was considered but rejected as incompatible. */
+  fallbackRejection?: FallbackRejectionInfo;
   settingsRevision?: number;
   warmupStatus?: "pending" | "ready" | "failed" | "skipped";
   workflowLabel?: string;

@@ -64,6 +64,7 @@ import { useCommandPaletteStore } from "@/stores/commandPaletteStore";
 import { SettingsNotebook } from "@/settings";
 import { backendClient } from "@/services/backendClient";
 import { initRuntimeChatSync } from "@/services/runtimeChatSync";
+import { backendUiStatus, formatBootStateForUi } from "@/services/bootUiFormatter";
 import { RuntimeChatTab } from "@/components/RuntimeChatTab";
 import type { RuntimeChatContextSnapshot } from "@/types/runtimeChatWindow";
 import { readStandaloneView } from "@/utils/standaloneView";
@@ -376,7 +377,7 @@ function AppShell() {
   // orchestrator's "main-app-released" phase (16) actually wait on it.
   useEffect(() => {
     let cancelled = false;
-    const report = window.dbzs.reportBootPhase;
+    const report = window.dbzs.reportBootPhaseState;
 
     function errorMessage(err: unknown): string {
       return err instanceof Error ? err.message : String(err);
@@ -426,14 +427,29 @@ function AppShell() {
       }
       await report?.("frontend-config-sync", "success", "Einstellungen synchronisiert.");
 
-      await Promise.all([loadWorkspaceState(), loadAllowedCommands()]);
-      if (cancelled) return;
-      const workspaceStateError = useWorkspaceStore.getState().error;
-      if (workspaceStateError) {
-        await report?.("workspace-restore", "failed", workspaceStateError);
+      // Safe Mode (spec §20): no automatic workspace restore, no agent
+      // autostarts. Both phases still report a real terminal outcome
+      // ("success" with a message noting the skip) -- reportBootPhaseState
+      // only has success/failed, there is no separate frontend "skipped".
+      const safeMode = (await window.dbzs.isBootSafeMode?.()) ?? false;
+
+      if (safeMode) {
+        await report?.("workspace-restore", "success", "Sicherer Modus: Workspace-Wiederherstellung übersprungen.");
+      } else {
+        await Promise.all([loadWorkspaceState(), loadAllowedCommands()]);
+        if (cancelled) return;
+        const workspaceStateError = useWorkspaceStore.getState().error;
+        if (workspaceStateError) {
+          await report?.("workspace-restore", "failed", workspaceStateError);
+          return;
+        }
+        await report?.("workspace-restore", "success", "Workspace wiederhergestellt.");
+      }
+
+      if (safeMode) {
+        await report?.("agents-roles-models", "success", "Sicherer Modus: Agenten-Autostarts übersprungen.");
         return;
       }
-      await report?.("workspace-restore", "success", "Workspace wiederhergestellt.");
 
       await Promise.all([loadModelIndex(), loadRuntimeStatus(), loadAgents(), loadTasks(), loadJobs()]);
       if (cancelled) return;
@@ -796,6 +812,7 @@ function AppShell() {
           contextHint={chatContextHint}
           detached
           status={runtimeStatus}
+          backendStartupStatus={backendStartupStatus}
           workspaceFiles={chatWorkspaceFiles}
           workspaceName={chatWorkspaceName}
           workspaceRoot={chatWorkspaceRoot}
@@ -891,8 +908,15 @@ function AppShell() {
             <StatusPill label="Desktop" tone="green" value="bereit" />
             <StatusPill
               label="Backend"
-              tone={backendOnline ? "green" : "red"}
-              value={backendOnline ? "online" : "offline"}
+              tone={
+                backendUiStatus(backendStartupStatus) === "ready"
+                  ? "green"
+                  : backendUiStatus(backendStartupStatus) === "starting" ||
+                      backendUiStatus(backendStartupStatus) === "degraded"
+                    ? "amber"
+                    : "red"
+              }
+              value={formatBootStateForUi(backendStartupStatus).replace(/^Backend:\s*/, "")}
             />
             <StatusPill
               label="Modelle"
@@ -1027,6 +1051,7 @@ function AppShell() {
                     activeFile={activeTab && isFileEditorTab(activeTab) ? activeTab : null}
                     contextHint={runtimeContextHint}
                     status={runtimeStatus}
+                    backendStartupStatus={backendStartupStatus}
                     workspaceFiles={workspaceFiles}
                     workspaceName={workspaceState.projectName}
                     workspaceRoot={workspaceState.projectPath}

@@ -53,11 +53,22 @@ export interface BootLogEntry {
   metadata?: Record<string, unknown>;
 }
 
-export interface BootTimeoutPolicy {
+/**
+ * Replaces the earlier BootTimeoutPolicy (softTimeoutMs/hardTimeoutMs/
+ * retryCount/retryDelayMs). pollIntervalMs governs "not ready yet" polling
+ * (a non-terminal component status), while maxRetries/retryDelayMs govern
+ * retries after a *genuine* failure — the two must stay independent, since
+ * conflating them (the old design) let a retry-count ceiling silently cut a
+ * poll loop short before its own hard timeout was reached.
+ */
+export interface BootPhasePolicy {
   softTimeoutMs: number;
   hardTimeoutMs: number;
-  retryCount: number;
+  pollIntervalMs: number;
+  maxRetries: number;
   retryDelayMs: number;
+  extendDeadlineOnProgress: boolean;
+  maxDeadlineExtensionMs: number;
 }
 
 export interface BootPhase {
@@ -69,9 +80,14 @@ export interface BootPhase {
   message: string;
   dependencies: string[];
   optional: boolean;
+  /** Whether the main window's release must wait for this phase to reach a terminal state. */
+  blocksWindowRelease: boolean;
   startedAt?: number;
   finishedAt?: number;
   durationMs?: number;
+  /** Counts non-terminal "still working" polls (component state pending/waiting/running). */
+  pollCount: number;
+  /** Counts retries after a genuine failure outcome. Kept separate from pollCount. */
   retryCount: number;
   error?: BootError;
   details: BootLogEntry[];
@@ -109,25 +125,56 @@ export type ModelRuntimeStatus =
   | "failed"
   | "stopped";
 
-/** Mirrors `backend/app/core/boot_state.py`'s component snapshot shape. */
-export interface BootReadinessComponent {
-  state: BootPhaseState;
-  progress?: number;
-  total?: number;
-  message?: string;
-  error?: string | null;
+export interface BootComponentError {
+  code: string;
+  technicalDetail?: string;
+  exitCode?: number | null;
+  stderrTail?: string;
 }
 
-export interface BootReadinessResponse {
+/**
+ * Mirrors `backend/app/core/boot_state.py`'s component snapshot shape.
+ * progress/total/message/data are nullable (not just optional) because the
+ * Python side's dataclass defaults are `None`, serialized as JSON `null` --
+ * this must accept what the wire actually sends, not just what's "tidiest".
+ */
+export interface BootReadinessComponent {
+  state: BootPhaseState;
+  progress?: number | null;
+  total?: number | null;
+  message?: string | null;
+  error?: BootComponentError | null;
+  /** Structured payload (e.g. model-index counts, resident-model identity) beyond a free-text message. */
+  data?: Record<string, unknown> | null;
+}
+
+/** GET /health/startup's response shape: always 200, full per-component detail. */
+export interface BootStartupResponse {
   status: BootRunStatus;
   ready: boolean;
   progress: number;
+  instanceId: string;
   components: {
     database: BootReadinessComponent;
     modelRegistry: BootReadinessComponent;
     runtimeManager: BootReadinessComponent;
     residentModel: BootReadinessComponent;
   };
+}
+
+/**
+ * GET /health/ready's response shape: 503 while not ready (reduced body,
+ * only status/ready/instanceId), 200 once ready (adds the required/optional
+ * component-state breakdown). Deliberately has no per-component progress or
+ * message detail -- that's /health/startup's job; this endpoint only
+ * answers the terminal yes/no question.
+ */
+export interface BootReadyResponse {
+  status: BootRunStatus;
+  ready: boolean;
+  instanceId: string;
+  requiredComponents?: Record<string, BootPhaseState>;
+  optionalComponents?: Record<string, BootPhaseState>;
 }
 
 export interface BootDiagnosticExport {
@@ -149,5 +196,5 @@ export interface BootDiagnosticExport {
   retryAttempts: Record<string, number>;
   exitCodes: Record<string, number | null>;
   stderr: Record<string, string>;
-  readinessResponses: BootReadinessResponse[];
+  readinessResponses: BootStartupResponse[];
 }
