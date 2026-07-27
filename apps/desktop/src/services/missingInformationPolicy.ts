@@ -50,6 +50,12 @@ const SMALL_CHANGE_HINT_PATTERN =
   /(fix|bug|fehler|patch|klein|small|anpassen|rename|umbenennen|update|korrigier|refine|adjust)/i;
 const QUICK_ACCEPTANCE_HINT_PATTERN =
   /(soll|should|wenn|when|danach|after|render|anzeigen|sichtbar|test|grün|green)/i;
+const PRESERVE_BEHAVIOR_PATTERN =
+  /(verhalte[ns]?.*nicht|ohne\s+verhaltens[aä]nderung|behavior\s+should\s+not\s+change|behaviour\s+should\s+not\s+change|do\s+not\s+change\s+behavio[u]?r|ohne\s+das\s+verhalten\s+zu\s+ändern)/i;
+const PLAN_DELIVERABLE_PATTERN =
+  /(implementierungsplan|umsetzungsplan|konkrete[nr]?\s+schritte|n[aä]chste[nr]?\s+schritte|reihenfolge|risiken|tests?|plan\s+mit|roadmap)/i;
+const FILE_LOCAL_SCOPE_PATTERN =
+  /(nur\s+in\s+(dieser|der)\s+datei|only\s+this\s+file|nur\s+diese\s+datei|single[_ -]?file)/i;
 
 function questionId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -114,6 +120,7 @@ function checkCoding(
   const hasAcceptance =
     fieldAnswered(ctx.state, "acceptance_criteria") ||
     ACCEPTANCE_HINT_PATTERN.test(message) ||
+    PRESERVE_BEHAVIOR_PATTERN.test(message) ||
     QUICK_ACCEPTANCE_HINT_PATTERN.test(message) ||
     Boolean(ctx.state.acceptanceCriteria?.length);
   const shouldAskAcceptance =
@@ -136,7 +143,11 @@ function checkCoding(
   });
 
   if (taskType === "refactoring" || taskType === "large_code_change") {
-    const hasScope = fieldAnswered(ctx.state, "scope_boundary") || SCOPE_HINT_PATTERN.test(message);
+    const hasScope =
+      fieldAnswered(ctx.state, "scope_boundary") ||
+      SCOPE_HINT_PATTERN.test(message) ||
+      FILE_LOCAL_SCOPE_PATTERN.test(message) ||
+      (taskType === "refactoring" && hasTarget && PRESERVE_BEHAVIOR_PATTERN.test(message));
     checks.push({
       field: "scope_boundary",
       present: hasScope,
@@ -233,11 +244,13 @@ function checkReview(message: string, ctx: MissingInfoContext): RequiredFieldChe
 
 function checkPlanning(message: string, ctx: MissingInfoContext): RequiredFieldCheck[] {
   const checks: RequiredFieldCheck[] = [];
+  const hasStructuredPlanningGoal = PLAN_DELIVERABLE_PATTERN.test(message);
 
   const hasSuccessCriteria =
     fieldAnswered(ctx.state, "success_criteria") ||
     fieldAnswered(ctx.state, "acceptance_criteria") ||
     SUCCESS_CRITERIA_PATTERN.test(message) ||
+    hasStructuredPlanningGoal ||
     QUICK_ACCEPTANCE_HINT_PATTERN.test(message) ||
     Boolean(ctx.state.acceptanceCriteria?.length);
 
@@ -259,7 +272,8 @@ function checkPlanning(message: string, ctx: MissingInfoContext): RequiredFieldC
     fieldAnswered(ctx.state, "constraints") ||
     CONSTRAINTS_PATTERN.test(message) ||
     NO_CONSTRAINTS_PATTERN.test(message) ||
-    ctx.hasFileContext;
+    ctx.hasFileContext ||
+    hasStructuredPlanningGoal;
 
   checks.push({
     field: "constraints",
@@ -268,7 +282,7 @@ function checkPlanning(message: string, ctx: MissingInfoContext): RequiredFieldC
       id: questionId("q-constraints"),
       questionType: "free_text",
       prompt: "Gibt es technische Einschränkungen oder Vorgaben (Stack, Zeit, Umfang)?",
-      context: "Ohne Einschränkungen plane ich mit den bestehenden Projektkonventionen weiter.",
+      context: "Wenn du nichts Spezielles vorgibst, plane ich mit den bestehenden Projektkonventionen weiter.",
       freeTextPlaceholder: "z.B. muss mit dem bestehenden Electron-Stack kompatibel sein",
       allowFreeText: true,
       riskLevel: "low",

@@ -68,7 +68,7 @@ export function AssistantQuestionCard({ question, busy, onSubmit }: AssistantQue
 
   return (
     <article
-      className={`rounded border p-3 ${riskClass(question.riskLevel)}`}
+      className={`rounded border p-2.5 ${riskClass(question.riskLevel)}`}
       onKeyDown={(event) => {
         if (event.key !== "Enter" || event.shiftKey || busy || !canSubmit) return;
         const target = event.target as HTMLElement | null;
@@ -79,7 +79,7 @@ export function AssistantQuestionCard({ question, busy, onSubmit }: AssistantQue
     >
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-[10px] font-medium uppercase tracking-[0.12em]">Rückfrage</div>
+          <div className="text-[10px] font-medium uppercase tracking-[0.12em]">Kurze Rückfrage</div>
           <h4 className="mt-1 text-xs font-medium text-dbzs-text">{question.prompt}</h4>
         </div>
         {question.riskLevel === "high" ? (
@@ -90,7 +90,7 @@ export function AssistantQuestionCard({ question, busy, onSubmit }: AssistantQue
       </div>
 
       {question.context ? (
-        <p className="mb-2 text-[11px] leading-5 text-dbzs-muted">Warum frage ich? {question.context}</p>
+        <p className="mb-2 text-[11px] leading-5 text-dbzs-muted">{question.context}</p>
       ) : null}
 
       {(isChoice || isMultiChoice) && question.options ? (
@@ -172,7 +172,7 @@ export function AssistantQuestionCard({ question, busy, onSubmit }: AssistantQue
           onClick={() => onSubmit(buildAnswer())}
           type="button"
         >
-          Antworten
+          Weiter
         </button>
         {question.defaultOptionId ? (
           <button
@@ -187,7 +187,7 @@ export function AssistantQuestionCard({ question, busy, onSubmit }: AssistantQue
             }
             type="button"
           >
-            Empfehlung übernehmen
+            Empfehlung nutzen
           </button>
         ) : null}
         <button
@@ -196,7 +196,7 @@ export function AssistantQuestionCard({ question, busy, onSubmit }: AssistantQue
           onClick={() => onSubmit({ questionId: question.id, answeredAt: new Date().toISOString(), skipped: true })}
           type="button"
         >
-          Abbrechen
+          Überspringen
         </button>
       </div>
     </article>

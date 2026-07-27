@@ -93,6 +93,18 @@ describe("checkMissingInformation — coding", () => {
     );
     expect(checks.find((c) => c.field === "scope_boundary")?.present).toBe(true);
   });
+
+  it("treats a file-specific behavior-preserving refactor as sufficiently scoped", () => {
+    const checks = checkMissingInformation(
+      "coding",
+      "refactoring",
+      "Refactore src/core/reportFormatter.ts, aber veraendere das Verhalten nicht",
+      false
+    );
+
+    expect(checks.find((c) => c.field === "acceptance_criteria")?.present).toBe(true);
+    expect(checks.find((c) => c.field === "scope_boundary")?.present).toBe(true);
+  });
 });
 
 describe("checkMissingInformation — review", () => {
@@ -161,5 +173,16 @@ describe("checkMissingInformation — planning", () => {
       }
     );
     expect(checks.find((c) => c.field === "success_criteria")?.present).toBe(true);
+  });
+
+  it("does not force extra planning clarification when deliverables are already explicit", () => {
+    const checks = checkMissingInformation(
+      "planning",
+      "planning",
+      "Erstelle einen klaren Implementierungsplan mit konkreten Schritten, Risiken und Tests",
+      false
+    );
+    expect(checks.find((c) => c.field === "success_criteria")?.present).toBe(true);
+    expect(checks.find((c) => c.field === "constraints")?.present).toBe(true);
   });
 });
