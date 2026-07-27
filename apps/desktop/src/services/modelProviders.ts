@@ -1,3 +1,7 @@
+// UNUSED — ModelSelectionDecision.providerId is hardcoded to "llama-cpp" in modelSelectionBroker.ts,
+// the sole router Runtime Chat uses. The ollama/openAi/anthropic providers below are not reachable
+// from that path (only referenced transitively via modelRegistryService.ts -> modelRouterService.ts,
+// itself a shadow-mode-only legacy comparison helper). Do not consume ALL_MODEL_PROVIDERS for live routing.
 import type {
   AppSettings,
   ModelCapability,

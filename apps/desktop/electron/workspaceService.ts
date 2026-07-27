@@ -12,9 +12,6 @@ import {
 
 const IGNORED_DIRECTORIES = new Set([
   ...DEFAULT_CONTEXT_EXCLUDED_DIRECTORIES,
-  ".next",
-  "out",
-  "coverage",
   "__pycache__",
   ".venv",
   "venv"

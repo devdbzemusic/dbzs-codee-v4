@@ -4,16 +4,12 @@ from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
+from app.core.context_policy import default_context_excluded_directories
 from app.docs_analysis.models import DocsAnalysisSummary, DocsGenerateResponse, ExtensionStat, FileSizeStat
 
-IGNORED_DIRS = {
-    ".git",
+IGNORED_DIRS = set(default_context_excluded_directories()) | {
     ".venv",
     "venv",
-    "node_modules",
-    "dist",
-    "build",
-    "coverage",
     "__pycache__",
 }
 
