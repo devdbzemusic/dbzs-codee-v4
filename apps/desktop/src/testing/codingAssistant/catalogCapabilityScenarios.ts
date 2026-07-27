@@ -41,8 +41,11 @@ function workspaceContext(deps: CatalogScenarioDeps) {
 }
 
 function catalogSendOptions(deps: CatalogScenarioDeps, scenario: UseCaseScenario): RuntimeChatSendOptions {
+  const directAgentTarget =
+    scenario.targetAgent && scenario.targetAgent !== "runtime_chat";
+
   return {
-    agentMode: scenario.agentMode ? "agent" : "auto",
+    agentMode: scenario.agentMode || directAgentTarget ? "agent" : "auto",
     enabledSkillIds: scenario.skillId ? [scenario.skillId] : undefined
   };
 }
@@ -117,66 +120,88 @@ async function runChatScenario(deps: CatalogScenarioDeps, scenario: UseCaseScena
   }
 
   const prompt = scenario.prompt ?? scenario.title;
+  const expectedAgent = (scenario.targetAgent as ModelTargetAgent | undefined) ?? "runtime_chat";
+  setCapabilityBrokerAgentOverride(expectedAgent);
   const sent = await useRuntimeChatStore.getState().sendMessage(
     prompt,
     deps.runningStatus,
     null,
     workspaceContext(deps),
     null,
-    (scenario.targetAgent as ModelTargetAgent | undefined) ?? "runtime_chat",
+    expectedAgent,
     catalogSendOptions(deps, scenario)
   );
 
-  const messages = useRuntimeChatStore.getState().messages;
-  const assistantContent = messages.filter((message) => message.role === "assistant").at(-1)?.content ?? mockResponse;
-  const combined = messages.map((message) => message.content).join("\n");
-  const keywords = evaluateKeywordExpectations(combined, scenario);
+  try {
+    const messages = useRuntimeChatStore.getState().messages;
+    const assistantContent = messages.filter((message) => message.role === "assistant").at(-1)?.content ?? mockResponse;
+    const combined = messages.map((message) => message.content).join("\n");
+    const keywords = evaluateKeywordExpectations(combined, scenario);
 
-  if (!sent) {
-    const detail = useRuntimeChatStore.getState().error ?? "no error";
-    return { status: "fail" as const, message: `sendMessage lieferte false: ${detail}` };
+    if (!sent) {
+      const detail = useRuntimeChatStore.getState().error ?? "no error";
+      return { status: "fail" as const, message: `sendMessage lieferte false: ${detail}` };
+    }
+    if (!keywords.ok) {
+      return {
+        status: "fail" as const,
+        message: `Erwartung verfehlt. Fehlend: ${keywords.missing.join(", ")}. Verboten: ${keywords.forbidden.join(", ")}`,
+        improvementHint: scenario.improvementHint
+      };
+    }
+    return { status: "pass" as const, message: `Antwort OK (${assistantContent.length} Zeichen).` };
+  } finally {
+    setCapabilityBrokerAgentOverride(null);
   }
-  if (!keywords.ok) {
-    return {
-      status: "fail" as const,
-      message: `Erwartung verfehlt. Fehlend: ${keywords.missing.join(", ")}. Verboten: ${keywords.forbidden.join(", ")}`,
-      improvementHint: scenario.improvementHint
-    };
-  }
-  return { status: "pass" as const, message: `Antwort OK (${assistantContent.length} Zeichen).` };
 }
 
 async function runPatchScenario(deps: CatalogScenarioDeps, scenario: UseCaseScenario) {
   const mockResponse = resolveMockResponse(scenario);
   deps.mockAssistantResponse(mockResponse);
   deps.queueProposedChangesMock.mockClear();
+  const expectedAgent = (scenario.targetAgent as ModelTargetAgent | undefined) ?? "coder";
+  setCapabilityBrokerAgentOverride(expectedAgent);
 
-  await useRuntimeChatStore.getState().sendMessage(
+  const sent = await useRuntimeChatStore.getState().sendMessage(
     scenario.prompt ?? scenario.title,
     deps.runningStatus,
     null,
     workspaceContext(deps),
     null,
-    (scenario.targetAgent as ModelTargetAgent | undefined) ?? "coder",
+    expectedAgent,
     catalogSendOptions(deps, scenario)
   );
 
-  if (scenario.expectPatchQueue && deps.queueProposedChangesMock.mock.calls.length > 0) {
-    const firstBatch = deps.queueProposedChangesMock.mock.calls[0]?.[0];
-    const patchCount = Array.isArray(firstBatch) ? firstBatch.length : 0;
-    if (scenario.expectPatchCount && patchCount !== scenario.expectPatchCount) {
-      return {
-        status: "fail" as const,
-        message: `Erwartet ${scenario.expectPatchCount} Patches, erhalten ${patchCount}.`,
-        improvementHint: scenario.improvementHint
-      };
-    }
+  if (!sent) {
+    setCapabilityBrokerAgentOverride(null);
+    const detail = useRuntimeChatStore.getState().error ?? "no error";
     return {
-      status: "pass" as const,
-      message: `${patchCount} Aenderung(en) in Queue.`
+      status: "fail" as const,
+      message: `sendMessage lieferte false: ${detail}`,
+      improvementHint: scenario.improvementHint
     };
   }
-  return { status: "fail" as const, message: "Kein Patch in Queue.", improvementHint: scenario.improvementHint };
+
+  try {
+    if (scenario.expectPatchQueue && deps.queueProposedChangesMock.mock.calls.length > 0) {
+      const firstBatch = deps.queueProposedChangesMock.mock.calls[0]?.[0];
+      const patchCount = Array.isArray(firstBatch) ? firstBatch.length : 0;
+      if (scenario.expectPatchCount && patchCount !== scenario.expectPatchCount) {
+        return {
+          status: "fail" as const,
+          message: `Erwartet ${scenario.expectPatchCount} Patches, erhalten ${patchCount}.`,
+          improvementHint: scenario.improvementHint
+        };
+      }
+      return {
+        status: "pass" as const,
+        message: `${patchCount} Aenderung(en) in Queue.`
+      };
+    }
+    return { status: "fail" as const, message: "Kein Patch in Queue.", improvementHint: scenario.improvementHint };
+  } finally {
+    setCapabilityBrokerAgentOverride(null);
+  }
 }
 
 async function runMarkdownPatchScenario(deps: CatalogScenarioDeps) {
