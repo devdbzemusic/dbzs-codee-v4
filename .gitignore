@@ -46,8 +46,9 @@ dev-trace-*.log
 .pytest-local-tmp/
 artifacts/
 
-# Local models
+# Local models (but not the backend's own models/ Python source package)
 models/
+!backend/app/models/
 
 # Local workspace / dev data
 apps/desktop/electron-data/
