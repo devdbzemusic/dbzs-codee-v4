@@ -1,0 +1,197 @@
+{
+  "version": 1,
+  "workspaceId": "runtime-chat-tuning-lab",
+  "description": "Anspruchsvolles Tuning-Lab fuer Runtime-Chat, Review, Refactor, Debugging, direkte Intents und Workflow-Fortsetzungen.",
+  "useCases": [
+    {
+      "id": "workspace-count-gguf",
+      "intent": "workspace_query",
+      "pipeline": "direct_intent",
+      "workflow": "count_files",
+      "prompt": "Zaehle alle gguf Modelle im Workspace",
+      "requiresModel": false,
+      "mustAvoidClarification": true,
+      "expected": {
+        "scope": "workspace",
+        "count": 3,
+        "paths": ["models/qwen", "models/utility"]
+      }
+    },
+    {
+      "id": "workspace-search-shell",
+      "intent": "workspace_query",
+      "pipeline": "direct_intent",
+      "workflow": "search_files",
+      "prompt": "Suche alle Stellen, an denen Shell-Befehle zusammengesetzt werden",
+      "requiresModel": false,
+      "expected": {
+        "files": ["src/api/reviewController.ts"]
+      }
+    },
+    {
+      "id": "meta-status",
+      "intent": "meta_status",
+      "pipeline": "meta_intent",
+      "workflow": "status_answer",
+      "prompt": "Wo sind hier gerade die groessten Risiken?",
+      "requiresModel": false,
+      "expected": {
+        "keywords": ["VIP", "Path", "shell", "cache", "legacy"]
+      }
+    },
+    {
+      "id": "full-review",
+      "intent": "review",
+      "pipeline": "review_pipeline",
+      "workflow": "whole_project",
+      "prompt": "Reviewe das komplette Projekt auf Bugs, Sicherheitsrisiken und fehlende Tests",
+      "requiresModel": true,
+      "expected": {
+        "files": [
+          "src/core/priceEngine.ts",
+          "src/api/reviewController.ts",
+          "src/services/cacheRegistry.ts",
+          "src/workflows/syncUsers.ts"
+        ]
+      }
+    },
+    {
+      "id": "targeted-refactor",
+      "intent": "refactor",
+      "pipeline": "implementation_pipeline",
+      "workflow": "single_file_refactor",
+      "prompt": "Refactore src/core/reportFormatter.ts, aber veraendere das Verhalten nicht",
+      "requiresModel": true,
+      "mustAvoidScopeExpansion": true,
+      "expected": {
+        "files": ["src/core/reportFormatter.ts"]
+      }
+    },
+    {
+      "id": "debug-vip-pricing",
+      "intent": "debug",
+      "pipeline": "debug_pipeline",
+      "workflow": "root_cause_analysis",
+      "prompt": "Warum sind VIP-Bestellungen teilweise teurer statt billiger?",
+      "requiresModel": true,
+      "expected": {
+        "files": ["src/core/priceEngine.ts"],
+        "keywords": ["discount", "vip", "negative"]
+      }
+    },
+    {
+      "id": "debug-runtime-probe",
+      "intent": "debug",
+      "pipeline": "debug_pipeline",
+      "workflow": "runtime_recovery",
+      "prompt": "Debugge die Runtime-Probe und schlage einen Recovery-Plan vor",
+      "requiresModel": true,
+      "expected": {
+        "files": ["src/runtime/runtimeProbe.ts", "config/runtime.json"],
+        "keywords": ["fallback", "diagnostic", "runtime"]
+      }
+    },
+    {
+      "id": "implementation-safe-scope",
+      "intent": "implement",
+      "pipeline": "implementation_pipeline",
+      "workflow": "safe_fix_only",
+      "prompt": "Fixe die sicheren High-Risks, aber frage vor Legacy-Aenderungen nach",
+      "requiresModel": true,
+      "expected": {
+        "approvalBoundary": "src/legacy"
+      }
+    },
+    {
+      "id": "approval-legacy-boundary",
+      "intent": "approval",
+      "pipeline": "approval_gate",
+      "workflow": "scope_confirmation",
+      "prompt": "Aendere auch src/legacy/normalizeOwner.ts",
+      "requiresModel": true,
+      "expected": {
+        "needsApproval": true
+      }
+    },
+    {
+      "id": "continuation-go-on",
+      "intent": "continuation",
+      "pipeline": "workflow_continuation",
+      "workflow": "continue_existing_task",
+      "prompt": "genau so, mach weiter",
+      "requiresModel": false,
+      "expected": {
+        "treatAsContinuation": true
+      }
+    },
+    {
+      "id": "continuation-status",
+      "intent": "meta_status",
+      "pipeline": "workflow_continuation",
+      "workflow": "status_answer",
+      "prompt": "wie weit bist du?",
+      "requiresModel": false,
+      "expected": {
+        "treatAsMetaQuestion": true
+      }
+    },
+    {
+      "id": "ambiguity-sync-and-reports",
+      "intent": "ambiguous_change",
+      "pipeline": "clarification_or_assumption",
+      "workflow": "multi_area_request",
+      "prompt": "Fixe das Sync-Problem und mach die Reports richtig",
+      "requiresModel": true,
+      "expected": {
+        "files": ["src/workflows/syncUsers.ts", "src/core/reportFormatter.ts"],
+        "maxVisibleQuestions": 1
+      }
+    },
+    {
+      "id": "patch-approval-review-fix",
+      "intent": "remediation",
+      "pipeline": "review_remediation",
+      "workflow": "apply_findings",
+      "prompt": "Behebe die Findings aus dem Review, aber nur P0 bis P2",
+      "requiresModel": true,
+      "expected": {
+        "severityScope": ["P0", "P1", "P2"]
+      }
+    },
+    {
+      "id": "planning-whole-project",
+      "intent": "plan",
+      "pipeline": "planning_pipeline",
+      "workflow": "whole_project_plan",
+      "prompt": "Erstelle einen Umsetzungsplan fuer das ganze Projekt mit Risiken, Reihenfolge und Tests",
+      "requiresModel": true,
+      "expected": {
+        "files": ["src/core", "src/services", "src/runtime", "src/api", "src/workflows"]
+      }
+    },
+    {
+      "id": "security-review-controller",
+      "intent": "review",
+      "pipeline": "review_pipeline",
+      "workflow": "security_focused",
+      "prompt": "Pruefe den Review-Controller nur auf Security-Probleme",
+      "requiresModel": true,
+      "expected": {
+        "files": ["src/api/reviewController.ts"],
+        "keywords": ["command", "path", "injection"]
+      }
+    },
+    {
+      "id": "performance-cache",
+      "intent": "analysis",
+      "pipeline": "analysis_pipeline",
+      "workflow": "performance_hotspot",
+      "prompt": "Wo sind die groessten Performance-Probleme im Cache?",
+      "requiresModel": true,
+      "expected": {
+        "files": ["src/services/cacheRegistry.ts"],
+        "keywords": ["purge", "linear", "ttl"]
+      }
+    }
+  ]
+}

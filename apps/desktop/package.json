@@ -24,7 +24,7 @@
     "test:chat-actions": "vitest run src/testing/chatActions.test.ts",
     "test:file-apply": "vitest run electron/agentPatchCoordinator.test.ts",
     "test:chat-file-apply": "vitest run electron/chatFileApply.integration.test.ts",
-    "test:capabilities": "vitest run src/testing/codingAssistant/capabilitySuite.test.ts",
+    "test:capabilities": "vitest run src/testing/codingAssistant/capabilitySuite.test.ts src/testing/codingAssistant/tuningLabCapabilitySuite.test.ts",
     "test:capabilities:live": "vitest run src/testing/codingAssistant/liveRuntimeProbe.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "icons:generate": "node scripts/generate-icons.mjs",
