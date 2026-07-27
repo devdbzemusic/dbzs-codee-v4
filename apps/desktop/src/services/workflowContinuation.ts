@@ -47,6 +47,7 @@ const NEW_TASK_PATTERNS = [
 
 const WORKFLOW_ANSWER_PATTERNS = [
   /^(ja|jap|yes|yep|genau|passt|okay|ok|klar|gerne|mach das|mach weiter|weiter so)\b/i,
+  /^weiter\b/i,
   /^a\s*[-–—:]/i,
   /^b\s*[-–—:]/i,
   /^option\s*[ab]/i,

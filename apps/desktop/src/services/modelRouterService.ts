@@ -10,6 +10,9 @@ import { modelRegistryService } from "@/services/modelRegistryService";
  * Legacy helper for non-broker surfaces.
  * Must NOT prefer already-running models over configured role settings.
  * Runtime Chat should use modelSelectionBroker.brokerDecision exclusively.
+ * Not reachable from the live decision path: the only production caller is
+ * runtimeChatStoreRoutingPhase.ts's shadowMode comparison (legacySelected),
+ * which never influences the actual routing outcome.
  */
 function preferredModelForAgent(settings: AppSettings, agent: ModelTargetAgent): string {
   switch (agent) {

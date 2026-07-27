@@ -11,6 +11,8 @@ import type {
   AgentRunnerStatus,
   AgentUpdateRequest,
   AllowedCommand,
+  BackupSummary,
+  RestoreSummary,
   CommitAssistantContext,
   CommitMessageSuggestion,
   CommitRequest,
@@ -196,6 +198,10 @@ declare global {
       restorePoint?: (workspaceRoot: string, restorePointId: string) => Promise<RestoreResult>;
       deleteRestorePoint?: (workspaceRoot: string, restorePointId: string) => Promise<{ deleted: boolean }>;
       cleanupRestorePoints?: (workspaceRoot: string) => Promise<{ removed: string[] }>;
+      listBackups?: () => Promise<BackupSummary[]>;
+      createBackup?: () => Promise<BackupSummary>;
+      restoreBackup?: (backupId: string) => Promise<RestoreSummary>;
+      openBackupsFolder?: (backupId?: string) => Promise<{ status: "ok" }>;
       openInSystemExplorer?: (targetPath?: string) => Promise<{ status: string }>;
       promptTextInput?: (request: {
         title: string;

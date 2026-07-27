@@ -7,7 +7,18 @@
     ".git",
     "dist",
     "build",
+    "out",
     "target",
-    "coverage"
+    "coverage",
+    ".cache",
+    "playwright-report",
+    "test-results",
+    ".next",
+    ".turbo"
+  ],
+  "excludedFilePatterns": [
+    "*.log",
+    ".env",
+    ".env.*"
   ]
 }

@@ -10,12 +10,32 @@ Stand: 2026-07-27
 
 - Repo-Readiness auf lokalem Repair-Stand nachgewiesen.
 - Vollstaendige Windows-Required-Gates liefen lokal gruen ueber `pnpm ci:local:win`.
+- Runtime-Chat wurde auf dem Arbeitsbranch `codex/runtime-chat-overhaul-conversation-first`
+  in Richtung `conversation first` umgebaut.
+- Vor dem Umbau wurden ein Git-Backup-Branch und ein physischer Projektsnapshot erzeugt:
+  - `codex/backup-runtime-chat-overhaul-2026-07-27`
+  - `C:\Users\ralle\source\repos\_backups\dbzs-codee-project-backup-2026-07-27-runtime-chat-overhaul`
 - GitHub-CI ist derzeit nicht automatisch an `push` oder `pull_request` gebunden.
 - `origin/main` zeigt auf `97063959fb54fbc6ba220797773174b4bf990732`.
 - Offene Pull Requests im Repo `devdbzemusic/dbzs-codee-v4`: keine.
 - Branch Protection fuer `main`: aktuell nicht aktiv.
 
 Der Repair-Run vom 2026-07-27 wurde bewusst auf Nachweis, Doku-Wahrheit und GitHub-Hygiene ausgerichtet, nicht auf neue Features.
+
+## Runtime-Chat-Overhaul
+
+Der aktuelle Runtime-Chat-Arbeitsstand priorisiert Gespraechsfuehrung vor Technikflaechen:
+
+- Conversation-Feed und Composer dominieren die Standardansicht.
+- Panels, Slots und Routing-Diagnose bleiben erhalten, sind aber sekundaer.
+- Kurze Antworten wie `weiter`, `mach weiter` oder `genau so` werden bevorzugt
+  als Fortsetzung behandelt.
+- Statusfragen wie `Wie weit bist du?` oder `Wo stehen wir?` werden als direkte
+  Meta-Anfrage erkannt.
+- Die Tuning-Lab-Goldpfade fuer Runtime-Chat wurden erneut gruen bestaetigt.
+
+Der Desktop liess sich nach diesem Umbau lokal erfolgreich ueber `pnpm dev`
+beziehungsweise `start-dev.ps1` starten.
 
 ## Bestaetigte Nachweise
 
@@ -55,6 +75,19 @@ Bestaetigt am 2026-07-27:
 
 - Desktop Capability Suite: 37/37
 - Backend Capability-/Scenario-/Tuning-Lab-Fixtures: 15 Tests bestanden
+
+### Runtime-Chat-Tuning-Lab
+
+Die aktuelle Runtime-Chat-Abnahme fuer den Conversational-Umbau wurde lokal erneut
+bestaetigt ueber:
+
+```powershell
+pnpm --filter @dbzs/desktop exec tsc --noEmit -p tsconfig.web.json
+pnpm --filter @dbzs/desktop exec vitest run src/components/RuntimeChatTab.test.tsx src/services/conversationMetaIntent.test.ts src/services/workflowContinuation.review.test.ts
+$env:RUN_CAPABILITY_SUITE='1'; pnpm --filter @dbzs/desktop exec vitest run src/testing/codingAssistant/tuningLabCapabilitySuite.test.ts
+cd backend
+uv run pytest tests/test_runtime_chat_tuning_lab_fixture.py -q
+```
 
 ## CI-Realitaet
 

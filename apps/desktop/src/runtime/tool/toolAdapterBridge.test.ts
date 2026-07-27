@@ -18,6 +18,12 @@ describe("DesktopToolAdapterBridge workspace policy", () => {
         relativePath: ".codee/resources/old.ts",
         name: "old.ts",
         language: "typescript"
+      },
+      {
+        path: `${workspaceRoot}/.env`,
+        relativePath: ".env",
+        name: ".env",
+        language: "text"
       }
     ];
     useWorkspaceStore.setState({
@@ -52,6 +58,22 @@ describe("DesktopToolAdapterBridge workspace policy", () => {
   it("blockiert direkte interne Reads ohne bestaetigten Zugriff", async () => {
     const adapter = new DesktopToolAdapterBridge();
     await expect(adapter.readFile(".codee/resources/old.ts")).rejects.toThrow("excluded");
+    expect(window.dbzs.readProjectFile).not.toHaveBeenCalled();
+  });
+
+  it("verbirgt .env in list_files, Suche und grep", async () => {
+    const adapter = new DesktopToolAdapterBridge();
+
+    await expect(adapter.listFiles(undefined, true)).resolves.toEqual(["src/App.tsx"]);
+    await expect(adapter.searchWorkspace("env", 10)).resolves.toEqual([]);
+    await expect(adapter.grep(".*", undefined, 10)).resolves.toEqual([
+      "src/App.tsx:1:export const App = true;"
+    ]);
+  });
+
+  it("blockiert direkte .env Reads", async () => {
+    const adapter = new DesktopToolAdapterBridge();
+    await expect(adapter.readFile(".env")).rejects.toThrow("excluded");
     expect(window.dbzs.readProjectFile).not.toHaveBeenCalled();
   });
 });

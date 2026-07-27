@@ -1,41 +1,21 @@
 import {
   type BackendStartupStatus,
-  type RuntimeChatMessage,
   type RuntimeStatus,
   type WorkspaceFile,
   type WorkspaceProjectFile,
-  workspaceScopeId
 } from "@dbzs/shared";
-import React, { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRuntimeChatStore } from "@/stores/runtimeChatStore";
 import { useRuntimeChatApprovalStore } from "@/stores/runtimeChatApprovalStore";
-import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { closeRuntimeChatWindow, openRuntimeChatWindow } from "@/utils/runtimeChatWindow";
-import { RuntimeChatApprovals, useRuntimeChatPendingApprovalCount } from "@/components/RuntimeChatApprovals";
-import { RuntimeChatActivityPanel } from "@/components/RuntimeChatActivityPanel";
-import { RuntimeChatPatchPanel } from "@/components/RuntimeChatPatchPanel";
-import { RuntimeChatResearchPanel } from "@/components/RuntimeChatResearchPanel";
-import { RuntimeChatToolCardList } from "@/components/RuntimeChatToolCard";
-import { RuntimeModelTestPanel } from "@/components/RuntimeModelTestPanel";
-import { RuntimeChatToolsBar } from "@/components/RuntimeChatToolsBar";
-import { RuntimeSlotPanel } from "@/components/RuntimeSlotPanel";
-import {
-  getRuntimeAgentActionsForMessage,
-  getTransportActionTone,
-  getTransportChatActions,
-  hasPendingRuntimeActionKind,
-  isRejectTransportAction
-} from "@/services/runtimeChatActionSelectors";
+import { useRuntimeChatPendingApprovalCount } from "@/components/RuntimeChatApprovals";
 import { buildWorkspaceContext } from "@/services/runtimeChatContext";
 import { insertMention, suggestMentionPaths } from "@/services/runtimeChatContextMentions";
 import { agentLabel } from "@/services/runtimeChatActivityHelpers";
 import { useEditorStore } from "@/stores/editorStore";
-import { CodeeRunLiveBlock } from "@/components/chat/CodeeRunLiveBlock";
 import { codeIndexService } from "@/services/codeIndexService";
-import { RoutingDiagnosticsCard } from "@/components/RoutingDiagnosticsCard";
 import {
-  formatLazyRuntimeStatusLabel,
   isWorkModelLoaded,
   looksLikeOrchestratorModel
 } from "@/services/lazyRuntimePolicy";
@@ -47,9 +27,12 @@ import type { RoutingDiagnostics } from "@/types/runtimeRoutingDiagnostics";
 import { formatBootStateForUi } from "@/services/bootUiFormatter";
 import { TokenBudgetVisualizer } from "./TokenBudgetVisualizer";
 import {
-  RuntimeChatMessageCard,
   stripPrivateReasoning
 } from "@/components/runtime-chat/RuntimeChatMessageCard";
+import { RuntimeChatConversationFeed } from "@/components/runtime-chat/RuntimeChatConversationFeed";
+import { RuntimeChatComposer } from "@/components/runtime-chat/RuntimeChatComposer";
+import { RuntimeChatHeader } from "@/components/runtime-chat/RuntimeChatHeader";
+import { RuntimeChatSecondaryPanels } from "@/components/runtime-chat/RuntimeChatSecondaryPanels";
 
 interface RuntimeChatTabProps {
   activeFile: WorkspaceFile | null;
@@ -305,16 +288,6 @@ export function RuntimeChatTab({
     })();
   };
 
-  const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Enter" || event.shiftKey) {
-      return;
-    }
-    event.preventDefault();
-    if (!isSending && runtimeReady && draft.trim().length > 0) {
-      submitMessage();
-    }
-  };
-
   const embeddedInPanel = compact && !detached;
   const shellClass = embeddedInPanel
     ? "border border-dbzs-border bg-dbzs-panelSoft"
@@ -324,112 +297,43 @@ export function RuntimeChatTab({
 
   const chatContent = (
     <>
-          {/* Kompakte Kopfzeile */}
-          <div className="flex items-center gap-2 border-b border-dbzs-border bg-dbzs-panel px-2 py-1.5">
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[11px] font-medium text-dbzs-text">Runtime Chat</div>
-            <div className="truncate text-[10px] text-dbzs-muted">{statusLabel}</div>
-            {activeActivity ? (
-              <div className="mt-0.5 flex items-center gap-1 text-[9px] text-dbzs-cyan">
-                <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-dbzs-cyan" />
-                <span>{workspaceContextStep?.detail ?? activeActivity.steps.find((step) => step.status === "running")?.label ?? activeActivity.summary ?? "Aktivität läuft"}</span>
-              </div>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <select
-              className="rounded border border-dbzs-border bg-dbzs-panelSoft px-1.5 py-0.5 text-[10px] text-dbzs-text"
-              onChange={(event) => setSelectedProvider(event.target.value)}
-              value={selectedProvider}
-              title="Provider für die Chat-Anfrage"
-            >
-              {availableProviders.map((provider) => (
-                <option key={provider} value={provider}>
-                  {provider}
-                </option>
-              ))}
-            </select>
-            {pendingApprovalCount > 0 ? (
-              <span className="rounded border border-dbzs-cyan/40 bg-dbzs-cyan/10 px-1.5 py-0.5 text-[10px] text-dbzs-cyan">
-                {pendingApprovalCount}
-              </span>
-            ) : null}
-            <button
-              className={`border px-1.5 py-0.5 text-[10px] ${showPanels ? "border-dbzs-cyan/50 text-dbzs-cyan" : "border-dbzs-border text-dbzs-muted"}`}
-              onClick={() => setShowPanels((v) => !v)}
-              type="button"
-            >
-              Panel
-            </button>
-            <button
-              className={`border px-1.5 py-0.5 text-[10px] ${showSlotPanel ? "border-dbzs-cyan/50 text-dbzs-cyan" : "border-dbzs-border text-dbzs-muted"}`}
-              onClick={() => setShowSlotPanel((v) => !v)}
-              type="button"
-              title="Runtime Slots verwalten"
-            >
-              Slots
-            </button>
-            {!compact ? (
-              <button
-                className={`border px-1.5 py-0.5 text-[10px] ${showDiagnostics ? "border-dbzs-cyan/50 text-dbzs-cyan" : "border-dbzs-border text-dbzs-muted"}`}
-                onClick={() => setShowDiagnostics((v) => !v)}
-                type="button"
-              >
-                Diagnose
-              </button>
-            ) : null}
-            {detached ? (
-              <button className="border border-dbzs-border px-1.5 py-0.5 text-[10px] text-dbzs-muted" onClick={() => void closeRuntimeChatWindow()} type="button">
-                ✕
-              </button>
-            ) : (
-              <button className="border border-dbzs-cyan/40 bg-dbzs-cyan/10 px-1.5 py-0.5 text-[10px] text-dbzs-cyan" onClick={() => void openRuntimeChatWindow()} type="button">
-                ↗
-              </button>
-            )}
-            <button className="border border-dbzs-border px-1.5 py-0.5 text-[10px] text-dbzs-muted disabled:opacity-40" disabled={messages.length < 6 || isSending} onClick={compactConversation} type="button">
-              Kompakt
-            </button>
-            <button className="border border-dbzs-border px-1.5 py-0.5 text-[10px] text-dbzs-muted disabled:opacity-40" disabled={messages.length === 0 || isSending} onClick={clear} type="button">
-              Leeren
-            </button>
-          </div>
-        </div>
-
-        {activeActivity && activeActivity.steps.length > 0 ? (
-          <div className="border-b border-dbzs-border bg-dbzs-panel/70 px-2 py-1.5">
-            <div className="mb-1 text-[9px] uppercase tracking-wide text-dbzs-muted">Aktivität</div>
-            <div className="space-y-1">
-              {activeActivity.steps.slice(0, 4).map((step) => (
-                <div key={step.id} className="flex items-start gap-2 rounded border border-dbzs-border/60 bg-dbzs-bg/60 px-2 py-1 text-[10px]">
-                  <span className={`mt-0.5 inline-flex h-2 w-2 shrink-0 rounded-full ${step.status === "running" ? "bg-dbzs-cyan animate-pulse" : step.status === "done" ? "bg-dbzs-cyan" : step.status === "error" ? "bg-dbzs-red" : "bg-dbzs-border"}`} />
-                  <div className="min-w-0">
-                    <div className="font-medium text-dbzs-text">{step.label}</div>
-                    {step.detail ? <div className="truncate text-dbzs-muted">{step.detail}</div> : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        <div className="border-b border-dbzs-border bg-dbzs-bg/70 px-2 py-1.5">
-          <div className="flex flex-wrap items-center gap-2 text-[10px] text-dbzs-muted">
-            <span className="rounded border border-dbzs-border/70 bg-dbzs-panelSoft px-1.5 py-0.5">
-              {workspaceRoot ? `${workspaceName ?? "WS"} · ${workspaceFiles.length} Dateien` : "Kein Workspace"}
-            </span>
-            <span className="rounded border border-dbzs-border/70 bg-dbzs-panelSoft px-1.5 py-0.5">
-              {activeFile?.name ?? "Keine aktive Datei"}
-            </span>
-            <span className="rounded border border-dbzs-border/70 bg-dbzs-panelSoft px-1.5 py-0.5">
-              {contextReadinessHint ?? "Kontext bereit"}
-            </span>
-          </div>
-        </div>
+      <RuntimeChatHeader
+        title="Runtime Chat"
+        subtitle={statusLabel}
+        activityHint={
+          activeActivity
+            ? workspaceContextStep?.detail ??
+              activeActivity.steps.find((step) => step.status === "running")?.label ??
+              activeActivity.summary ??
+              "Aktivität läuft"
+            : null
+        }
+        selectedProvider={selectedProvider}
+        availableProviders={availableProviders}
+        pendingApprovalCount={pendingApprovalCount}
+        showPanels={showPanels}
+        showSlotPanel={showSlotPanel}
+        showDiagnostics={showDiagnostics}
+        compact={compact}
+        detached={detached}
+        onProviderChange={setSelectedProvider}
+        onTogglePanels={() => setShowPanels((value) => !value)}
+        onToggleSlots={() => setShowSlotPanel((value) => !value)}
+        onToggleDiagnostics={() => setShowDiagnostics((value) => !value)}
+        onDetach={() => void openRuntimeChatWindow()}
+        onClose={() => void closeRuntimeChatWindow()}
+        onCompactConversation={compactConversation}
+        onClearConversation={clear}
+        canCompactConversation={messages.length >= 6 && !isSending}
+        canClearConversation={messages.length > 0 && !isSending}
+        workspaceLabel={workspaceRoot ? `${workspaceName ?? "WS"} · ${workspaceFiles.length} Dateien` : "Kein Workspace"}
+        activeFileLabel={activeFile?.name ?? "Keine aktive Datei"}
+        contextLabel={contextReadinessHint ?? "Kontext bereit"}
+      />
 
         <details className="border-b border-dbzs-border bg-dbzs-bg px-2 py-1">
           <summary className="cursor-pointer text-[10px] text-dbzs-muted">
-            Arbeitskontext & Schnellaktionen
+            Schnellaktionen & erweiterte Optionen
           </summary>
           <div className="mt-2 flex flex-wrap items-center gap-1">
             {(["plan", "refactor", "review", "summarize", "next_steps"] as const).map((preset) => (
@@ -471,160 +375,79 @@ export function RuntimeChatTab({
           </div>
         ) : null}
 
-        <RuntimeChatToolsBar compact={compact} />
+      <RuntimeChatSecondaryPanels
+        compact={compact}
+        showPanels={showPanels}
+        showSlotPanel={showSlotPanel}
+        showDiagnostics={showDiagnostics}
+        queueProposedChanges={queueProposedChanges}
+        workspaceRoot={workspaceRoot}
+        onStatusNote={setContextNote}
+        diagnostics={
+          lastRouting || activeRun?.fallbackRejection || activeRun?.warmupDiagnostics
+            ? ({
+                decision: {
+                  decidedAt: lastBrokerDecision?.decidedAt ?? activeRun?.startedAt ?? new Date().toISOString(),
+                  taskType: lastBrokerDecision?.taskType ?? activeRun?.taskType ?? "unknown",
+                  targetAgent: lastRouting?.targetAgent ?? activeRun?.targetAgentLabel ?? "unknown",
+                  slotId: lastRouting?.slotId || "unknown",
+                  modelId: lastRouting?.modelId ?? "unknown",
+                  modelName: lastRouting?.modelName ?? "unknown",
+                  reason: lastBrokerDecision?.reason ?? `Provider: ${lastRouting?.providerId || "runtime"}`,
+                  source: lastRouting?.selectionSource ?? "automatic"
+                },
+                validation: {
+                  slotReady: status?.state === "running" && !!status?.endpoint,
+                  slotMessage: status?.state === "running" ? "Ready" : "Not running",
+                  memoryAvailable: true,
+                  memoryMessage: "Available",
+                  canStart: status?.state === "running"
+                },
+                errorClassification: error
+                  ? { errorType: "chat_error", errorMessage: error, retryable: false, retryCount: 0 }
+                  : undefined,
+                fallbackRejection: activeRun?.fallbackRejection,
+                warmup: activeRun?.warmupDiagnostics
+              } as RoutingDiagnostics)
+            : null
+        }
+        tokenBudget={activeRun?.tokenBudget}
+        runtimeReady={runtimeReady}
+      />
 
-        {showPanels ? (
-          <div className="border-b border-dbzs-border">
-            <RuntimeChatActivityPanel />
-            <RuntimeChatApprovals
-              onStatusNote={setContextNote}
-              queueProposedChanges={queueProposedChanges}
-              workspaceRoot={workspaceRoot}
-            />
-            <RuntimeChatPatchPanel />
-            <RuntimeChatResearchPanel />
-          </div>
-        ) : null}
-
-        {showSlotPanel ? (
-          <div className="border-b border-dbzs-border">
-            <RuntimeSlotPanel compact={false} autoStart={false} />
-          </div>
-        ) : null}
-
-        {showDiagnostics && !compact ? (
-          <div className="border-b border-dbzs-border">
-            {lastRouting || activeRun?.fallbackRejection || activeRun?.warmupDiagnostics ? (
-              <RoutingDiagnosticsCard
-                diagnostics={
-                  {
-                    decision: {
-                      decidedAt: lastBrokerDecision?.decidedAt ?? activeRun?.startedAt ?? new Date().toISOString(),
-                      taskType: lastBrokerDecision?.taskType ?? activeRun?.taskType ?? "unknown",
-                      targetAgent: lastRouting?.targetAgent ?? activeRun?.targetAgentLabel ?? "unknown",
-                      slotId: lastRouting?.slotId || "unknown",
-                      modelId: lastRouting?.modelId ?? "unknown",
-                      modelName: lastRouting?.modelName ?? "unknown",
-                      reason: lastBrokerDecision?.reason ?? `Provider: ${lastRouting?.providerId || "runtime"}`,
-                      source: lastRouting?.selectionSource ?? "automatic"
-                    },
-                    validation: {
-                      slotReady: status?.state === "running" && !!status?.endpoint,
-                      slotMessage: status?.state === "running" ? "Ready" : "Not running",
-                      memoryAvailable: true, // Platzhalter, sollte durch echte Prüfung ersetzt werden
-                      memoryMessage: "Available",
-                      canStart: status?.state === "running"
-                    },
-                    errorClassification: error ? { errorType: "chat_error", errorMessage: error, retryable: false, retryCount: 0 } : undefined,
-                    // PRIORITÄT 5: Zeige an, warum ein Fallback abgelehnt wurde.
-                    fallbackRejection: activeRun?.fallbackRejection,
-                    // PRIORITÄT 3: Zeige detaillierte Warm-up-Fehler an.
-                    warmup: activeRun?.warmupDiagnostics
-                  } as RoutingDiagnostics
-                }
-              />
-            ) : (
-              <div className="p-2 text-[10px] text-dbzs-muted">No routing decision yet</div>
-            )}
-            <TokenBudgetVisualizer budget={activeRun?.tokenBudget} />
-            <RuntimeModelTestPanel runtimeReady={runtimeReady} />
-          </div>
-        ) : null}
-
-        {/* Nachrichten */}
-        <div className="bg-dbzs-bg px-2 py-2">
-          {messages.length === 0 ? (
-            <p className="px-2 py-4 text-[11px] leading-5 text-dbzs-muted">
-              Frage zum Modell, Workspace oder Code. Skills oben aktivieren, Tools fuer Dateiscan.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {messages.map((message, index) => {
-                // Finde Run zu dieser Nachricht (User-Nachricht → Run → Assistant-Nachricht)
-                const userRun = message.role === "user" && message.id 
-                  ? Object.values(historicalRuns).find(r => r.userMessageId === message.id) || (activeRun?.userMessageId === message.id ? activeRun : null)
-                  : null;
-                
-                return (
-                  <React.Fragment key={`${message.role}-${index}`}>
-                    <RuntimeChatMessageCard
-                      compact={compact}
-                      message={message}
-                      canApply={!isSending}
-                      isStreaming={isStreaming && index === messages.length - 1 && message.role === "assistant"}
-                      onApply={applyAssistantProposal}
-                    />
-                    {/* Render Run direkt nach User-Nachricht */}
-                    {userRun && (
-                      <CodeeRunLiveBlock 
-                        run={userRun} 
-                        onCancel={() => cancelSend(userRun.id)} 
-                        isSending={isSending && activeRun?.id === userRun.id} 
-                        workspaceRoot={workspaceRoot}
-                        onFixFindings={(reviewId) =>
-                          void sendMessage(
-                            `Findings beheben\nReview-ID: ${reviewId}`,
-                            status,
-                            activeFile,
-                            null,
-                            contextHint,
-                            "runtime_chat",
-                            sendOptions
-                          )
-                        }
-                        onRerunReview={() =>
-                          void sendMessage(
-                            "Mache einen vollständigen Repository Review.",
-                            status,
-                            activeFile,
-                            null,
-                            contextHint,
-                            "runtime_chat",
-                            sendOptions
-                          )
-                        }
-                      />
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Aktiver Run falls keine User-Nachricht zugeordnet (Fallback) */}
-          {activeRun && !messages.some(m => activeRun.userMessageId === m.id) && (
-            <CodeeRunLiveBlock
-              run={activeRun}
-              onCancel={() => cancelSend(activeRun.id)}
-              isSending={isSending}
-              workspaceRoot={workspaceRoot}
-              onFixFindings={(reviewId) =>
-                void sendMessage(
-                  `Findings beheben\nReview-ID: ${reviewId}`,
-                  status,
-                  activeFile,
-                  null,
-                  contextHint,
-                  "runtime_chat",
-                  sendOptions
-                )
-              }
-              onRerunReview={() =>
-                void sendMessage(
-                  "Mache einen vollständigen Repository Review.",
-                  status,
-                  activeFile,
-                  null,
-                  contextHint,
-                  "runtime_chat",
-                  sendOptions
-                )
-              }
-            />
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
+      <RuntimeChatConversationFeed
+        messages={messages}
+        historicalRuns={historicalRuns}
+        activeRun={activeRun}
+        compact={compact}
+        isSending={isSending}
+        isStreaming={isStreaming}
+        workspaceRoot={workspaceRoot}
+        onApplyAssistantProposal={applyAssistantProposal}
+        onCancelRun={cancelSend}
+        onFixFindings={(reviewId) =>
+          void sendMessage(
+            `Findings beheben\nReview-ID: ${reviewId}`,
+            status,
+            activeFile,
+            null,
+            contextHint,
+            "runtime_chat",
+            sendOptions
+          )
+        }
+        onRerunReview={() =>
+          void sendMessage(
+            "Mache einen vollständigen Repository Review.",
+            status,
+            activeFile,
+            null,
+            contextHint,
+            "runtime_chat",
+            sendOptions
+          )
+        }
+      />
 
         {error ? (
           <div
@@ -635,78 +458,24 @@ export function RuntimeChatTab({
           </div>
         ) : null}
 
-        {/* Composer — scrollt mit dem Rest */}
-        <form
-          className="border-t border-dbzs-border bg-dbzs-panel p-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submitMessage();
-          }}
-        >
-          <div className="mb-1 flex flex-wrap items-center gap-1 text-[10px]">
-            <button
-              className={`rounded border px-1.5 py-0.5 ${chatMode === "auto" ? "border-dbzs-cyan/60 bg-dbzs-cyan/10 text-dbzs-cyan" : "border-dbzs-border text-dbzs-muted"}`}
-              onClick={() => setChatMode("auto")}
-              type="button"
-            >
-              Auto
-            </button>
-            <button
-              className={`rounded border px-1.5 py-0.5 ${chatMode === "agent" ? "border-dbzs-cyan/60 bg-dbzs-cyan/10 text-dbzs-cyan" : "border-dbzs-border text-dbzs-muted"}`}
-              onClick={() => setChatMode("agent")}
-              type="button"
-            >
-              Agent
-            </button>
-            <select
-              className="rounded border border-dbzs-border bg-dbzs-bg px-1.5 py-0.5 text-[10px] text-dbzs-muted"
-              disabled={isSending}
-              value={toolProfile}
-              onChange={(e) => setToolProfile(e.currentTarget.value as "ask" | "agent" | "full")}
-            >
-              <option value="ask">Ask</option>
-              <option value="agent">Agent</option>
-              <option value="full">Full</option>
-            </select>
-            <label className="inline-flex items-center gap-1 text-dbzs-muted">
-              <input checked={includeWorkspaceContext} className="h-3 w-3" onChange={(e) => setIncludeWorkspaceContext(e.currentTarget.checked)} type="checkbox" />
-              Kontext
-            </label>
-            <span className="ml-auto truncate text-dbzs-muted">{contextNote ?? "Enter senden · Shift+Enter Zeile"}</span>
-          </div>
-          <div className="mb-2 text-[10px] text-dbzs-muted">
-            Schreibe einfach natürlich, was du erreichen willst. Ich leite Scope und nächste Schritte möglichst direkt aus dem Verlauf und dem aktuellen Kontext ab.
-          </div>
-          <div className="flex gap-2">
-            <textarea
-              className="min-h-[56px] flex-1 resize-y border border-dbzs-border bg-dbzs-bg px-2 py-1.5 text-[11px] leading-5 text-dbzs-text outline-none focus:border-dbzs-cyan/60"
-              disabled={!runtimeReady || isSending}
-              onChange={(event) => setDraft(event.currentTarget.value)}
-              onKeyDown={onComposerKeyDown}
-              placeholder={
-                runtimeReady
-                  ? "Analysiere, plane oder implementiere …"
-                  : "Backend verbinden …"
-              }
-              rows={compact ? 2 : 3}
-              value={draft}
-            />
-            <div className="flex shrink-0 flex-col gap-1">
-              {isSending || isStreaming ? (
-                <button className="border border-red-400/50 bg-red-400/10 px-2 py-1 text-[10px] text-red-400" onClick={(e) => { e.preventDefault(); cancelSend(); }} type="button">
-                  Stopp
-                </button>
-              ) : null}
-              <button
-                className="border border-dbzs-cyan/50 bg-dbzs-cyan/10 px-2 py-1 text-[10px] font-medium text-dbzs-cyan disabled:opacity-40"
-                disabled={!runtimeReady || isSending || draft.trim().length === 0}
-                type="submit"
-              >
-                {isSending ? "…" : "Senden"}
-              </button>
-            </div>
-          </div>
-        </form>
+      <div ref={messagesEndRef} />
+
+      <RuntimeChatComposer
+        draft={draft}
+        runtimeReady={runtimeReady}
+        isSending={isSending}
+        isStreaming={isStreaming}
+        chatMode={chatMode}
+        toolProfile={toolProfile}
+        includeWorkspaceContext={includeWorkspaceContext}
+        contextNote={contextNote}
+        onDraftChange={setDraft}
+        onSubmit={submitMessage}
+        onCancel={() => cancelSend()}
+        setChatMode={setChatMode}
+        setToolProfile={setToolProfile}
+        setIncludeWorkspaceContext={setIncludeWorkspaceContext}
+      />
     </>
   );
 

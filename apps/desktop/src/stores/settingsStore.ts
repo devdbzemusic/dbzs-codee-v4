@@ -44,6 +44,23 @@ interface SettingsState {
   loadDiagnostics: () => Promise<SettingsDiagnostics | null>;
   setBackendStartupStatus: (status: BackendStartupStatus) => void;
   setError: (error: string | null) => void;
+  refreshBackendHealth: () => Promise<boolean>;
+}
+
+function formatSettingsPersistenceError(error: unknown): string {
+  const message =
+    error instanceof Error ? error.message : typeof error === "string" ? error : "Unbekannter Fehler";
+  if (
+    /fetch failed|connection refused|target computer actively refused|reloadbackend is unavailable/i.test(
+      message,
+    )
+  ) {
+    return "Backend offline oder nicht erreichbar. Einstellungen konnten nicht gespeichert werden.";
+  }
+  if (/settings_revision_conflict/i.test(message)) {
+    return "Settings-Konflikt erkannt. Bitte Einstellungen neu laden und erneut speichern.";
+  }
+  return message;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -64,6 +81,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
   setError: (error) => set({ error }),
+  refreshBackendHealth: async () => {
+    try {
+      const backendHealth = await backendClient.getBackendHealth();
+      set({ backendHealth, error: null });
+      return true;
+    } catch (error) {
+      set({
+        backendHealth: null,
+        error: formatSettingsPersistenceError(error),
+      });
+      return false;
+    }
+  },
   loadInitialState: async () => {
     set({ isLoading: true, error: null });
     try {
@@ -80,7 +110,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }));
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Unbekannter Backend-Fehler",
+        backendHealth: null,
+        error: formatSettingsPersistenceError(error),
         isLoading: false,
       });
     }
@@ -102,7 +133,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       return true;
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Settings konnten nicht gespeichert werden",
+        backendHealth: null,
+        error: formatSettingsPersistenceError(error),
         isLoading: false,
       });
       return false;
@@ -130,7 +162,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       return true;
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : "Settings-Patch fehlgeschlagen",
+        backendHealth: null,
+        error: formatSettingsPersistenceError(error),
         isLoading: false,
       });
       return false;

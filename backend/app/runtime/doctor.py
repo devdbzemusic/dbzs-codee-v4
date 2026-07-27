@@ -172,22 +172,32 @@ def build_runtime_doctor(
         )
     )
     ollama_exe = ollama_path / "ollama.exe"
+    discovery_mode = get_model_discovery_mode()
 
     checks = [
         _path_check("models_dir", models_path, required=True),
         _path_check("models_catalog", models_path / "models.catalog.json"),
         _path_check("llama_server", llama_server),
-        _path_check("ollama_exe", ollama_exe),
-        _path_check("ollama_models_dir", ollama_models_path),
         _port_status(8091),
-        _port_status(11434),
     ]
+    if discovery_mode == "project_local_strict":
+        checks.append(
+            RuntimeCheck(
+                id="ollama_discovery",
+                status="ok",
+                message="Ollama discovery disabled by project_local_strict mode.",
+            )
+        )
+    else:
+        checks.append(_path_check("ollama_exe", ollama_exe))
+        checks.append(_path_check("ollama_models_dir", ollama_models_path))
+        checks.append(_port_status(11434))
 
     index_service = ModelIndexService(
         models_dir=models_path,
         ollama_dir=ollama_path,
         ollama_models_dir=ollama_models_path,
-        discovery_mode=get_model_discovery_mode(),
+        discovery_mode=discovery_mode,
     )
     index = index_service.build_index()
     model_entries: list[ModelDoctorEntry] = []

@@ -14,6 +14,8 @@ describe("detectConversationMetaIntent", () => {
     ).toBe("summarize_active_task");
     expect(detectConversationMetaIntent("Bitte kurz zusammenfassen")).toBe("summarize_active_task");
     expect(detectConversationMetaIntent("status recap")).toBe("summarize_active_task");
+    expect(detectConversationMetaIntent("Wie weit bist du?")).toBe("summarize_active_task");
+    expect(detectConversationMetaIntent("Wo stehen wir gerade?")).toBe("summarize_active_task");
   });
 
   it("erkennt Plan/Next nicht als Summary", () => {

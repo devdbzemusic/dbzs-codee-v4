@@ -1,5 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { promises as fs } from "node:fs";
+import { promises as fs, appendFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type MenuItemConstructorOptions } from "electron";
@@ -48,8 +48,10 @@ import { PatchPipelineService } from "./patchPipelineService.js";
 import { CommandExecutionService } from "./commandExecutionService.js";
 import { GitService } from "./gitService.js";
 import { resolveCanonicalWorkspacePath } from "./workspacePathGuard.js";
+import { redactSecrets } from "./boot/secretRedaction.js";
 import { CommitAssistantService } from "./commitAssistantService.js";
 import { RestorePointService } from "./restorePointService.js";
+import { BackupService } from "./backupService.js";
 import { AgentPatchCoordinator } from "./agentPatchCoordinator.js";
 import { AgentWebResearchService } from "./webResearchService.js";
 import {
@@ -88,6 +90,7 @@ import { registerBootEventBridge } from "./boot/bootEventBridge.js";
 import { WindowCoordinator } from "./boot/windowCoordinator.js";
 import { exportBootDiagnosticsToFile } from "./boot/bootDiagnosticExport.js";
 import { startBootLogPersistence } from "./boot/bootLogPersistence.js";
+import { writeFileAtomic } from "./atomicFileWrite.js";
 import { registerRuntimeAndJobIpcHandlers } from "./runtimeAndJobIpc.js";
 
 const BACKEND_PORT = Number(process.env.DBZS_BACKEND_PORT ?? "8876");
@@ -112,6 +115,7 @@ interface RuntimeChatContextSnapshot {
 let runtimeChatContext: RuntimeChatContextSnapshot | null = null;
 let currentWorkspaceState: WorkspaceState = workspaceDefaults();
 const restorePointService = new RestorePointService();
+const backupService = new BackupService();
 const fileChangeService = new FileChangeService({ restorePointService });
 const patchPipelineService = new PatchPipelineService({ fileChangeService, restorePointService });
 const agentPatchCoordinator = new AgentPatchCoordinator({ patchPipelineService, restorePointService });
@@ -128,6 +132,24 @@ function workspaceStatePath(): string {
 
 function skillPackageService(): SkillPackageService {
   return new SkillPackageService(path.join(app.getPath("userData"), "skills"));
+}
+
+/**
+ * Best-effort safety net for abnormal exits. Workspace state is already
+ * persisted synchronously on every change (see dbzs:workspace:set-state), so
+ * there is little to actually flush -- the main value here is recording why
+ * the process went down, since an unhandled main-process exception otherwise
+ * leaves no trace the user can see. Must never itself throw.
+ */
+function flushPendingState(reason: string, detail: string): void {
+  try {
+    const logDir = path.join(app.getPath("userData"), "logs");
+    mkdirSync(logDir, { recursive: true });
+    const line = `${new Date().toISOString()} [${reason}] ${redactSecrets(detail)}\n`;
+    appendFileSync(path.join(logDir, "crash.log"), line, "utf8");
+  } catch {
+    // Never let the crash logger itself crash the app.
+  }
 }
 
 
@@ -1202,14 +1224,7 @@ ipcMain.handle("dbzs:workspace:write-project-file", async (_event, filePath: str
     lexicalPath,
     { allowMissing: true }
   );
-  const temporaryPath = `${safePath}.codee-tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  try {
-    await fs.writeFile(temporaryPath, content, { encoding: "utf-8", flag: "wx" });
-    await fs.rename(temporaryPath, safePath);
-  } catch (error) {
-    await fs.rm(temporaryPath, { force: true }).catch(() => undefined);
-    throw error;
-  }
+  await writeFileAtomic(safePath, content);
   return readWorkspaceFile(safePath);
 });
 
@@ -1519,6 +1534,28 @@ ipcMain.handle("dbzs:restore-points:cleanup", async (_event, workspaceRoot: stri
   return restorePointService.cleanupOldRestorePoints(workspace);
 });
 
+ipcMain.handle("dbzs:backups:list", async () => {
+  return backupService.listBackups();
+});
+
+ipcMain.handle("dbzs:backups:create", async () => {
+  return backupService.createBackup("manual", currentWorkspaceState.projectPath);
+});
+
+ipcMain.handle("dbzs:backups:restore", async (_event, backupId: string) => {
+  return backupService.restoreFromBackup(backupId);
+});
+
+ipcMain.handle("dbzs:backups:open-folder", async (_event, backupId?: string) => {
+  const backups = await backupService.listBackups();
+  const target = backupId ? backups.find((backup) => backup.id === backupId)?.path : undefined;
+  const folder = target ?? path.join(app.getPath("userData"), "backups");
+  await fs.mkdir(folder, { recursive: true });
+  const error = await shell.openPath(folder);
+  if (error) throw new Error(`[BACKUP_FOLDER_OPEN_FAILED] ${error}`);
+  return { status: "ok" };
+});
+
 ipcMain.handle("dbzs:workspace:file-change:create-snapshot", async (_event, filePath: string) => {
   if (!currentWorkspaceState.projectPath) {
     throw new Error("No active workspace configured.");
@@ -1681,22 +1718,91 @@ ipcMain.handle("dbzs:file:open-dialog", async () => {
   return readWorkspaceFile(result.filePaths[0]);
 });
 
+/**
+ * These four handlers are reachable from the renderer without going through the
+ * AI patch/diff pipeline (they back manual editor save and modelIndexCacheService's
+ * userData-scoped cache file). Bound every path to either the active workspace or
+ * the app's own userData directory so neither a bug nor a malicious tool call can
+ * read/write arbitrary filesystem locations.
+ */
+async function resolveGuardedFsPath(
+  candidatePath: string,
+  options: { allowMissing?: boolean } = {}
+): Promise<string> {
+  const candidateRoots = [currentWorkspaceState.projectPath, app.getPath("userData")].filter(
+    (root): root is string => Boolean(root)
+  );
+
+  let lastError: unknown;
+  for (const root of candidateRoots) {
+    try {
+      const lexicalPath = ensurePathInsideWorkspace(root, candidatePath);
+      return await resolveCanonicalWorkspacePath(root, lexicalPath, options);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  const detail = lastError instanceof Error ? lastError.message : String(lastError);
+  throw new Error(`[FS_PATH_NOT_ALLOWED] Path is outside the active workspace and app data directory: ${detail}`);
+}
+
+function isInsideActiveWorkspace(safePath: string): boolean {
+  if (!currentWorkspaceState.projectPath) {
+    return false;
+  }
+  try {
+    ensurePathInsideWorkspace(currentWorkspaceState.projectPath, safePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function pathExists(target: string): Promise<boolean> {
+  try {
+    await fs.access(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function snapshotBeforeManualWrite(safePath: string): Promise<void> {
+  if (!isInsideActiveWorkspace(safePath) || !(await pathExists(safePath))) {
+    return;
+  }
+  await restorePointService.createRestorePoint(
+    currentWorkspaceState.projectPath as string,
+    [safePath],
+    "manual",
+    "Manual file save"
+  );
+}
+
 ipcMain.handle("dbzs:fs:read-file", async (_event, filePath: string, encoding = "utf-8") => {
-  return fs.readFile(filePath, encoding as BufferEncoding);
+  const safePath = await resolveGuardedFsPath(filePath, { allowMissing: true });
+  return fs.readFile(safePath, encoding as BufferEncoding);
 });
 
 ipcMain.handle("dbzs:fs:write-file", async (_event, filePath: string, content: string) => {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, content, "utf-8");
+  const safePath = await resolveGuardedFsPath(filePath, { allowMissing: true });
+  await fs.mkdir(path.dirname(safePath), { recursive: true });
+  await snapshotBeforeManualWrite(safePath);
+  await writeFileAtomic(safePath, content);
 });
 
 ipcMain.handle("dbzs:fs:stat", async (_event, filePath: string) => {
-  return fs.stat(filePath);
+  const safePath = await resolveGuardedFsPath(filePath, { allowMissing: true });
+  return fs.stat(safePath);
 });
 
 ipcMain.handle("dbzs:file:save", async (_event, request: SaveFileRequest) => {
-  await fs.writeFile(request.path, request.content, "utf-8");
-  return readWorkspaceFile(request.path);
+  const safePath = await resolveGuardedFsPath(request.path, { allowMissing: true });
+  await fs.mkdir(path.dirname(safePath), { recursive: true });
+  await snapshotBeforeManualWrite(safePath);
+  await writeFileAtomic(safePath, request.content);
+  return readWorkspaceFile(safePath);
 });
 
 ipcMain.handle("dbzs:file:save-as-dialog", async (_event, request: SaveFileAsRequest) => {
@@ -1747,6 +1853,11 @@ app.whenReady().then(async () => {
   // sequence below, it does not wait for phase 2 to reach it first.
   currentWorkspaceState = await loadWorkspaceState(workspaceStatePath());
   commandExecutionService.setWorkspaceRoot(currentWorkspaceState.projectPath);
+
+  // Best-effort, non-blocking: never let a backup failure delay or break startup.
+  void backupService
+    .runBackupIfDue("startup", currentWorkspaceState.projectPath)
+    .catch((error) => console.error("[Backup] Startup backup failed:", error));
 
   const coordinator = getWindowCoordinator();
   coordinator.createSplashWindow();
@@ -1881,4 +1992,20 @@ app.on("before-quit", async (event) => {
       app.quit();
     }
   }
+});
+
+app.on("will-quit", () => {
+  flushPendingState("will-quit", "Application is quitting.");
+});
+
+process.on("uncaughtException", (error) => {
+  flushPendingState("uncaughtException", `${error.name}: ${error.message}\n${error.stack ?? ""}`);
+  // The process is in an undefined state after an uncaught exception in the
+  // main process -- exit deliberately rather than continue running degraded.
+  app.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  const detail = reason instanceof Error ? `${reason.name}: ${reason.message}\n${reason.stack ?? ""}` : String(reason);
+  flushPendingState("unhandledRejection", detail);
 });
