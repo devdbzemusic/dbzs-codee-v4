@@ -12,6 +12,7 @@ import {
   describeMultimodalPairBaseModel,
   describeMultimodalPairProjector,
   describeSupportArtifactFile,
+  formatSupportArtifactStatusLabel,
   multimodalPairActionHint,
   describeSupportArtifactAction,
   supportArtifactActionHint,
@@ -691,7 +692,7 @@ describe("describeMultimodalPairStatus", () => {
     };
 
     expect(describeMultimodalPairStatus(pair)).toEqual({
-      label: "verified",
+      label: "Verified",
       hint: "Routing freigegeben"
     });
   });
@@ -710,7 +711,7 @@ describe("describeMultimodalPairStatus", () => {
     };
 
     expect(describeMultimodalPairStatus(ambiguousPair)).toEqual({
-      label: "ambiguous",
+      label: "Ambiguous",
       hint: "Mehrdeutige Basismodell-Zuordnung"
     });
   });
@@ -1890,6 +1891,17 @@ describe("supportArtifactStatusTone", () => {
     expect(supportArtifactStatusTone("orphan")).toBe("error");
     expect(supportArtifactStatusTone("ambiguous")).toBe("error");
     expect(supportArtifactStatusTone("support_artifact")).toBe("info");
+  });
+});
+
+describe("formatSupportArtifactStatusLabel", () => {
+  it("formats support artifact status labels for the UI", () => {
+    expect(formatSupportArtifactStatusLabel("verified")).toBe("Verified");
+    expect(formatSupportArtifactStatusLabel("candidate")).toBe("Candidate");
+    expect(formatSupportArtifactStatusLabel("orphan")).toBe("Orphan");
+    expect(formatSupportArtifactStatusLabel("missing_base")).toBe("Missing Base");
+    expect(formatSupportArtifactStatusLabel("support_artifact")).toBe("Support Artifact");
+    expect(formatSupportArtifactStatusLabel("custom_status")).toBe("custom status");
   });
 });
 

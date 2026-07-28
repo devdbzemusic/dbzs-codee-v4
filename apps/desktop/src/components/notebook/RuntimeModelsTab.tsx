@@ -323,30 +323,30 @@ export function describeProbeOutcome(response: RuntimeProbeResponse): ProbeOutco
 export function describeMultimodalPairStatus(pair: MultimodalPair): { label: string; hint: string } {
   if (pair.routing_allowed) {
     return {
-      label: "verified",
+      label: "Verified",
       hint: "Routing freigegeben"
     };
   }
   if (pair.status === "candidate") {
     return {
-      label: "candidate",
+      label: "Candidate",
       hint: "Runtime-Probe noch offen"
     };
   }
   if (pair.status === "ambiguous") {
     return {
-      label: "ambiguous",
+      label: "Ambiguous",
       hint: "Mehrdeutige Basismodell-Zuordnung"
     };
   }
   if (pair.status === "missing_base") {
     return {
-      label: "missing_base",
+      label: "Missing Base",
       hint: "Basismodell fehlt"
     };
   }
   return {
-    label: pair.status,
+    label: pair.status.replaceAll("_", " "),
     hint: "Nicht freigegeben"
   };
 }
@@ -635,6 +635,16 @@ export function multimodalPairHintTone(pair: MultimodalPair): "ok" | "warn" | "e
 
 export function supportArtifactHintTone(statusLabel: string): "ok" | "warn" | "error" | "info" {
   return supportArtifactStatusTone(statusLabel);
+}
+
+export function formatSupportArtifactStatusLabel(statusLabel: string): string {
+  if (statusLabel === "verified") return "Verified";
+  if (statusLabel === "candidate") return "Candidate";
+  if (statusLabel === "orphan") return "Orphan";
+  if (statusLabel === "missing_base") return "Missing Base";
+  if (statusLabel === "ambiguous") return "Ambiguous";
+  if (statusLabel === "support_artifact") return "Support Artifact";
+  return statusLabel.replaceAll("_", " ");
 }
 
 export function multimodalCandidateSummaryTone(pair: MultimodalPair): "ok" | "warn" | "error" | "info" {
@@ -1815,7 +1825,7 @@ export function RuntimeModelsTab() {
                             <span
                               className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(supportArtifactStatusTone(description.statusLabel))}`}
                             >
-                              {description.statusLabel}
+                              {formatSupportArtifactStatusLabel(description.statusLabel)}
                             </span>
                           </td>
                           <td className="px-2 py-2 text-dbzs-muted">
