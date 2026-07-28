@@ -154,6 +154,31 @@ sind genau diese Punkte inzwischen verifiziert — siehe
 - [apps/desktop/src/services/workflowContinuation.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/workflowContinuation.ts)
   - `weiter` wird als natuerliche Fortsetzung eines aktiven Workflows behandelt
 
+## Neu im Arbeitsbranch: generische Runtime-Chat-Dateianhaenge
+
+Stand im Branch `feature/runtime-chat-ux-overhaul` nach Commit `71d3706`:
+
+- der bisherige bildspezifische Attachment-Pfad ist zu einer generischen Datei-Attachment-Pipeline erweitert
+  (`image`, `document`, `archive`, `text`, `code`)
+- der Composer akzeptiert jetzt Bilder weiterhin, zusaetzlich aber auch `pdf`, `zip`, `md`, `json`, `js`,
+  `ts`, `tsx`, `py`, `txt`
+- Einfuegen funktioniert ueber den gemeinsamen Anhaengen-Button mit Mehrfachauswahl und ueber `Strg+V`
+  fuer Clipboard-Datei-Items
+- die Turn-UI rendert dateitypspezifische Vorschauen fuer Bilder, Text/Code, PDF und ZIP
+- Text-/Code-Dateien werden vor dem Request als strukturierte Attachment-Bloecke in den User-Turn eingebracht
+- PDF wird lokal ueber den Backend-Pfad zu Text extrahiert
+- ZIP wird lokal ausserhalb des Workspace temporaer entpackt, rekursiv inventarisiert und nur fuer erlaubte
+  Text-/Code-Dateien inline in den Turn uebernommen
+- nicht-bildliche Dateianhaenge setzen weder automatisch Vision-Flags noch `requiresVision`; bestehende
+  Vision-Gates bleiben auf echte Bildpayloads begrenzt
+- neue Backend-Dependency: `pypdf`
+
+Frisch verifiziert fuer diesen Slice:
+
+- `npm run typecheck` in `apps/desktop`
+- fokussierter Desktop-Vitest-Lauf: 58 Tests gruen
+- Backend-Pytest fuer Runtime-API plus Attachment-Aufbereitung: 14 Tests gruen
+
 ## Aktive offene Aufgaben
 
 ### P0
@@ -181,6 +206,8 @@ separater Blocker fuer 7/9/10/11:** das kleine lokale Modell (`gemma-3-1b-it-qat
 - Rest des Golden-Path (Diff/Apply/Rollback/Tests, harter Abbruch + Neustart) bis `UI_VERIFIED` abschliessen,
   jetzt wo der Routing-Blocker behoben ist; 2.6/2.7 dabei gegen den echten Pfad
   (`patchPipelineService.ts`/`restorePointService.ts`) neu pruefen — siehe [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md) und [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md)
+- generische Datei-Anhaenge in einer echten Desktop-Session manuell gegen die neuen Dateitypen durchklicken:
+  Mehrfachauswahl, `Strg+V`, Senden ohne manuell geschriebenen Prompt, PDF-/ZIP-Hinweise und Turn-Payload
 - gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren (`INSTALLER_VERIFIED`; bisher nur Dev-Pfad `%TEMP%\dbzs-codee-dev-user-data` bestaetigt)
 - Modell-Katalog auf dieser Maschine neu scannen/regenerieren (`models.catalog.json`s `runtime_dir` war veraltet — auch wenn der Code das jetzt abfaengt, lohnt sich ein frischer Scan)
 

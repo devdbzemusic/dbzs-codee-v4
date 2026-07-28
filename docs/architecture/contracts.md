@@ -30,3 +30,13 @@ Shared- und Backend-Vertraege muessen als bewusst gepflegte Schnittstellen behan
 - Runtime warm-up diagnostics
 - Runtime route diagnostics
 - Structured runtime errors
+- Runtime chat attachments
+
+## Runtime-Chat-Attachments
+
+- Shared fuehrt die neutrale Attachment-Form mit `kind`, `extension`, `mimeType`, `source`, `sizeBytes`
+  sowie optionalen Inhalts- und Zusammenfassungsfeldern.
+- Backend-Schemas spiegeln diese Struktur additiv fuer Attachment-Preparation-Requests und Responses.
+- Renderer und Store duerfen sich auf dieselben Feldnamen verlassen; Dateityp-Ableitungen gehoeren nicht
+  in Freitext oder implizite UI-Heuristiken allein.
+- Neue Attachment-Typen muessen als additive Vertragserweiterung eingefuehrt werden.

@@ -30,6 +30,33 @@ hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht no
 - [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen) —
       Rescan-Button selbst bereits `UI_VERIFIED` (364 Modelle, keine Regression)
 
+## Neu offen: Runtime-Chat-Dateianhaenge
+
+- [ ] manuellen Desktop-Durchlauf fuer generische Dateianhaenge fahren:
+      Bild + `md/json/js/ts/tsx/py/txt/pdf/zip`, Mehrfachauswahl, Entfernen vor Send, Senden ohne Textprompt
+- [ ] ZIP-/PDF-Edgecases manuell pruefen:
+      leere/gesperrte PDFs, grosse ZIPs, abgeschnittene Inhalte, klare UI-Hinweise bei Limits
+- [ ] optionalen Folge-Slice entscheiden:
+      Drag-and-Drop bewusst spaeter oder als naechsten UX-Ausbau aufnehmen
+
+## Erledigt: generische Runtime-Chat-Dateianhaenge (2026-07-28)
+
+- [x] bildspezifischen Attachment-Pfad auf generische `RuntimeChatAttachment`s erweitert
+      (`image`, `document`, `archive`, `text`, `code`)
+- [x] gemeinsamen Attachment-Dialog mit Mehrfachauswahl statt reiner Bildauswahl eingebaut
+- [x] `Strg+V` verarbeitet jetzt Clipboard-Datei-Items auch fuer Bilder, Text-/Code-Dateien, PDF und ZIP
+- [x] Composer und Turn-Karten rendern dateitypspezifische Vorschauen statt nur Bild-Thumbnails
+- [x] Text-/Code-Dateien werden als strukturierte Attachment-Bloecke in den User-Turn eingebracht
+- [x] PDF-Aufbereitung lokal ueber neue Backend-Route `prepare-chat-attachments` umgesetzt
+- [x] ZIP-Aufbereitung mit temporaerer Entpackung ausserhalb des Workspace, rekursiver Inventarisierung
+      und Inline-Uebernahme nur fuer erlaubte Text-/Code-Dateien umgesetzt
+- [x] nicht-bildliche Dateianhaenge lassen Vision-Gates unberuehrt; nur echte Bildpayloads markieren Vision-Bedarf
+- [x] Backend-Dependency `pypdf` aufgenommen
+- [x] Verifikation:
+      `npm run typecheck` in `apps/desktop`,
+      fokussierter Vitest-Lauf (58 Tests),
+      `pytest backend/tests/test_runtime_api.py backend/tests/test_runtime_chat_attachments.py -q` (14 Tests)
+
 ## Neu eingeplant: Model Control Center + MMProj/MM-Pairing
 
 Kurzstatus 2026-07-28h:

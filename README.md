@@ -38,6 +38,30 @@ Seit PR #4 Teil von `main`. Der Runtime-Chat priorisiert Gespraechsfuehrung vor 
 Der Desktop liess sich nach diesem Umbau lokal erfolgreich ueber `pnpm dev`
 beziehungsweise `start-dev.ps1` starten.
 
+## Runtime-Chat-Dateianhaenge
+
+Im aktuellen Arbeitsbranch `feature/runtime-chat-ux-overhaul` ist die bisherige Bildstrecke zu einer generischen
+Attachment-Pipeline ausgebaut:
+
+- unterstuetzte Dateitypen: Bilder plus `pdf`, `zip`, `md`, `json`, `js`, `ts`, `tsx`, `py`, `txt`
+- Anhaengen ueber gemeinsamen Datei-Dialog mit Mehrfachauswahl oder per `Strg+V` fuer Clipboard-Datei-Items
+- sichtbare Vorschau direkt im Composer und an der gesendeten Nachricht
+- Text-/Code-Dateien werden als lesbarer strukturierter Kontext in den User-Turn uebernommen
+- PDF wird lokal zu Text extrahiert
+- ZIP wird lokal temporaer entpackt, inventarisiert und fuer erlaubte Text-/Code-Dateien inline aufbereitet
+- Vision-Gating bleibt auf echte Bildpayloads begrenzt; Dokumente/Archive setzen kein automatisches Vision-Flag
+
+Frisch geprueft fuer diesen Slice:
+
+```powershell
+cd apps/desktop
+npm run typecheck
+npm run test -- src/components/RuntimeChatTab.test.tsx src/services/providerRequestPreflight.test.ts src/services/modelSelectionBroker.test.ts src/stores/runtimeChatStoreAssistantAnswerFlows.test.ts src/stores/runtimeChatStoreRoutingPhase.test.ts
+
+cd ..\..
+backend\.venv\Scripts\python.exe -m pytest backend/tests/test_runtime_api.py backend/tests/test_runtime_chat_attachments.py -q
+```
+
 ## Bestaetigte Nachweise
 
 ### Required Gates
@@ -126,6 +150,7 @@ pnpm doctor:backend
 ## Aktive Statusdokumente
 
 - [docs/STATUS_TODAY.md](docs/STATUS_TODAY.md)
+- [docs/architecture/README.md](docs/architecture/README.md)
 - [docs/audits/MAIN_READINESS_AUDIT_2026-07-27.md](docs/audits/MAIN_READINESS_AUDIT_2026-07-27.md)
 - [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md](docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md)
 - [HANDOVER.md](HANDOVER.md)
