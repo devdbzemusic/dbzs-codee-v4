@@ -188,7 +188,7 @@ export function describeSupportArtifact(
     }
     return {
       statusLabel: "candidate",
-      hint: "Same-Folder-Paar erkannt, aber noch nicht runtime-verifiziert"
+      hint: "Ordner-Paar erkannt, aber noch nicht runtime-verifiziert"
     };
   }
   if (pair.status === "ambiguous") {
@@ -200,7 +200,7 @@ export function describeSupportArtifact(
   if (pair.status === "missing_base") {
     return {
       statusLabel: "missing_base",
-      hint: "Projector erkannt, aber kein Basismodell im selben Ordner gefunden"
+      hint: "Projektor erkannt, aber kein Basismodell im selben Ordner gefunden"
     };
   }
   return {
@@ -683,7 +683,7 @@ export function describeMultimodalPairProjector(
   if (pair.projector_artifact_id) {
     return { label: pair.projector_artifact_id, tone: "warn" };
   }
-  return { label: "Kein Projector", tone: "error" };
+  return { label: "Kein Projektor", tone: "error" };
 }
 
 export function describeSupportArtifactFile(
@@ -960,7 +960,7 @@ export function describeModelRoutingReadiness(
       if (!verifiedPair) {
         return {
           label: "MM-Pair fehlt",
-          hint: "Bildinput bleibt gesperrt, bis ein verifiziertes Projector-Pair vorliegt"
+          hint: "Bildinput bleibt gesperrt, bis ein verifiziertes Projektor-Pair vorliegt"
         };
       }
       if (!model.capabilities.includes("code")) {
@@ -985,7 +985,7 @@ export function describeModelRoutingReadiness(
     }
 
     return {
-      label: "Vision Chat",
+      label: "Vision-Chat",
       hint: "Bildanalyse moeglich, aber fuer Coding-/Review-Turns fehlt die Code-Faehigkeit"
     };
   }
@@ -1007,7 +1007,7 @@ export function modelRoutingTone(label: string): "ok" | "warn" | "error" | "info
   if (label === "Vision + Code" || label === "Text + Code") {
     return "ok";
   }
-  if (label === "Vision direkt" || label === "Vision Chat") {
+  if (label === "Vision direkt" || label === "Vision-Chat") {
     return "warn";
   }
   if (label === "MM-Pair fehlt") {
@@ -1040,7 +1040,7 @@ export function summarizeModelRoutingReadiness(
       summary.textCode += 1;
     } else if (readiness.label === "Vision direkt") {
       summary.visionDirect += 1;
-    } else if (readiness.label === "Vision Chat") {
+    } else if (readiness.label === "Vision-Chat") {
       summary.visionChat += 1;
     } else if (readiness.label === "MM-Pair fehlt") {
       summary.visionBlocked += 1;
@@ -1109,7 +1109,7 @@ function routingReadinessPriority(label: string): number {
   if (label === "Vision + Code") return 0;
   if (label === "Text + Code") return 1;
   if (label === "Vision direkt") return 2;
-  if (label === "Vision Chat") return 3;
+  if (label === "Vision-Chat") return 3;
   if (label === "Text") return 4;
   return 5;
 }
@@ -1410,13 +1410,13 @@ export function RuntimeModelsTab() {
                     Startbare Modelle
                   </h3>
                   <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Coding {modelRoleSummary.coding}
+                    Coding-Modelle {modelRoleSummary.coding}
                   </span>
                   <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Chat {modelRoleSummary.chat}
+                    Chat-Modelle {modelRoleSummary.chat}
                   </span>
                   <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
-                    Vision {modelRoleSummary.vision}
+                    Vision-Modelle {modelRoleSummary.vision}
                   </span>
                   <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
                     Orchestrator {modelRoleSummary.orchestrator}
@@ -1451,7 +1451,7 @@ export function RuntimeModelsTab() {
                     Vision direkt {modelRoutingSummary.visionDirect}
                   </span>
                   <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-[10px] text-dbzs-muted">
-                    Vision Chat {modelRoutingSummary.visionChat}
+                    Vision-Chat {modelRoutingSummary.visionChat}
                   </span>
                   <span className="border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] text-red-300">
                     MM-Pair blockiert {modelRoutingSummary.visionBlocked}
@@ -1466,8 +1466,8 @@ export function RuntimeModelsTab() {
                       <th className="px-2 py-2 font-medium">Status</th>
                       <th className="px-2 py-2 font-medium">Modell</th>
                       <th className="px-2 py-2 font-medium">Rolle</th>
-                      <th className="px-2 py-2 font-medium">Capabilities</th>
-                      <th className="px-2 py-2 font-medium">Launcher</th>
+                      <th className="px-2 py-2 font-medium">Faehigkeiten</th>
+                      <th className="px-2 py-2 font-medium">Runtime</th>
                       <th className="px-2 py-2 font-medium">Kompat</th>
                       <th className="px-2 py-2 font-medium">Routing</th>
                       <th className="px-2 py-2 font-medium">Groesse</th>
@@ -1623,10 +1623,10 @@ export function RuntimeModelsTab() {
                   </span>
                 </div>
                 <table className="w-full min-w-[760px] border-collapse text-left text-[11px]">
-                  <thead className="bg-[#091017]">
+                  <thead className="sticky top-0 bg-[#091017]">
                     <tr className="border-b border-dbzs-border text-dbzs-muted">
                       <th className="px-2 py-2 font-medium">Basismodell</th>
-                      <th className="px-2 py-2 font-medium">Projector</th>
+                      <th className="px-2 py-2 font-medium">Projektor</th>
                       <th className="px-2 py-2 font-medium">Modalitaet</th>
                       <th className="px-2 py-2 font-medium">Quelle</th>
                       <th className="px-2 py-2 font-medium">Sicherheit</th>
@@ -1885,7 +1885,7 @@ export function RuntimeModelsTab() {
                   ) : null}
                 </div>
                 <table className="w-full min-w-[760px] border-collapse text-left text-[11px]">
-                  <thead className="bg-[#091017]">
+                  <thead className="sticky top-0 bg-[#091017]">
                     <tr className="border-b border-dbzs-border text-dbzs-muted">
                       <th className="px-2 py-2 font-medium">Datei</th>
                       <th className="px-2 py-2 font-medium">Typ</th>

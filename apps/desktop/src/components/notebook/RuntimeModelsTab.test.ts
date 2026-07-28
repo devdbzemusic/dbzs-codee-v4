@@ -220,7 +220,7 @@ describe("describeSupportArtifact", () => {
 
     expect(describeSupportArtifact(mmprojArtifact, pairs)).toEqual({
       statusLabel: "candidate",
-      hint: "Same-Folder-Paar erkannt, aber noch nicht runtime-verifiziert"
+      hint: "Ordner-Paar erkannt, aber noch nicht runtime-verifiziert"
     });
   });
 
@@ -284,6 +284,27 @@ describe("describeSupportArtifact", () => {
     expect(describeSupportArtifact(mmprojArtifact, pairs)).toEqual({
       statusLabel: "candidate",
       hint: "Katalog-Zuordnung erkannt, aber noch nicht runtime-verifiziert"
+    });
+  });
+
+  it("surfaces missing-base pair state for mmproj artifacts", () => {
+    const pairs: MultimodalPair[] = [
+      {
+        id: "missing:mmproj-1",
+        base_model_id: null,
+        projector_artifact_id: "mmproj-1",
+        modalities: ["text", "image"],
+        source: "same_folder",
+        confidence: 0,
+        status: "missing_base",
+        routing_allowed: false,
+        candidate_base_model_ids: []
+      }
+    ];
+
+    expect(describeSupportArtifact(mmprojArtifact, pairs)).toEqual({
+      statusLabel: "missing_base",
+      hint: "Projektor erkannt, aber kein Basismodell im selben Ordner gefunden"
     });
   });
 });
@@ -1389,7 +1410,7 @@ describe("describeModelRoutingReadiness", () => {
       )
     ).toEqual({
       label: "MM-Pair fehlt",
-      hint: "Bildinput bleibt gesperrt, bis ein verifiziertes Projector-Pair vorliegt"
+      hint: "Bildinput bleibt gesperrt, bis ein verifiziertes Projektor-Pair vorliegt"
     });
   });
 
@@ -1445,7 +1466,7 @@ describe("modelRoutingTone", () => {
     expect(modelRoutingTone("Vision + Code")).toBe("ok");
     expect(modelRoutingTone("Text + Code")).toBe("ok");
     expect(modelRoutingTone("Vision direkt")).toBe("warn");
-    expect(modelRoutingTone("Vision Chat")).toBe("warn");
+    expect(modelRoutingTone("Vision-Chat")).toBe("warn");
     expect(modelRoutingTone("MM-Pair fehlt")).toBe("error");
     expect(modelRoutingTone("Text")).toBe("info");
   });
