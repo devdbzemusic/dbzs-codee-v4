@@ -88,7 +88,7 @@ export function summarizeAttachmentImport(result: {
   if (result.errorCount > 0) {
     parts.push(`${result.errorCount} mit Fehlerhinweis`);
   }
-  return `${parts.join(" · ")}.`;
+  return `${parts.join(" - ")}.`;
 }
 
 export function buildRuntimeChatAttachmentPrompt(

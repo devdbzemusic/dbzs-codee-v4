@@ -13,6 +13,65 @@ import { useRuntimeStore } from "@/stores/runtimeStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { isRunnableModel } from "@/utils/modelUtils";
 
+type ProbeEvidenceTone = "ok" | "warn" | "error" | "info";
+
+interface ProbeEvidenceItem {
+  tone: ProbeEvidenceTone;
+  text: string;
+}
+
+interface ProbeOutcomeSummary {
+  label: string;
+  tone: ProbeEvidenceTone;
+}
+
+function probeToneClasses(tone: ProbeEvidenceTone): string {
+  if (tone === "ok") {
+    return "border-dbzs-cyan/30 bg-dbzs-cyan/10 text-dbzs-cyan";
+  }
+  if (tone === "warn") {
+    return "border-amber-400/30 bg-amber-400/10 text-amber-300";
+  }
+  if (tone === "error") {
+    return "border-red-400/30 bg-red-400/10 text-red-300";
+  }
+  return "border-dbzs-border bg-dbzs-bg text-dbzs-muted";
+}
+
+function ProbeEvidencePanel({
+  feedback,
+  outcome,
+  evidence,
+  align = "right"
+}: {
+  feedback: string;
+  outcome: ProbeOutcomeSummary;
+  evidence: ProbeEvidenceItem[];
+  align?: "left" | "right";
+}) {
+  const alignClass = align === "right" ? "items-end text-right" : "items-start text-left";
+
+  return (
+    <div className={`mt-1 flex max-w-[320px] flex-col gap-1 rounded border p-2 ${probeToneClasses(outcome.tone)} ${alignClass}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`rounded border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.14em] ${probeToneClasses(outcome.tone)}`}>
+          {outcome.label}
+        </span>
+        <span className="text-[10px]">{feedback}</span>
+      </div>
+      {evidence.length > 0 ? (
+        <div className={`flex flex-col gap-1 text-[9px] ${alignClass}`}>
+          {evidence.map((item) => (
+            <span className={`rounded border px-1.5 py-1 ${probeToneClasses(item.tone)}`} key={`${item.tone}:${item.text}`}>
+              {item.text}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function modelRowActionState(
   model: IndexedModel,
   status: RuntimeStatus | null,
@@ -135,43 +194,47 @@ export function formatProbeFeedback(response: RuntimeProbeResponse): string {
   return details.length > 0 ? `${response.message} (${details.join(" | ")})` : response.message;
 }
 
-export function collectProbeEvidenceLines(response: RuntimeProbeResponse): string[] {
-  const lines: string[] = [];
+export function collectProbeEvidenceItems(response: RuntimeProbeResponse): ProbeEvidenceItem[] {
+  const items: ProbeEvidenceItem[] = [];
   if (response.endpoint_verified === true) {
-    lines.push("Basis-Endpoint: ok");
+    items.push({ tone: "ok", text: "Basis-Endpoint: ok" });
   } else if (response.endpoint_verified === false) {
-    lines.push("Basis-Endpoint: fehlt");
+    items.push({ tone: "error", text: "Basis-Endpoint: fehlt" });
   }
   if (response.models_endpoint_verified === true) {
-    lines.push("/v1/models: ok");
+    items.push({ tone: "ok", text: "/v1/models: ok" });
   } else if (response.models_endpoint_verified === false) {
-    lines.push("/v1/models: fehlt");
+    items.push({ tone: "error", text: "/v1/models: fehlt" });
   }
   if (Array.isArray(response.advertised_models) && response.advertised_models.length > 0) {
-    lines.push(`Gemeldete Modelle: ${response.advertised_models.join(", ")}`);
+    items.push({ tone: "info", text: `Gemeldete Modelle: ${response.advertised_models.join(", ")}` });
   }
   if (response.mmproj_path && response.vision_chat_verified === true) {
-    lines.push("Bildtest: ok");
+    items.push({ tone: "ok", text: "Bildtest: ok" });
   } else if (response.mmproj_path && response.vision_chat_verified === false) {
-    lines.push("Bildtest: fehlt");
+    items.push({ tone: "error", text: "Bildtest: fehlt" });
   }
   if (typeof response.vision_response_preview === "string" && response.vision_response_preview.length > 0) {
-    lines.push(`Vision-Antwort: ${response.vision_response_preview}`);
+    items.push({ tone: "info", text: `Vision-Antwort: ${response.vision_response_preview}` });
   }
   if (typeof response.mmproj_path === "string" && response.mmproj_path.length > 0) {
-    lines.push(`MMProj: ${response.mmproj_path}`);
+    items.push({ tone: "info", text: `MMProj: ${response.mmproj_path}` });
   }
   if (typeof response.stderr_tail === "string" && response.stderr_tail.trim().length > 0) {
-    lines.push(`stderr: ${response.stderr_tail.trim()}`);
+    items.push({ tone: "error", text: `stderr: ${response.stderr_tail.trim()}` });
   }
   if (typeof response.stdout_tail === "string" && response.stdout_tail.trim().length > 0) {
-    lines.push(`stdout: ${response.stdout_tail.trim()}`);
+    items.push({ tone: "warn", text: `stdout: ${response.stdout_tail.trim()}` });
   }
   const failureSummary = describeProbeFailureCodes(response.verification_failures);
   if (failureSummary) {
-    lines.push(`Fehlgeschlagene Checks: ${failureSummary}`);
+    items.push({ tone: "error", text: `Fehlgeschlagene Checks: ${failureSummary}` });
   }
-  return lines;
+  return items;
+}
+
+export function collectProbeEvidenceLines(response: RuntimeProbeResponse): string[] {
+  return collectProbeEvidenceItems(response).map((item) => item.text);
 }
 
 export function describeProbeFailureCodes(
@@ -191,6 +254,19 @@ export function describeProbeFailureCodes(
     vision_chat: "vision_chat"
   };
   return failureCodes.map((code) => labels[code] ?? code).join(", ");
+}
+
+export function describeProbeOutcome(response: RuntimeProbeResponse): ProbeOutcomeSummary {
+  if (response.allowed && (!response.verification_failures || response.verification_failures.length === 0)) {
+    return { label: "Probe verifiziert", tone: "ok" };
+  }
+  if (Array.isArray(response.verification_failures) && response.verification_failures.length > 0) {
+    return { label: "Probe blockiert", tone: "error" };
+  }
+  if (!response.allowed) {
+    return { label: "Probe fehlgeschlagen", tone: "error" };
+  }
+  return { label: "Probe abgeschlossen", tone: "info" };
 }
 
 export function describeMultimodalPairStatus(pair: MultimodalPair): { label: string; hint: string } {
@@ -317,7 +393,8 @@ export function RuntimeModelsTab() {
   const [pairingSaving, setPairingSaving] = useState<Record<string, boolean>>({});
   const [pairingProbing, setPairingProbing] = useState<Record<string, boolean>>({});
   const [pairingFeedback, setPairingFeedback] = useState<Record<string, string>>({});
-  const [pairingEvidence, setPairingEvidence] = useState<Record<string, string[]>>({});
+  const [pairingOutcome, setPairingOutcome] = useState<Record<string, ProbeOutcomeSummary>>({});
+  const [pairingEvidence, setPairingEvidence] = useState<Record<string, ProbeEvidenceItem[]>>({});
   const backendOnline = backendHealth?.status === "ok";
   const models = index?.models ?? [];
   const supportArtifacts = index?.support_artifacts ?? models.filter((model) => model.artifact_type !== "model");
@@ -334,24 +411,45 @@ export function RuntimeModelsTab() {
   const pairingCandidates = listManualPairingCandidates(startableModels);
   const isRunning = status?.state === "running";
 
+  const resetPairingProbeUi = (artifactId: string) => {
+    setPairingFeedback((current) => ({ ...current, [artifactId]: "" }));
+    setPairingOutcome((current) => {
+      const next = { ...current };
+      delete next[artifactId];
+      return next;
+    });
+    setPairingEvidence((current) => ({ ...current, [artifactId]: [] }));
+  };
+
   const saveManualPairing = async (artifactId: string, baseModelId: string) => {
     setPairingSaving((current) => ({ ...current, [artifactId]: true }));
-    setPairingFeedback((current) => ({ ...current, [artifactId]: "" }));
-    setPairingEvidence((current) => ({ ...current, [artifactId]: [] }));
+    resetPairingProbeUi(artifactId);
     try {
       await backendClient.saveManualMultimodalPairing({
         base_model_id: baseModelId,
-        projector_artifact_id: artifactId,
+        projector_artifact_id: artifactId
       });
       await loadModelIndex();
       setPairingFeedback((current) => ({
         ...current,
         [artifactId]: "Manuelle Zuordnung gespeichert."
       }));
+      setPairingOutcome((current) => ({
+        ...current,
+        [artifactId]: { label: "Zuordnung aktualisiert", tone: "info" }
+      }));
+      setPairingEvidence((current) => ({
+        ...current,
+        [artifactId]: [{ tone: "info", text: `Basismodell: ${baseModelId}` }]
+      }));
     } catch (error) {
       setPairingFeedback((current) => ({
         ...current,
         [artifactId]: error instanceof Error ? error.message : "Manuelle Zuordnung fehlgeschlagen."
+      }));
+      setPairingOutcome((current) => ({
+        ...current,
+        [artifactId]: { label: "Zuordnung fehlgeschlagen", tone: "error" }
       }));
     } finally {
       setPairingSaving((current) => ({ ...current, [artifactId]: false }));
@@ -360,13 +458,12 @@ export function RuntimeModelsTab() {
 
   const probePairing = async (artifactId: string, baseModelId: string) => {
     setPairingProbing((current) => ({ ...current, [artifactId]: true }));
-    setPairingFeedback((current) => ({ ...current, [artifactId]: "" }));
-    setPairingEvidence((current) => ({ ...current, [artifactId]: [] }));
+    resetPairingProbeUi(artifactId);
     try {
       const response = await backendClient.probeRuntimeModel({
         allow_start: true,
         model_id: baseModelId,
-        projector_artifact_id: artifactId,
+        projector_artifact_id: artifactId
       });
       if (response.allowed) {
         await loadModelIndex();
@@ -375,14 +472,22 @@ export function RuntimeModelsTab() {
         ...current,
         [artifactId]: formatProbeFeedback(response)
       }));
+      setPairingOutcome((current) => ({
+        ...current,
+        [artifactId]: describeProbeOutcome(response)
+      }));
       setPairingEvidence((current) => ({
         ...current,
-        [artifactId]: collectProbeEvidenceLines(response)
+        [artifactId]: collectProbeEvidenceItems(response)
       }));
     } catch (error) {
       setPairingFeedback((current) => ({
         ...current,
         [artifactId]: error instanceof Error ? error.message : "Probe fehlgeschlagen."
+      }));
+      setPairingOutcome((current) => ({
+        ...current,
+        [artifactId]: { label: "Probe fehlgeschlagen", tone: "error" }
       }));
       setPairingEvidence((current) => ({ ...current, [artifactId]: [] }));
     } finally {
@@ -398,8 +503,8 @@ export function RuntimeModelsTab() {
             <h2 className="text-sm font-medium text-dbzs-text">Lokale Modelle</h2>
             <p className="mt-0.5 text-[11px] text-dbzs-muted">
               Backend: {backendOnline ? "aktiv" : "offline"}
-              {status?.endpoint ? ` · ${status.endpoint}` : ""}
-              {isRunning && status?.model_name ? ` · läuft: ${status.model_name}` : ""}
+              {status?.endpoint ? ` - ${status.endpoint}` : ""}
+              {isRunning && status?.model_name ? ` - laeuft: ${status.model_name}` : ""}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -658,15 +763,13 @@ export function RuntimeModelsTab() {
                                   {pairingProbing[feedbackKey] === true ? "Prueft ..." : "Probe"}
                                 </button>
                               )}
-                              {pairingFeedback[feedbackKey] ? (
-                                <div className="flex max-w-[280px] flex-col gap-0.5 text-right text-[10px] text-dbzs-muted">
-                                  <span>{pairingFeedback[feedbackKey]}</span>
-                                  {(pairingEvidence[feedbackKey] ?? []).map((line) => (
-                                    <span className="text-[9px] text-dbzs-muted/80" key={`${feedbackKey}:${line}`}>
-                                      {line}
-                                    </span>
-                                  ))}
-                                </div>
+                              {pairingFeedback[feedbackKey] && pairingOutcome[feedbackKey] ? (
+                                <ProbeEvidencePanel
+                                  align="right"
+                                  evidence={pairingEvidence[feedbackKey] ?? []}
+                                  feedback={pairingFeedback[feedbackKey]}
+                                  outcome={pairingOutcome[feedbackKey]}
+                                />
                               ) : null}
                             </div>
                           </td>
@@ -760,15 +863,13 @@ export function RuntimeModelsTab() {
                                     {pairingProbing[artifact.id] === true ? "Prueft ..." : "Probe"}
                                   </button>
                                 </div>
-                                {pairingFeedback[artifact.id] ? (
-                                  <div className="flex flex-col gap-0.5 text-[10px] text-dbzs-muted">
-                                    <span>{pairingFeedback[artifact.id]}</span>
-                                    {(pairingEvidence[artifact.id] ?? []).map((line) => (
-                                      <span className="text-[9px] text-dbzs-muted/80" key={`${artifact.id}:${line}`}>
-                                        {line}
-                                      </span>
-                                    ))}
-                                  </div>
+                                {pairingFeedback[artifact.id] && pairingOutcome[artifact.id] ? (
+                                  <ProbeEvidencePanel
+                                    align="left"
+                                    evidence={pairingEvidence[artifact.id] ?? []}
+                                    feedback={pairingFeedback[artifact.id]}
+                                    outcome={pairingOutcome[artifact.id]}
+                                  />
                                 ) : null}
                               </div>
                             ) : (

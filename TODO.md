@@ -87,16 +87,16 @@ Kurzstatus 2026-07-28h:
       MMProj-Paare gelten erst dann als verifiziert, wenn neben Start, Basis-Endpoint und `/v1/models` auch ein kleiner
       Vision-Request erfolgreich beantwortet wird. Fehlerursachen aus dem Bildtest werden als Probe-Evidenz mitgegeben.
 
-Basis: `PlÃ¤ne/03 04 05 DBZS_CODEE_CONSOLIDATED_MODEL_CONTROL_MM_PAIRING_PLAN.md` plus
-`PlÃ¤ne/03 04 05 DBZS_CODEE_ADAPTED_MODEL_CONTROL_MM_PLAN_CURRENT_REPO.md`
+Basis: `Pläne/03 04 05 DBZS_CODEE_CONSOLIDATED_MODEL_CONTROL_MM_PAIRING_PLAN.md` plus
+`Pläne/03 04 05 DBZS_CODEE_ADAPTED_MODEL_CONTROL_MM_PLAN_CURRENT_REPO.md`
 
-- [ ] **Phase 1 â€” Index-HÃ¤rtung und Vertragsklarheit:** `mmproj-*.gguf` nie mehr als startbares Modell behandeln; `index.models`
+- [ ] **Phase 1 - Index-Haertung und Vertragsklarheit:** `mmproj-*.gguf` nie mehr als startbares Modell behandeln; `index.models`
       auf eigenstaendig startbare Modelle begrenzen und additiv `supportArtifacts` sowie spaeter `multimodalPairs` einfuehren.
       Pflicht-Regressionskern: MMProj sichtbar, aber nie startbar/routbar/primary coding model.
-- [ ] **Phase 2 â€” Paarungslogik aufbauen:** Katalog-/manuelle Zuordnung, Same-Folder-Heuristik, Namensnormalisierung und
+- [ ] **Phase 2 - Paarungslogik aufbauen:** Katalog-/manuelle Zuordnung, Same-Folder-Heuristik, Namensnormalisierung und
       Metadatenvergleich fuer `MultimodalPair`; mehrdeutige oder unvollstaendige Faelle muessen explizit als
       `ambiguous`/`missing_base`/`missing_projector`/`orphan` sichtbar bleiben und duerfen kein Routing freigeben.
-- [ ] **Phase 3 â€” Runtime-Probe einfuehren:** interner `RuntimeLaunchProfile` mit optionalem `mmprojPath`, temporaerer Probe-Start
+- [ ] **Phase 3 - Runtime-Probe einfuehren:** interner `RuntimeLaunchProfile` mit optionalem `mmprojPath`, temporaerer Probe-Start
       (`--model` + `--mmproj`), persistente Verifikation, Endpoint-/`/v1/models`-Nachweis und kleiner echter Bildtest
       sind jetzt vorhanden; offen bleibt vor allem die weitere Verfeinerung des Ergebnisverlaufs, weiterhin ohne automatische
       Modellstarts beim App-Start.

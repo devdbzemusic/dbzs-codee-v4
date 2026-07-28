@@ -29,7 +29,7 @@ function buildArchiveSummary(attachment: RuntimeChatAttachment): string | null {
     truncatedCount > 0 ? `${truncatedCount} gekuerzt` : null
   ]
     .filter(Boolean)
-    .join(" · ");
+    .join(" - ");
 }
 
 function previewTextForAttachment(attachment: RuntimeChatAttachment, maxChars: number): string | null {
@@ -37,7 +37,7 @@ function previewTextForAttachment(attachment: RuntimeChatAttachment, maxChars: n
     return null;
   }
   return attachment.textContent.length > maxChars
-    ? `${attachment.textContent.slice(0, maxChars)}…`
+    ? `${attachment.textContent.slice(0, maxChars)}...`
     : attachment.textContent;
 }
 
@@ -52,11 +52,11 @@ export function RuntimeChatAttachmentPreview({
   removeLabel?: string;
   onRemove?: () => void;
 }) {
+  const textContent = attachment.textContent ?? "";
   const previewText = previewTextForAttachment(attachment, maxPreviewChars);
   const archiveSummary = buildArchiveSummary(attachment);
   const sizeLabel = formatAttachmentSize(attachment.sizeBytes);
-  const hasPreviewClipHint =
-    Boolean(attachment.textContent) && attachment.textContent!.length > maxPreviewChars;
+  const hasPreviewClipHint = textContent.length > maxPreviewChars;
 
   return (
     <div className="rounded border border-dbzs-border bg-dbzs-bg/70 p-2">
@@ -72,7 +72,7 @@ export function RuntimeChatAttachmentPreview({
         <div className="mb-2 rounded border border-dbzs-border bg-dbzs-panelSoft p-2 text-[10px] text-dbzs-textSoft">
           <div className="flex flex-wrap items-center gap-1">
             <span className="font-medium text-dbzs-text">
-              {attachment.kind.toUpperCase()} · .{attachment.extension || "-"}
+              {attachment.kind.toUpperCase()} - .{attachment.extension || "-"}
             </span>
             {attachment.truncated ? (
               <span className="rounded border border-dbzs-warning/40 bg-dbzs-warning/10 px-1 py-0.5 text-[9px] text-dbzs-warning">
@@ -113,7 +113,7 @@ export function RuntimeChatAttachmentPreview({
           <div className="truncate text-dbzs-text">{attachment.name}</div>
           <div className="text-dbzs-muted">
             {attachment.source === "clipboard" ? "Zwischenablage" : "Datei"}
-            {sizeLabel ? ` · ${sizeLabel}` : ""}
+            {sizeLabel ? ` - ${sizeLabel}` : ""}
           </div>
         </div>
         {onRemove ? (

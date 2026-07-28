@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { IndexedModel, MultimodalPair, RuntimeProbeResponse, RuntimeStatus } from "@dbzs/shared";
 import {
   canProbeSupportArtifactPair,
+  collectProbeEvidenceItems,
   collectProbeEvidenceLines,
   defaultPairingSelection,
   describeMultimodalPairCandidates,
+  describeProbeOutcome,
   describeMultimodalPairStatus,
   describeProbeFailureCodes,
   describeSupportArtifact,
@@ -362,6 +364,32 @@ describe("collectProbeEvidenceLines", () => {
   });
 });
 
+describe("collectProbeEvidenceItems", () => {
+  it("assigns evidence tones for successful multimodal probes", () => {
+    const response: RuntimeProbeResponse = {
+      allowed: true,
+      message: "Controlled probe succeeded for vision-base on port 8091.",
+      stderr_tail: "",
+      stdout_tail: "",
+      endpoint_verified: true,
+      models_endpoint_verified: true,
+      advertised_models: ["vision-base"],
+      mmproj_path: "/models/mmproj-vision-base-f16.gguf",
+      vision_chat_verified: true,
+      vision_response_preview: "ok"
+    };
+
+    expect(collectProbeEvidenceItems(response)).toEqual([
+      { tone: "ok", text: "Basis-Endpoint: ok" },
+      { tone: "ok", text: "/v1/models: ok" },
+      { tone: "info", text: "Gemeldete Modelle: vision-base" },
+      { tone: "ok", text: "Bildtest: ok" },
+      { tone: "info", text: "Vision-Antwort: ok" },
+      { tone: "info", text: "MMProj: /models/mmproj-vision-base-f16.gguf" }
+    ]);
+  });
+});
+
 describe("describeProbeFailureCodes", () => {
   it("formats structured probe failure codes for UI evidence", () => {
     expect(describeProbeFailureCodes(["pair_missing", "vision_chat"])).toBe("pairing, vision_chat");
@@ -370,6 +398,38 @@ describe("describeProbeFailureCodes", () => {
   it("returns an empty string when no structured failures are present", () => {
     expect(describeProbeFailureCodes([])).toBe("");
     expect(describeProbeFailureCodes(undefined)).toBe("");
+  });
+});
+
+describe("describeProbeOutcome", () => {
+  it("marks fully verified probes as successful", () => {
+    expect(
+      describeProbeOutcome({
+        allowed: true,
+        message: "ok",
+        stderr_tail: "",
+        stdout_tail: "",
+        verification_failures: []
+      })
+    ).toEqual({
+      label: "Probe verifiziert",
+      tone: "ok"
+    });
+  });
+
+  it("marks structured gate failures as blocked", () => {
+    expect(
+      describeProbeOutcome({
+        allowed: false,
+        message: "failed",
+        stderr_tail: "",
+        stdout_tail: "",
+        verification_failures: ["models_endpoint"]
+      })
+    ).toEqual({
+      label: "Probe blockiert",
+      tone: "error"
+    });
   });
 });
 

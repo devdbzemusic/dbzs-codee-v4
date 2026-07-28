@@ -174,7 +174,7 @@ describe("runtimeChatAttachments", () => {
         errorCount: 1,
         sourceLabel: "hinzugefuegt"
       })
-    ).toBe("2 Dateien hinzugefuegt · 1 Duplikat uebersprungen · 1 mit Fehlerhinweis.");
+    ).toBe("2 Dateien hinzugefuegt - 1 Duplikat uebersprungen - 1 mit Fehlerhinweis.");
 
     expect(
       summarizeAttachmentImport({
@@ -183,6 +183,6 @@ describe("runtimeChatAttachments", () => {
         errorCount: 0,
         sourceLabel: "hinzugefuegt"
       })
-    ).toBe("Keine neuen Dateien hinzugefuegt · 1 Duplikat uebersprungen.");
+    ).toBe("Keine neuen Dateien hinzugefuegt - 1 Duplikat uebersprungen.");
   });
 });
