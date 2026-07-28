@@ -35,6 +35,7 @@ export function buildRuntimeChatAttachmentPrompt(
       `Extension: ${attachment.extension || "-"}`,
       `Quelle: ${attachment.source}`,
       typeof attachment.sizeBytes === "number" ? `Groesse: ${attachment.sizeBytes} Bytes` : null,
+      attachment.truncated ? "Gekuerzt: ja" : null,
       attachment.derivedSummary ? `Hinweis: ${attachment.derivedSummary}` : null,
       attachment.error ? `Fehler: ${attachment.error}` : null
     ].filter(Boolean).join("\n");
@@ -49,10 +50,13 @@ export function buildRuntimeChatAttachmentPrompt(
         [
           "Archiv-Inventar:",
           ...attachment.archiveEntries.map((entry) =>
-            `- ${entry.path} [${entry.kind}]${entry.includedInline ? " inline" : ""}${entry.truncated ? " gekuerzt" : ""}`
+            `- ${entry.path} [${entry.kind}]${typeof entry.sizeBytes === "number" ? ` ${entry.sizeBytes} Bytes` : ""}${entry.includedInline ? " inline" : ""}${entry.truncated ? " gekuerzt" : ""}`
           )
         ].join("\n")
       );
+    }
+    if (!attachment.textContent?.trim()) {
+      bodyParts.push("Kein inline lesbarer Inhalt verfuegbar.");
     }
 
     return [header, ...bodyParts].join("\n\n");
