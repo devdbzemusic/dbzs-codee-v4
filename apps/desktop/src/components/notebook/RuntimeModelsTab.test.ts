@@ -20,6 +20,7 @@ import {
   modelRowActionState,
   shouldDisplaySupportArtifact,
   shouldManagePairInControlCenter,
+  summarizeMultimodalPairSources,
   summarizeModelRoles,
   summarizeModelRoutingReadiness,
   summarizeMultimodalPairs
@@ -651,6 +652,64 @@ describe("summarizeMultimodalPairs", () => {
       candidate: 1,
       ambiguous: 1,
       missing_base: 1
+    });
+  });
+});
+
+describe("summarizeMultimodalPairSources", () => {
+  it("counts manual, catalog, same-folder and other source buckets", () => {
+    expect(
+      summarizeMultimodalPairSources([
+        {
+          id: "manual:mmproj-1",
+          base_model_id: "m1",
+          projector_artifact_id: "mmproj-1",
+          modalities: ["text", "image"],
+          source: "manual",
+          confidence: 1,
+          status: "candidate",
+          routing_allowed: true,
+          candidate_base_model_ids: ["m1"]
+        },
+        {
+          id: "catalog:mmproj-2",
+          base_model_id: "m2",
+          projector_artifact_id: "mmproj-2",
+          modalities: ["text", "image"],
+          source: "catalog",
+          confidence: 0.9,
+          status: "candidate",
+          routing_allowed: false,
+          candidate_base_model_ids: ["m2"]
+        },
+        {
+          id: "same-folder:mmproj-3",
+          base_model_id: "m3",
+          projector_artifact_id: "mmproj-3",
+          modalities: ["text", "image"],
+          source: "same_folder",
+          confidence: 0.8,
+          status: "candidate",
+          routing_allowed: false,
+          candidate_base_model_ids: ["m3"]
+        },
+        {
+          id: "other:mmproj-4",
+          base_model_id: "m4",
+          projector_artifact_id: "mmproj-4",
+          modalities: ["text", "image"],
+          source: "imported",
+          confidence: 0.5,
+          status: "candidate",
+          routing_allowed: false,
+          candidate_base_model_ids: ["m4"]
+        }
+      ])
+    ).toEqual({
+      manual: 1,
+      catalog: 1,
+      sameFolder: 1,
+      other: 1
     });
   });
 });

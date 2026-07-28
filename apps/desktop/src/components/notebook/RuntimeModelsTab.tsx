@@ -347,6 +347,31 @@ export function summarizeMultimodalPairs(pairs: MultimodalPair[]): Record<string
   return summary;
 }
 
+export function summarizeMultimodalPairSources(
+  pairs: MultimodalPair[]
+): Record<"manual" | "catalog" | "sameFolder" | "other", number> {
+  const summary = {
+    manual: 0,
+    catalog: 0,
+    sameFolder: 0,
+    other: 0
+  };
+
+  for (const pair of pairs) {
+    if (pair.source === "manual") {
+      summary.manual += 1;
+    } else if (pair.source === "catalog") {
+      summary.catalog += 1;
+    } else if (pair.source === "same_folder") {
+      summary.sameFolder += 1;
+    } else {
+      summary.other += 1;
+    }
+  }
+
+  return summary;
+}
+
 export function shouldDisplaySupportArtifact(
   artifact: IndexedModel,
   pair: MultimodalPair | undefined
@@ -532,6 +557,7 @@ export function RuntimeModelsTab() {
   const multimodalPairs = index?.multimodal_pairs ?? [];
   const sortedMultimodalPairs = sortMultimodalPairs(multimodalPairs);
   const multimodalPairSummary = summarizeMultimodalPairs(multimodalPairs);
+  const multimodalPairSourceSummary = summarizeMultimodalPairSources(multimodalPairs);
   const visibleSupportArtifacts = supportArtifacts.filter((artifact) => {
     const pair = multimodalPairs.find((entry) => entry.projector_artifact_id === artifact.id);
     return shouldDisplaySupportArtifact(artifact, pair);
@@ -841,6 +867,20 @@ export function RuntimeModelsTab() {
                   <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
                     Offen {multimodalPairSummary.candidate}
                   </span>
+                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                    Manual {multimodalPairSourceSummary.manual}
+                  </span>
+                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                    Catalog {multimodalPairSourceSummary.catalog}
+                  </span>
+                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                    Same Folder {multimodalPairSourceSummary.sameFolder}
+                  </span>
+                  {multimodalPairSourceSummary.other > 0 ? (
+                    <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                      Sonstige {multimodalPairSourceSummary.other}
+                    </span>
+                  ) : null}
                   <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
                     Ambiguous {multimodalPairSummary.ambiguous}
                   </span>
