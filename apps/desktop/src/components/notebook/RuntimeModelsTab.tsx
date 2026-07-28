@@ -8,6 +8,7 @@ import {
   type RuntimeStatus
 } from "@dbzs/shared";
 import { backendClient } from "@/services/backendClient";
+import { modelRequiresVisionProjector, modelSupportsTextOnly } from "@/services/modelSelectionBroker";
 import { useModelIndexStore } from "@/stores/modelIndexStore";
 import { useRuntimeStore } from "@/stores/runtimeStore";
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -368,6 +369,72 @@ export function formatMultimodalPairSource(source: string): string {
   return source || "-";
 }
 
+export function describeModelCapabilities(model: IndexedModel): string[] {
+  const labels: string[] = [];
+  if (model.capabilities.includes("chat")) labels.push("chat");
+  if (model.capabilities.includes("code")) labels.push("code");
+  if (model.capabilities.includes("vision")) labels.push("vision");
+  if (model.capabilities.includes("reasoning")) labels.push("reasoning");
+  return labels.length > 0 ? labels : ["-"];
+}
+
+export function describeModelRoutingReadiness(
+  model: IndexedModel,
+  multimodalPairs: MultimodalPair[]
+): { label: string; hint: string } {
+  const knownPair = multimodalPairs.find((pair) => pair.base_model_id === model.id);
+  const verifiedPair = multimodalPairs.find(
+    (pair) => pair.base_model_id === model.id && pair.routing_allowed === true
+  );
+
+  if (model.capabilities.includes("vision")) {
+    if (knownPair || modelRequiresVisionProjector(model.id, [model])) {
+      if (!verifiedPair) {
+        return {
+          label: "MM-Pair fehlt",
+          hint: "Bildinput bleibt gesperrt, bis ein verifiziertes Projector-Pair vorliegt"
+        };
+      }
+      if (!model.capabilities.includes("code")) {
+        return {
+          label: "Vision ohne Code",
+          hint: "Bildanalyse moeglich, aber Screenshot-Coding/-Review bleibt am Code-Gate haengen"
+        };
+      }
+      return {
+        label: "Vision + Code",
+        hint: "Verifiziertes MM-Pair vorhanden; fuer Screenshot-Coding/-Review geeignet"
+      };
+    }
+
+    if (model.capabilities.includes("code")) {
+      return {
+        label: "Vision direkt",
+        hint: modelSupportsTextOnly(model.id, [model])
+          ? "Text-only und Bildturns moeglich; kein MM-Pair erforderlich"
+          : "Bildturns moeglich; Text-only nur, wenn der Broker es explizit freigibt"
+      };
+    }
+
+    return {
+      label: "Vision Chat",
+      hint: "Bildanalyse moeglich, aber fuer Coding-/Review-Turns fehlt die Code-Faehigkeit"
+    };
+  }
+
+  if (model.capabilities.includes("code")) {
+    return {
+      label: "Text + Code",
+      hint: "Geeignet fuer textbasierte Coding-, Review- und Debugging-Turns"
+    };
+  }
+
+  return {
+    label: "Text",
+    hint: "Nur textbasierte Chat-/Planungsturns; kein Bildrouting"
+  };
+}
+
 export function sortMultimodalPairs(pairs: MultimodalPair[]): MultimodalPair[] {
   const priority = (pair: MultimodalPair): number => {
     if (pair.status === "ambiguous") return 0;
@@ -569,8 +636,10 @@ export function RuntimeModelsTab() {
                       <th className="px-2 py-2 font-medium">Status</th>
                       <th className="px-2 py-2 font-medium">Modell</th>
                       <th className="px-2 py-2 font-medium">Rolle</th>
+                      <th className="px-2 py-2 font-medium">Capabilities</th>
                       <th className="px-2 py-2 font-medium">Launcher</th>
                       <th className="px-2 py-2 font-medium">Compat</th>
+                      <th className="px-2 py-2 font-medium">Routing</th>
                       <th className="px-2 py-2 font-medium">Groesse</th>
                       <th className="px-2 py-2 text-right font-medium">Aktionen</th>
                     </tr>
@@ -578,6 +647,8 @@ export function RuntimeModelsTab() {
                   <tbody>
                     {startableModels.map((model) => {
                       const { canStart, canStop, isActive } = modelRowActionState(model, status, runtimeBusy);
+                      const capabilityLabels = describeModelCapabilities(model);
+                      const routingReadiness = describeModelRoutingReadiness(model, multimodalPairs);
                       return (
                         <tr
                           className={`border-b border-dbzs-border/50 ${isActive ? "bg-dbzs-cyan/5" : ""}`}
@@ -597,8 +668,26 @@ export function RuntimeModelsTab() {
                             {model.name}
                           </td>
                           <td className="px-2 py-2 text-dbzs-muted">{model.recommended_use}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">
+                            <div className="flex flex-wrap gap-1">
+                              {capabilityLabels.map((label) => (
+                                <span
+                                  className="rounded border border-dbzs-border px-1.5 py-0.5 text-[9px]"
+                                  key={`${model.id}:cap:${label}`}
+                                >
+                                  {label}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
                           <td className="px-2 py-2 text-dbzs-muted">{model.runtime_launcher}</td>
                           <td className="px-2 py-2 text-dbzs-muted">{model.compatibility}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">
+                            <div className="flex max-w-[220px] flex-col gap-0.5">
+                              <span>{routingReadiness.label}</span>
+                              <span className="text-[10px] text-dbzs-muted/80">{routingReadiness.hint}</span>
+                            </div>
+                          </td>
                           <td className="px-2 py-2 text-dbzs-muted">
                             {model.size_bytes > 0 ? formatModelSizeBadge(model.size_bytes) : "-"}
                           </td>

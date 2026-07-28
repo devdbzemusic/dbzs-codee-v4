@@ -5,6 +5,8 @@ import {
   collectProbeEvidenceItems,
   collectProbeEvidenceLines,
   defaultPairingSelection,
+  describeModelCapabilities,
+  describeModelRoutingReadiness,
   describeMultimodalPairCandidates,
   describeProbeOutcome,
   describeMultimodalPairStatus,
@@ -733,6 +735,99 @@ describe("formatMultimodalPairSource", () => {
     expect(formatMultimodalPairSource("manual")).toBe("manual");
     expect(formatMultimodalPairSource("catalog")).toBe("catalog");
     expect(formatMultimodalPairSource("custom")).toBe("custom");
+  });
+});
+
+describe("describeModelCapabilities", () => {
+  it("returns compact capability badges in stable order", () => {
+    expect(
+      describeModelCapabilities({
+        ...baseModel,
+        capabilities: ["vision", "chat", "code", "reasoning"]
+      })
+    ).toEqual(["chat", "code", "vision", "reasoning"]);
+  });
+
+  it("falls back to a dash when no capabilities are present", () => {
+    expect(describeModelCapabilities({ ...baseModel, capabilities: [] })).toEqual(["-"]);
+  });
+});
+
+describe("describeModelRoutingReadiness", () => {
+  it("flags projector-based vision models without verified pair as blocked", () => {
+    expect(
+      describeModelRoutingReadiness(
+        {
+          ...baseModel,
+          id: "vision-model",
+          name: "Qwen2.5-VL-3B",
+          capabilities: ["chat", "vision"],
+          recommended_use: "vision_candidate"
+        },
+        [
+          {
+            id: "pair-candidate",
+            base_model_id: "vision-model",
+            projector_artifact_id: "mmproj-vision-model",
+            modalities: ["text", "image"],
+            source: "catalog",
+            confidence: 0.85,
+            status: "candidate",
+            routing_allowed: false,
+            candidate_base_model_ids: ["vision-model"]
+          }
+        ]
+      )
+    ).toEqual({
+      label: "MM-Pair fehlt",
+      hint: "Bildinput bleibt gesperrt, bis ein verifiziertes Projector-Pair vorliegt"
+    });
+  });
+
+  it("marks verified vision+code models as screenshot-ready", () => {
+    expect(
+      describeModelRoutingReadiness(
+        {
+          ...baseModel,
+          id: "vision-model",
+          name: "Qwen2.5-VL-3B",
+          capabilities: ["chat", "vision", "code"],
+          recommended_use: "vision_candidate"
+        },
+        [
+          {
+            id: "pair-1",
+            base_model_id: "vision-model",
+            projector_artifact_id: "mmproj-vision-model",
+            modalities: ["text", "image"],
+            source: "manual",
+            confidence: 1,
+            status: "candidate",
+            routing_allowed: true,
+            candidate_base_model_ids: ["vision-model"]
+          }
+        ]
+      )
+    ).toEqual({
+      label: "Vision + Code",
+      hint: "Verifiziertes MM-Pair vorhanden; fuer Screenshot-Coding/-Review geeignet"
+    });
+  });
+
+  it("keeps text coding models on text-only routing", () => {
+    expect(
+      describeModelRoutingReadiness(
+        {
+          ...baseModel,
+          capabilities: ["chat", "code"],
+          recommended_use: "primary_coding"
+        },
+        []
+      )
+    ).toEqual({
+      label: "Text + Code",
+      hint: "Geeignet fuer textbasierte Coding-, Review- und Debugging-Turns"
+    });
   });
 });
 
