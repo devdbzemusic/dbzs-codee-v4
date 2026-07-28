@@ -20,6 +20,7 @@ import {
   modelRowActionState,
   shouldDisplaySupportArtifact,
   shouldManagePairInControlCenter,
+  summarizeModelRoutingReadiness,
   summarizeMultimodalPairs
 } from "./RuntimeModelsTab";
 
@@ -827,6 +828,74 @@ describe("describeModelRoutingReadiness", () => {
     ).toEqual({
       label: "Text + Code",
       hint: "Geeignet fuer textbasierte Coding-, Review- und Debugging-Turns"
+    });
+  });
+});
+
+describe("summarizeModelRoutingReadiness", () => {
+  it("counts text, coding, blocked vision and screenshot-ready models", () => {
+    expect(
+      summarizeModelRoutingReadiness(
+        [
+          {
+            ...baseModel,
+            id: "text-model",
+            name: "chat-only.gguf",
+            capabilities: ["chat"],
+            recommended_use: "chat_candidate"
+          },
+          {
+            ...baseModel,
+            id: "code-model",
+            name: "coder.gguf",
+            capabilities: ["chat", "code"],
+            recommended_use: "primary_coding"
+          },
+          {
+            ...baseModel,
+            id: "blocked-vision-model",
+            name: "Qwen2.5-VL-3B",
+            capabilities: ["chat", "vision"],
+            recommended_use: "vision_candidate"
+          },
+          {
+            ...baseModel,
+            id: "ready-vision-model",
+            name: "Qwen2.5-VL-7B",
+            capabilities: ["chat", "vision", "code"],
+            recommended_use: "vision_candidate"
+          }
+        ],
+        [
+          {
+            id: "pair-blocked",
+            base_model_id: "blocked-vision-model",
+            projector_artifact_id: "mmproj-blocked",
+            modalities: ["text", "image"],
+            source: "catalog",
+            confidence: 0.8,
+            status: "candidate",
+            routing_allowed: false,
+            candidate_base_model_ids: ["blocked-vision-model"]
+          },
+          {
+            id: "pair-ready",
+            base_model_id: "ready-vision-model",
+            projector_artifact_id: "mmproj-ready",
+            modalities: ["text", "image"],
+            source: "manual",
+            confidence: 1,
+            status: "candidate",
+            routing_allowed: true,
+            candidate_base_model_ids: ["ready-vision-model"]
+          }
+        ]
+      )
+    ).toEqual({
+      text: 1,
+      textCode: 1,
+      visionBlocked: 1,
+      screenshotReady: 1
     });
   });
 });

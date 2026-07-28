@@ -435,6 +435,33 @@ export function describeModelRoutingReadiness(
   };
 }
 
+export function summarizeModelRoutingReadiness(
+  models: IndexedModel[],
+  multimodalPairs: MultimodalPair[]
+): Record<"text" | "textCode" | "visionBlocked" | "screenshotReady", number> {
+  const summary = {
+    text: 0,
+    textCode: 0,
+    visionBlocked: 0,
+    screenshotReady: 0
+  };
+
+  for (const model of models) {
+    const readiness = describeModelRoutingReadiness(model, multimodalPairs);
+    if (readiness.label === "Text") {
+      summary.text += 1;
+    } else if (readiness.label === "Text + Code") {
+      summary.textCode += 1;
+    } else if (readiness.label === "MM-Pair fehlt") {
+      summary.visionBlocked += 1;
+    } else if (readiness.label === "Vision + Code") {
+      summary.screenshotReady += 1;
+    }
+  }
+
+  return summary;
+}
+
 export function sortMultimodalPairs(pairs: MultimodalPair[]): MultimodalPair[] {
   const priority = (pair: MultimodalPair): number => {
     if (pair.status === "ambiguous") return 0;
@@ -476,6 +503,7 @@ export function RuntimeModelsTab() {
   const supportArtifactsById = new Map(supportArtifacts.map((artifact) => [artifact.id, artifact] as const));
   const startableModels = models.filter((model) => model.artifact_type === "model");
   const pairingCandidates = listManualPairingCandidates(startableModels);
+  const modelRoutingSummary = summarizeModelRoutingReadiness(startableModels, multimodalPairs);
   const isRunning = status?.state === "running";
 
   const resetPairingProbeUi = (artifactId: string) => {
@@ -627,9 +655,23 @@ export function RuntimeModelsTab() {
           <div className="space-y-6">
             {startableModels.length > 0 ? (
               <div>
-                <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">
-                  Startbare Modelle
-                </h3>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <h3 className="text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">
+                    Startbare Modelle
+                  </h3>
+                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                    Text {modelRoutingSummary.text}
+                  </span>
+                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                    Text + Code {modelRoutingSummary.textCode}
+                  </span>
+                  <span className="border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] text-red-300">
+                    MM-Pair blockiert {modelRoutingSummary.visionBlocked}
+                  </span>
+                  <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
+                    Screenshot-ready {modelRoutingSummary.screenshotReady}
+                  </span>
+                </div>
                 <table className="w-full min-w-[760px] border-collapse text-left text-[11px]">
                   <thead className="sticky top-0 bg-[#091017]">
                     <tr className="border-b border-dbzs-border text-dbzs-muted">
