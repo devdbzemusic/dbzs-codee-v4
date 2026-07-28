@@ -50,6 +50,17 @@ function inferWorkflowKind(input: WorkflowResolutionInput): WorkflowKind {
     return deterministic;
   }
 
+  // An explicit review request always switches the workflow kind to "review",
+  // even while a different (non-review) contract is still open. Mirrors
+  // resolveWorkflowContinuation's "switch phase, keep contract" handling for
+  // review requests. Without this, the activeContract fallback below would
+  // silently keep the stale, non-review workflowKind: classifiedTaskType
+  // would say "review" but the resolved workflow (and its default agent)
+  // would not, so routing would never reach the reviewer agent.
+  if (input.classifiedTaskType === "review") {
+    return "review";
+  }
+
   if (
     input.activeContract?.workflowKind &&
     !isExplicitNewTaskMessage(input.userMessage)
@@ -65,8 +76,6 @@ function inferWorkflowKind(input: WorkflowResolutionInput): WorkflowKind {
     case "planning":
     case "architecture":
       return "planning";
-    case "review":
-      return "review";
     case "debugging":
       return CONCRETE_FIX_PATTERNS.some((pattern) => pattern.test(input.userMessage))
         ? "code_change"

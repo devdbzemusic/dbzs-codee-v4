@@ -130,6 +130,32 @@ describe("resolveCanonicalWorkflowAssignment", () => {
     expect(assignment.source).toBe("deterministic_operation");
   });
 
+  it("routes an explicit review request to reviewer even with a stale non-review contract open", () => {
+    // Regression: a real interactive golden-path run found that
+    // "Mache einen vollständigen Repository Review." never triggered the
+    // review orchestrator when a prior casual-chat active task contract was
+    // still open. classifiedTaskType correctly said "review", but
+    // inferWorkflowKind reused the stale contract's workflowKind ("chat")
+    // because the message isn't an explicit "Neue Aufgabe:"-style new-task
+    // trigger, so effectiveAgent stayed "runtime_chat" instead of "reviewer".
+    const assignment = resolveCanonicalWorkflowAssignment({
+      userMessage: "Mache einen vollständigen Repository Review.",
+      classifiedIntent: "review",
+      classifiedTaskType: "review",
+      activeContract: contract({
+        workflowKind: "chat",
+        currentPhase: "clarification",
+        assignedAgent: "runtime_chat",
+        effectiveAgent: "runtime_chat",
+        taskType: "casual_chat"
+      })
+    });
+
+    expect(assignment.workflowKind).toBe("review");
+    expect(assignment.phase).toBe("review");
+    expect(assignment.effectiveAgent).toBe("reviewer");
+  });
+
   it("keeps every sampled combination on a valid phase-agent pair", () => {
     const taskTypes = [
       "casual_chat",
