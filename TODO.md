@@ -45,6 +45,9 @@ hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht no
       `probeRuntimeModel` akzeptiert optional `projector_artifact_id`, startet bei erfolgreichem Pairing mit `--mmproj`,
       persistiert `routing_allowed = true` fuer verifizierte Paare im Katalog und der `RuntimeModelsTab` zeigt den Status
       sofort nach der Probe als `verified` an.
+- [x] **Zwischenschritt 2026-07-28e:** Runtime-Probe prueft den gestarteten Endpoint jetzt explizit nach:
+      Basis-Endpoint und `/v1/models` muessen antworten, bevor ein multimodales Paar als verifiziert gespeichert wird.
+      Fehlende Endpoint-Nachweise blockieren die Freigabe weiterhin.
 
 Basis: `PlÃ¤ne/03 04 05 DBZS_CODEE_CONSOLIDATED_MODEL_CONTROL_MM_PAIRING_PLAN.md` plus
 `PlÃ¤ne/03 04 05 DBZS_CODEE_ADAPTED_MODEL_CONTROL_MM_PLAN_CURRENT_REPO.md`
@@ -56,8 +59,8 @@ Basis: `PlÃ¤ne/03 04 05 DBZS_CODEE_CONSOLIDATED_MODEL_CONTROL_MM_PAIRING_PLAN.
       Metadatenvergleich fuer `MultimodalPair`; mehrdeutige oder unvollstaendige Faelle muessen explizit als
       `ambiguous`/`missing_base`/`missing_projector`/`orphan` sichtbar bleiben und duerfen kein Routing freigeben.
 - [ ] **Phase 3 â€” Runtime-Probe einfuehren:** interner `RuntimeLaunchProfile` mit optionalem `mmprojPath`, temporaerer Probe-Start
-      (`--model` + `--mmproj`) und persistente Verifikation sind jetzt vorhanden; offen bleiben Healthcheck-/`/v1/models`-
-      Nachweis, echter Bildtest und sauberer Ergebnisverlauf, weiterhin ohne automatische Modellstarts beim App-Start.
+      (`--model` + `--mmproj`), persistente Verifikation und Endpoint-/`/v1/models`-Nachweis sind jetzt vorhanden; offen
+      bleiben echter Bildtest und sauberer Ergebnisverlauf, weiterhin ohne automatische Modellstarts beim App-Start.
 - [ ] **Phase 4 â€” `RuntimeModelsTab` zum Model Control Center ausbauen:** Bereiche fuer Modelle, multimodale Paare,
       Hilfsartefakte, Capabilities, Rollen/Routing und Diagnose; manuelle Zuordnung erst hier an die UI bringen,
       nicht verdeckt im Broker.

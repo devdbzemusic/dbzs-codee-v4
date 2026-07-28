@@ -62,6 +62,9 @@ export interface RuntimeProbeResponse {
   stdout_tail: string;
   projector_artifact_id?: string | null;
   mmproj_path?: string | null;
+  endpoint_verified?: boolean;
+  models_endpoint_verified?: boolean;
+  advertised_models?: string[];
 }
 
 export interface RuntimeLogsResponse {

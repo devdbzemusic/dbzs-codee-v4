@@ -54,6 +54,8 @@ Stand im aktuellen Branch nach dem naechsten sicheren Slice:
 - kontrollierte MMProj-Probe ist vorhanden: `probeRuntimeModel` akzeptiert `projector_artifact_id`, startet das Basismodell
   bei erfolgreichem Pairing mit `--mmproj`, persistiert erfolgreiche Proben als `routing_allowed = true` im Katalog
   und der `RuntimeModelsTab` aktualisiert den Index danach sofort auf `verified`
+- die Probe haertet den Nachweis jetzt weiter: Basis-Endpoint und `/v1/models` muessen erfolgreich antworten, bevor
+  ein Paar als verifiziert markiert wird; fehlende Endpoint-Nachweise blockieren die Freigabe weiterhin
 - `RuntimeModelsTab` zeigt fuer MMProj-/Hilfsartefakte jetzt explizite Statushinweise statt nur generischem `support_artifact`
 - MMProj bleibt strikt nicht startbar; nur verifizierte Paare werden jetzt als `routingAllowed = true` sichtbar
 - Nebenfund behoben: Dateinamen-Heuristiken bewerten jetzt den Dateinamen statt des ganzen Pfads, damit Ordnernamen wie `...mmproj...` keine Fehlklassifikation ausloesen
@@ -66,8 +68,8 @@ Stand im aktuellen Branch nach dem naechsten sicheren Slice:
   Metadatenvergleich; uneindeutige Faelle bewusst als `ambiguous`/`missing_base`/`missing_projector`/`orphan`
   stehen lassen statt aggressiv zu auto-koppeln.
 - **3. Runtime-Probe als Gate weiterhaerten**: `--model` + `--mmproj` und persistente Verifikation sind vorhanden; offen
-  bleiben Healthcheck-/`/v1/models`-Nachweis, echter Bildtest und ein sauberer Ergebnisverlauf fuer fehlgeschlagene
-  versus erfolgreiche Proben. Erst `verified`-Paare duerfen Routing freigeben.
+  bleiben echter Bildtest und ein sauberer Ergebnisverlauf fuer fehlgeschlagene versus erfolgreiche Proben.
+  Endpoint- und `/v1/models`-Nachweis sind jetzt Teil des Gates. Erst `verified`-Paare duerfen Routing freigeben.
 - **4. Dann UI/Control Center**: `RuntimeModelsTab` um Paare, Hilfsartefakte, Diagnose und manuelle Zuordnung erweitern.
 - **5. Routing zuletzt anschliessen**: Textanfragen unveraendert text-only; Bildinput nur ueber verifizierte multimodale Paare.
   Erste Produktionsstufe fuer Screenshot-Coding/Review: Vision analysiert, spezialisiertes Coding-/Review-Modell setzt um.

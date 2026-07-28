@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import socket
 from pathlib import Path
 from typing import Any, Literal
+from urllib import error, request
 
 from pydantic import BaseModel, Field
 
@@ -80,6 +82,9 @@ class RuntimeProbeResponse(BaseModel):
     stdout_tail: str = ""
     projector_artifact_id: str | None = None
     mmproj_path: str | None = None
+    endpoint_verified: bool = False
+    models_endpoint_verified: bool = False
+    advertised_models: list[str] = Field(default_factory=list)
 
 
 HARDWARE_PRESETS: list[SuggestedProfile] = [
@@ -128,6 +133,52 @@ def _path_check(check_id: str, path: Path, required: bool = False) -> RuntimeChe
         message=f"Missing: {path}",
         recommendation="Set env override or install runtime assets.",
     )
+
+
+def _probe_runtime_endpoint(endpoint: str) -> tuple[bool, bool, list[str]]:
+    base = endpoint.rstrip("/")
+    endpoint_verified = False
+    models_endpoint_verified = False
+    advertised_models: list[str] = []
+
+    for candidate in (f"{base}/health", f"{base}/"):
+        try:
+            with request.urlopen(candidate, timeout=2) as response:
+                if 200 <= response.status < 300:
+                    endpoint_verified = True
+                    break
+        except (OSError, TimeoutError, error.URLError):
+            continue
+
+    try:
+        with request.urlopen(f"{base}/v1/models", timeout=2) as response:
+            if 200 <= response.status < 300:
+                models_endpoint_verified = True
+                payload = json.loads(response.read().decode("utf-8"))
+                if isinstance(payload, dict):
+                    data = payload.get("data")
+                    if isinstance(data, list):
+                        for item in data:
+                            if not isinstance(item, dict):
+                                continue
+                            model_id = item.get("id")
+                            if isinstance(model_id, str) and model_id:
+                                advertised_models.append(model_id)
+    except (OSError, TimeoutError, error.URLError, UnicodeDecodeError, json.JSONDecodeError):
+        pass
+
+    return endpoint_verified, models_endpoint_verified, advertised_models
+
+
+def _probe_verification_failure_message(endpoint_verified: bool, models_endpoint_verified: bool) -> str:
+    missing_checks: list[str] = []
+    if not endpoint_verified:
+        missing_checks.append("Basis-Endpoint")
+    if not models_endpoint_verified:
+        missing_checks.append("/v1/models")
+    if not missing_checks:
+        return "Controlled probe started, but runtime endpoint verification did not complete successfully."
+    return "Controlled probe started, but verification failed for: " + ", ".join(missing_checks) + "."
 
 
 def _estimate_role(name: str, artifact_type: str) -> str:
@@ -308,6 +359,7 @@ def probe_runtime(
     models_dir: Path | None = None,
     ollama_dir: Path | None = None,
     ollama_models_dir: Path | None = None,
+    endpoint_verifier: Any | None = None,
 ) -> RuntimeProbeResponse:
     if not request.allow_start:
         return RuntimeProbeResponse(
@@ -379,7 +431,24 @@ def probe_runtime(
             mmproj_path=mmproj_path,
         )
 
+    endpoint_verified = False
+    models_endpoint_verified = False
+    advertised_models: list[str] = []
+    if status.endpoint:
+        verify_endpoint = endpoint_verifier or _probe_runtime_endpoint
+        endpoint_verified, models_endpoint_verified, advertised_models = verify_endpoint(status.endpoint)
+
     runtime.stop_model()
+    if not endpoint_verified or not models_endpoint_verified:
+        return RuntimeProbeResponse(
+            allowed=False,
+            message=_probe_verification_failure_message(endpoint_verified, models_endpoint_verified),
+            projector_artifact_id=projector_artifact_id,
+            mmproj_path=mmproj_path,
+            endpoint_verified=endpoint_verified,
+            models_endpoint_verified=models_endpoint_verified,
+            advertised_models=advertised_models,
+        )
     if projector_artifact_id and mmproj_path:
         index_service.mark_multimodal_pair_verified(request.model_id, projector_artifact_id)
     return RuntimeProbeResponse(
@@ -387,4 +456,7 @@ def probe_runtime(
         message=f"Controlled probe succeeded for {request.model_id} on port {status.port}.",
         projector_artifact_id=projector_artifact_id,
         mmproj_path=mmproj_path,
+        endpoint_verified=endpoint_verified,
+        models_endpoint_verified=models_endpoint_verified,
+        advertised_models=advertised_models,
     )

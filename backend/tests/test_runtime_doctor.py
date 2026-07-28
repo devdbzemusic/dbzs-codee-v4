@@ -181,10 +181,14 @@ def test_runtime_probe_allow_start_runs_controlled_start(tmp_path: Path) -> None
     response = probe_runtime(
         RuntimeProbeRequest(allow_start=True, model_id="coder"),
         service=FakeRuntimeService(),  # type: ignore[arg-type]
+        endpoint_verifier=lambda endpoint: (True, True, ["coder"]),
     )
 
     assert response.allowed is True
     assert "coder" in response.message
+    assert response.endpoint_verified is True
+    assert response.models_endpoint_verified is True
+    assert response.advertised_models == ["coder"]
 
 
 def test_runtime_probe_allows_mmproj_pairing_and_passes_mmproj_path(tmp_path: Path) -> None:
@@ -230,12 +234,16 @@ def test_runtime_probe_allows_mmproj_pairing_and_passes_mmproj_path(tmp_path: Pa
         models_dir=tmp_path,
         ollama_dir=tmp_path / "ollama",
         ollama_models_dir=tmp_path / "ollama-models",
+        endpoint_verifier=lambda endpoint: (True, True, ["vision-base"]),
     )
 
     assert response.allowed is True
     assert response.projector_artifact_id == "vision-proj"
     assert response.mmproj_path is not None
     assert fake_service.received_config == {"mmproj_path": response.mmproj_path}
+    assert response.endpoint_verified is True
+    assert response.models_endpoint_verified is True
+    assert response.advertised_models == ["vision-base"]
 
     persisted = json.loads((tmp_path / "models.catalog.json").read_text(encoding="utf-8"))
     base_entry = next(entry for entry in persisted["models"] if entry["id"] == "vision-base")
@@ -243,5 +251,58 @@ def test_runtime_probe_allows_mmproj_pairing_and_passes_mmproj_path(tmp_path: Pa
 
     assert base_entry["pairing"]["routing_allowed"] is True
     assert projector_entry["pairing"]["routing_allowed"] is True
+
+
+def test_runtime_probe_requires_endpoint_verification_before_marking_pair_verified(tmp_path: Path) -> None:
+    _write_multimodal_catalog(tmp_path)
+
+    running = RuntimeStatus(
+        state="running",
+        provider="llama.cpp",
+        model_id="vision-base",
+        model_name="Vision Base",
+        port=8091,
+        pid=42,
+        endpoint="http://127.0.0.1:8091",
+        message="ok",
+    )
+    stopped = RuntimeStatus(state="stopped", message="Runtime stopped.")
+
+    class FakeRuntimeService:
+        def start_model(self, model_id: str, config: dict | None = None) -> RuntimeStatus:
+            assert model_id == "vision-base"
+            return running
+
+        def stop_model(self) -> RuntimeStatus:
+            return stopped
+
+        def get_logs(self):
+            from app.runtime.schemas import RuntimeLogsResponse
+
+            return RuntimeLogsResponse(state="running", model_id="vision-base")
+
+    response = probe_runtime(
+        RuntimeProbeRequest(
+            allow_start=True,
+            model_id="vision-base",
+            projector_artifact_id="vision-proj",
+        ),
+        service=FakeRuntimeService(),  # type: ignore[arg-type]
+        models_dir=tmp_path,
+        ollama_dir=tmp_path / "ollama",
+        ollama_models_dir=tmp_path / "ollama-models",
+        endpoint_verifier=lambda endpoint: (True, False, []),
+    )
+
+    assert response.allowed is False
+    assert response.endpoint_verified is True
+    assert response.models_endpoint_verified is False
+
+    persisted = json.loads((tmp_path / "models.catalog.json").read_text(encoding="utf-8"))
+    base_entry = next(entry for entry in persisted["models"] if entry["id"] == "vision-base")
+    projector_entry = next(entry for entry in persisted["models"] if entry["id"] == "vision-proj")
+
+    assert "pairing" not in base_entry or base_entry["pairing"].get("routing_allowed") is not True
+    assert "pairing" not in projector_entry or projector_entry["pairing"].get("routing_allowed") is not True
 
 
