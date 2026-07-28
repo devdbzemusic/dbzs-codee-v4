@@ -438,10 +438,15 @@ export function describeModelRoutingReadiness(
 export function summarizeModelRoutingReadiness(
   models: IndexedModel[],
   multimodalPairs: MultimodalPair[]
-): Record<"text" | "textCode" | "visionBlocked" | "screenshotReady", number> {
+): Record<
+  "text" | "textCode" | "visionDirect" | "visionChat" | "visionBlocked" | "screenshotReady",
+  number
+> {
   const summary = {
     text: 0,
     textCode: 0,
+    visionDirect: 0,
+    visionChat: 0,
     visionBlocked: 0,
     screenshotReady: 0
   };
@@ -452,6 +457,10 @@ export function summarizeModelRoutingReadiness(
       summary.text += 1;
     } else if (readiness.label === "Text + Code") {
       summary.textCode += 1;
+    } else if (readiness.label === "Vision direkt") {
+      summary.visionDirect += 1;
+    } else if (readiness.label === "Vision Chat") {
+      summary.visionChat += 1;
     } else if (readiness.label === "MM-Pair fehlt") {
       summary.visionBlocked += 1;
     } else if (readiness.label === "Vision + Code") {
@@ -664,6 +673,12 @@ export function RuntimeModelsTab() {
                   </span>
                   <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
                     Text + Code {modelRoutingSummary.textCode}
+                  </span>
+                  <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
+                    Vision direkt {modelRoutingSummary.visionDirect}
+                  </span>
+                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-[10px] text-dbzs-muted">
+                    Vision Chat {modelRoutingSummary.visionChat}
                   </span>
                   <span className="border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] text-red-300">
                     MM-Pair blockiert {modelRoutingSummary.visionBlocked}

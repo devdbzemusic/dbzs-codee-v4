@@ -833,7 +833,7 @@ describe("describeModelRoutingReadiness", () => {
 });
 
 describe("summarizeModelRoutingReadiness", () => {
-  it("counts text, coding, blocked vision and screenshot-ready models", () => {
+  it("counts text, coding, direct vision, vision chat, blocked vision and screenshot-ready models", () => {
     expect(
       summarizeModelRoutingReadiness(
         [
@@ -855,6 +855,20 @@ describe("summarizeModelRoutingReadiness", () => {
             ...baseModel,
             id: "blocked-vision-model",
             name: "Qwen2.5-VL-3B",
+            capabilities: ["chat", "vision"],
+            recommended_use: "vision_candidate"
+          },
+          {
+            ...baseModel,
+            id: "direct-vision-model",
+            name: "Gemma-vision-instruct",
+            capabilities: ["chat", "vision", "code"],
+            recommended_use: "vision_candidate"
+          },
+          {
+            ...baseModel,
+            id: "vision-chat-model",
+            name: "Vision-chat-only",
             capabilities: ["chat", "vision"],
             recommended_use: "vision_candidate"
           },
@@ -894,6 +908,8 @@ describe("summarizeModelRoutingReadiness", () => {
     ).toEqual({
       text: 1,
       textCode: 1,
+      visionDirect: 1,
+      visionChat: 1,
       visionBlocked: 1,
       screenshotReady: 1
     });
