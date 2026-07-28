@@ -6,25 +6,25 @@ Lokaler Ordnername und einige historische Dokumente verwenden noch `dbzs-codee-p
 
 ## Aktueller Stand
 
-Stand: 2026-07-27
+Stand: 2026-07-28
 
-- Repo-Readiness auf lokalem Repair-Stand nachgewiesen.
-- Vollstaendige Windows-Required-Gates liefen lokal gruen ueber `pnpm ci:local:win`.
-- Runtime-Chat wurde auf dem Arbeitsbranch `codex/runtime-chat-overhaul-conversation-first`
-  in Richtung `conversation first` umgebaut.
-- Vor dem Umbau wurden ein Git-Backup-Branch und ein physischer Projektsnapshot erzeugt:
-  - `codex/backup-runtime-chat-overhaul-2026-07-27`
-  - `C:\Users\ralle\source\repos\_backups\dbzs-codee-project-backup-2026-07-27-runtime-chat-overhaul`
-- GitHub-CI ist derzeit nicht automatisch an `push` oder `pull_request` gebunden.
-- `origin/main` zeigt auf `97063959fb54fbc6ba220797773174b4bf990732`.
+- [PR #4](https://github.com/devdbzemusic/dbzs-codee-v4/pull/4) (Runtime-Chat-Overhaul + Personal Production Stabilization) ist gemergt.
+- Direkt danach wurden auf `main` mehrere kleine Restpunkte abgearbeitet (Typfehler, Vite-Warnungen, Review-Fehlerklassifikation) sowie ein echter interaktiver Golden-Path-Durchlauf mit einem echten lokalen Modell gefahren.
+- Der echte Durchlauf hat zwei reale Bugs aufgedeckt und behoben, die keine gemockten Tests haetten finden koennen (veralteter Modell-Katalog-Eintrag; eine Regression aus dem eigenen `dbzs:fs:*`-IPC-Sicherheits-Fix von PR #4) — Details in [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md](docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md).
+- `npm run typecheck` (apps/desktop) ist seitdem erstmals vollstaendig fehlerfrei.
+- GitHub-CI ist weiterhin nicht automatisch an `push` oder `pull_request` gebunden (bewusst zurueckgestellt, siehe `Pläne/DBZS_CODEE_PERSONAL_PRODUCTION_PLAN.md`).
+- `origin/main` zeigt auf `d6c56c4e1a30b15f4cb72d71a5118323f895fc9c`.
 - Offene Pull Requests im Repo `devdbzemusic/dbzs-codee-v4`: keine.
 - Branch Protection fuer `main`: aktuell nicht aktiv.
 
-Der Repair-Run vom 2026-07-27 wurde bewusst auf Nachweis, Doku-Wahrheit und GitHub-Hygiene ausgerichtet, nicht auf neue Features.
+Der vorherige Repair-Run vom 2026-07-27 (Backup-Branch `codex/backup-runtime-chat-overhaul-2026-07-27`,
+physischer Snapshot unter `C:\Users\ralle\source\repos\_backups\dbzs-codee-project-backup-2026-07-27-runtime-chat-overhaul`)
+war bewusst auf Nachweis, Doku-Wahrheit und GitHub-Hygiene ausgerichtet. Der aktuelle Fokus liegt auf
+persoenlicher Produktivnutzung statt oeffentlicher Release-Reife — siehe `Pläne/DBZS_CODEE_PERSONAL_PRODUCTION_PLAN.md`.
 
 ## Runtime-Chat-Overhaul
 
-Der aktuelle Runtime-Chat-Arbeitsstand priorisiert Gespraechsfuehrung vor Technikflaechen:
+Seit PR #4 Teil von `main`. Der Runtime-Chat priorisiert Gespraechsfuehrung vor Technikflaechen:
 
 - Conversation-Feed und Composer dominieren die Standardansicht.
 - Panels, Slots und Routing-Diagnose bleiben erhalten, sind aber sekundaer.
@@ -126,6 +126,7 @@ pnpm doctor:backend
 
 - [docs/STATUS_TODAY.md](docs/STATUS_TODAY.md)
 - [docs/audits/MAIN_READINESS_AUDIT_2026-07-27.md](docs/audits/MAIN_READINESS_AUDIT_2026-07-27.md)
+- [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md](docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md)
 - [HANDOVER.md](HANDOVER.md)
 - [TODO.md](TODO.md)
 

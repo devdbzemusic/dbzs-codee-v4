@@ -13,7 +13,7 @@ Stand: 2026-07-28
 
 - aktiver GitHub-Remote: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
 - lokaler Ordnername bleibt aktuell `dbzs-codee-project`
-- `origin/main` zeigt auf `55f43c1` (Folgearbeit nach PR #4 + echter Golden-Path-Durchlauf, direkt auf `main` committet)
+- `origin/main` zeigt auf `d6c56c4` (Folgearbeit nach PR #4 + echter Golden-Path-Durchlauf, direkt auf `main` committet)
 - offene Pull Requests im Live-Repo: keine
 - Branch Protection fuer `main`: aktuell nicht aktiv
 
