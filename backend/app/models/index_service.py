@@ -74,6 +74,7 @@ class CatalogPairingHint:
     projector_artifact_id: str | None = None
     projector_path: str | None = None
     requires_projector: bool = False
+    routing_allowed: bool = False
 
 
 class ModelIndexService:
@@ -504,11 +505,13 @@ class ModelIndexService:
         base_pairing = _entry_pairing_dict(base_entry)
         base_pairing["source"] = "manual"
         base_pairing["projector_model_id"] = projector_artifact_id
+        base_pairing["routing_allowed"] = False
         base_pairing.pop("projector_path", None)
 
         projector_pairing = _entry_pairing_dict(projector_entry)
         projector_pairing["source"] = "manual"
         projector_pairing["base_model_id"] = base_model_id
+        projector_pairing["routing_allowed"] = False
         projector_pairing.pop("base_model_path", None)
 
         _write_json(catalog_path, catalog)
@@ -523,6 +526,48 @@ class ModelIndexService:
         )
         if pair is None:
             raise ValueError("Manuelle Zuordnung wurde gespeichert, konnte aber nicht wieder aus dem Index aufgeloest werden.")
+        return pair
+
+    def mark_multimodal_pair_verified(self, base_model_id: str, projector_artifact_id: str) -> MultimodalPair:
+        catalog_path = self.models_dir / "models.catalog.json"
+        if not catalog_path.exists():
+            raise ValueError("models.catalog.json fehlt; Runtime-Verifikation braucht einen persistierten Katalog.")
+
+        catalog = _read_json(catalog_path)
+        _, entries = _catalog_entries(catalog)
+
+        base_entry = _find_catalog_entry(entries, base_model_id)
+        if base_entry is None:
+            raise ValueError(f"Basismodell '{base_model_id}' wurde im Katalog nicht gefunden.")
+        projector_entry = _find_catalog_entry(entries, projector_artifact_id)
+        if projector_entry is None:
+            raise ValueError(f"Projector '{projector_artifact_id}' wurde im Katalog nicht gefunden.")
+
+        base_pairing = _entry_pairing_dict(base_entry)
+        base_pairing["projector_model_id"] = projector_artifact_id
+        base_pairing["routing_allowed"] = True
+
+        projector_pairing = _entry_pairing_dict(projector_entry)
+        projector_pairing["base_model_id"] = base_model_id
+        projector_pairing["routing_allowed"] = True
+
+        if not base_pairing.get("source"):
+            base_pairing["source"] = "catalog"
+        if not projector_pairing.get("source"):
+            projector_pairing["source"] = "catalog"
+
+        _write_json(catalog_path, catalog)
+
+        index = self.build_index()
+        pair = next(
+            (
+                item for item in index.multimodal_pairs
+                if item.base_model_id == base_model_id and item.projector_artifact_id == projector_artifact_id
+            ),
+            None,
+        )
+        if pair is None:
+            raise ValueError("Runtime-Verifikation wurde gespeichert, konnte aber nicht wieder aus dem Index aufgeloest werden.")
         return pair
 
     def _merge_runtime_hints(self, model_id: str, runtime_profile: dict[str, Any]) -> None:
@@ -912,6 +957,12 @@ def _catalog_pairing_hints_for_entry(
         loader.get("pairing_mode"),
     )
     source = "manual" if pairing_source == "manual" or pairing_mode == "manual" or entry.get("manual_pairing") is True else "catalog"
+    routing_allowed = bool(
+        pairing.get("routing_allowed") is True
+        or pairing.get("verified") is True
+        or entry.get("routing_allowed") is True
+        or entry.get("pairing_verified") is True
+    )
     requires_mmproj = bool(loader.get("requires_mmproj") or entry.get("requires_mmproj"))
     projector_id = _first_text(
         pairing.get("projector_model_id"),
@@ -939,6 +990,7 @@ def _catalog_pairing_hints_for_entry(
                 projector_artifact_id=projector_id,
                 projector_path=projector_path,
                 requires_projector=requires_mmproj or projector_id is not None or projector_path is not None,
+                routing_allowed=routing_allowed,
             )
         )
 
@@ -964,6 +1016,7 @@ def _catalog_pairing_hints_for_entry(
                     projector_artifact_id=model_id,
                     projector_path=resolved_path,
                     requires_projector=True,
+                    routing_allowed=routing_allowed,
                 )
             )
 
@@ -1029,7 +1082,7 @@ def _infer_multimodal_pairs(
                     source=hint.source,
                     confidence=1.0 if hint.source == "manual" else 0.99,
                     status="candidate",
-                    routing_allowed=False,
+                    routing_allowed=hint.routing_allowed,
                     candidate_base_model_ids=[base_model.id],
                 )
             )

@@ -35,6 +35,46 @@ def _write_gguf_catalog(models_dir: Path) -> None:
     (models_dir / "models.catalog.json").write_text(json.dumps(catalog), encoding="utf-8")
 
 
+def _write_multimodal_catalog(models_dir: Path) -> None:
+    runtime_dir = models_dir / "llama.cpp-win-runtime"
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    (runtime_dir / "llama-server.exe").write_text("runtime", encoding="utf-8")
+    (runtime_dir / "ggml.dll").write_text("mock", encoding="utf-8")
+    (runtime_dir / "libssl-3-x64.dll").write_text("mock", encoding="utf-8")
+    (runtime_dir / "libcrypto-3-x64.dll").write_text("mock", encoding="utf-8")
+    model_path = models_dir / "vision-base.gguf"
+    projector_path = models_dir / "mmproj-vision-base-f16.gguf"
+    model_path.write_bytes(b"GGUF")
+    projector_path.write_bytes(b"GGUF")
+    catalog = {
+        "runtime_dir": str(runtime_dir),
+        "models": [
+            {
+                "id": "vision-base",
+                "name": "Vision Base",
+                "artifact_type": "model",
+                "file_path": str(model_path),
+                "size_bytes": 1000,
+                "backend": "llama.cpp",
+                "loader": {
+                    "launcher": "llama-server",
+                    "requires_mmproj": True,
+                    "mmproj_model_id": "vision-proj",
+                },
+            },
+            {
+                "id": "vision-proj",
+                "name": "mmproj-vision-base-f16",
+                "artifact_type": "mmproj",
+                "file_path": str(projector_path),
+                "size_bytes": 1000,
+                "backend": "llama.cpp",
+            },
+        ],
+    }
+    (models_dir / "models.catalog.json").write_text(json.dumps(catalog), encoding="utf-8")
+
+
 def test_runtime_doctor_with_temp_models_dir(tmp_path: Path) -> None:
     models_dir = tmp_path / "models"
     models_dir.mkdir(exist_ok=True)
@@ -125,8 +165,9 @@ def test_runtime_probe_allow_start_runs_controlled_start(tmp_path: Path) -> None
     stopped = RuntimeStatus(state="stopped", message="Runtime stopped.")
 
     class FakeRuntimeService:
-        def start_model(self, model_id: str) -> RuntimeStatus:
+        def start_model(self, model_id: str, config: dict | None = None) -> RuntimeStatus:
             assert model_id == "coder"
+            assert config is None
             return running
 
         def stop_model(self) -> RuntimeStatus:
@@ -144,5 +185,63 @@ def test_runtime_probe_allow_start_runs_controlled_start(tmp_path: Path) -> None
 
     assert response.allowed is True
     assert "coder" in response.message
+
+
+def test_runtime_probe_allows_mmproj_pairing_and_passes_mmproj_path(tmp_path: Path) -> None:
+    _write_multimodal_catalog(tmp_path)
+
+    running = RuntimeStatus(
+        state="running",
+        provider="llama.cpp",
+        model_id="vision-base",
+        model_name="Vision Base",
+        port=8091,
+        pid=42,
+        endpoint="http://127.0.0.1:8091",
+        message="ok",
+    )
+    stopped = RuntimeStatus(state="stopped", message="Runtime stopped.")
+
+    class FakeRuntimeService:
+        def __init__(self) -> None:
+            self.received_config: dict | None = None
+
+        def start_model(self, model_id: str, config: dict | None = None) -> RuntimeStatus:
+            assert model_id == "vision-base"
+            self.received_config = config
+            return running
+
+        def stop_model(self) -> RuntimeStatus:
+            return stopped
+
+        def get_logs(self):
+            from app.runtime.schemas import RuntimeLogsResponse
+
+            return RuntimeLogsResponse(state="running", model_id="vision-base")
+
+    fake_service = FakeRuntimeService()
+    response = probe_runtime(
+        RuntimeProbeRequest(
+            allow_start=True,
+            model_id="vision-base",
+            projector_artifact_id="vision-proj",
+        ),
+        service=fake_service,  # type: ignore[arg-type]
+        models_dir=tmp_path,
+        ollama_dir=tmp_path / "ollama",
+        ollama_models_dir=tmp_path / "ollama-models",
+    )
+
+    assert response.allowed is True
+    assert response.projector_artifact_id == "vision-proj"
+    assert response.mmproj_path is not None
+    assert fake_service.received_config == {"mmproj_path": response.mmproj_path}
+
+    persisted = json.loads((tmp_path / "models.catalog.json").read_text(encoding="utf-8"))
+    base_entry = next(entry for entry in persisted["models"] if entry["id"] == "vision-base")
+    projector_entry = next(entry for entry in persisted["models"] if entry["id"] == "vision-proj")
+
+    assert base_entry["pairing"]["routing_allowed"] is True
+    assert projector_entry["pairing"]["routing_allowed"] is True
 
 

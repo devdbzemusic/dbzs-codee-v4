@@ -412,6 +412,52 @@ def test_save_manual_multimodal_pairing_persists_manual_source_and_overrides_pre
     assert "pairing" not in old_base_entry
 
 
+def test_mark_multimodal_pair_verified_persists_routing_allowed(tmp_path: Path) -> None:
+    base_model = tmp_path / "vision-chat-q4.gguf"
+    projector = tmp_path / "odd-projector-name.gguf"
+    base_model.write_bytes(b"GGUF")
+    projector.write_bytes(b"GGUF")
+
+    catalog = {
+        "models": [
+            {
+                "id": "base-model",
+                "name": "Vision Chat",
+                "artifact_type": "model",
+                "file_path": str(base_model),
+                "size_bytes": 4,
+                "backend": "llama.cpp",
+                "loader": {"launcher": "llama-server"},
+                "pairing": {"source": "catalog", "projector_model_id": "proj-odd"},
+            },
+            {
+                "id": "proj-odd",
+                "name": "odd-projector-name",
+                "artifact_type": "mmproj",
+                "file_path": str(projector),
+                "size_bytes": 4,
+                "backend": "llama.cpp",
+                "pairing": {"source": "catalog", "base_model_id": "base-model"},
+            },
+        ]
+    }
+    (tmp_path / "models.catalog.json").write_text(json.dumps(catalog), encoding="utf-8")
+
+    service = ModelIndexService(models_dir=tmp_path, ollama_models_dir=tmp_path / "empty-ollama")
+    pair = service.mark_multimodal_pair_verified("base-model", "proj-odd")
+
+    assert pair.base_model_id == "base-model"
+    assert pair.projector_artifact_id == "proj-odd"
+    assert pair.routing_allowed is True
+
+    persisted = json.loads((tmp_path / "models.catalog.json").read_text(encoding="utf-8"))
+    base_entry = next(entry for entry in persisted["models"] if entry["id"] == "base-model")
+    projector_entry = next(entry for entry in persisted["models"] if entry["id"] == "proj-odd")
+
+    assert base_entry["pairing"]["routing_allowed"] is True
+    assert projector_entry["pairing"]["routing_allowed"] is True
+
+
 def test_register_catalog_model_profile_is_idempotent(tmp_path: Path) -> None:
     from app.models.index_service import FUNCTIONGEMMA_DEFAULT_PROFILE
 

@@ -50,6 +50,12 @@ export function describeSupportArtifact(
       hint: "Kein passendes Basismodell erkannt; Routing bleibt gesperrt"
     };
   }
+  if (pair.routing_allowed) {
+    return {
+      statusLabel: "verified",
+      hint: "Runtime-Probe erfolgreich; multimodales Routing ist freigegeben"
+    };
+  }
   if (pair.status === "candidate") {
     if (pair.source === "manual") {
       return {
@@ -86,12 +92,26 @@ export function describeSupportArtifact(
   };
 }
 
+export function canProbeSupportArtifactPair(
+  artifact: IndexedModel,
+  pair: MultimodalPair | undefined
+): boolean {
+  return (
+    artifact.artifact_type === "mmproj" &&
+    pair?.status === "candidate" &&
+    pair.routing_allowed !== true &&
+    typeof pair.base_model_id === "string" &&
+    pair.base_model_id.length > 0
+  );
+}
+
 export function RuntimeModelsTab() {
   const { index, isLoading: indexLoading, error: indexError, loadModelIndex } = useModelIndexStore();
   const { status, isLoading: runtimeBusy, error: runtimeError, startModel, stopModel } = useRuntimeStore();
   const backendHealth = useSettingsStore((state) => state.backendHealth);
   const [pairingSelections, setPairingSelections] = useState<Record<string, string>>({});
   const [pairingSaving, setPairingSaving] = useState<Record<string, boolean>>({});
+  const [pairingProbing, setPairingProbing] = useState<Record<string, boolean>>({});
   const [pairingFeedback, setPairingFeedback] = useState<Record<string, string>>({});
   const backendOnline = backendHealth?.status === "ok";
   const models = index?.models ?? [];
@@ -121,6 +141,32 @@ export function RuntimeModelsTab() {
       }));
     } finally {
       setPairingSaving((current) => ({ ...current, [artifactId]: false }));
+    }
+  };
+
+  const probePairing = async (artifactId: string, baseModelId: string) => {
+    setPairingProbing((current) => ({ ...current, [artifactId]: true }));
+    setPairingFeedback((current) => ({ ...current, [artifactId]: "" }));
+    try {
+      const response = await backendClient.probeRuntimeModel({
+        allow_start: true,
+        model_id: baseModelId,
+        projector_artifact_id: artifactId,
+      });
+      if (response.allowed) {
+        await loadModelIndex();
+      }
+      setPairingFeedback((current) => ({
+        ...current,
+        [artifactId]: response.message
+      }));
+    } catch (error) {
+      setPairingFeedback((current) => ({
+        ...current,
+        [artifactId]: error instanceof Error ? error.message : "Probe fehlgeschlagen."
+      }));
+    } finally {
+      setPairingProbing((current) => ({ ...current, [artifactId]: false }));
     }
   };
 
@@ -283,6 +329,7 @@ export function RuntimeModelsTab() {
                       const selectedBaseModelId =
                         pairingSelections[artifact.id] ?? pair?.base_model_id ?? pair?.candidate_base_model_ids[0] ?? "";
                       const canPairManually = artifact.artifact_type === "mmproj" && pairingCandidates.length > 0;
+                      const canProbePair = canProbeSupportArtifactPair(artifact, pair);
                       return (
                         <tr className="border-b border-dbzs-border/50" key={artifact.id}>
                           <td className="max-w-[280px] truncate px-2 py-2 font-medium text-dbzs-text" title={artifact.path}>
@@ -323,6 +370,18 @@ export function RuntimeModelsTab() {
                                       : pair?.source === "manual"
                                         ? "Neu zuordnen"
                                         : "Zuordnen"}
+                                  </button>
+                                  <button
+                                    className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
+                                    disabled={!canProbePair || pairingProbing[artifact.id] === true}
+                                    onClick={() => {
+                                      if (pair?.base_model_id) {
+                                        void probePairing(artifact.id, pair.base_model_id);
+                                      }
+                                    }}
+                                    type="button"
+                                  >
+                                    {pairingProbing[artifact.id] === true ? "Prueft ..." : "Probe"}
                                   </button>
                                 </div>
                                 {pairingFeedback[artifact.id] ? (

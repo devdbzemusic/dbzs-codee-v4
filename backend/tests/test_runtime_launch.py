@@ -182,6 +182,24 @@ def test_build_runtime_command_gates_cache_reuse_on_capability(tmp_path: Path) -
     assert with_capability[with_capability.index("--cache-reuse") + 1] == "256"
 
 
+def test_build_runtime_command_includes_mmproj_when_override_present(tmp_path: Path) -> None:
+    model = _make_model()
+    mmproj = tmp_path / "mmproj.gguf"
+    mmproj.write_text("projector", encoding="utf-8")
+
+    command = build_runtime_command(
+        model,
+        tmp_path,
+        8091,
+        ollama_executable=tmp_path / "ollama.exe",
+        config_override={"mmproj_path": str(mmproj)},
+        capabilities=None,
+    )
+
+    assert "--mmproj" in command
+    assert command[command.index("--mmproj") + 1] == str(mmproj)
+
+
 def test_is_oom_stderr_detects_cuda_oom_patterns() -> None:
     assert is_oom_stderr("ggml_cuda_error: out of memory") is True
     assert is_oom_stderr("CUDA error: out of memory") is True

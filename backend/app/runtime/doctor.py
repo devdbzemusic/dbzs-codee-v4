@@ -70,6 +70,7 @@ class RuntimeDryRunResponse(BaseModel):
 class RuntimeProbeRequest(BaseModel):
     allow_start: bool = False
     model_id: str | None = None
+    projector_artifact_id: str | None = None
 
 
 class RuntimeProbeResponse(BaseModel):
@@ -77,6 +78,8 @@ class RuntimeProbeResponse(BaseModel):
     message: str
     stderr_tail: str = ""
     stdout_tail: str = ""
+    projector_artifact_id: str | None = None
+    mmproj_path: str | None = None
 
 
 HARDWARE_PRESETS: list[SuggestedProfile] = [
@@ -318,6 +321,38 @@ def probe_runtime(
             message="model_id is required for controlled probe.",
         )
 
+    mmproj_path: str | None = None
+    projector_artifact_id = request.projector_artifact_id
+    if projector_artifact_id:
+        index_service = ModelIndexService(
+            models_dir=models_dir or get_models_dir(),
+            ollama_dir=ollama_dir or get_ollama_dir(),
+            ollama_models_dir=ollama_models_dir or get_ollama_models_dir(),
+            discovery_mode=get_model_discovery_mode(),
+        )
+        index = index_service.build_index()
+        pair = next(
+            (
+                item for item in index.multimodal_pairs
+                if item.base_model_id == request.model_id and item.projector_artifact_id == projector_artifact_id
+            ),
+            None,
+        )
+        if pair is None:
+            return RuntimeProbeResponse(
+                allowed=False,
+                message=f"Kein multimodales Paar fuer Modell '{request.model_id}' und Projector '{projector_artifact_id}' gefunden.",
+                projector_artifact_id=projector_artifact_id,
+            )
+        projector = next((item for item in index.support_artifacts if item.id == projector_artifact_id), None)
+        if projector is None:
+            return RuntimeProbeResponse(
+                allowed=False,
+                message=f"Projector-Artefakt '{projector_artifact_id}' ist im Index nicht verfuegbar.",
+                projector_artifact_id=projector_artifact_id,
+            )
+        mmproj_path = projector.path
+
     runtime = service or RuntimeService(
         model_index_service=ModelIndexService(
             models_dir=models_dir or get_models_dir(),
@@ -331,7 +366,8 @@ def probe_runtime(
         warmup_interval_seconds=0.25,
     )
 
-    status = runtime.start_model(request.model_id)
+    start_config = {"mmproj_path": mmproj_path} if mmproj_path else None
+    status = runtime.start_model(request.model_id, config=start_config)
     if status.state != "running":
         logs = runtime.get_logs()
         return RuntimeProbeResponse(
@@ -339,10 +375,16 @@ def probe_runtime(
             message=status.message or "Controlled probe failed to start runtime.",
             stderr_tail=status.stderr_tail or logs.stderr_tail,
             stdout_tail=status.stdout_tail or logs.stdout_tail,
+            projector_artifact_id=projector_artifact_id,
+            mmproj_path=mmproj_path,
         )
 
     runtime.stop_model()
+    if projector_artifact_id and mmproj_path:
+        index_service.mark_multimodal_pair_verified(request.model_id, projector_artifact_id)
     return RuntimeProbeResponse(
         allowed=True,
         message=f"Controlled probe succeeded for {request.model_id} on port {status.port}.",
+        projector_artifact_id=projector_artifact_id,
+        mmproj_path=mmproj_path,
     )

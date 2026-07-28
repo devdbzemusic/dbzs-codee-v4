@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IndexedModel, MultimodalPair, RuntimeStatus } from "@dbzs/shared";
-import { describeSupportArtifact, modelRowActionState } from "./RuntimeModelsTab";
+import { canProbeSupportArtifactPair, describeSupportArtifact, modelRowActionState } from "./RuntimeModelsTab";
 
 const baseModel: IndexedModel = {
   id: "m1",
@@ -130,6 +130,27 @@ describe("describeSupportArtifact", () => {
     });
   });
 
+  it("surfaces verified pair state when routing is allowed", () => {
+    const pairs: MultimodalPair[] = [
+      {
+        id: "m1:mmproj-1",
+        base_model_id: "m1",
+        projector_artifact_id: "mmproj-1",
+        modalities: ["text", "image"],
+        source: "manual",
+        confidence: 1,
+        status: "candidate",
+        routing_allowed: true,
+        candidate_base_model_ids: ["m1"]
+      }
+    ];
+
+    expect(describeSupportArtifact(mmprojArtifact, pairs)).toEqual({
+      statusLabel: "verified",
+      hint: "Runtime-Probe erfolgreich; multimodales Routing ist freigegeben"
+    });
+  });
+
   it("surfaces manual pair state for mmproj artifacts", () => {
     const pairs: MultimodalPair[] = [
       {
@@ -149,5 +170,89 @@ describe("describeSupportArtifact", () => {
       statusLabel: "candidate",
       hint: "Manuelle Zuordnung gespeichert; Runtime-Probe und Routing bleiben noch gesperrt"
     });
+  });
+
+  it("surfaces catalog pair state for mmproj artifacts", () => {
+    const pairs: MultimodalPair[] = [
+      {
+        id: "m1:mmproj-1",
+        base_model_id: "m1",
+        projector_artifact_id: "mmproj-1",
+        modalities: ["text", "image"],
+        source: "catalog",
+        confidence: 1,
+        status: "candidate",
+        routing_allowed: false,
+        candidate_base_model_ids: ["m1"]
+      }
+    ];
+
+    expect(describeSupportArtifact(mmprojArtifact, pairs)).toEqual({
+      statusLabel: "candidate",
+      hint: "Katalog-Zuordnung erkannt, aber noch nicht runtime-verifiziert"
+    });
+  });
+});
+
+describe("canProbeSupportArtifactPair", () => {
+  const mmprojArtifact: IndexedModel = {
+    ...baseModel,
+    id: "mmproj-1",
+    name: "mmproj-gemma-vision-f16",
+    path: "/models/mmproj-gemma-vision-f16.gguf",
+    artifact_type: "mmproj",
+    capabilities: ["vision"],
+    modality: ["image"],
+    compatibility: "support_artifact",
+    recommended_use: "vision_candidate"
+  };
+
+  it("allows probing only for candidate pairs with a base model id", () => {
+    const pair: MultimodalPair = {
+      id: "m1:mmproj-1",
+      base_model_id: "m1",
+      projector_artifact_id: "mmproj-1",
+      modalities: ["text", "image"],
+      source: "manual",
+      confidence: 1,
+      status: "candidate",
+      routing_allowed: false,
+      candidate_base_model_ids: ["m1"]
+    };
+
+    expect(canProbeSupportArtifactPair(mmprojArtifact, pair)).toBe(true);
+  });
+
+  it("blocks probing for non-candidate pairs or non-mmproj artifacts", () => {
+    const ambiguousPair: MultimodalPair = {
+      id: "m1:mmproj-1",
+      base_model_id: null,
+      projector_artifact_id: "mmproj-1",
+      modalities: ["text", "image"],
+      source: "same_folder",
+      confidence: 0.4,
+      status: "ambiguous",
+      routing_allowed: false,
+      candidate_base_model_ids: ["m1", "m2"]
+    };
+
+    expect(canProbeSupportArtifactPair(mmprojArtifact, ambiguousPair)).toBe(false);
+    expect(canProbeSupportArtifactPair({ ...mmprojArtifact, artifact_type: "clip" }, undefined)).toBe(false);
+  });
+
+  it("blocks probing again once routing is already allowed", () => {
+    const verifiedPair: MultimodalPair = {
+      id: "m1:mmproj-1",
+      base_model_id: "m1",
+      projector_artifact_id: "mmproj-1",
+      modalities: ["text", "image"],
+      source: "manual",
+      confidence: 1,
+      status: "candidate",
+      routing_allowed: true,
+      candidate_base_model_ids: ["m1"]
+    };
+
+    expect(canProbeSupportArtifactPair(mmprojArtifact, verifiedPair)).toBe(false);
   });
 });

@@ -51,8 +51,11 @@ Stand im aktuellen Branch nach dem naechsten sicheren Slice:
 - erste Same-Folder-Heuristik erzeugt rein diagnostische Pair-Zustaende `candidate`, `ambiguous` und `missing_base`
 - Kataloghinweise haben jetzt Vorrang: explizite Zuordnungen aus `models.catalog.json` koennen MMProj-Paare stabil als `source="catalog"` binden
 - persistierbare manuelle Zuordnung ist vorhanden: `POST /models/multimodal-pairings/manual` schreibt `pairing.source = "manual"` in den Katalog und wird vom Index bevorzugt wieder eingelesen
+- kontrollierte MMProj-Probe ist vorhanden: `probeRuntimeModel` akzeptiert `projector_artifact_id`, startet das Basismodell
+  bei erfolgreichem Pairing mit `--mmproj`, persistiert erfolgreiche Proben als `routing_allowed = true` im Katalog
+  und der `RuntimeModelsTab` aktualisiert den Index danach sofort auf `verified`
 - `RuntimeModelsTab` zeigt fuer MMProj-/Hilfsartefakte jetzt explizite Statushinweise statt nur generischem `support_artifact`
-- MMProj bleibt strikt nicht startbar; `routingAllowed` bleibt durchgaengig `false`
+- MMProj bleibt strikt nicht startbar; nur verifizierte Paare werden jetzt als `routingAllowed = true` sichtbar
 - Nebenfund behoben: Dateinamen-Heuristiken bewerten jetzt den Dateinamen statt des ganzen Pfads, damit Ordnernamen wie `...mmproj...` keine Fehlklassifikation ausloesen
 
 ### Naechste Umsetzungsreihenfolge
@@ -62,8 +65,9 @@ Stand im aktuellen Branch nach dem naechsten sicheren Slice:
 - **2. Paarungslogik danach**: Katalog-/manuelle Zuordnung, Same-Folder-Heuristik, Namensnormalisierung und
   Metadatenvergleich; uneindeutige Faelle bewusst als `ambiguous`/`missing_base`/`missing_projector`/`orphan`
   stehen lassen statt aggressiv zu auto-koppeln.
-- **3. Runtime-Probe als Gate**: interner `RuntimeLaunchProfile` mit optionalem `mmprojPath`, temporaerer Start
-  via `--model` + `--mmproj`, Healthcheck, `/v1/models` und echter Bildtest. Erst `verified`-Paare duerfen Routing freigeben.
+- **3. Runtime-Probe als Gate weiterhaerten**: `--model` + `--mmproj` und persistente Verifikation sind vorhanden; offen
+  bleiben Healthcheck-/`/v1/models`-Nachweis, echter Bildtest und ein sauberer Ergebnisverlauf fuer fehlgeschlagene
+  versus erfolgreiche Proben. Erst `verified`-Paare duerfen Routing freigeben.
 - **4. Dann UI/Control Center**: `RuntimeModelsTab` um Paare, Hilfsartefakte, Diagnose und manuelle Zuordnung erweitern.
 - **5. Routing zuletzt anschliessen**: Textanfragen unveraendert text-only; Bildinput nur ueber verifizierte multimodale Paare.
   Erste Produktionsstufe fuer Screenshot-Coding/Review: Vision analysiert, spezialisiertes Coding-/Review-Modell setzt um.

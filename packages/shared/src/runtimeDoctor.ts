@@ -52,6 +52,7 @@ export interface RuntimeDryRunResponse {
 export interface RuntimeProbeRequest {
   allow_start: boolean;
   model_id?: string | null;
+  projector_artifact_id?: string | null;
 }
 
 export interface RuntimeProbeResponse {
@@ -59,6 +60,8 @@ export interface RuntimeProbeResponse {
   message: string;
   stderr_tail: string;
   stdout_tail: string;
+  projector_artifact_id?: string | null;
+  mmproj_path?: string | null;
 }
 
 export interface RuntimeLogsResponse {
