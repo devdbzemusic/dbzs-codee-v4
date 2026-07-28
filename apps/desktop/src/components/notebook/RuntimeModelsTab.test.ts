@@ -11,6 +11,7 @@ import {
   describeMultimodalPairAction,
   describeMultimodalPairBaseModel,
   describeMultimodalPairProjector,
+  describeMultimodalPairRouting,
   describeBaseModelSelection,
   describePairingTargetBadge,
   describeSupportArtifactFile,
@@ -21,6 +22,7 @@ import {
   formatSupportArtifactStatusLabel,
   multimodalPairActionHint,
   describeSupportArtifactAction,
+  shouldRenderStandaloneMultimodalProbeButton,
   supportArtifactActionHint,
   describeModelRowStatus,
   formatCompatibilityLabel,
@@ -446,6 +448,15 @@ describe("formatMultimodalPairControlSurface", () => {
   });
 });
 
+describe("shouldRenderStandaloneMultimodalProbeButton", () => {
+  it("only renders the standalone probe action when no inline pairing is shown but probing is possible", () => {
+    expect(shouldRenderStandaloneMultimodalProbeButton(true, true)).toBe(false);
+    expect(shouldRenderStandaloneMultimodalProbeButton(true, false)).toBe(false);
+    expect(shouldRenderStandaloneMultimodalProbeButton(false, true)).toBe(true);
+    expect(shouldRenderStandaloneMultimodalProbeButton(false, false)).toBe(false);
+  });
+});
+
 describe("formatSupportArtifactControlSurface", () => {
   it("describes whether support actions continue in the mm block or inline", () => {
     expect(formatSupportArtifactControlSurface(true, false)).toEqual({
@@ -732,7 +743,7 @@ describe("describeMultimodalPairStatus", () => {
     };
 
     expect(describeMultimodalPairStatus(pair)).toEqual({
-      label: "Verified",
+      label: "Verifiziert",
       hint: "Routing freigegeben"
     });
   });
@@ -751,7 +762,7 @@ describe("describeMultimodalPairStatus", () => {
     };
 
     expect(describeMultimodalPairStatus(ambiguousPair)).toEqual({
-      label: "Ambiguous",
+      label: "Mehrdeutig",
       hint: "Mehrdeutige Basismodell-Zuordnung"
     });
   });
@@ -792,6 +803,75 @@ describe("describeMultimodalPairCandidates", () => {
     };
 
     expect(describeMultimodalPairCandidates(pair, new Map())).toBe("Keine Kandidaten erkannt");
+  });
+});
+
+describe("describeMultimodalPairRouting", () => {
+  it("separates released, probe-pending, blocked and generic locked routing states", () => {
+    expect(
+      describeMultimodalPairRouting({
+        id: "verified:mmproj-1",
+        base_model_id: "m1",
+        projector_artifact_id: "mmproj-1",
+        modalities: ["text", "image"],
+        source: "manual",
+        confidence: 1,
+        status: "candidate",
+        routing_allowed: true,
+        candidate_base_model_ids: ["m1"]
+      })
+    ).toEqual({
+      label: "Freigegeben",
+      tone: "ok"
+    });
+    expect(
+      describeMultimodalPairRouting({
+        id: "probe:mmproj-2",
+        base_model_id: "m2",
+        projector_artifact_id: "mmproj-2",
+        modalities: ["text", "image"],
+        source: "catalog",
+        confidence: 0.8,
+        status: "candidate",
+        routing_allowed: false,
+        candidate_base_model_ids: ["m2"]
+      })
+    ).toEqual({
+      label: "Probe ausstehend",
+      tone: "warn"
+    });
+    expect(
+      describeMultimodalPairRouting({
+        id: "blocked:mmproj-3",
+        base_model_id: null,
+        projector_artifact_id: "mmproj-3",
+        modalities: ["text", "image"],
+        source: "same_folder",
+        confidence: 0.2,
+        status: "missing_base",
+        routing_allowed: false,
+        candidate_base_model_ids: []
+      })
+    ).toEqual({
+      label: "Blockiert",
+      tone: "error"
+    });
+    expect(
+      describeMultimodalPairRouting({
+        id: "locked:mmproj-4",
+        base_model_id: null,
+        projector_artifact_id: "mmproj-4",
+        modalities: ["text", "image"],
+        source: "imported",
+        confidence: 0.2,
+        status: "candidate",
+        routing_allowed: false,
+        candidate_base_model_ids: []
+      })
+    ).toEqual({
+      label: "Gesperrt",
+      tone: "info"
+    });
   });
 });
 
@@ -1152,9 +1232,9 @@ describe("formatMultimodalPairModalities", () => {
 
 describe("formatMultimodalPairSource", () => {
   it("returns stable readable source labels", () => {
-    expect(formatMultimodalPairSource("same_folder")).toBe("Same Folder");
-    expect(formatMultimodalPairSource("manual")).toBe("Manual");
-    expect(formatMultimodalPairSource("catalog")).toBe("Catalog");
+    expect(formatMultimodalPairSource("same_folder")).toBe("Gleicher Ordner");
+    expect(formatMultimodalPairSource("manual")).toBe("Manuell");
+    expect(formatMultimodalPairSource("catalog")).toBe("Katalog");
     expect(formatMultimodalPairSource("custom")).toBe("custom");
   });
 });
@@ -1230,9 +1310,9 @@ describe("modelRoleTone", () => {
 
 describe("formatCompatibilityLabel", () => {
   it("formats compatibility values for the UI", () => {
-    expect(formatCompatibilityLabel("llama_server_ready")).toBe("llama-server ready");
-    expect(formatCompatibilityLabel("ollama_ready")).toBe("Ollama ready");
-    expect(formatCompatibilityLabel("support_artifact")).toBe("Support artifact");
+    expect(formatCompatibilityLabel("llama_server_ready")).toBe("llama-server bereit");
+    expect(formatCompatibilityLabel("ollama_ready")).toBe("Ollama bereit");
+    expect(formatCompatibilityLabel("support_artifact")).toBe("Hilfsartefakt");
     expect(formatCompatibilityLabel("custom_value")).toBe("custom value");
     expect(formatCompatibilityLabel(null)).toBe("-");
   });
@@ -1995,11 +2075,11 @@ describe("supportArtifactStatusTone", () => {
 
 describe("formatSupportArtifactStatusLabel", () => {
   it("formats support artifact status labels for the UI", () => {
-    expect(formatSupportArtifactStatusLabel("verified")).toBe("Verified");
-    expect(formatSupportArtifactStatusLabel("candidate")).toBe("Candidate");
-    expect(formatSupportArtifactStatusLabel("orphan")).toBe("Orphan");
-    expect(formatSupportArtifactStatusLabel("missing_base")).toBe("Missing Base");
-    expect(formatSupportArtifactStatusLabel("support_artifact")).toBe("Support Artifact");
+    expect(formatSupportArtifactStatusLabel("verified")).toBe("Verifiziert");
+    expect(formatSupportArtifactStatusLabel("candidate")).toBe("Kandidat");
+    expect(formatSupportArtifactStatusLabel("orphan")).toBe("Verwaist");
+    expect(formatSupportArtifactStatusLabel("missing_base")).toBe("Basis fehlt");
+    expect(formatSupportArtifactStatusLabel("support_artifact")).toBe("Hilfsartefakt");
     expect(formatSupportArtifactStatusLabel("custom_status")).toBe("custom status");
   });
 });

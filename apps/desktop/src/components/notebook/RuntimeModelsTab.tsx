@@ -323,25 +323,25 @@ export function describeProbeOutcome(response: RuntimeProbeResponse): ProbeOutco
 export function describeMultimodalPairStatus(pair: MultimodalPair): { label: string; hint: string } {
   if (pair.routing_allowed) {
     return {
-      label: "Verified",
+      label: "Verifiziert",
       hint: "Routing freigegeben"
     };
   }
   if (pair.status === "candidate") {
     return {
-      label: "Candidate",
+      label: "Kandidat",
       hint: "Runtime-Probe noch offen"
     };
   }
   if (pair.status === "ambiguous") {
     return {
-      label: "Ambiguous",
+      label: "Mehrdeutig",
       hint: "Mehrdeutige Basismodell-Zuordnung"
     };
   }
   if (pair.status === "missing_base") {
     return {
-      label: "Missing Base",
+      label: "Basis fehlt",
       hint: "Basismodell fehlt"
     };
   }
@@ -577,9 +577,9 @@ export function formatMultimodalPairModalities(pair: MultimodalPair): string {
 }
 
 export function formatMultimodalPairSource(source: string): string {
-  if (source === "same_folder") return "Same Folder";
-  if (source === "manual") return "Manual";
-  if (source === "catalog") return "Catalog";
+  if (source === "same_folder") return "Gleicher Ordner";
+  if (source === "manual") return "Manuell";
+  if (source === "catalog") return "Katalog";
   return source || "-";
 }
 
@@ -638,12 +638,12 @@ export function supportArtifactHintTone(statusLabel: string): "ok" | "warn" | "e
 }
 
 export function formatSupportArtifactStatusLabel(statusLabel: string): string {
-  if (statusLabel === "verified") return "Verified";
-  if (statusLabel === "candidate") return "Candidate";
-  if (statusLabel === "orphan") return "Orphan";
-  if (statusLabel === "missing_base") return "Missing Base";
-  if (statusLabel === "ambiguous") return "Ambiguous";
-  if (statusLabel === "support_artifact") return "Support Artifact";
+  if (statusLabel === "verified") return "Verifiziert";
+  if (statusLabel === "candidate") return "Kandidat";
+  if (statusLabel === "orphan") return "Verwaist";
+  if (statusLabel === "missing_base") return "Basis fehlt";
+  if (statusLabel === "ambiguous") return "Mehrdeutig";
+  if (statusLabel === "support_artifact") return "Hilfsartefakt";
   return statusLabel.replaceAll("_", " ");
 }
 
@@ -802,6 +802,13 @@ export function formatMultimodalPairControlSurface(
   return { label: "Nur Status", tone: "info" };
 }
 
+export function shouldRenderStandaloneMultimodalProbeButton(
+  canPairManually: boolean,
+  canProbePair: boolean
+): boolean {
+  return !canPairManually && canProbePair;
+}
+
 export function describeSupportArtifactAction(
   artifact: IndexedModel,
   pair: MultimodalPair | undefined,
@@ -904,9 +911,9 @@ export function modelRoleTone(
 }
 
 export function formatCompatibilityLabel(compatibility: string | null | undefined): string {
-  if (compatibility === "llama_server_ready") return "llama-server ready";
-  if (compatibility === "ollama_ready") return "Ollama ready";
-  if (compatibility === "support_artifact") return "Support artifact";
+  if (compatibility === "llama_server_ready") return "llama-server bereit";
+  if (compatibility === "ollama_ready") return "Ollama bereit";
+  if (compatibility === "support_artifact") return "Hilfsartefakt";
   if (typeof compatibility === "string" && compatibility.length > 0) {
     return compatibility.replaceAll("_", " ");
   }
@@ -1183,6 +1190,21 @@ export function supportArtifactStatusTone(statusLabel: string): "ok" | "warn" | 
   return "info";
 }
 
+export function describeMultimodalPairRouting(
+  pair: MultimodalPair
+): { label: string; tone: "ok" | "warn" | "error" | "info" } {
+  if (pair.routing_allowed) {
+    return { label: "Freigegeben", tone: "ok" };
+  }
+  if (pair.status === "candidate" && typeof pair.base_model_id === "string" && pair.base_model_id.length > 0) {
+    return { label: "Probe ausstehend", tone: "warn" };
+  }
+  if (pair.status === "ambiguous" || pair.status === "missing_base") {
+    return { label: "Blockiert", tone: "error" };
+  }
+  return { label: "Gesperrt", tone: "info" };
+}
+
 export function RuntimeModelsTab() {
   const { index, isLoading: indexLoading, error: indexError, loadModelIndex } = useModelIndexStore();
   const { status, isLoading: runtimeBusy, error: runtimeError, startModel, stopModel } = useRuntimeStore();
@@ -1435,7 +1457,7 @@ export function RuntimeModelsTab() {
                     MM-Pair blockiert {modelRoutingSummary.visionBlocked}
                   </span>
                   <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
-                    Screenshot-ready {modelRoutingSummary.screenshotReady}
+                    Screenshot-bereit {modelRoutingSummary.screenshotReady}
                   </span>
                 </div>
                 <table className="w-full min-w-[760px] border-collapse text-left text-[11px]">
@@ -1446,7 +1468,7 @@ export function RuntimeModelsTab() {
                       <th className="px-2 py-2 font-medium">Rolle</th>
                       <th className="px-2 py-2 font-medium">Capabilities</th>
                       <th className="px-2 py-2 font-medium">Launcher</th>
-                      <th className="px-2 py-2 font-medium">Compat</th>
+                      <th className="px-2 py-2 font-medium">Kompat</th>
                       <th className="px-2 py-2 font-medium">Routing</th>
                       <th className="px-2 py-2 font-medium">Groesse</th>
                       <th className="px-2 py-2 text-right font-medium">Aktionen</th>
@@ -1566,13 +1588,13 @@ export function RuntimeModelsTab() {
                     Offen {multimodalPairSummary.candidate}
                   </span>
                   <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Manual {multimodalPairSourceSummary.manual}
+                    Manuell {multimodalPairSourceSummary.manual}
                   </span>
                   <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Catalog {multimodalPairSourceSummary.catalog}
+                    Katalog {multimodalPairSourceSummary.catalog}
                   </span>
                   <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Same Folder {multimodalPairSourceSummary.sameFolder}
+                    Gleicher Ordner {multimodalPairSourceSummary.sameFolder}
                   </span>
                   {multimodalPairSourceSummary.other > 0 ? (
                     <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
@@ -1594,10 +1616,10 @@ export function RuntimeModelsTab() {
                     </span>
                   ) : null}
                   <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
-                    Ambiguous {multimodalPairSummary.ambiguous}
+                    Mehrdeutig {multimodalPairSummary.ambiguous}
                   </span>
                   <span className="border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] text-red-300">
-                    Missing Base {multimodalPairSummary.missing_base}
+                    Basis fehlt {multimodalPairSummary.missing_base}
                   </span>
                 </div>
                 <table className="w-full min-w-[760px] border-collapse text-left text-[11px]">
@@ -1607,7 +1629,7 @@ export function RuntimeModelsTab() {
                       <th className="px-2 py-2 font-medium">Projector</th>
                       <th className="px-2 py-2 font-medium">Modalitaet</th>
                       <th className="px-2 py-2 font-medium">Quelle</th>
-                      <th className="px-2 py-2 font-medium">Confidence</th>
+                      <th className="px-2 py-2 font-medium">Sicherheit</th>
                       <th className="px-2 py-2 font-medium">Status</th>
                       <th className="px-2 py-2 font-medium">Routing</th>
                       <th className="px-2 py-2 font-medium">Hinweis</th>
@@ -1621,6 +1643,7 @@ export function RuntimeModelsTab() {
                       const baseModelDescriptor = describeMultimodalPairBaseModel(pair, baseModel);
                       const projectorDescriptor = describeMultimodalPairProjector(pair, projector);
                       const pairStatus = describeMultimodalPairStatus(pair);
+                      const routingDescriptor = describeMultimodalPairRouting(pair);
                       const candidateSummary = describeMultimodalPairCandidates(pair, modelsById);
                       const selectedBaseModelId = defaultPairingSelection(
                         pair.projector_artifact_id,
@@ -1638,6 +1661,10 @@ export function RuntimeModelsTab() {
                       const pairActionDescriptor = describeMultimodalPairAction(pair, projector, pairingCandidates);
                       const pairActionHint = multimodalPairActionHint(pair, projector, pairingCandidates);
                       const controlSurface = formatMultimodalPairControlSurface(canPairManually, canProbePair);
+                      const showStandaloneProbeButton = shouldRenderStandaloneMultimodalProbeButton(
+                        canPairManually,
+                        canProbePair
+                      );
                       const feedbackKey = pair.projector_artifact_id;
                       return (
                         <tr className="border-b border-dbzs-border/50" key={pair.id}>
@@ -1685,9 +1712,9 @@ export function RuntimeModelsTab() {
                           </td>
                           <td className="px-2 py-2 text-dbzs-muted">
                             <span
-                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(pair.routing_allowed ? "ok" : "error")}`}
+                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(routingDescriptor.tone)}`}
                             >
-                              {pair.routing_allowed ? "freigegeben" : "gesperrt"}
+                              {routingDescriptor.label}
                             </span>
                           </td>
                           <td className="px-2 py-2 text-dbzs-muted">
@@ -1776,7 +1803,7 @@ export function RuntimeModelsTab() {
                                   </button>
                                   </div>
                                 </div>
-                              ) : (
+                              ) : showStandaloneProbeButton ? (
                                 <button
                                   className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
                                   disabled={!canProbePair || pairingProbing[feedbackKey] === true}
@@ -1789,7 +1816,7 @@ export function RuntimeModelsTab() {
                                 >
                                   {formatPairingProbeButtonLabel(pairingProbing[feedbackKey] === true)}
                                 </button>
-                              )}
+                              ) : null}
                               {pairingFeedback[feedbackKey] && pairingOutcome[feedbackKey] ? (
                                 <ProbeEvidencePanel
                                   align="right"
@@ -1825,10 +1852,10 @@ export function RuntimeModelsTab() {
                       Sonstige {supportArtifactSummary.other}
                     </span>
                   ) : null}
-                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                  <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
                     Probe bereit {supportArtifactActionSummary.probeReady}
                   </span>
-                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                  <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
                     Manuelle Zuordnung {supportArtifactActionSummary.manualAssignment}
                   </span>
                   {supportArtifactStatusSummary.verified > 0 ? (
@@ -1838,12 +1865,12 @@ export function RuntimeModelsTab() {
                   ) : null}
                   {supportArtifactStatusSummary.candidate > 0 ? (
                     <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
-                      Candidate {supportArtifactStatusSummary.candidate}
+                      Kandidat {supportArtifactStatusSummary.candidate}
                     </span>
                   ) : null}
                   {supportArtifactStatusSummary.orphan > 0 ? (
                     <span className="border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] text-red-300">
-                      Orphan {supportArtifactStatusSummary.orphan}
+                      Verwaist {supportArtifactStatusSummary.orphan}
                     </span>
                   ) : null}
                   {supportArtifactActionSummary.readOnly > 0 ? (
