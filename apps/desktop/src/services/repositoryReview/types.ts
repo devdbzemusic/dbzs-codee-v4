@@ -60,7 +60,6 @@ export interface ReviewWorkspaceIO {
   readText(workspaceRoot: string, relativePath: string): Promise<string | null>;
   writeText(workspaceRoot: string, relativePath: string, content: string): Promise<void>;
   pathExists(workspaceRoot: string, relativePath: string): Promise<boolean>;
-  deleteFile?(workspaceRoot: string, relativePath: string): Promise<void>;
   getGitState?(workspaceRoot: string): Promise<{
     branch?: string;
     dirty: boolean;

@@ -325,8 +325,7 @@ export class RepositoryReviewOrchestrator {
           : "Der Review-Plan konnte nicht erstellt oder geladen werden.";
         state.status = "failed";
         state.outcome = "empty_plan";
-        // The 'detail' field is not part of the ReviewStateFile type,
-        // but the information is passed to the progress object.
+        state.detail = detail;
         state.updatedAt = new Date().toISOString();
         await saveReviewState(this.io, request.workspaceRoot, state);
 

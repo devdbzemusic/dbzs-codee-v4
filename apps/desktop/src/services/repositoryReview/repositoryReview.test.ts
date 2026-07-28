@@ -405,14 +405,18 @@ describe("RepositoryReviewOrchestrator", () => {
     });
     const orch = new RepositoryReviewOrchestrator({
       io,
-      runtimeContextLimit: 8192,
+      runtimeContextLimit: 2000,
       batchAnalyzer: createHeuristicBatchAnalyzer(),
       createReviewId: () => "rev-oversized-skip"
     });
     const result = await orch.start(request);
 
-    // The overall review should complete with warnings, not fail.
-    expect(result.outcome).toBe("completed_with_warnings");
+    // The overall review should complete (with a diagnostic for the skipped
+    // batch), not fail outright. createHeuristicBatchAnalyzer() never runs an
+    // LLM, so successfulLlm stays 0 for every batch and resolveReviewOutcome
+    // correctly classifies this as degraded_heuristic_only rather than
+    // completed_with_warnings -- see reviewQuality.ts:resolveReviewOutcome.
+    expect(result.outcome).toBe("degraded_heuristic_only");
     expect(result.progress.completedBatches).toBe(result.progress.totalBatches);
 
     // There should be a diagnostic entry for the skipped batch.
@@ -420,30 +424,7 @@ describe("RepositoryReviewOrchestrator", () => {
       d.providerError?.includes("exceeds context limit")
     );
     expect(oversizedDiagnostic).toBeDefined();
-    expect(oversizedDiagnostic?.batchId).toContain("too-large");
-  });
-
-  it("classifies a non-empty inventory with zero eligible batches as empty_plan", async () => {
-    const io = createMemoryIO({
-      "styles.css": "body { color: red; }",
-      "notes.txt": "just some notes"
-    });
-    const request = buildRepositoryReviewRequest({
-      workspaceId: "c:/demo",
-      workspaceRoot: "C:/demo",
-      scope: "full_repository"
-    });
-    const orch = new RepositoryReviewOrchestrator({
-      io,
-      createReviewId: () => "rev-empty-plan"
-    });
-    const result = await orch.start(request);
-    expect(result.outcome).toBe("empty_plan");
-    expect(result.inventory?.fileCount).toBeGreaterThan(0);
-    expect(result.plan?.batches.length ?? 0).toBe(0);
-    expect(result.progress.currentBatchTitle).toMatch(/Dateiformat-Filter/);
-
-    // This part was removed as `detail` is not persisted on the state file itself.
+    expect(oversizedDiagnostic?.mode).toBe("failed");
   });
 
   it("classifies a non-empty inventory with zero eligible batches as empty_plan", async () => {
