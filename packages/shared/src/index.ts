@@ -1279,6 +1279,7 @@ export interface ModelIndexSummary {
   coding_candidates: number;
   vision_candidates: number;
   adapters: number;
+  support_artifact_count: number;
   unsupported: number;
 }
 
@@ -1286,6 +1287,7 @@ export interface ModelIndex {
   generated_from: string;
   summary: ModelIndexSummary;
   models: IndexedModel[];
+  support_artifacts?: IndexedModel[];
 }
 
 export * from "./runtime/runtimeSlots";

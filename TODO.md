@@ -30,6 +30,32 @@ hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht no
 - [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen) —
       Rescan-Button selbst bereits `UI_VERIFIED` (364 Modelle, keine Regression)
 
+## Neu eingeplant: Model Control Center + MMProj/MM-Pairing
+
+Basis: `PlÃ¤ne/03 04 05 DBZS_CODEE_CONSOLIDATED_MODEL_CONTROL_MM_PAIRING_PLAN.md` plus
+`PlÃ¤ne/03 04 05 DBZS_CODEE_ADAPTED_MODEL_CONTROL_MM_PLAN_CURRENT_REPO.md`
+
+- [ ] **Phase 1 â€” Index-HÃ¤rtung und Vertragsklarheit:** `mmproj-*.gguf` nie mehr als startbares Modell behandeln; `index.models`
+      auf eigenstaendig startbare Modelle begrenzen und additiv `supportArtifacts` sowie spaeter `multimodalPairs` einfuehren.
+      Pflicht-Regressionskern: MMProj sichtbar, aber nie startbar/routbar/primary coding model.
+- [ ] **Phase 2 â€” Paarungslogik aufbauen:** Katalog-/manuelle Zuordnung, Same-Folder-Heuristik, Namensnormalisierung und
+      Metadatenvergleich fuer `MultimodalPair`; mehrdeutige oder unvollstaendige Faelle muessen explizit als
+      `ambiguous`/`missing_base`/`missing_projector`/`orphan` sichtbar bleiben und duerfen kein Routing freigeben.
+- [ ] **Phase 3 â€” Runtime-Probe einfuehren:** interner `RuntimeLaunchProfile` mit optionalem `mmprojPath`, temporaerer Probe-Start
+      (`--model` + `--mmproj`), Healthcheck, `/v1/models` und echter Bildtest; Fehler/Probeergebnis persistent machen,
+      aber beim App-Start weiterhin keine Modellgewichte automatisch laden.
+- [ ] **Phase 4 â€” `RuntimeModelsTab` zum Model Control Center ausbauen:** Bereiche fuer Modelle, multimodale Paare,
+      Hilfsartefakte, Capabilities, Rollen/Routing und Diagnose; manuelle Zuordnung erst hier an die UI bringen,
+      nicht verdeckt im Broker.
+- [ ] **Phase 5 â€” Routing sauber anbinden:** Textanfragen bleiben unveraendert text-only; Bildinput darf nur auf verifizierte
+      multimodale Paare gehen. Erste Produktionsstufe fuer Screenshot-Coding/Review: Vision analysiert, zertifiziertes
+      Coding-/Review-Modell setzt um bzw. bewertet.
+- [ ] **Phase 6 â€” Capability-Zertifizierung getrennt nachziehen:** direkte Vision-Coding-/Review-Faehigkeit nur nach expliziter
+      Zertifizierung (`code_generation`, `code_review`, `structured_output`, `instruction_following`, `tool_calling`);
+      Audio bewusst spaeter separat.
+- [ ] **Integrationsregel beibehalten:** externer Vertrag bleibt `runtime={<RuntimeModelsTab />}` â€” keine neue Parallel-Ansicht
+      und kein spontaner Integrationsbruch, sondern additive Erweiterung des bestehenden Tabs.
+
 ## Erledigt: Routing-Fix real durch die UI verifiziert (2026-07-28)
 
 - [x] Zweiter automatisiert getriebener UI-Lauf (`golden-path-run-2`) hat den Routing-Fix (`c811923`) real

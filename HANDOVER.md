@@ -4,7 +4,7 @@ Stand: 2026-07-28
 
 ## Aktueller Arbeitsbranch
 
-- aktiver Arbeitsbranch: `main` (Feature-Branch `codex/runtime-chat-overhaul-conversation-first` ist gemergt und geloescht)
+- aktiver Arbeitsbranch: `feature/runtime-chat-ux-overhaul` (lokaler Arbeitsstand dieser Session; die `main`-Zusammenfassung unten bleibt als historischer Kontext bestehen)
 - Sicherheits-Backup-Branch: `codex/backup-runtime-chat-overhaul-2026-07-27`
 - physischer Snapshot:
   `C:\Users\ralle\source\repos\_backups\dbzs-codee-project-backup-2026-07-27-runtime-chat-overhaul`
@@ -34,6 +34,38 @@ Stand: 2026-07-28
 - **Diff/Snapshot/Rollback**: Freigabepflicht im `"full"`-Profil, `dbzs:fs:*`-IPC-Handler abgesichert, Crash-Flush-Hooks ergaenzt.
 - **Automatisches Backup**: `backupService.ts` (Settings, Codee-DBs ohne `rag.sqlite3`, Workspace-`.codee` ohne Restore-Points, Modellprofile), Diagnostics-Tab-UI.
 - **`.gitignore`-Bugfix**: `backend/app/models/` war versehentlich komplett ignoriert (8 Dateien nie versioniert), per Negation gefixt.
+
+## Neu uebernommen: Konsolidierter MMProj-/Model-Control-Plan
+
+Quelle: `PlÃ¤ne/03 04 05 DBZS_CODEE_CONSOLIDATED_MODEL_CONTROL_MM_PAIRING_PLAN.md`
+plus `PlÃ¤ne/03 04 05 DBZS_CODEE_ADAPTED_MODEL_CONTROL_MM_PLAN_CURRENT_REPO.md`
+
+Die Planbasis ist gelesen und fuer die naechste Umsetzungssession in eine klare Reihenfolge verdichtet. Kerngedanke:
+`mmproj-*.gguf` ist **kein** startbares Modell, sondern ein Support-Artefakt, das erst zusammen mit einem kompatiblen
+Basismodell und nach erfolgreicher Runtime-Probe als routbares multimodales Paar gelten darf. Der bestehende Integrationspunkt
+`runtime={<RuntimeModelsTab />}` bleibt unveraendert; die Erweiterung ist additiv.
+
+### Naechste Umsetzungsreihenfolge
+
+- **1. Index-Haertung zuerst**: `index.models` nur fuer runnable Modelle; neue additive Sammlungen fuer
+  `supportArtifacts` und spaeter `multimodalPairs`. MMProj muss sichtbar bleiben, aber nie startbar/routbar sein.
+- **2. Paarungslogik danach**: Katalog-/manuelle Zuordnung, Same-Folder-Heuristik, Namensnormalisierung und
+  Metadatenvergleich; uneindeutige Faelle bewusst als `ambiguous`/`missing_base`/`missing_projector`/`orphan`
+  stehen lassen statt aggressiv zu auto-koppeln.
+- **3. Runtime-Probe als Gate**: interner `RuntimeLaunchProfile` mit optionalem `mmprojPath`, temporaerer Start
+  via `--model` + `--mmproj`, Healthcheck, `/v1/models` und echter Bildtest. Erst `verified`-Paare duerfen Routing freigeben.
+- **4. Dann UI/Control Center**: `RuntimeModelsTab` um Paare, Hilfsartefakte, Diagnose und manuelle Zuordnung erweitern.
+- **5. Routing zuletzt anschliessen**: Textanfragen unveraendert text-only; Bildinput nur ueber verifizierte multimodale Paare.
+  Erste Produktionsstufe fuer Screenshot-Coding/Review: Vision analysiert, spezialisiertes Coding-/Review-Modell setzt um.
+- **6. Capability-Zertifizierung getrennt**: direkte Vision-Coding-/Review-Ausfuehrung erst nach expliziter
+  Zertifizierung von `code_generation`, `code_review`, `structured_output`, `instruction_following`, `tool_calling`.
+
+### Wichtig fuer die naechste Session
+
+- zuerst Datenvertrag/Index aendern, **nicht** mit UI oder Broker anfangen
+- keine automatische Freigabe mehrdeutiger MMProj-Paare
+- keine Modellgewichte beim App-Start laden; Probing nur kontrolliert und temporaer
+- Regressionen von Anfang an mitsichern: MMProj nie startbar, nie `primaryCodingModel`, nie Text-Chat-Default
 
 ### Verifikation (kumulativ)
 

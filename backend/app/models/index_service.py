@@ -125,7 +125,7 @@ class ModelIndexService:
             runtime_dir=index.summary.runtime_dir,
             ollama_dir=str(self.ollama_dir),
             ollama_models_dir=str(self.ollama_models_dir),
-            models=[*index.models, *ollama_models],
+            models=[*index.models, *(index.support_artifacts or []), *ollama_models],
         )
         self.last_build_metrics.valid_model_count = len(merged.models)
         self._persist_cache(merged)
@@ -686,7 +686,12 @@ def _build_index(
     ollama_models_dir: str | None,
     models: list[IndexedModel],
 ) -> ModelIndex:
+    support_artifacts = [model for model in models if model.artifact_type != "model"]
     sorted_models = sorted(models, key=_priority)
+    sorted_support_artifacts = sorted(
+        support_artifacts,
+        key=lambda model: (model.artifact_type, model.name.lower(), model.path.lower()),
+    )
     return ModelIndex(
         generated_from=generated_from,
         summary=ModelIndexSummary(
@@ -701,10 +706,12 @@ def _build_index(
             ollama_ready=sum(1 for m in sorted_models if m.compatibility == "ollama_ready"),
             coding_candidates=sum(1 for m in sorted_models if m.recommended_use in ("primary_coding", "coding_candidate")),
             vision_candidates=sum(1 for m in sorted_models if m.recommended_use == "vision_candidate"),
-            adapters=sum(1 for m in sorted_models if m.artifact_type in ("adapter", "lora")),
+            adapters=sum(1 for m in sorted_support_artifacts if m.artifact_type in ("adapter", "lora")),
+            support_artifact_count=len(sorted_support_artifacts),
             unsupported=sum(1 for m in sorted_models if m.recommended_use == "unsupported"),
         ),
         models=sorted_models,
+        support_artifacts=sorted_support_artifacts,
     )
 
 

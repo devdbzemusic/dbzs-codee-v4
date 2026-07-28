@@ -7,7 +7,7 @@ const baseModel: IndexedModel = {
   name: "test.gguf",
   path: "/models/test.gguf",
   format: "gguf",
-  artifact_type: "weights",
+  artifact_type: "model",
   size_bytes: 1024,
   size_gb: 0.001,
   quantization: "Q4_K_M",

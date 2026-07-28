@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { IndexedModel, ModelIndex } from "@dbzs/shared";
 import { backendClient } from "@/services/backendClient";
+import { isRunnableModel } from "@/utils/modelUtils";
 
 const EMPTY_MODEL_INDEX: ModelIndex = {
   generated_from: "none",
@@ -17,9 +18,11 @@ const EMPTY_MODEL_INDEX: ModelIndex = {
     coding_candidates: 0,
     vision_candidates: 0,
     adapters: 0,
+    support_artifact_count: 0,
     unsupported: 0,
   },
   models: [],
+  support_artifacts: [],
 };
 
 interface ModelIndexState {
@@ -36,8 +39,8 @@ function selectPrimaryCodingModel(index: ModelIndex | null): IndexedModel | null
   }
 
   return (
-    index.models.find((model) => model.recommended_use === "primary_coding") ??
-    index.models.find((model) => model.recommended_use === "coding_candidate") ??
+    index.models.find((model) => isRunnableModel(model) && model.recommended_use === "primary_coding") ??
+    index.models.find((model) => isRunnableModel(model) && model.recommended_use === "coding_candidate") ??
     null
   );
 }

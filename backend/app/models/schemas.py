@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 RecommendedUse = Literal[
@@ -59,6 +59,7 @@ class ModelIndexSummary(BaseModel):
     coding_candidates: int
     vision_candidates: int
     adapters: int
+    support_artifact_count: int = 0
     unsupported: int
 
 
@@ -66,3 +67,4 @@ class ModelIndex(BaseModel):
     generated_from: str
     summary: ModelIndexSummary
     models: list[IndexedModel]
+    support_artifacts: list[IndexedModel] = Field(default_factory=list)

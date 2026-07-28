@@ -210,6 +210,22 @@ def test_model_index_classifies_functiongemma_as_orchestrator(tmp_path: Path) ->
     assert "intent_routing" in index.models[0].capabilities
 
 
+def test_model_index_projects_mmproj_into_support_artifacts_without_breaking_models(tmp_path: Path) -> None:
+    base_model = tmp_path / "gemma-vision-q4.gguf"
+    projector = tmp_path / "mmproj-gemma-vision-f16.gguf"
+    base_model.write_bytes(b"GGUF")
+    projector.write_bytes(b"GGUF")
+
+    index = ModelIndexService(models_dir=tmp_path, ollama_models_dir=tmp_path / "empty-ollama").build_index()
+
+    assert any(model.path == str(projector) for model in index.models)
+    assert any(model.path == str(projector) for model in index.support_artifacts)
+    mmproj = next(model for model in index.support_artifacts if model.path == str(projector))
+    assert mmproj.artifact_type == "mmproj"
+    assert mmproj.compatibility == "support_artifact"
+    assert index.summary.support_artifact_count >= 1
+
+
 def test_register_catalog_model_profile_is_idempotent(tmp_path: Path) -> None:
     from app.models.index_service import FUNCTIONGEMMA_DEFAULT_PROFILE
 
