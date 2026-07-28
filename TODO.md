@@ -4,12 +4,29 @@ Stand: 2026-07-28
 
 ## Jetzt direkt
 
-- [ ] GUI-Golden-Path manuell durchlaufen (14 konsolidierte Kriterien, siehe
-      `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md`) — 4 davon bereits
-      automatisiert bestaetigt, Rest braucht die echte Maschine mit
-      verbundenem lokalem Modell
-- [ ] Backup-Restore einmal echt in der laufenden App durchklicken (Diagnostics-Tab)
+- [ ] Rest des Golden-Path in kurzer echter Sitzung abschliessen: Review bis Ende laufen lassen,
+      Aenderung vorschlagen/anwenden, Restore-Point-Rollback, `npm test` aus Agent Workbench,
+      Backup/Restore im Diagnostics-Tab, harter Abbruch + Neustart — siehe
+      `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md`
 - [ ] gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren
+- [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen)
+
+## Erledigt: echter interaktiver Golden-Path-Durchlauf mit echtem lokalem Modell
+
+- [x] isolierte Testumgebung aufgesetzt (eigenes `DBZS_APP_DATA_DIR`/`DBZS_DEV_USER_DATA_DIR`/Workspace,
+      echtes GGUF-Modell `gemma-3-1b` von dieser Maschine, ohne die echte Nutzerkonfiguration anzutasten)
+- [x] Kriterium 1 (App startet fehlerfrei) echt verifiziert
+- [x] Kriterium 2 (Projekt oeffnet sich und bleibt gespeichert) echt verifiziert — ueberlebt App-Neustarts
+- [x] Kriterium 3 (lokales Modell verbindet sich automatisch) echt verifiziert
+- [x] Kriterium 4 (Chat beantwortet Projektfrage) echt verifiziert — echte LLM-Antwort mit Screenshot belegt
+- [x] Bug gefunden + gefixt: veralteter `runtime_dir` in `models.catalog.json` wurde unvalidiert uebernommen;
+      `ModelIndexService` faellt jetzt auf `first_win_llama_runtime_dir()`-Discovery zurueck (`e9c1e54`),
+      Regressionstest ergaenzt
+- [x] Regression gefunden + gefixt: der `dbzs:fs:stat`-Guard aus PR #4 brach Modell-Pfadpruefungen
+      ausserhalb des Workspace; `stat` ist wieder ungeschuetzt (nur Metadaten, kein Content-Leak),
+      `read-file`/`write-file`/`file:save` bleiben beschraenkt (`9aba315`)
+- [x] Golden-Path-Verifikationsdokument mit echten Ergebnissen aktualisiert
+- [x] Testprozesse (Electron/llama-server/Backend) sauber beendet, temporaeres Testskript entfernt
 
 ## Erledigt: Folgearbeit nach PR #4 (direkt auf `main`)
 

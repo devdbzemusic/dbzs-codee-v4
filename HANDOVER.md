@@ -13,7 +13,7 @@ Stand: 2026-07-28
 
 - aktiver GitHub-Remote: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
 - lokaler Ordnername bleibt aktuell `dbzs-codee-project`
-- `origin/main` zeigt auf `acca3bf` (Folgearbeit nach PR #4, direkt auf `main` committet)
+- `origin/main` zeigt auf `55f43c1` (Folgearbeit nach PR #4 + echter Golden-Path-Durchlauf, direkt auf `main` committet)
 - offene Pull Requests im Live-Repo: keine
 - Branch Protection fuer `main`: aktuell nicht aktiv
 
@@ -42,6 +42,36 @@ Stand: 2026-07-28
 - Backend-Pytest + Frontend-Vitest auf allen betroffenen Suiten — gruen
 - Playwright-E2E (mit `ELECTRON_RUN_AS_NODE` unset): 11/41 automatisiert bestanden (Boot + UI-Chrome); Rest erfordert echte Modell-Runtime — siehe Verifikationsdokument
 
+## Echter interaktiver Golden-Path-Durchlauf mit echtem lokalem Modell
+
+Diese Maschine hat echte GGUF-Modelldateien unter `D:\Models`. Damit wurde ein
+echter, interaktiver Durchlauf gefahren (isolierte App-Data/Userdata/Workspace,
+`gemma-3-1b` als Testmodell) — Details und vollstaendige Checkliste in
+[docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md).
+
+**Echt verifiziert**: App startet, Projekt oeffnet sich und bleibt ueber
+Neustarts gespeichert, lokales Modell verbindet sich automatisch, Chat
+beantwortet eine echte Projektfrage mit echter LLM-Inferenz.
+
+**Zwei echte Bugs gefunden und behoben** (nur durch den echten Durchlauf
+sichtbar, kein Mock haette das gezeigt):
+
+- `e9c1e54` — `ModelIndexService._from_catalog()` uebernahm `models.catalog.json`s
+  `runtime_dir`-Feld unvalidiert; war auf dieser Maschine veraltet
+  (`D:/win_runtimes/llama.cpp-win-runtime`, leer) statt der echten Binaries
+  unter `D:/win_runtimes/llama/`. Faellt jetzt bei Bedarf auf
+  `first_win_llama_runtime_dir()`-Discovery zurueck.
+- `9aba315` — **Regression aus PR #4**: der `dbzs:fs:stat`-Guard von heute
+  frueh band Existenz-Checks an Workspace/userData, aber
+  `pathValidatorService.ts` prueft Modell-Dateien legitim ausserhalb des
+  Workspace (`D:\Models\...`). `dbzs:fs:stat` ist jetzt wieder ungeschuetzt
+  (nur Metadaten, kein Content-Leak); `read-file`/`write-file`/`file:save`
+  bleiben korrekt beschraenkt.
+
+**Noch nicht abgeschlossen in diesem Lauf**: vollstaendiger Review-Abschluss,
+Diff/Apply, Rollback, Testlauf aus Codee, Backup/Restore-Klick, Crash-Recovery
+— siehe Checkliste im Verifikationsdokument fuer den Rest.
+
 ## Zusaetzlich umgesetzt (Runtime-Chat-Overhaul, aus der vorherigen Session, Teil von PR #4)
 
 - [apps/desktop/src/components/RuntimeChatTab.tsx](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/components/RuntimeChatTab.tsx)
@@ -63,9 +93,9 @@ Stand: 2026-07-28
 
 ### P0
 
-- GUI-Golden-Path manuell durchlaufen auf der echten Maschine — konsolidierte Checkliste (14 Punkte, 4 davon bereits automatisiert bestaetigt) in [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md)
-- Backup-Restore einmal echt in der laufenden App durchklicken (Diagnostics-Tab) — kein E2E-Test dafuer vorhanden
+- Rest des Golden-Path in einer kurzen echten Sitzung abschliessen (App laeuft auf dieser Maschine bereits nachweislich mit echtem Modell): Review bis zum Ende laufen lassen, Aenderung vorschlagen/anwenden, Restore-Point-Rollback, `npm test` aus dem Agent Workbench, Backup/Restore im Diagnostics-Tab, harter Abbruch + Neustart — siehe [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md)
 - gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren (bisher nur Dev-Pfad `%TEMP%\dbzs-codee-dev-user-data` bestaetigt)
+- Modell-Katalog auf dieser Maschine neu scannen/regenerieren (`models.catalog.json`s `runtime_dir` war veraltet — auch wenn der Code das jetzt abfaengt, lohnt sich ein frischer Scan)
 
 ### P1 — bewusst zurueckgestellt
 
