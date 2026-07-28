@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   formatModelSizeBadge,
   type IndexedModel,
@@ -14,7 +14,8 @@ import { useRuntimeStore } from "@/stores/runtimeStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { isRunnableModel } from "@/utils/modelUtils";
 
-type ProbeEvidenceTone = "ok" | "warn" | "error" | "info";
+type UiTone = "ok" | "warn" | "error" | "info";
+type ProbeEvidenceTone = UiTone;
 
 interface ProbeEvidenceItem {
   tone: ProbeEvidenceTone;
@@ -39,7 +40,7 @@ function probeToneClasses(tone: ProbeEvidenceTone): string {
   return "border-dbzs-border bg-dbzs-bg text-dbzs-muted";
 }
 
-function statusBadgeClasses(tone: "ok" | "warn" | "error" | "info"): string {
+function statusBadgeClasses(tone: UiTone): string {
   if (tone === "ok") {
     return "border-dbzs-cyan/30 bg-dbzs-cyan/10 text-dbzs-cyan";
   }
@@ -52,7 +53,7 @@ function statusBadgeClasses(tone: "ok" | "warn" | "error" | "info"): string {
   return "border-dbzs-border bg-dbzs-bg text-dbzs-muted";
 }
 
-function hintToneClasses(tone: "ok" | "warn" | "error" | "info"): string {
+function hintToneClasses(tone: UiTone): string {
   if (tone === "ok") {
     return "border-dbzs-cyan/20 bg-dbzs-cyan/5 text-dbzs-cyan";
   }
@@ -72,6 +73,76 @@ function parentDirectoryLabel(filePath: string): string {
     return normalized || "-";
   }
   return segments[segments.length - 2] || normalized;
+}
+
+function ToneBadge({
+  tone,
+  children,
+  title,
+  fit = false,
+  uppercase = true,
+  className = ""
+}: {
+  tone: UiTone;
+  children: ReactNode;
+  title?: string;
+  fit?: boolean;
+  uppercase?: boolean;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`${fit ? "w-fit " : ""}inline-flex rounded border px-1.5 py-0.5 text-[9px] ${uppercase ? "uppercase tracking-[0.14em] " : ""}${statusBadgeClasses(tone)} ${className}`.trim()}
+      title={title}
+    >
+      {children}
+    </span>
+  );
+}
+
+function StatusDotBadge({
+  tone,
+  label,
+  active = false
+}: {
+  tone: UiTone;
+  label: string;
+  active?: boolean;
+}) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(tone)}`}
+    >
+      {active ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : null}
+      {label}
+    </span>
+  );
+}
+
+function HintBox({
+  tone,
+  children,
+  className = ""
+}: {
+  tone: UiTone;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span className={`rounded border px-1.5 py-1 text-[10px] ${hintToneClasses(tone)} ${className}`.trim()}>
+      {children}
+    </span>
+  );
+}
+
+function SummaryBadge({
+  tone,
+  children
+}: {
+  tone: UiTone;
+  children: ReactNode;
+}) {
+  return <span className={`border px-2 py-0.5 text-[10px] ${statusBadgeClasses(tone)}`}>{children}</span>;
 }
 
 function ProbeEvidencePanel({
@@ -1205,7 +1276,753 @@ export function describeMultimodalPairRouting(
   return { label: "Gesperrt", tone: "info" };
 }
 
-export function RuntimeModelsTab() {
+interface PairingUiController {
+  pairingSelections: Record<string, string>;
+  onSelectionChange: (artifactId: string, value: string) => void;
+  pairingSaving: Record<string, boolean>;
+  pairingProbing: Record<string, boolean>;
+  pairingFeedback: Record<string, string>;
+  pairingOutcome: Record<string, ProbeOutcomeSummary>;
+  pairingEvidence: Record<string, ProbeEvidenceItem[]>;
+  saveManualPairing: (artifactId: string, baseModelId: string) => Promise<void>;
+  probePairing: (artifactId: string, baseModelId: string) => Promise<void>;
+}
+
+function PairingFeedbackDetails({
+  pairingUi,
+  feedbackKey,
+  align
+}: {
+  pairingUi: PairingUiController;
+  feedbackKey: string;
+  align: "left" | "right";
+}) {
+  if (!pairingUi.pairingFeedback[feedbackKey] || !pairingUi.pairingOutcome[feedbackKey]) {
+    return null;
+  }
+
+  return (
+    <ProbeEvidencePanel
+      align={align}
+      evidence={pairingUi.pairingEvidence[feedbackKey] ?? []}
+      feedback={pairingUi.pairingFeedback[feedbackKey]}
+      outcome={pairingUi.pairingOutcome[feedbackKey]}
+    />
+  );
+}
+
+function PairingSelectionControls({
+  feedbackKey,
+  selectedBaseModelId,
+  targetBadge,
+  pairingCandidates,
+  pairingUi,
+  saveSource,
+  canProbePair,
+  probeBaseModelId,
+  align = "left"
+}: {
+  feedbackKey: string;
+  selectedBaseModelId: string;
+  targetBadge: { label: string; tone: UiTone };
+  pairingCandidates: IndexedModel[];
+  pairingUi: PairingUiController;
+  saveSource?: string;
+  canProbePair: boolean;
+  probeBaseModelId?: string;
+  align?: "left" | "right";
+}) {
+  return (
+    <div className={`flex min-w-[280px] flex-col gap-1 ${align === "right" ? "items-end" : "items-start"}`}>
+      <ToneBadge fit tone={targetBadge.tone}>
+        {targetBadge.label}
+      </ToneBadge>
+      <div className="flex w-full gap-1">
+        <select
+          className="min-w-0 flex-1 border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-text"
+          onChange={(event) => pairingUi.onSelectionChange(feedbackKey, event.target.value)}
+          value={selectedBaseModelId}
+        >
+          <option value="">Basismodell waehlen</option>
+          {pairingCandidates.map((model) => (
+            <option key={model.id} value={model.id}>
+              {model.name}
+            </option>
+          ))}
+        </select>
+        <button
+          className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-text disabled:opacity-40"
+          disabled={!selectedBaseModelId || pairingUi.pairingSaving[feedbackKey] === true}
+          onClick={() => void pairingUi.saveManualPairing(feedbackKey, selectedBaseModelId)}
+          type="button"
+        >
+          {formatPairingSaveButtonLabel(saveSource, pairingUi.pairingSaving[feedbackKey] === true)}
+        </button>
+        <button
+          className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
+          disabled={!canProbePair || pairingUi.pairingProbing[feedbackKey] === true}
+          onClick={() => {
+            if (probeBaseModelId) {
+              void pairingUi.probePairing(feedbackKey, probeBaseModelId);
+            }
+          }}
+          type="button"
+        >
+          {formatPairingProbeButtonLabel(pairingUi.pairingProbing[feedbackKey] === true)}
+        </button>
+      </div>
+      <PairingFeedbackDetails align={align} feedbackKey={feedbackKey} pairingUi={pairingUi} />
+    </div>
+  );
+}
+
+function PairingProbeButton({
+  feedbackKey,
+  canProbePair,
+  probeBaseModelId,
+  pairingUi
+}: {
+  feedbackKey: string;
+  canProbePair: boolean;
+  probeBaseModelId?: string;
+  pairingUi: PairingUiController;
+}) {
+  return (
+    <button
+      className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
+      disabled={!canProbePair || pairingUi.pairingProbing[feedbackKey] === true}
+      onClick={() => {
+        if (probeBaseModelId) {
+          void pairingUi.probePairing(feedbackKey, probeBaseModelId);
+        }
+      }}
+      type="button"
+    >
+      {formatPairingProbeButtonLabel(pairingUi.pairingProbing[feedbackKey] === true)}
+    </button>
+  );
+}
+
+function RuntimeModelsHeader({
+  backendOnline,
+  status,
+  runtimeBusy,
+  indexLoading,
+  index,
+  visibleSupportArtifactCount,
+  multimodalPairCount,
+  runtimeError,
+  indexError,
+  loadModelIndex,
+  stopModel
+}: {
+  backendOnline: boolean;
+  status: RuntimeStatus | null;
+  runtimeBusy: boolean;
+  indexLoading: boolean;
+  index:
+    | {
+        summary: {
+          total: number;
+          gguf_total: number;
+          llama_server_ready: number;
+          ollama_ready: number;
+        };
+      }
+    | null
+    | undefined;
+  visibleSupportArtifactCount: number;
+  multimodalPairCount: number;
+  runtimeError: string | null;
+  indexError: string | null;
+  loadModelIndex: () => Promise<void>;
+  stopModel: () => Promise<void>;
+}) {
+  const isRunning = status?.state === "running";
+
+  return (
+    <div className="shrink-0 border-b border-dbzs-border bg-dbzs-panel px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-medium text-dbzs-text">Lokale Modelle</h2>
+          <p className="mt-0.5 text-[11px] text-dbzs-muted">
+            Backend: {backendOnline ? "aktiv" : "offline"}
+            {status?.endpoint ? ` - ${status.endpoint}` : ""}
+            {isRunning && status?.model_name ? ` - laeuft: ${status.model_name}` : ""}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {isRunning ? (
+            <button
+              className="border border-red-400/50 bg-red-400/10 px-3 py-1 text-xs font-medium text-red-300 disabled:opacity-40"
+              disabled={!canStopRuntime(status, runtimeBusy)}
+              onClick={() => void stopModel()}
+              type="button"
+            >
+              {runtimeBusy ? "Stoppt ..." : "Runtime stoppen"}
+            </button>
+          ) : null}
+          <button
+            className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-xs text-dbzs-muted disabled:opacity-40"
+            disabled={indexLoading}
+            onClick={() => void loadModelIndex()}
+            type="button"
+          >
+            Index aktualisieren
+          </button>
+        </div>
+      </div>
+      {index ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <SummaryBadge tone="info">Gesamt {index.summary.total}</SummaryBadge>
+          <SummaryBadge tone="info">GGUF {index.summary.gguf_total}</SummaryBadge>
+          <SummaryBadge tone="ok">llama-server {index.summary.llama_server_ready}</SummaryBadge>
+          <SummaryBadge tone="ok">Ollama {index.summary.ollama_ready}</SummaryBadge>
+          <SummaryBadge tone="info">Hilfsartefakte {visibleSupportArtifactCount}</SummaryBadge>
+          <SummaryBadge tone="info">MM-Paare {multimodalPairCount}</SummaryBadge>
+        </div>
+      ) : null}
+      {indexError ? <p className="mt-2 text-xs text-dbzs-red">Modellindex: {indexError}</p> : null}
+      {runtimeError ? <p className="mt-2 text-xs text-dbzs-red">{runtimeError}</p> : null}
+      {status?.message && status.state !== "running" ? (
+        <p className="mt-2 text-xs text-dbzs-muted">{status.message}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function RuntimeModelsEmptyState({
+  indexLoading,
+  indexError,
+  hasAnyEntries
+}: {
+  indexLoading: boolean;
+  indexError: string | null;
+  hasAnyEntries: boolean;
+}) {
+  if (indexLoading || !hasAnyEntries) {
+    return (
+      <p className="text-xs text-dbzs-muted">
+        {indexLoading ? "Indexiere lokale Modelle ..." : "Noch kein Modellindex geladen."}
+      </p>
+    );
+  }
+
+  return (
+    <p className="text-xs text-dbzs-muted">
+      {indexError
+        ? "Modellindex konnte nicht geladen werden - siehe Fehlermeldung oben."
+        : "Keine Modelle im Index gefunden."}
+    </p>
+  );
+}
+
+function StartableModelRow({
+  model,
+  multimodalPairs,
+  status,
+  runtimeBusy,
+  startModel,
+  stopModel
+}: {
+  model: IndexedModel;
+  multimodalPairs: MultimodalPair[];
+  status: RuntimeStatus | null;
+  runtimeBusy: boolean;
+  startModel: (modelId: string) => Promise<void>;
+  stopModel: () => Promise<void>;
+}) {
+  const { canStart, canStop, isActive } = modelRowActionState(model, status, runtimeBusy);
+  const rowStatus = describeModelRowStatus(model, status, runtimeBusy);
+  const capabilityLabels = describeModelCapabilities(model);
+  const routingReadiness = describeModelRoutingReadiness(model, multimodalPairs);
+
+  return (
+    <tr className={`border-b border-dbzs-border/50 ${isActive ? "bg-dbzs-cyan/5" : ""}`}>
+      <td className="px-2 py-2">
+        <StatusDotBadge active={isActive} label={rowStatus.label} tone={rowStatus.tone} />
+      </td>
+      <td className="max-w-[220px] truncate px-2 py-2 font-medium text-dbzs-text" title={model.name}>
+        {model.name}
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">
+        <ToneBadge tone={modelRoleTone(model.recommended_use)}>{formatModelRoleLabel(model.recommended_use)}</ToneBadge>
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">
+        <div className="flex flex-wrap gap-1">
+          {capabilityLabels.map((label) => (
+            <ToneBadge key={`${model.id}:cap:${label}`} tone={capabilityTone(label)} uppercase={false}>
+              {formatCapabilityLabel(label)}
+            </ToneBadge>
+          ))}
+        </div>
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">
+        <ToneBadge tone={launcherTone(model.runtime_launcher)}>{formatLauncherLabel(model.runtime_launcher)}</ToneBadge>
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">
+        <ToneBadge tone={compatibilityTone(model.compatibility)}>{formatCompatibilityLabel(model.compatibility)}</ToneBadge>
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">
+        <div className="flex max-w-[220px] flex-col gap-0.5">
+          <ToneBadge fit tone={modelRoutingTone(routingReadiness.label)}>
+            {routingReadiness.label}
+          </ToneBadge>
+          <span className="text-[10px] text-dbzs-muted/80">{routingReadiness.hint}</span>
+        </div>
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">{model.size_bytes > 0 ? formatModelSizeBadge(model.size_bytes) : "-"}</td>
+      <td className="px-2 py-2">
+        <div className="flex justify-end gap-1">
+          <button
+            className="border border-dbzs-cyan/50 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
+            disabled={!canStart}
+            onClick={() => void startModel(model.id)}
+            title={isRunnableModel(model) ? "Modell laden" : "Modell nicht startbar"}
+            type="button"
+          >
+            Laden
+          </button>
+          <button
+            className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-muted disabled:opacity-40"
+            disabled={!canStop}
+            onClick={() => void stopModel()}
+            title="Modell stoppen"
+            type="button"
+          >
+            Stoppen
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function MultimodalPairRow({
+  pair,
+  modelsById,
+  supportArtifactsById,
+  pairingCandidates,
+  pairingUi
+}: {
+  pair: MultimodalPair;
+  modelsById: Map<string, IndexedModel>;
+  supportArtifactsById: Map<string, IndexedModel>;
+  pairingCandidates: IndexedModel[];
+  pairingUi: PairingUiController;
+}) {
+  const baseModel = pair.base_model_id ? modelsById.get(pair.base_model_id) : undefined;
+  const projector = supportArtifactsById.get(pair.projector_artifact_id);
+  const baseModelDescriptor = describeMultimodalPairBaseModel(pair, baseModel);
+  const projectorDescriptor = describeMultimodalPairProjector(pair, projector);
+  const pairStatus = describeMultimodalPairStatus(pair);
+  const routingDescriptor = describeMultimodalPairRouting(pair);
+  const candidateSummary = describeMultimodalPairCandidates(pair, modelsById);
+  const selectedBaseModelId = defaultPairingSelection(pair.projector_artifact_id, pair, pairingUi.pairingSelections);
+  const selectedBaseModel = describeBaseModelSelection(selectedBaseModelId, modelsById);
+  const targetBadge = describePairingTargetBadge(selectedBaseModelId, selectedBaseModel);
+  const canPairManually = projector?.artifact_type === "mmproj" && pairingCandidates.length > 0;
+  const canProbePair =
+    pair.status === "candidate" &&
+    pair.routing_allowed !== true &&
+    typeof pair.base_model_id === "string" &&
+    pair.base_model_id.length > 0;
+  const pairActionDescriptor = describeMultimodalPairAction(pair, projector, pairingCandidates);
+  const pairActionHint = multimodalPairActionHint(pair, projector, pairingCandidates);
+  const controlSurface = formatMultimodalPairControlSurface(canPairManually, canProbePair);
+  const showStandaloneProbeButton = shouldRenderStandaloneMultimodalProbeButton(canPairManually, canProbePair);
+  const feedbackKey = pair.projector_artifact_id;
+
+  return (
+    <tr className="border-b border-dbzs-border/50">
+      <td className="px-2 py-2 text-dbzs-text">
+        <ToneBadge title={baseModelDescriptor.label} tone={baseModelDescriptor.tone} uppercase={false}>
+          {baseModelDescriptor.label}
+        </ToneBadge>
+      </td>
+      <td className="px-2 py-2 text-dbzs-text">
+        <ToneBadge title={projectorDescriptor.label} tone={projectorDescriptor.tone} uppercase={false}>
+          {projectorDescriptor.label}
+        </ToneBadge>
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">
+        <ToneBadge tone="info">{formatMultimodalPairModalities(pair)}</ToneBadge>
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">
+        <ToneBadge tone={multimodalPairSourceTone(pair.source)}>{formatMultimodalPairSource(pair.source)}</ToneBadge>
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">
+        <ToneBadge tone={multimodalConfidenceTone(pair.confidence)}>{formatMultimodalPairConfidence(pair.confidence)}</ToneBadge>
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">
+        <ToneBadge tone={multimodalPairStatusTone(pair.status, pair.routing_allowed)}>{pairStatus.label}</ToneBadge>
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">
+        <ToneBadge tone={routingDescriptor.tone}>{routingDescriptor.label}</ToneBadge>
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">
+        <div className="flex flex-col gap-0.5">
+          <HintBox tone={multimodalPairHintTone(pair)}>{pairStatus.hint}</HintBox>
+          {candidateSummary ? <HintBox tone={multimodalCandidateSummaryTone(pair)}>{candidateSummary}</HintBox> : null}
+        </div>
+      </td>
+      <td className="px-2 py-2">
+        <div className="flex flex-col items-end gap-1">
+          <div>
+            <ToneBadge tone={pairActionDescriptor.tone}>{pairActionDescriptor.label}</ToneBadge>
+          </div>
+          <div className="max-w-[320px]">
+            <HintBox tone={pairActionDescriptor.tone}>{pairActionHint}</HintBox>
+          </div>
+          <div>
+            <ToneBadge tone={controlSurface.tone}>{controlSurface.label}</ToneBadge>
+          </div>
+          {canPairManually ? (
+            <PairingSelectionControls
+              align="right"
+              canProbePair={canProbePair}
+              feedbackKey={feedbackKey}
+              pairingCandidates={pairingCandidates}
+              pairingUi={pairingUi}
+              probeBaseModelId={pair.base_model_id ?? undefined}
+              saveSource={pair.source ?? undefined}
+              selectedBaseModelId={selectedBaseModelId}
+              targetBadge={targetBadge}
+            />
+          ) : showStandaloneProbeButton ? (
+            <PairingProbeButton
+              canProbePair={canProbePair}
+              feedbackKey={feedbackKey}
+              pairingUi={pairingUi}
+              probeBaseModelId={pair.base_model_id ?? undefined}
+            />
+          ) : null}
+          {!canPairManually ? <PairingFeedbackDetails align="right" feedbackKey={feedbackKey} pairingUi={pairingUi} /> : null}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function SupportArtifactRow({
+  artifact,
+  multimodalPairs,
+  modelsById,
+  pairingCandidates,
+  pairingUi
+}: {
+  artifact: IndexedModel;
+  multimodalPairs: MultimodalPair[];
+  modelsById: Map<string, IndexedModel>;
+  pairingCandidates: IndexedModel[];
+  pairingUi: PairingUiController;
+}) {
+  const description = describeSupportArtifact(artifact, multimodalPairs);
+  const fileDescriptor = describeSupportArtifactFile(artifact);
+  const pair = multimodalPairs.find((entry) => entry.projector_artifact_id === artifact.id);
+  const selectedBaseModelId =
+    pairingUi.pairingSelections[artifact.id] ?? pair?.base_model_id ?? pair?.candidate_base_model_ids[0] ?? "";
+  const selectedBaseModel = describeBaseModelSelection(selectedBaseModelId, modelsById);
+  const targetBadge = describePairingTargetBadge(selectedBaseModelId, selectedBaseModel);
+  const canPairManually = artifact.artifact_type === "mmproj" && pairingCandidates.length > 0;
+  const manageInControlCenter = shouldManagePairInControlCenter(artifact, pair);
+  const canProbePair = canProbeSupportArtifactPair(artifact, pair);
+  const actionDescriptor = describeSupportArtifactAction(artifact, pair, pairingCandidates);
+  const actionHint = supportArtifactActionHint(artifact, pair, pairingCandidates);
+  const controlSurface = formatSupportArtifactControlSurface(manageInControlCenter, canPairManually);
+
+  return (
+    <tr className="border-b border-dbzs-border/50">
+      <td className="max-w-[280px] px-2 py-2 text-dbzs-text" title={artifact.path}>
+        <div className="flex flex-col gap-0.5">
+          <span className="truncate font-medium">{fileDescriptor.label}</span>
+          <ToneBadge fit tone={fileDescriptor.tone}>Ordner {fileDescriptor.location}</ToneBadge>
+        </div>
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">
+        <ToneBadge tone={supportArtifactTypeTone(artifact.artifact_type)}>
+          {formatSupportArtifactTypeLabel(artifact.artifact_type)}
+        </ToneBadge>
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">
+        <ToneBadge tone={supportArtifactStatusTone(description.statusLabel)}>
+          {formatSupportArtifactStatusLabel(description.statusLabel)}
+        </ToneBadge>
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">
+        <HintBox tone={supportArtifactHintTone(description.statusLabel)}>{description.hint}</HintBox>
+      </td>
+      <td className="px-2 py-2 text-dbzs-muted">
+        <div className="mb-1">
+          <ToneBadge tone={actionDescriptor.tone}>{actionDescriptor.label}</ToneBadge>
+        </div>
+        <div className="mb-1">
+          <HintBox tone={actionDescriptor.tone}>{actionHint}</HintBox>
+        </div>
+        {manageInControlCenter ? (
+          <div className="flex flex-col gap-1">
+            <ToneBadge fit tone={controlSurface.tone}>{controlSurface.label}</ToneBadge>
+            {selectedBaseModelId ? <ToneBadge fit tone={targetBadge.tone}>{targetBadge.label}</ToneBadge> : null}
+          </div>
+        ) : canPairManually ? (
+          <div className="flex min-w-[280px] flex-col gap-1">
+            <ToneBadge fit tone={controlSurface.tone}>{controlSurface.label}</ToneBadge>
+            <PairingSelectionControls
+              canProbePair={canProbePair}
+              feedbackKey={artifact.id}
+              pairingCandidates={pairingCandidates}
+              pairingUi={pairingUi}
+              probeBaseModelId={pair?.base_model_id ?? undefined}
+              saveSource={pair?.source ?? undefined}
+              selectedBaseModelId={selectedBaseModelId}
+              targetBadge={targetBadge}
+            />
+          </div>
+        ) : (
+          <span className="text-[10px] text-dbzs-muted">-</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function StartableModelsSection({
+  sortedStartableModels,
+  modelRoleSummary,
+  startableModelActionSummary,
+  modelRoutingSummary,
+  multimodalPairs,
+  status,
+  runtimeBusy,
+  startModel,
+  stopModel
+}: {
+  sortedStartableModels: IndexedModel[];
+  modelRoleSummary: Record<"coding" | "chat" | "vision" | "orchestrator" | "other", number>;
+  startableModelActionSummary: Record<"running" | "loadable" | "blocked", number>;
+  modelRoutingSummary: Record<
+    "text" | "textCode" | "visionDirect" | "visionChat" | "visionBlocked" | "screenshotReady",
+    number
+  >;
+  multimodalPairs: MultimodalPair[];
+  status: RuntimeStatus | null;
+  runtimeBusy: boolean;
+  startModel: (modelId: string) => Promise<void>;
+  stopModel: () => Promise<void>;
+}) {
+  if (sortedStartableModels.length === 0) {
+    return null;
+  }
+
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <h3 className="text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">Startbare Modelle</h3>
+        <SummaryBadge tone="info">Coding-Modelle {modelRoleSummary.coding}</SummaryBadge>
+        <SummaryBadge tone="info">Chat-Modelle {modelRoleSummary.chat}</SummaryBadge>
+        <SummaryBadge tone="warn">Vision-Modelle {modelRoleSummary.vision}</SummaryBadge>
+        <SummaryBadge tone="ok">Orchestrator {modelRoleSummary.orchestrator}</SummaryBadge>
+        {modelRoleSummary.other > 0 ? <SummaryBadge tone="info">Sonstige {modelRoleSummary.other}</SummaryBadge> : null}
+        {startableModelActionSummary.running > 0 ? (
+          <SummaryBadge tone="ok">Laufend {startableModelActionSummary.running}</SummaryBadge>
+        ) : null}
+        <SummaryBadge tone="ok">Ladbar {startableModelActionSummary.loadable}</SummaryBadge>
+        {startableModelActionSummary.blocked > 0 ? (
+          <SummaryBadge tone="error">Blockiert {startableModelActionSummary.blocked}</SummaryBadge>
+        ) : null}
+      </div>
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <SummaryBadge tone="info">Text {modelRoutingSummary.text}</SummaryBadge>
+        <SummaryBadge tone="info">Text + Code {modelRoutingSummary.textCode}</SummaryBadge>
+        <SummaryBadge tone="warn">Vision direkt {modelRoutingSummary.visionDirect}</SummaryBadge>
+        <SummaryBadge tone="info">Vision-Chat {modelRoutingSummary.visionChat}</SummaryBadge>
+        <SummaryBadge tone="error">MM-Pair blockiert {modelRoutingSummary.visionBlocked}</SummaryBadge>
+        <SummaryBadge tone="ok">Screenshot-bereit {modelRoutingSummary.screenshotReady}</SummaryBadge>
+      </div>
+      <table className="w-full min-w-[760px] border-collapse text-left text-[11px]">
+        <thead className="sticky top-0 bg-[#091017]">
+          <tr className="border-b border-dbzs-border text-dbzs-muted">
+            <th className="px-2 py-2 font-medium">Status</th>
+            <th className="px-2 py-2 font-medium">Modell</th>
+            <th className="px-2 py-2 font-medium">Rolle</th>
+            <th className="px-2 py-2 font-medium">Faehigkeiten</th>
+            <th className="px-2 py-2 font-medium">Runtime</th>
+            <th className="px-2 py-2 font-medium">Kompat</th>
+            <th className="px-2 py-2 font-medium">Routing</th>
+            <th className="px-2 py-2 font-medium">Groesse</th>
+            <th className="px-2 py-2 text-right font-medium">Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sortedStartableModels.map((model) => (
+            <StartableModelRow
+              key={model.id}
+              model={model}
+              multimodalPairs={multimodalPairs}
+              runtimeBusy={runtimeBusy}
+              startModel={startModel}
+              status={status}
+              stopModel={stopModel}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MultimodalPairsSection({
+  sortedMultimodalPairs,
+  multimodalPairSummary,
+  multimodalPairSourceSummary,
+  multimodalPairActionSummary,
+  modelsById,
+  supportArtifactsById,
+  pairingCandidates,
+  pairingUi
+}: {
+  sortedMultimodalPairs: MultimodalPair[];
+  multimodalPairSummary: Record<string, number>;
+  multimodalPairSourceSummary: Record<"manual" | "catalog" | "sameFolder" | "other", number>;
+  multimodalPairActionSummary: Record<"probeReady" | "needsAssignment" | "resolved" | "blocked", number>;
+  modelsById: Map<string, IndexedModel>;
+  supportArtifactsById: Map<string, IndexedModel>;
+  pairingCandidates: IndexedModel[];
+  pairingUi: PairingUiController;
+}) {
+  if (sortedMultimodalPairs.length === 0) {
+    return null;
+  }
+
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <h3 className="text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">Multimodale Paare</h3>
+        <SummaryBadge tone="info">Gesamt {multimodalPairSummary.total}</SummaryBadge>
+        <SummaryBadge tone="ok">Verifiziert {multimodalPairSummary.verified}</SummaryBadge>
+        <SummaryBadge tone="info">Offen {multimodalPairSummary.candidate}</SummaryBadge>
+        <SummaryBadge tone="info">Manuell {multimodalPairSourceSummary.manual}</SummaryBadge>
+        <SummaryBadge tone="info">Katalog {multimodalPairSourceSummary.catalog}</SummaryBadge>
+        <SummaryBadge tone="info">Gleicher Ordner {multimodalPairSourceSummary.sameFolder}</SummaryBadge>
+        {multimodalPairSourceSummary.other > 0 ? (
+          <SummaryBadge tone="info">Sonstige {multimodalPairSourceSummary.other}</SummaryBadge>
+        ) : null}
+        <SummaryBadge tone="ok">Probe bereit {multimodalPairActionSummary.probeReady}</SummaryBadge>
+        <SummaryBadge tone="warn">Zuordnung noetig {multimodalPairActionSummary.needsAssignment}</SummaryBadge>
+        <SummaryBadge tone="info">Erledigt {multimodalPairActionSummary.resolved}</SummaryBadge>
+        {multimodalPairActionSummary.blocked > 0 ? (
+          <SummaryBadge tone="error">Blockiert {multimodalPairActionSummary.blocked}</SummaryBadge>
+        ) : null}
+        <SummaryBadge tone="warn">Mehrdeutig {multimodalPairSummary.ambiguous}</SummaryBadge>
+        <SummaryBadge tone="error">Basis fehlt {multimodalPairSummary.missing_base}</SummaryBadge>
+      </div>
+      <table className="w-full min-w-[760px] border-collapse text-left text-[11px]">
+        <thead className="sticky top-0 bg-[#091017]">
+          <tr className="border-b border-dbzs-border text-dbzs-muted">
+            <th className="px-2 py-2 font-medium">Basismodell</th>
+            <th className="px-2 py-2 font-medium">Projektor</th>
+            <th className="px-2 py-2 font-medium">Modalitaet</th>
+            <th className="px-2 py-2 font-medium">Quelle</th>
+            <th className="px-2 py-2 font-medium">Sicherheit</th>
+            <th className="px-2 py-2 font-medium">Status</th>
+            <th className="px-2 py-2 font-medium">Routing</th>
+            <th className="px-2 py-2 font-medium">Hinweis</th>
+            <th className="px-2 py-2 text-right font-medium">Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sortedMultimodalPairs.map((pair) => (
+            <MultimodalPairRow
+              key={pair.id}
+              modelsById={modelsById}
+              pair={pair}
+              pairingCandidates={pairingCandidates}
+              pairingUi={pairingUi}
+              supportArtifactsById={supportArtifactsById}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SupportArtifactsSection({
+  sortedVisibleSupportArtifacts,
+  supportArtifactSummary,
+  supportArtifactActionSummary,
+  supportArtifactStatusSummary,
+  multimodalPairs,
+  modelsById,
+  pairingCandidates,
+  pairingUi
+}: {
+  sortedVisibleSupportArtifacts: IndexedModel[];
+  supportArtifactSummary: Record<"mmproj" | "adapter" | "other", number>;
+  supportArtifactActionSummary: Record<"probeReady" | "manualAssignment" | "readOnly", number>;
+  supportArtifactStatusSummary: Record<"verified" | "candidate" | "orphan" | "other", number>;
+  multimodalPairs: MultimodalPair[];
+  modelsById: Map<string, IndexedModel>;
+  pairingCandidates: IndexedModel[];
+  pairingUi: PairingUiController;
+}) {
+  if (sortedVisibleSupportArtifacts.length === 0) {
+    return null;
+  }
+
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <h3 className="text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">Hilfsartefakte</h3>
+        <SummaryBadge tone="info">MMProj {supportArtifactSummary.mmproj}</SummaryBadge>
+        <SummaryBadge tone="info">Adapter/LoRA {supportArtifactSummary.adapter}</SummaryBadge>
+        {supportArtifactSummary.other > 0 ? <SummaryBadge tone="info">Sonstige {supportArtifactSummary.other}</SummaryBadge> : null}
+        <SummaryBadge tone="ok">Probe bereit {supportArtifactActionSummary.probeReady}</SummaryBadge>
+        <SummaryBadge tone="warn">Manuelle Zuordnung {supportArtifactActionSummary.manualAssignment}</SummaryBadge>
+        {supportArtifactStatusSummary.verified > 0 ? (
+          <SummaryBadge tone="ok">Verifiziert {supportArtifactStatusSummary.verified}</SummaryBadge>
+        ) : null}
+        {supportArtifactStatusSummary.candidate > 0 ? (
+          <SummaryBadge tone="warn">Kandidat {supportArtifactStatusSummary.candidate}</SummaryBadge>
+        ) : null}
+        {supportArtifactStatusSummary.orphan > 0 ? (
+          <SummaryBadge tone="error">Verwaist {supportArtifactStatusSummary.orphan}</SummaryBadge>
+        ) : null}
+        {supportArtifactActionSummary.readOnly > 0 ? (
+          <SummaryBadge tone="info">Nur Hinweis {supportArtifactActionSummary.readOnly}</SummaryBadge>
+        ) : null}
+        {supportArtifactStatusSummary.other > 0 ? (
+          <SummaryBadge tone="info">Sonstige Status {supportArtifactStatusSummary.other}</SummaryBadge>
+        ) : null}
+      </div>
+      <table className="w-full min-w-[760px] border-collapse text-left text-[11px]">
+        <thead className="sticky top-0 bg-[#091017]">
+          <tr className="border-b border-dbzs-border text-dbzs-muted">
+            <th className="px-2 py-2 font-medium">Datei</th>
+            <th className="px-2 py-2 font-medium">Typ</th>
+            <th className="px-2 py-2 font-medium">Status</th>
+            <th className="px-2 py-2 font-medium">Hinweis</th>
+            <th className="px-2 py-2 font-medium">Zuordnung</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sortedVisibleSupportArtifacts.map((artifact) => (
+            <SupportArtifactRow
+              key={artifact.id}
+              artifact={artifact}
+              modelsById={modelsById}
+              multimodalPairs={multimodalPairs}
+              pairingCandidates={pairingCandidates}
+              pairingUi={pairingUi}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function useRuntimeModelsTabController() {
   const { index, isLoading: indexLoading, error: indexError, loadModelIndex } = useModelIndexStore();
   const { status, isLoading: runtimeBusy, error: runtimeError, startModel, stopModel } = useRuntimeStore();
   const backendHealth = useSettingsStore((state) => state.backendHealth);
@@ -1255,6 +2072,12 @@ export function RuntimeModelsTab() {
     runtimeBusy
   );
   const isRunning = status?.state === "running";
+  const onSelectionChange = (artifactId: string, value: string) => {
+    setPairingSelections((current) => ({
+      ...current,
+      [artifactId]: value
+    }));
+  };
 
   const resetPairingProbeUi = (artifactId: string) => {
     setPairingFeedback((current) => ({ ...current, [artifactId]: "" }));
@@ -1340,709 +2163,138 @@ export function RuntimeModelsTab() {
     }
   };
 
+  const pairingUi: PairingUiController = {
+    pairingSelections,
+    onSelectionChange,
+    pairingSaving,
+    pairingProbing,
+    pairingFeedback,
+    pairingOutcome,
+    pairingEvidence,
+    saveManualPairing,
+    probePairing
+  };
+
+  return {
+    backendOnline,
+    index,
+    indexError,
+    indexLoading,
+    loadModelIndex,
+    modelsById,
+    multimodalPairActionSummary,
+    multimodalPairSourceSummary,
+    multimodalPairSummary,
+    multimodalPairs,
+    pairingCandidates,
+    pairingUi,
+    runtimeBusy,
+    runtimeError,
+    sortedMultimodalPairs,
+    sortedStartableModels,
+    sortedVisibleSupportArtifacts,
+    startModel,
+    startableModelActionSummary,
+    startableModels,
+    status,
+    stopModel,
+    supportArtifactActionSummary,
+    supportArtifactStatusSummary,
+    supportArtifactSummary,
+    supportArtifactsById,
+    modelRoleSummary,
+    modelRoutingSummary,
+    visibleSupportArtifacts
+  };
+}
+
+export function RuntimeModelsTab() {
+  const {
+    backendOnline,
+    index,
+    indexError,
+    indexLoading,
+    loadModelIndex,
+    modelsById,
+    multimodalPairActionSummary,
+    multimodalPairSourceSummary,
+    multimodalPairSummary,
+    multimodalPairs,
+    pairingCandidates,
+    pairingUi,
+    runtimeBusy,
+    runtimeError,
+    sortedMultimodalPairs,
+    sortedStartableModels,
+    sortedVisibleSupportArtifacts,
+    startModel,
+    startableModelActionSummary,
+    startableModels,
+    status,
+    stopModel,
+    supportArtifactActionSummary,
+    supportArtifactStatusSummary,
+    supportArtifactSummary,
+    supportArtifactsById,
+    modelRoleSummary,
+    modelRoutingSummary,
+    visibleSupportArtifacts
+  } = useRuntimeModelsTabController();
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-dbzs-border bg-dbzs-panel px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-medium text-dbzs-text">Lokale Modelle</h2>
-            <p className="mt-0.5 text-[11px] text-dbzs-muted">
-              Backend: {backendOnline ? "aktiv" : "offline"}
-              {status?.endpoint ? ` - ${status.endpoint}` : ""}
-              {isRunning && status?.model_name ? ` - laeuft: ${status.model_name}` : ""}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {isRunning ? (
-              <button
-                className="border border-red-400/50 bg-red-400/10 px-3 py-1 text-xs font-medium text-red-300 disabled:opacity-40"
-                disabled={!canStopRuntime(status, runtimeBusy)}
-                onClick={() => void stopModel()}
-                type="button"
-              >
-                {runtimeBusy ? "Stoppt ..." : "Runtime stoppen"}
-              </button>
-            ) : null}
-            <button
-              className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-xs text-dbzs-muted disabled:opacity-40"
-              disabled={indexLoading}
-              onClick={() => void loadModelIndex()}
-              type="button"
-            >
-              Index aktualisieren
-            </button>
-          </div>
-        </div>
-        {index ? (
-          <div className="mt-2 flex flex-wrap gap-3 text-[10px] text-dbzs-muted">
-            <span>Gesamt {index.summary.total}</span>
-            <span>GGUF {index.summary.gguf_total}</span>
-            <span>llama-server {index.summary.llama_server_ready}</span>
-            <span>Ollama {index.summary.ollama_ready}</span>
-            <span>Hilfsartefakte {visibleSupportArtifacts.length}</span>
-            <span>MM-Paare {multimodalPairs.length}</span>
-          </div>
-        ) : null}
-        {indexError ? <p className="mt-2 text-xs text-dbzs-red">Modellindex: {indexError}</p> : null}
-        {runtimeError ? <p className="mt-2 text-xs text-dbzs-red">{runtimeError}</p> : null}
-        {status?.message && status.state !== "running" ? (
-          <p className="mt-2 text-xs text-dbzs-muted">{status.message}</p>
-        ) : null}
-      </div>
+      <RuntimeModelsHeader
+        backendOnline={backendOnline}
+        index={index}
+        indexError={indexError}
+        indexLoading={indexLoading}
+        loadModelIndex={loadModelIndex}
+        multimodalPairCount={multimodalPairs.length}
+        runtimeBusy={runtimeBusy}
+        runtimeError={runtimeError}
+        status={status}
+        stopModel={stopModel}
+        visibleSupportArtifactCount={visibleSupportArtifacts.length}
+      />
 
       <div className="min-h-0 flex-1 overflow-auto p-4">
         {!index ? (
-          <p className="text-xs text-dbzs-muted">
-            {indexLoading ? "Indexiere lokale Modelle ..." : "Noch kein Modellindex geladen."}
-          </p>
+          <RuntimeModelsEmptyState hasAnyEntries={false} indexError={indexError} indexLoading={indexLoading} />
         ) : startableModels.length === 0 && visibleSupportArtifacts.length === 0 ? (
-          <p className="text-xs text-dbzs-muted">
-            {indexError
-              ? "Modellindex konnte nicht geladen werden - siehe Fehlermeldung oben."
-              : "Keine Modelle im Index gefunden."}
-          </p>
+          <RuntimeModelsEmptyState hasAnyEntries={true} indexError={indexError} indexLoading={false} />
         ) : (
           <div className="space-y-6">
-            {startableModels.length > 0 ? (
-              <div>
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <h3 className="text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">
-                    Startbare Modelle
-                  </h3>
-                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Coding-Modelle {modelRoleSummary.coding}
-                  </span>
-                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Chat-Modelle {modelRoleSummary.chat}
-                  </span>
-                  <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
-                    Vision-Modelle {modelRoleSummary.vision}
-                  </span>
-                  <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
-                    Orchestrator {modelRoleSummary.orchestrator}
-                  </span>
-                  {modelRoleSummary.other > 0 ? (
-                    <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                      Sonstige {modelRoleSummary.other}
-                    </span>
-                  ) : null}
-                  {startableModelActionSummary.running > 0 ? (
-                    <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
-                      Laufend {startableModelActionSummary.running}
-                    </span>
-                  ) : null}
-                  <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
-                    Ladbar {startableModelActionSummary.loadable}
-                  </span>
-                  {startableModelActionSummary.blocked > 0 ? (
-                    <span className="border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] text-red-300">
-                      Blockiert {startableModelActionSummary.blocked}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Text {modelRoutingSummary.text}
-                  </span>
-                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Text + Code {modelRoutingSummary.textCode}
-                  </span>
-                  <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
-                    Vision direkt {modelRoutingSummary.visionDirect}
-                  </span>
-                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-[10px] text-dbzs-muted">
-                    Vision-Chat {modelRoutingSummary.visionChat}
-                  </span>
-                  <span className="border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] text-red-300">
-                    MM-Pair blockiert {modelRoutingSummary.visionBlocked}
-                  </span>
-                  <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
-                    Screenshot-bereit {modelRoutingSummary.screenshotReady}
-                  </span>
-                </div>
-                <table className="w-full min-w-[760px] border-collapse text-left text-[11px]">
-                  <thead className="sticky top-0 bg-[#091017]">
-                    <tr className="border-b border-dbzs-border text-dbzs-muted">
-                      <th className="px-2 py-2 font-medium">Status</th>
-                      <th className="px-2 py-2 font-medium">Modell</th>
-                      <th className="px-2 py-2 font-medium">Rolle</th>
-                      <th className="px-2 py-2 font-medium">Faehigkeiten</th>
-                      <th className="px-2 py-2 font-medium">Runtime</th>
-                      <th className="px-2 py-2 font-medium">Kompat</th>
-                      <th className="px-2 py-2 font-medium">Routing</th>
-                      <th className="px-2 py-2 font-medium">Groesse</th>
-                      <th className="px-2 py-2 text-right font-medium">Aktionen</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedStartableModels.map((model) => {
-                      const { canStart, canStop, isActive } = modelRowActionState(model, status, runtimeBusy);
-                      const rowStatus = describeModelRowStatus(model, status, runtimeBusy);
-                      const capabilityLabels = describeModelCapabilities(model);
-                      const routingReadiness = describeModelRoutingReadiness(model, multimodalPairs);
-                      return (
-                        <tr
-                          className={`border-b border-dbzs-border/50 ${isActive ? "bg-dbzs-cyan/5" : ""}`}
-                          key={model.id}
-                        >
-                          <td className="px-2 py-2">
-                            <span
-                              className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(rowStatus.tone)}`}
-                            >
-                              {isActive ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : null}
-                              {rowStatus.label}
-                            </span>
-                          </td>
-                          <td className="max-w-[220px] truncate px-2 py-2 font-medium text-dbzs-text" title={model.name}>
-                            {model.name}
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            <span
-                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(modelRoleTone(model.recommended_use))}`}
-                            >
-                              {formatModelRoleLabel(model.recommended_use)}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            <div className="flex flex-wrap gap-1">
-                              {capabilityLabels.map((label) => (
-                                <span
-                                  className={`rounded border px-1.5 py-0.5 text-[9px] ${statusBadgeClasses(capabilityTone(label))}`}
-                                  key={`${model.id}:cap:${label}`}
-                                >
-                                  {formatCapabilityLabel(label)}
-                                </span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            <span
-                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(launcherTone(model.runtime_launcher))}`}
-                            >
-                              {formatLauncherLabel(model.runtime_launcher)}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            <span
-                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(compatibilityTone(model.compatibility))}`}
-                            >
-                              {formatCompatibilityLabel(model.compatibility)}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            <div className="flex max-w-[220px] flex-col gap-0.5">
-                              <span
-                                className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(modelRoutingTone(routingReadiness.label))}`}
-                              >
-                                {routingReadiness.label}
-                              </span>
-                              <span className="text-[10px] text-dbzs-muted/80">{routingReadiness.hint}</span>
-                            </div>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            {model.size_bytes > 0 ? formatModelSizeBadge(model.size_bytes) : "-"}
-                          </td>
-                          <td className="px-2 py-2">
-                            <div className="flex justify-end gap-1">
-                              <button
-                                className="border border-dbzs-cyan/50 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
-                                disabled={!canStart}
-                                onClick={() => void startModel(model.id)}
-                                title={isRunnableModel(model) ? "Modell laden" : "Modell nicht startbar"}
-                                type="button"
-                              >
-                                Laden
-                              </button>
-                              <button
-                                className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-muted disabled:opacity-40"
-                                disabled={!canStop}
-                                onClick={() => void stopModel()}
-                                title="Modell stoppen"
-                                type="button"
-                              >
-                                Stoppen
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-
-            {sortedMultimodalPairs.length > 0 ? (
-              <div>
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <h3 className="text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">
-                    Multimodale Paare
-                  </h3>
-                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Gesamt {multimodalPairSummary.total}
-                  </span>
-                  <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
-                    Verifiziert {multimodalPairSummary.verified}
-                  </span>
-                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Offen {multimodalPairSummary.candidate}
-                  </span>
-                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Manuell {multimodalPairSourceSummary.manual}
-                  </span>
-                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Katalog {multimodalPairSourceSummary.catalog}
-                  </span>
-                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Gleicher Ordner {multimodalPairSourceSummary.sameFolder}
-                  </span>
-                  {multimodalPairSourceSummary.other > 0 ? (
-                    <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                      Sonstige {multimodalPairSourceSummary.other}
-                    </span>
-                  ) : null}
-                  <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
-                    Probe bereit {multimodalPairActionSummary.probeReady}
-                  </span>
-                  <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
-                    Zuordnung noetig {multimodalPairActionSummary.needsAssignment}
-                  </span>
-                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Erledigt {multimodalPairActionSummary.resolved}
-                  </span>
-                  {multimodalPairActionSummary.blocked > 0 ? (
-                    <span className="border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] text-red-300">
-                      Blockiert {multimodalPairActionSummary.blocked}
-                    </span>
-                  ) : null}
-                  <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
-                    Mehrdeutig {multimodalPairSummary.ambiguous}
-                  </span>
-                  <span className="border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] text-red-300">
-                    Basis fehlt {multimodalPairSummary.missing_base}
-                  </span>
-                </div>
-                <table className="w-full min-w-[760px] border-collapse text-left text-[11px]">
-                  <thead className="sticky top-0 bg-[#091017]">
-                    <tr className="border-b border-dbzs-border text-dbzs-muted">
-                      <th className="px-2 py-2 font-medium">Basismodell</th>
-                      <th className="px-2 py-2 font-medium">Projektor</th>
-                      <th className="px-2 py-2 font-medium">Modalitaet</th>
-                      <th className="px-2 py-2 font-medium">Quelle</th>
-                      <th className="px-2 py-2 font-medium">Sicherheit</th>
-                      <th className="px-2 py-2 font-medium">Status</th>
-                      <th className="px-2 py-2 font-medium">Routing</th>
-                      <th className="px-2 py-2 font-medium">Hinweis</th>
-                      <th className="px-2 py-2 text-right font-medium">Aktionen</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedMultimodalPairs.map((pair) => {
-                      const baseModel = pair.base_model_id ? modelsById.get(pair.base_model_id) : undefined;
-                      const projector = supportArtifactsById.get(pair.projector_artifact_id);
-                      const baseModelDescriptor = describeMultimodalPairBaseModel(pair, baseModel);
-                      const projectorDescriptor = describeMultimodalPairProjector(pair, projector);
-                      const pairStatus = describeMultimodalPairStatus(pair);
-                      const routingDescriptor = describeMultimodalPairRouting(pair);
-                      const candidateSummary = describeMultimodalPairCandidates(pair, modelsById);
-                      const selectedBaseModelId = defaultPairingSelection(
-                        pair.projector_artifact_id,
-                        pair,
-                        pairingSelections
-                      );
-                      const selectedBaseModel = describeBaseModelSelection(selectedBaseModelId, modelsById);
-                      const targetBadge = describePairingTargetBadge(selectedBaseModelId, selectedBaseModel);
-                      const canPairManually = projector?.artifact_type === "mmproj" && pairingCandidates.length > 0;
-                      const canProbePair =
-                        pair.status === "candidate" &&
-                        pair.routing_allowed !== true &&
-                        typeof pair.base_model_id === "string" &&
-                        pair.base_model_id.length > 0;
-                      const pairActionDescriptor = describeMultimodalPairAction(pair, projector, pairingCandidates);
-                      const pairActionHint = multimodalPairActionHint(pair, projector, pairingCandidates);
-                      const controlSurface = formatMultimodalPairControlSurface(canPairManually, canProbePair);
-                      const showStandaloneProbeButton = shouldRenderStandaloneMultimodalProbeButton(
-                        canPairManually,
-                        canProbePair
-                      );
-                      const feedbackKey = pair.projector_artifact_id;
-                      return (
-                        <tr className="border-b border-dbzs-border/50" key={pair.id}>
-                          <td className="px-2 py-2 text-dbzs-text">
-                            <span
-                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] ${statusBadgeClasses(baseModelDescriptor.tone)}`}
-                              title={baseModelDescriptor.label}
-                            >
-                              {baseModelDescriptor.label}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-text">
-                            <span
-                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] ${statusBadgeClasses(projectorDescriptor.tone)}`}
-                              title={projectorDescriptor.label}
-                            >
-                              {projectorDescriptor.label}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            <span className="inline-flex rounded border border-dbzs-border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em]">
-                              {formatMultimodalPairModalities(pair)}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            <span
-                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(multimodalPairSourceTone(pair.source))}`}
-                            >
-                              {formatMultimodalPairSource(pair.source)}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            <span
-                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(multimodalConfidenceTone(pair.confidence))}`}
-                            >
-                              {formatMultimodalPairConfidence(pair.confidence)}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            <span
-                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(multimodalPairStatusTone(pair.status, pair.routing_allowed))}`}
-                            >
-                              {pairStatus.label}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            <span
-                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(routingDescriptor.tone)}`}
-                            >
-                              {routingDescriptor.label}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            <div className="flex flex-col gap-0.5">
-                              <span
-                                className={`rounded border px-1.5 py-1 text-[10px] ${hintToneClasses(multimodalPairHintTone(pair))}`}
-                              >
-                                {pairStatus.hint}
-                              </span>
-                              {candidateSummary ? (
-                                <span
-                                  className={`rounded border px-1.5 py-1 text-[10px] ${hintToneClasses(multimodalCandidateSummaryTone(pair))}`}
-                                >
-                                  {candidateSummary}
-                                </span>
-                              ) : null}
-                            </div>
-                          </td>
-                          <td className="px-2 py-2">
-                            <div className="flex flex-col items-end gap-1">
-                              <div>
-                                <span
-                                  className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(pairActionDescriptor.tone)}`}
-                                >
-                                  {pairActionDescriptor.label}
-                                </span>
-                              </div>
-                              <div className="max-w-[320px]">
-                                <span
-                                  className={`rounded border px-1.5 py-1 text-[10px] ${hintToneClasses(pairActionDescriptor.tone)}`}
-                                >
-                                  {pairActionHint}
-                                </span>
-                              </div>
-                              <div>
-                                <span
-                                  className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(controlSurface.tone)}`}
-                                >
-                                  {controlSurface.label}
-                                </span>
-                              </div>
-                              {canPairManually ? (
-                                <div className="flex max-w-[320px] flex-col gap-1">
-                                  <span
-                                    className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(targetBadge.tone)}`}
-                                  >
-                                    {targetBadge.label}
-                                  </span>
-                                  <div className="flex gap-1">
-                                  <select
-                                    className="min-w-0 flex-1 border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-text"
-                                    onChange={(event) =>
-                                      setPairingSelections((current) => ({
-                                        ...current,
-                                        [feedbackKey]: event.target.value
-                                      }))
-                                    }
-                                    value={selectedBaseModelId}
-                                  >
-                                    <option value="">Basismodell waehlen</option>
-                                    {pairingCandidates.map((model) => (
-                                      <option key={model.id} value={model.id}>
-                                        {model.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <button
-                                    className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-text disabled:opacity-40"
-                                    disabled={!selectedBaseModelId || pairingSaving[feedbackKey] === true}
-                                    onClick={() => void saveManualPairing(feedbackKey, selectedBaseModelId)}
-                                    type="button"
-                                  >
-                                    {formatPairingSaveButtonLabel(pair.source, pairingSaving[feedbackKey] === true)}
-                                  </button>
-                                  <button
-                                    className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
-                                    disabled={!canProbePair || pairingProbing[feedbackKey] === true}
-                                    onClick={() => {
-                                      if (pair.base_model_id) {
-                                        void probePairing(feedbackKey, pair.base_model_id);
-                                      }
-                                    }}
-                                    type="button"
-                                  >
-                                    {formatPairingProbeButtonLabel(pairingProbing[feedbackKey] === true)}
-                                  </button>
-                                  </div>
-                                </div>
-                              ) : showStandaloneProbeButton ? (
-                                <button
-                                  className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
-                                  disabled={!canProbePair || pairingProbing[feedbackKey] === true}
-                                  onClick={() => {
-                                    if (pair.base_model_id) {
-                                      void probePairing(feedbackKey, pair.base_model_id);
-                                    }
-                                  }}
-                                  type="button"
-                                >
-                                  {formatPairingProbeButtonLabel(pairingProbing[feedbackKey] === true)}
-                                </button>
-                              ) : null}
-                              {pairingFeedback[feedbackKey] && pairingOutcome[feedbackKey] ? (
-                                <ProbeEvidencePanel
-                                  align="right"
-                                  evidence={pairingEvidence[feedbackKey] ?? []}
-                                  feedback={pairingFeedback[feedbackKey]}
-                                  outcome={pairingOutcome[feedbackKey]}
-                                />
-                              ) : null}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-
-            {sortedVisibleSupportArtifacts.length > 0 ? (
-              <div>
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <h3 className="text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">
-                    Hilfsartefakte
-                  </h3>
-                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    MMProj {supportArtifactSummary.mmproj}
-                  </span>
-                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                    Adapter/LoRA {supportArtifactSummary.adapter}
-                  </span>
-                  {supportArtifactSummary.other > 0 ? (
-                    <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                      Sonstige {supportArtifactSummary.other}
-                    </span>
-                  ) : null}
-                  <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
-                    Probe bereit {supportArtifactActionSummary.probeReady}
-                  </span>
-                  <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
-                    Manuelle Zuordnung {supportArtifactActionSummary.manualAssignment}
-                  </span>
-                  {supportArtifactStatusSummary.verified > 0 ? (
-                    <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
-                      Verifiziert {supportArtifactStatusSummary.verified}
-                    </span>
-                  ) : null}
-                  {supportArtifactStatusSummary.candidate > 0 ? (
-                    <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
-                      Kandidat {supportArtifactStatusSummary.candidate}
-                    </span>
-                  ) : null}
-                  {supportArtifactStatusSummary.orphan > 0 ? (
-                    <span className="border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] text-red-300">
-                      Verwaist {supportArtifactStatusSummary.orphan}
-                    </span>
-                  ) : null}
-                  {supportArtifactActionSummary.readOnly > 0 ? (
-                    <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                      Nur Hinweis {supportArtifactActionSummary.readOnly}
-                    </span>
-                  ) : null}
-                  {supportArtifactStatusSummary.other > 0 ? (
-                    <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
-                      Sonstige Status {supportArtifactStatusSummary.other}
-                    </span>
-                  ) : null}
-                </div>
-                <table className="w-full min-w-[760px] border-collapse text-left text-[11px]">
-                  <thead className="sticky top-0 bg-[#091017]">
-                    <tr className="border-b border-dbzs-border text-dbzs-muted">
-                      <th className="px-2 py-2 font-medium">Datei</th>
-                      <th className="px-2 py-2 font-medium">Typ</th>
-                      <th className="px-2 py-2 font-medium">Status</th>
-                      <th className="px-2 py-2 font-medium">Hinweis</th>
-                      <th className="px-2 py-2 font-medium">Zuordnung</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedVisibleSupportArtifacts.map((artifact) => {
-                      const description = describeSupportArtifact(artifact, multimodalPairs);
-                      const fileDescriptor = describeSupportArtifactFile(artifact);
-                      const pair = multimodalPairs.find((entry) => entry.projector_artifact_id === artifact.id);
-                      const selectedBaseModelId =
-                        pairingSelections[artifact.id] ?? pair?.base_model_id ?? pair?.candidate_base_model_ids[0] ?? "";
-                      const selectedBaseModel = describeBaseModelSelection(selectedBaseModelId, modelsById);
-                      const targetBadge = describePairingTargetBadge(selectedBaseModelId, selectedBaseModel);
-                      const canPairManually = artifact.artifact_type === "mmproj" && pairingCandidates.length > 0;
-                      const manageInControlCenter = shouldManagePairInControlCenter(artifact, pair);
-                      const canProbePair = canProbeSupportArtifactPair(artifact, pair);
-                      const actionDescriptor = describeSupportArtifactAction(artifact, pair, pairingCandidates);
-                      const actionHint = supportArtifactActionHint(artifact, pair, pairingCandidates);
-                      const controlSurface = formatSupportArtifactControlSurface(manageInControlCenter, canPairManually);
-                      return (
-                        <tr className="border-b border-dbzs-border/50" key={artifact.id}>
-                          <td className="max-w-[280px] px-2 py-2 text-dbzs-text" title={artifact.path}>
-                            <div className="flex flex-col gap-0.5">
-                              <span className="truncate font-medium">{fileDescriptor.label}</span>
-                              <span
-                                className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(fileDescriptor.tone)}`}
-                              >
-                                Ordner {fileDescriptor.location}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            <span
-                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(supportArtifactTypeTone(artifact.artifact_type))}`}
-                            >
-                              {formatSupportArtifactTypeLabel(artifact.artifact_type)}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            <span
-                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(supportArtifactStatusTone(description.statusLabel))}`}
-                            >
-                              {formatSupportArtifactStatusLabel(description.statusLabel)}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            <span
-                              className={`rounded border px-1.5 py-1 text-[10px] ${hintToneClasses(supportArtifactHintTone(description.statusLabel))}`}
-                            >
-                              {description.hint}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2 text-dbzs-muted">
-                            <div className="mb-1">
-                              <span
-                                className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(actionDescriptor.tone)}`}
-                              >
-                                {actionDescriptor.label}
-                              </span>
-                            </div>
-                            <div className="mb-1">
-                              <span
-                                className={`rounded border px-1.5 py-1 text-[10px] ${hintToneClasses(actionDescriptor.tone)}`}
-                              >
-                                {actionHint}
-                              </span>
-                            </div>
-                            {manageInControlCenter ? (
-                              <div className="flex flex-col gap-1">
-                                <span
-                                  className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(controlSurface.tone)}`}
-                                >
-                                  {controlSurface.label}
-                                </span>
-                                {selectedBaseModelId ? (
-                                  <span
-                                    className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(targetBadge.tone)}`}
-                                  >
-                                    {targetBadge.label}
-                                  </span>
-                                ) : null}
-                              </div>
-                            ) : canPairManually ? (
-                              <div className="flex min-w-[280px] flex-col gap-1">
-                                <span
-                                  className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(controlSurface.tone)}`}
-                                >
-                                  {controlSurface.label}
-                                </span>
-                                <span
-                                  className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(targetBadge.tone)}`}
-                                >
-                                  {targetBadge.label}
-                                </span>
-                                <div className="flex gap-2">
-                                  <select
-                                    className="min-w-0 flex-1 border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-text"
-                                    onChange={(event) =>
-                                      setPairingSelections((current) => ({
-                                        ...current,
-                                        [artifact.id]: event.target.value
-                                      }))
-                                    }
-                                    value={selectedBaseModelId}
-                                  >
-                                    <option value="">Basismodell waehlen</option>
-                                    {pairingCandidates.map((model) => (
-                                      <option key={model.id} value={model.id}>
-                                        {model.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <button
-                                    className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-text disabled:opacity-40"
-                                    disabled={!selectedBaseModelId || pairingSaving[artifact.id] === true}
-                                    onClick={() => void saveManualPairing(artifact.id, selectedBaseModelId)}
-                                    type="button"
-                                  >
-                                    {formatPairingSaveButtonLabel(pair?.source, pairingSaving[artifact.id] === true)}
-                                  </button>
-                                  <button
-                                    className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
-                                    disabled={!canProbePair || pairingProbing[artifact.id] === true}
-                                    onClick={() => {
-                                      if (pair?.base_model_id) {
-                                        void probePairing(artifact.id, pair.base_model_id);
-                                      }
-                                    }}
-                                    type="button"
-                                  >
-                                    {formatPairingProbeButtonLabel(pairingProbing[artifact.id] === true)}
-                                  </button>
-                                </div>
-                                {pairingFeedback[artifact.id] && pairingOutcome[artifact.id] ? (
-                                  <ProbeEvidencePanel
-                                    align="left"
-                                    evidence={pairingEvidence[artifact.id] ?? []}
-                                    feedback={pairingFeedback[artifact.id]}
-                                    outcome={pairingOutcome[artifact.id]}
-                                  />
-                                ) : null}
-                              </div>
-                            ) : (
-                              <span className="text-[10px] text-dbzs-muted">-</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
+            <StartableModelsSection
+              modelRoleSummary={modelRoleSummary}
+              modelRoutingSummary={modelRoutingSummary}
+              multimodalPairs={multimodalPairs}
+              runtimeBusy={runtimeBusy}
+              sortedStartableModels={sortedStartableModels}
+              startModel={startModel}
+              startableModelActionSummary={startableModelActionSummary}
+              status={status}
+              stopModel={stopModel}
+            />
+            <MultimodalPairsSection
+              modelsById={modelsById}
+              multimodalPairActionSummary={multimodalPairActionSummary}
+              multimodalPairSourceSummary={multimodalPairSourceSummary}
+              multimodalPairSummary={multimodalPairSummary}
+              pairingCandidates={pairingCandidates}
+              pairingUi={pairingUi}
+              sortedMultimodalPairs={sortedMultimodalPairs}
+              supportArtifactsById={supportArtifactsById}
+            />
+            <SupportArtifactsSection
+              modelsById={modelsById}
+              multimodalPairs={multimodalPairs}
+              pairingCandidates={pairingCandidates}
+              pairingUi={pairingUi}
+              sortedVisibleSupportArtifacts={sortedVisibleSupportArtifacts}
+              supportArtifactActionSummary={supportArtifactActionSummary}
+              supportArtifactStatusSummary={supportArtifactStatusSummary}
+              supportArtifactSummary={supportArtifactSummary}
+            />
           </div>
         )}
       </div>
