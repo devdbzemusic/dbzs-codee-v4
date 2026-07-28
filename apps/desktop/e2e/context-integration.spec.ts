@@ -1,13 +1,19 @@
 import { expect, test } from "@playwright/test";
-import { installTestBridge, openRuntimeChatPanel } from "./helpers/test-bridge";
+import { installTestBridge, openRuntimeChatPanel, runtimeChatComposer } from "./helpers/test-bridge";
 
 test("realer Context-Aufbau erreicht den finalen Runtime-Request ohne doppelte Quellen", async ({ page }) => {
   await installTestBridge(page, { chatResponse: "Kontext wurde verarbeitet." });
   await openRuntimeChatPanel(page);
-  await page.getByPlaceholder(/Analysiere, plane oder implementiere/i)
-    .fill("Pruefe subtract in src/calculator.ts und den zugehoerigen Test");
+  await runtimeChatComposer(page).fill("Pruefe subtract in src/calculator.ts und den zugehoerigen Test");
   await page.getByRole("button", { name: "Senden" }).click();
-  await expect(page.getByText("Kontext wurde verarbeitet.", { exact: false })).toBeVisible({ timeout: 30_000 });
+  await expect
+    .poll(async () => {
+      const hooks = await page.evaluate(() => {
+        return (window as unknown as { __dbzsE2E: { chatCalls: Array<{ messages: Array<{ content?: string }> }> } }).__dbzsE2E;
+      });
+      return hooks.chatCalls.length;
+    }, { timeout: 30_000 })
+    .toBeGreaterThan(0);
 
   const messages = await page.evaluate(() => {
     const hooks = (window as unknown as { __dbzsE2E: { chatCalls: Array<{ messages: Array<{ content?: string }> }> } }).__dbzsE2E;

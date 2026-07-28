@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { loadFixtureRecords } from "./helpers/fixture-workspace";
-import { installTestBridge, openRuntimeChatPanel, runtimeChatScope } from "./helpers/test-bridge";
+import { installTestBridge, openRuntimeChatPanel, runtimeChatComposer, runtimeChatScope } from "./helpers/test-bridge";
 
 const fixture = loadFixtureRecords();
 
@@ -32,7 +32,7 @@ test.describe("Coding Assistant Use Cases (E2E)", () => {
       chatResponse: "In subtract wird faelschlich addiert. Erwartet: return a - b;"
     });
     await openRuntimeChatPanel(page);
-    await page.getByPlaceholder(/Analysiere, plane oder implementiere/i).fill("Erklaere den Bug in src/calculator.ts");
+    await runtimeChatComposer(page).fill("Erklaere den Bug in src/calculator.ts");
     await page.getByRole("button", { name: "Senden" }).click();
     await expect(
       page.getByText("In subtract wird faelschlich addiert. Erwartet: return a - b;", { exact: true })
@@ -46,7 +46,7 @@ test.describe("Coding Assistant Use Cases (E2E)", () => {
     await openRuntimeChatPanel(page);
     const chat = runtimeChatScope(page);
     await chat.getByRole("button", { name: "Agent", exact: true }).click();
-    await chat.getByPlaceholder(/Analysiere, plane oder implementiere/i).fill("Fix subtract bug");
+    await runtimeChatComposer(page).fill("Fix subtract bug");
     await chat.getByRole("button", { name: "Senden" }).click();
     await expect(page.getByText("Assistant").first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/Patch-Vorschlag konnte nicht angewendet werden/i)).toHaveCount(0);
@@ -75,6 +75,6 @@ test.describe("Coding Assistant Use Cases (E2E)", () => {
       bridge.getRuntimeStatus = async () => stopped;
     });
     await openRuntimeChatPanel(page);
-    await expect(page.getByPlaceholder(/Runtime starten/i)).toBeVisible();
+    await expect(runtimeChatComposer(page)).toBeDisabled();
   });
 });

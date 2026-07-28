@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { getE2EScenarios, installScenarioBridge, installTestBridge, openRuntimeChatPanel, resolveSkillTitle, sendRuntimeChatPrompt } from "./helpers/test-bridge";
+import { getE2EScenarios, installScenarioBridge, installTestBridge, openRuntimeChatPanel, resolveSkillTitle, runtimeChatComposer, sendRuntimeChatPrompt } from "./helpers/test-bridge";
 import { loadFixtureRecords } from "./helpers/fixture-workspace";
 
 const fixture = loadFixtureRecords();
@@ -52,7 +52,7 @@ test.describe("Coding Assistant — Infrastruktur Use Cases (E2E)", () => {
       runtimeState: "stopped"
     } as never);
     await openRuntimeChatPanel(page);
-    await expect(page.getByPlaceholder(/Runtime starten/i)).toBeVisible();
+    await expect(runtimeChatComposer(page)).toBeDisabled();
   });
 
   test("takeover-prose: Freitext erzeugt keine ungeprüfte Aktion", async ({ page }) => {
