@@ -6,24 +6,53 @@ Stand: 2026-07-28
 
 Statusvokabular (projektweit): `SERVICE_VERIFIED` → `UI_VERIFIED` → `INSTALLER_VERIFIED` → `PERSONAL_STABLE`.
 Aktueller Stand der sicheren Aenderungskette (Diff/Approval/Apply/Tests/Rollback) sowie Backup/Restore
-und Crash-Recovery: **`SERVICE_VERIFIED`** — siehe
-`docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md` (Service-Logik vollstaendig verifiziert).
-Der echte interaktive UI-Durchlauf in `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md` hat dieselben
-Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht noch aus) — deshalb bleibt unten offen:
+und Crash-Recovery: 2.1–2.5, 3.1, 3.2 sind **`SERVICE_VERIFIED`** — siehe
+`docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md`. **Achtung:** 2.6 (Tests) und 2.7 (Rollback)
+waren dort faelschlich als verifiziert markiert (der Beleg-Code war nicht kompilierbar und nirgendwo verdrahtet,
+inzwischen entfernt — siehe Korrekturhinweis im Dokument und `GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md`) und
+gelten wieder als offen. Der echte interaktive UI-Durchlauf in `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md`
+hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht noch aus):
 
-- [ ] **Blocker fuer Kriterien 5/7/9/10/11:** "canonical workflow assignment"-Schicht instrumentieren —
-      `targetAgent` loest bei Review-/Coding-Anfragen nicht auf `"reviewer"` auf, obwohl `executionIntent.ts`/
-      `modelSelectionBroker.ts`/`reviewIntent.ts` die Nachricht korrekt als `taskType: "review"` klassifizieren;
-      Gate in `runtimeChatStore.ts:1006` bleibt dadurch zu — siehe
-      `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md`
-- [ ] Rest des Golden-Path (Diff/Apply/Rollback/Tests, harter Abbruch + Neustart) bis `UI_VERIFIED` abschliessen,
-      sobald obiger Blocker geloest ist — Backup/Restore ist bereits `UI_VERIFIED` (siehe unten)
+- [ ] Rest des Golden-Path (Diff/Apply/Rollback/Tests, harter Abbruch + Neustart) bis `UI_VERIFIED` abschliessen —
+      der bisherige Blocker (Review-Routing landete nicht beim `reviewer`-Agent) ist gefixt (siehe unten),
+      naechster echter Durchlauf sollte weiterkommen; Backup/Restore ist bereits `UI_VERIFIED` (siehe unten)
+- [ ] 2.6 (Tests)/2.7 (Rollback) gegen den echten, verdrahteten Pfad neu verifizieren:
+      `apps/desktop/electron/patchPipelineService.ts`/`restorePointService.ts` ueber `runtimeChatStorePatchActions.ts`
+      (nicht die entfernten `repositoryReview/patchValidationService.ts`/`patchRollbackService.ts`)
 - [ ] gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren
       (`INSTALLER_VERIFIED`) — Ablauf in `docs/audits/GOLDEN_PATH_MANUAL_VERIFICATION_SCRIPT.md`
 - [ ] rollenspezifische Modell-IDs (`defaultCoderModelId`/`defaultReviewerModelId`/...) sinnvoll defaulten statt
       hartem `"Rollenmodell in Settings fehlt"`-Fehler beim ersten Coding-Task-Versuch (in `GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md` gefunden)
 - [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen) —
       Rescan-Button selbst bereits `UI_VERIFIED` (364 Modelle, keine Regression)
+- [ ] vorbestehende, unabhaengige Testfehler reparieren (nicht heute verursacht): 5 Fehlschlaege in
+      `AssistantQuestionCard.test.tsx` (Button-Query findet nichts), 2 in `clarificationFieldMemory.test.ts`
+      (`success_criteria`-Feld-Erwartung)
+
+## Erledigt: Code-Review-Vertiefung nach Runtime-Chat-Scope-Erweiterung (2026-07-28)
+
+- [x] **Routing-Bug behoben (Ursache fuer Kriterien 5/7/9/10/11-Blocker):** `inferWorkflowKind()` in
+      `apps/desktop/src/runtime/workflow/workflowStateResolver.ts` hat bei Review-Anfragen faelschlich den
+      `workflowKind` eines noch offenen, aelteren Task-Contracts (z. B. "chat") wiederverwendet, obwohl
+      `classifiedTaskType` bereits korrekt `"review"` war — dadurch loeste `targetAgent` nie auf `"reviewer"`
+      auf und der Repository-Review-Orchestrator wurde nie ausgeloest. Fix: expliziter Vorrang fuer
+      `classifiedTaskType === "review"` vor der Contract-Wiederverwendung. Regressionstest ergaenzt,
+      65 betroffene Tests gruen, `npm run typecheck` sauber.
+- [x] **Fabrizierten/nicht-verdrahteten Code-Cluster aus Commit `fab49e6` entfernt:** derselbe Commit, der den
+      "Service-Ebene erfolgreich"-Bericht schrieb, fuegte gleichzeitig `patchValidationService.ts` und
+      `patchRollbackService.ts` als Beleg hinzu — beide kompilierten nicht (fehlende Module wie
+      `@/services/io/atomicFileIo`, eine nie existierende IPC-Methode `deleteProjectFile`), waren von nirgendwo
+      im Code erreichbar, und lagen neben eindeutigem Scaffold-Muell (`example.ts`, `package.json`, ein
+      Playwright-Spec gegen nie existierende UI-Selektoren). Alle sechs Dateien entfernt, verwaiste
+      `deleteFile`-Methode aus `types.ts`/`nodeReviewWorkspaceIo.ts`/`reviewWorkspaceIo.ts` mitentfernt.
+      `npm run typecheck` war vorher kaputt (6 Fehler), jetzt sauber.
+- [x] **Zwei echte Regressionen in `repositoryReviewOrchestrator.ts` aus demselben Commit behoben:** `state.detail`
+      wurde faelschlich als "nicht Teil des Typs" entfernt (der Kommentar war falsch, das Feld existiert in
+      `ReviewStateFile`) — wiederhergestellt. Ein neuer Test erwartete das falsche Review-Outcome
+      (`completed_with_warnings` statt korrekt `degraded_heuristic_only` fuer den heuristik-only-Analyzer) und
+      ein zweiter, dazu redundanter Duplikat-Testfall wurde entfernt — beides in `repositoryReview.test.ts` korrigiert.
+- [x] Service-Level-Bericht korrigiert: 2.6/2.7 von `[x]` auf `[ ]` zurueckgestuft, Korrekturhinweis ergaenzt —
+      siehe `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md`
 
 ## Erledigt: automatisiert getriebener UI-Fortsetzungslauf (Recheck-Audit 2026-07-28)
 

@@ -101,12 +101,20 @@ Statusvokabular (projektweit): `SERVICE_VERIFIED` → `UI_VERIFIED` → `INSTALL
 Ein automatisiert getriebener UI-Fortsetzungslauf (per Playwright, echtes lokales Modell) hat Kriterium 12
 (Backup/Restore) neu auf `UI_VERIFIED` gehoben und einen echten Bug in Kriterium 4 (Chat) gefunden und gefixt
 (`a5171b7` — aufeinanderfolgende `system`-Rollen-Nachrichten liessen Gemmas Chat-Template scheitern). Kriterien
-5/7/9/10/11 bleiben blockiert durch ein neues, noch ungeloestes Problem: die "canonical workflow assignment"-
-Schicht loest bei Review-/Coding-Anfragen `targetAgent` nicht auf `"reviewer"` auf, obwohl die Intent-Klassifikation
-korrekt ist. Details, inkl. genauer Codepfade: [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md).
+5/7/9/10/11 waren blockiert, weil die "canonical workflow assignment"-Schicht bei Review-/Coding-Anfragen
+`targetAgent` nicht auf `"reviewer"` aufloeste — **inzwischen behoben** (`inferWorkflowKind()` in
+`workflowStateResolver.ts` bevorzugte faelschlich den `workflowKind` eines aelteren, noch offenen Task-Contracts
+vor der korrekt klassifizierten Review-Absicht). Details: [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md).
 
-- Blocker fuer Kriterien 5/7/9/10/11 loesen (siehe oben), dann Rest des Golden-Path (Diff/Apply/Rollback/Tests,
-  harter Abbruch + Neustart) bis `UI_VERIFIED` abschliessen — siehe [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md) und [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md); dieselben Punkte sind bereits `SERVICE_VERIFIED` — siehe [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md)
+**Wichtige Korrektur:** Bei der Code-Vertiefung stellte sich heraus, dass der Service-Level-Bericht fuer 2.6
+(Tests) und 2.7 (Rollback) auf nicht-kompilierbarem, nirgendwo verdrahtetem Code beruhte (`patchValidationService.ts`/
+`patchRollbackService.ts`, aus demselben Commit wie der Bericht selbst) — entfernt, Bericht korrigiert,
+`npm run typecheck` war dadurch seit heute frueh kaputt und ist jetzt wieder sauber. Siehe Korrekturhinweis in
+[docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md).
+
+- Rest des Golden-Path (Diff/Apply/Rollback/Tests, harter Abbruch + Neustart) bis `UI_VERIFIED` abschliessen,
+  jetzt wo der Routing-Blocker behoben ist; 2.6/2.7 dabei gegen den echten Pfad
+  (`patchPipelineService.ts`/`restorePointService.ts`) neu pruefen — siehe [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md) und [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md)
 - gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren (`INSTALLER_VERIFIED`; bisher nur Dev-Pfad `%TEMP%\dbzs-codee-dev-user-data` bestaetigt)
 - Modell-Katalog auf dieser Maschine neu scannen/regenerieren (`models.catalog.json`s `runtime_dir` war veraltet — auch wenn der Code das jetzt abfaengt, lohnt sich ein frischer Scan)
 
