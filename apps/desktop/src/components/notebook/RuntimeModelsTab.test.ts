@@ -3,6 +3,9 @@ import type { IndexedModel, MultimodalPair, RuntimeProbeResponse, RuntimeStatus 
 import {
   canProbeSupportArtifactPair,
   collectProbeEvidenceLines,
+  defaultPairingSelection,
+  describeMultimodalPairCandidates,
+  describeMultimodalPairStatus,
   describeProbeFailureCodes,
   describeSupportArtifact,
   formatProbeFeedback,
@@ -360,5 +363,129 @@ describe("describeProbeFailureCodes", () => {
   it("returns an empty string when no structured failures are present", () => {
     expect(describeProbeFailureCodes([])).toBe("");
     expect(describeProbeFailureCodes(undefined)).toBe("");
+  });
+});
+
+describe("describeMultimodalPairStatus", () => {
+  it("marks routing-allowed pairs as verified", () => {
+    const pair: MultimodalPair = {
+      id: "m1:mmproj-1",
+      base_model_id: "m1",
+      projector_artifact_id: "mmproj-1",
+      modalities: ["text", "image"],
+      source: "manual",
+      confidence: 1,
+      status: "candidate",
+      routing_allowed: true,
+      candidate_base_model_ids: ["m1"]
+    };
+
+    expect(describeMultimodalPairStatus(pair)).toEqual({
+      label: "verified",
+      hint: "Routing freigegeben"
+    });
+  });
+
+  it("surfaces unresolved pair states with focused hints", () => {
+    const ambiguousPair: MultimodalPair = {
+      id: "ambiguous:mmproj-1",
+      base_model_id: null,
+      projector_artifact_id: "mmproj-1",
+      modalities: ["text", "image"],
+      source: "same_folder",
+      confidence: 0.4,
+      status: "ambiguous",
+      routing_allowed: false,
+      candidate_base_model_ids: ["m1", "m2"]
+    };
+
+    expect(describeMultimodalPairStatus(ambiguousPair)).toEqual({
+      label: "ambiguous",
+      hint: "Mehrdeutige Basismodell-Zuordnung"
+    });
+  });
+});
+
+describe("describeMultimodalPairCandidates", () => {
+  it("lists resolved candidate names for ambiguous pairs", () => {
+    const pair: MultimodalPair = {
+      id: "ambiguous:mmproj-1",
+      base_model_id: null,
+      projector_artifact_id: "mmproj-1",
+      modalities: ["text", "image"],
+      source: "same_folder",
+      confidence: 0.4,
+      status: "ambiguous",
+      routing_allowed: false,
+      candidate_base_model_ids: ["m1", "m2"]
+    };
+    const modelsById = new Map<string, IndexedModel>([
+      ["m1", baseModel],
+      ["m2", { ...baseModel, id: "m2", name: "other.gguf" }]
+    ]);
+
+    expect(describeMultimodalPairCandidates(pair, modelsById)).toBe("Kandidaten: test.gguf, other.gguf");
+  });
+
+  it("reports missing candidate information for missing-base pairs", () => {
+    const pair: MultimodalPair = {
+      id: "missing_base:mmproj-1",
+      base_model_id: null,
+      projector_artifact_id: "mmproj-1",
+      modalities: ["text", "image"],
+      source: "same_folder",
+      confidence: 0,
+      status: "missing_base",
+      routing_allowed: false,
+      candidate_base_model_ids: []
+    };
+
+    expect(describeMultimodalPairCandidates(pair, new Map())).toBe("Keine Kandidaten erkannt");
+  });
+});
+
+describe("defaultPairingSelection", () => {
+  it("prefers explicit local selection over pair defaults", () => {
+    const pair: MultimodalPair = {
+      id: "m1:mmproj-1",
+      base_model_id: "m1",
+      projector_artifact_id: "mmproj-1",
+      modalities: ["text", "image"],
+      source: "manual",
+      confidence: 1,
+      status: "candidate",
+      routing_allowed: false,
+      candidate_base_model_ids: ["m1", "m2"]
+    };
+
+    expect(defaultPairingSelection("mmproj-1", pair, { "mmproj-1": "m2" })).toBe("m2");
+  });
+
+  it("falls back to base model id and then first candidate", () => {
+    const paired: MultimodalPair = {
+      id: "m1:mmproj-1",
+      base_model_id: "m1",
+      projector_artifact_id: "mmproj-1",
+      modalities: ["text", "image"],
+      source: "catalog",
+      confidence: 1,
+      status: "candidate",
+      routing_allowed: false,
+      candidate_base_model_ids: ["m1", "m2"]
+    };
+    const ambiguous: MultimodalPair = {
+      id: "ambiguous:mmproj-2",
+      base_model_id: null,
+      projector_artifact_id: "mmproj-2",
+      modalities: ["text", "image"],
+      source: "same_folder",
+      confidence: 0.4,
+      status: "ambiguous",
+      routing_allowed: false,
+      candidate_base_model_ids: ["m2", "m3"]
+    };
+
+    expect(defaultPairingSelection("mmproj-1", paired, {})).toBe("m1");
+    expect(defaultPairingSelection("mmproj-2", ambiguous, {})).toBe("m2");
   });
 });

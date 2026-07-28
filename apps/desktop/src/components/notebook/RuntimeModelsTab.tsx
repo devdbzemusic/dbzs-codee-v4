@@ -193,6 +193,56 @@ export function describeProbeFailureCodes(
   return failureCodes.map((code) => labels[code] ?? code).join(", ");
 }
 
+export function describeMultimodalPairStatus(pair: MultimodalPair): { label: string; hint: string } {
+  if (pair.routing_allowed) {
+    return {
+      label: "verified",
+      hint: "Routing freigegeben"
+    };
+  }
+  if (pair.status === "candidate") {
+    return {
+      label: "candidate",
+      hint: "Runtime-Probe noch offen"
+    };
+  }
+  if (pair.status === "ambiguous") {
+    return {
+      label: "ambiguous",
+      hint: "Mehrdeutige Basismodell-Zuordnung"
+    };
+  }
+  if (pair.status === "missing_base") {
+    return {
+      label: "missing_base",
+      hint: "Basismodell fehlt"
+    };
+  }
+  return {
+    label: pair.status,
+    hint: "Nicht freigegeben"
+  };
+}
+
+export function describeMultimodalPairCandidates(
+  pair: MultimodalPair,
+  modelsById: Map<string, IndexedModel>
+): string {
+  if (pair.candidate_base_model_ids.length === 0) {
+    return pair.status === "missing_base" ? "Keine Kandidaten erkannt" : "";
+  }
+  const names = pair.candidate_base_model_ids.map((id) => modelsById.get(id)?.name ?? id);
+  return `Kandidaten: ${names.join(", ")}`;
+}
+
+export function defaultPairingSelection(
+  artifactId: string,
+  pair: MultimodalPair,
+  pairingSelections: Record<string, string>
+): string {
+  return pairingSelections[artifactId] ?? pair.base_model_id ?? pair.candidate_base_model_ids[0] ?? "";
+}
+
 export function RuntimeModelsTab() {
   const { index, isLoading: indexLoading, error: indexError, loadModelIndex } = useModelIndexStore();
   const { status, isLoading: runtimeBusy, error: runtimeError, startModel, stopModel } = useRuntimeStore();
@@ -206,6 +256,8 @@ export function RuntimeModelsTab() {
   const models = index?.models ?? [];
   const supportArtifacts = index?.support_artifacts ?? models.filter((model) => model.artifact_type !== "model");
   const multimodalPairs = index?.multimodal_pairs ?? [];
+  const modelsById = new Map(models.map((model) => [model.id, model] as const));
+  const supportArtifactsById = new Map(supportArtifacts.map((artifact) => [artifact.id, artifact] as const));
   const startableModels = models.filter((model) => model.artifact_type === "model");
   const pairingCandidates = listManualPairingCandidates(startableModels);
   const isRunning = status?.state === "running";
@@ -393,6 +445,136 @@ export function RuntimeModelsTab() {
                               >
                                 Stoppen
                               </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+
+            {multimodalPairs.length > 0 ? (
+              <div>
+                <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">
+                  Multimodale Paare
+                </h3>
+                <table className="w-full min-w-[760px] border-collapse text-left text-[11px]">
+                  <thead className="bg-[#091017]">
+                    <tr className="border-b border-dbzs-border text-dbzs-muted">
+                      <th className="px-2 py-2 font-medium">Basismodell</th>
+                      <th className="px-2 py-2 font-medium">Projector</th>
+                      <th className="px-2 py-2 font-medium">Quelle</th>
+                      <th className="px-2 py-2 font-medium">Status</th>
+                      <th className="px-2 py-2 font-medium">Routing</th>
+                      <th className="px-2 py-2 font-medium">Hinweis</th>
+                      <th className="px-2 py-2 text-right font-medium">Aktionen</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {multimodalPairs.map((pair) => {
+                      const baseModel = pair.base_model_id ? modelsById.get(pair.base_model_id) : undefined;
+                      const projector = supportArtifactsById.get(pair.projector_artifact_id);
+                      const pairStatus = describeMultimodalPairStatus(pair);
+                      const candidateSummary = describeMultimodalPairCandidates(pair, modelsById);
+                      const selectedBaseModelId = defaultPairingSelection(
+                        pair.projector_artifact_id,
+                        pair,
+                        pairingSelections
+                      );
+                      const canPairManually = projector?.artifact_type === "mmproj" && pairingCandidates.length > 0;
+                      const canProbePair =
+                        pair.status === "candidate" &&
+                        pair.routing_allowed !== true &&
+                        typeof pair.base_model_id === "string" &&
+                        pair.base_model_id.length > 0;
+                      const feedbackKey = pair.projector_artifact_id;
+                      return (
+                        <tr className="border-b border-dbzs-border/50" key={pair.id}>
+                          <td className="px-2 py-2 text-dbzs-text">{baseModel?.name ?? pair.base_model_id ?? "-"}</td>
+                          <td className="px-2 py-2 text-dbzs-text">{projector?.name ?? pair.projector_artifact_id}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">{pair.source}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">{pairStatus.label}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">{pair.routing_allowed ? "freigegeben" : "gesperrt"}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">
+                            <div className="flex flex-col gap-0.5">
+                              <span>{pairStatus.hint}</span>
+                              {candidateSummary ? (
+                                <span className="text-[10px] text-dbzs-muted/80">{candidateSummary}</span>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="px-2 py-2">
+                            <div className="flex flex-col items-end gap-1">
+                              {canPairManually ? (
+                                <div className="flex max-w-[320px] gap-1">
+                                  <select
+                                    className="min-w-0 flex-1 border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-text"
+                                    onChange={(event) =>
+                                      setPairingSelections((current) => ({
+                                        ...current,
+                                        [feedbackKey]: event.target.value
+                                      }))
+                                    }
+                                    value={selectedBaseModelId}
+                                  >
+                                    <option value="">Basismodell waehlen</option>
+                                    {pairingCandidates.map((model) => (
+                                      <option key={model.id} value={model.id}>
+                                        {model.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-text disabled:opacity-40"
+                                    disabled={!selectedBaseModelId || pairingSaving[feedbackKey] === true}
+                                    onClick={() => void saveManualPairing(feedbackKey, selectedBaseModelId)}
+                                    type="button"
+                                  >
+                                    {pairingSaving[feedbackKey] === true
+                                      ? "Speichert ..."
+                                      : pair.source === "manual"
+                                        ? "Neu zuordnen"
+                                        : "Zuordnen"}
+                                  </button>
+                                  <button
+                                    className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
+                                    disabled={!canProbePair || pairingProbing[feedbackKey] === true}
+                                    onClick={() => {
+                                      if (pair.base_model_id) {
+                                        void probePairing(feedbackKey, pair.base_model_id);
+                                      }
+                                    }}
+                                    type="button"
+                                  >
+                                    {pairingProbing[feedbackKey] === true ? "Prueft ..." : "Probe"}
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
+                                  disabled={!canProbePair || pairingProbing[feedbackKey] === true}
+                                  onClick={() => {
+                                    if (pair.base_model_id) {
+                                      void probePairing(feedbackKey, pair.base_model_id);
+                                    }
+                                  }}
+                                  type="button"
+                                >
+                                  {pairingProbing[feedbackKey] === true ? "Prueft ..." : "Probe"}
+                                </button>
+                              )}
+                              {pairingFeedback[feedbackKey] ? (
+                                <div className="flex max-w-[280px] flex-col gap-0.5 text-right text-[10px] text-dbzs-muted">
+                                  <span>{pairingFeedback[feedbackKey]}</span>
+                                  {(pairingEvidence[feedbackKey] ?? []).map((line) => (
+                                    <span className="text-[9px] text-dbzs-muted/80" key={`${feedbackKey}:${line}`}>
+                                      {line}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
                             </div>
                           </td>
                         </tr>
