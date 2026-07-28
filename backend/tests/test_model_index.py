@@ -129,6 +129,55 @@ def test_model_index_resolves_stale_catalog_paths(tmp_path: Path) -> None:
     assert index.models[0].compatibility == "llama_server_ready"
 
 
+def test_model_index_falls_back_when_catalog_runtime_dir_is_stale(tmp_path: Path, monkeypatch) -> None:
+    """Reproduces a real bug found via a live golden-path walkthrough:
+    models.catalog.json's runtime_dir pointed at an empty/renamed directory
+    while the real llama-server.exe lived elsewhere under win_runtimes.
+    ModelIndexSummary.runtime_dir is consumed as-is by the frontend's
+    pre-flight path validator (pathValidatorService.ts) *before* a model
+    start is attempted, so a stale value here caused a false
+    "runtime directory not found" error even though the backend's own
+    launch-time resolution would have found the real directory just fine."""
+    models_dir = tmp_path / "Models"
+    models_dir.mkdir(parents=True, exist_ok=True)
+    gguf = models_dir / "coder.gguf"
+    gguf.write_bytes(b"GGUF")
+
+    stale_runtime_dir = tmp_path / "win_runtimes" / "llama.cpp-win-runtime"
+    stale_runtime_dir.mkdir(parents=True, exist_ok=True)  # exists, but empty -- no llama-server.exe
+
+    real_runtime_dir = tmp_path / "win_runtimes" / "llama" / "cpu-x64"
+    real_runtime_dir.mkdir(parents=True, exist_ok=True)
+    (real_runtime_dir / "llama-server.exe").write_bytes(b"fake")
+    (real_runtime_dir / "ggml-base.dll").write_bytes(b"fake")
+
+    monkeypatch.setenv("DBZS_WIN_RUNTIMES_DIR", str(tmp_path / "win_runtimes"))
+    from app.runtime.win_runtimes import clear_win_runtime_discovery_cache
+
+    clear_win_runtime_discovery_cache()
+
+    catalog = {
+        "runtime_dir": str(stale_runtime_dir),
+        "models": [
+            {
+                "id": "coder-model",
+                "name": "Coder Model",
+                "artifact_type": "model",
+                "file_path": str(gguf),
+                "size_bytes": 4,
+                "backend": "llama.cpp",
+                "loader": {"launcher": "llama_cpp"},
+            }
+        ],
+    }
+    (models_dir / "models.catalog.json").write_text(json.dumps(catalog), encoding="utf-8")
+
+    index = ModelIndexService(models_dir=models_dir, ollama_models_dir=tmp_path / "empty-ollama").build_index()
+
+    assert index.summary.runtime_dir != str(stale_runtime_dir)
+    assert index.summary.runtime_dir == str(real_runtime_dir)
+
+
 def test_model_index_scans_gguf_when_catalog_is_missing(tmp_path: Path) -> None:
     model_path = tmp_path / "tiny-coder-Q4_K_M.gguf"
     model_path.write_bytes(b"GGUF")

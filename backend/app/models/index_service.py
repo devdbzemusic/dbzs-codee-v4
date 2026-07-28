@@ -256,7 +256,7 @@ class ModelIndexService:
         built = _build_index(
             generated_from=f"catalog:{catalog_path}",
             models_dir=self.models_dir,
-            runtime_dir=catalog.get("runtime_dir"),
+            runtime_dir=_resolve_catalog_runtime_dir(catalog.get("runtime_dir")),
             ollama_dir=str(self.ollama_dir) if self.ollama_dir.exists() else None,
             ollama_models_dir=str(self.ollama_models_dir) if self.ollama_models_dir.exists() else None,
             models=models,
@@ -654,6 +654,28 @@ def _build_file_signature(path: Path) -> dict[str, object]:
         "headerHash": header_hash,
         "metadataVersion": MODEL_INDEX_CACHE_METADATA_VERSION,
     }
+
+
+def _resolve_catalog_runtime_dir(raw_runtime_dir: str | None) -> str | None:
+    """Validate the catalog's declared runtime_dir and fall back to live
+    discovery when it's stale (e.g. points at a renamed/empty directory).
+
+    ModelIndexSummary.runtime_dir is consumed as-is by the frontend's
+    pre-flight path validator (pathValidatorService.ts) before a model start
+    is even attempted, so an unvalidated stale value here surfaces as a
+    false "runtime directory not found" error even though the backend's own
+    launch-time resolution (see runtime/launch.py's resolve_runtime_dir)
+    would have found the real directory just fine.
+    """
+    if raw_runtime_dir and (Path(raw_runtime_dir) / "llama-server.exe").exists():
+        return raw_runtime_dir
+
+    from app.runtime.win_runtimes import first_win_llama_runtime_dir
+
+    discovered = first_win_llama_runtime_dir()
+    if discovered is not None:
+        return str(discovered)
+    return raw_runtime_dir
 
 
 def _build_index(
