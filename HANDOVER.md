@@ -98,7 +98,15 @@ sind genau diese Punkte inzwischen verifiziert — siehe
 
 Statusvokabular (projektweit): `SERVICE_VERIFIED` → `UI_VERIFIED` → `INSTALLER_VERIFIED` → `PERSONAL_STABLE`.
 
-- Rest des Golden-Path in einer kurzen echten Sitzung bis `UI_VERIFIED` abschliessen (App laeuft auf dieser Maschine bereits nachweislich mit echtem Modell): Review bis zum Ende laufen lassen, Aenderung vorschlagen/anwenden, Restore-Point-Rollback, `npm test` aus dem Agent Workbench, Backup/Restore im Diagnostics-Tab, harter Abbruch + Neustart — siehe [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md); dieselben Punkte sind bereits `SERVICE_VERIFIED` — siehe [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md)
+Ein automatisiert getriebener UI-Fortsetzungslauf (per Playwright, echtes lokales Modell) hat Kriterium 12
+(Backup/Restore) neu auf `UI_VERIFIED` gehoben und einen echten Bug in Kriterium 4 (Chat) gefunden und gefixt
+(`a5171b7` — aufeinanderfolgende `system`-Rollen-Nachrichten liessen Gemmas Chat-Template scheitern). Kriterien
+5/7/9/10/11 bleiben blockiert durch ein neues, noch ungeloestes Problem: die "canonical workflow assignment"-
+Schicht loest bei Review-/Coding-Anfragen `targetAgent` nicht auf `"reviewer"` auf, obwohl die Intent-Klassifikation
+korrekt ist. Details, inkl. genauer Codepfade: [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md).
+
+- Blocker fuer Kriterien 5/7/9/10/11 loesen (siehe oben), dann Rest des Golden-Path (Diff/Apply/Rollback/Tests,
+  harter Abbruch + Neustart) bis `UI_VERIFIED` abschliessen — siehe [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md) und [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md); dieselben Punkte sind bereits `SERVICE_VERIFIED` — siehe [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md)
 - gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren (`INSTALLER_VERIFIED`; bisher nur Dev-Pfad `%TEMP%\dbzs-codee-dev-user-data` bestaetigt)
 - Modell-Katalog auf dieser Maschine neu scannen/regenerieren (`models.catalog.json`s `runtime_dir` war veraltet — auch wenn der Code das jetzt abfaengt, lohnt sich ein frischer Scan)
 

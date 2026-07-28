@@ -11,12 +11,29 @@ und Crash-Recovery: **`SERVICE_VERIFIED`** — siehe
 Der echte interaktive UI-Durchlauf in `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md` hat dieselben
 Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht noch aus) — deshalb bleibt unten offen:
 
-- [ ] Rest des Golden-Path in kurzer echter Sitzung bis `UI_VERIFIED` abschliessen: Review bis Ende laufen lassen,
-      Aenderung vorschlagen/anwenden, Restore-Point-Rollback, `npm test` aus Agent Workbench,
-      Backup/Restore im Diagnostics-Tab, harter Abbruch + Neustart — siehe
-      `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md`
-- [ ] gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren (`INSTALLER_VERIFIED`)
-- [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen)
+- [ ] **Blocker fuer Kriterien 5/7/9/10/11:** "canonical workflow assignment"-Schicht instrumentieren —
+      `targetAgent` loest bei Review-/Coding-Anfragen nicht auf `"reviewer"` auf, obwohl `executionIntent.ts`/
+      `modelSelectionBroker.ts`/`reviewIntent.ts` die Nachricht korrekt als `taskType: "review"` klassifizieren;
+      Gate in `runtimeChatStore.ts:1006` bleibt dadurch zu — siehe
+      `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md`
+- [ ] Rest des Golden-Path (Diff/Apply/Rollback/Tests, harter Abbruch + Neustart) bis `UI_VERIFIED` abschliessen,
+      sobald obiger Blocker geloest ist — Backup/Restore ist bereits `UI_VERIFIED` (siehe unten)
+- [ ] gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren
+      (`INSTALLER_VERIFIED`) — Ablauf in `docs/audits/GOLDEN_PATH_MANUAL_VERIFICATION_SCRIPT.md`
+- [ ] rollenspezifische Modell-IDs (`defaultCoderModelId`/`defaultReviewerModelId`/...) sinnvoll defaulten statt
+      hartem `"Rollenmodell in Settings fehlt"`-Fehler beim ersten Coding-Task-Versuch (in `GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md` gefunden)
+- [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen) —
+      Rescan-Button selbst bereits `UI_VERIFIED` (364 Modelle, keine Regression)
+
+## Erledigt: automatisiert getriebener UI-Fortsetzungslauf (Recheck-Audit 2026-07-28)
+
+- [x] Kriterium 4 (Chat beantwortet Projektfrage) war komplett kaputt: aufeinanderfolgende `system`-Rollen-Nachrichten
+      lassen Gemmas Chat-Template mit `Conversation roles must alternate` scheitern (jede Chat-Nachricht = `generation_failed`);
+      gefixt per `_merge_consecutive_same_role_messages()` in `backend/app/runtime/service.py` (`a5171b7`), 34/34 Tests gruen
+- [x] Kriterium 12 (Backup/Restore im Diagnostics-Tab) echt verifiziert — voller Roundtrip (Backup erstellen,
+      Aenderung, Restore, Datei-/Revisionsstand korrekt wiederhergestellt)
+- [x] Modellkatalog-Rescan echt verifiziert (364 Modelle, keine Wiederkehr des fruehen `runtime_dir`-Bugs)
+- [x] Details siehe `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md`
 
 ## Erledigt: Repository-Bereinigung nach Recheck-Audit 2026-07-28
 
