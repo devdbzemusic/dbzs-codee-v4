@@ -703,6 +703,34 @@ export function describeSupportArtifactFile(
   };
 }
 
+export function describeBaseModelSelection(
+  selectedBaseModelId: string,
+  modelsById: Map<string, IndexedModel>
+): { label: string; tone: "ok" | "warn" | "error" | "info" } {
+  if (!selectedBaseModelId) {
+    return { label: "Keine Auswahl", tone: "info" };
+  }
+  const selectedModel = modelsById.get(selectedBaseModelId);
+  if (selectedModel) {
+    return { label: selectedModel.name, tone: "ok" };
+  }
+  return { label: selectedBaseModelId, tone: "warn" };
+}
+
+export function formatPairingSaveButtonLabel(
+  source: string | undefined,
+  isSaving: boolean
+): string {
+  if (isSaving) {
+    return "Speichert ...";
+  }
+  return source === "manual" ? "Neu zuordnen" : "Zuordnen";
+}
+
+export function formatPairingProbeButtonLabel(isProbing: boolean): string {
+  return isProbing ? "Prueft ..." : "Probe";
+}
+
 export function describeMultimodalPairAction(
   pair: MultimodalPair,
   projector: IndexedModel | undefined,
@@ -1563,6 +1591,7 @@ export function RuntimeModelsTab() {
                         pair,
                         pairingSelections
                       );
+                      const selectedBaseModel = describeBaseModelSelection(selectedBaseModelId, modelsById);
                       const canPairManually = projector?.artifact_type === "mmproj" && pairingCandidates.length > 0;
                       const canProbePair =
                         pair.status === "candidate" &&
@@ -1656,7 +1685,13 @@ export function RuntimeModelsTab() {
                                 </span>
                               </div>
                               {canPairManually ? (
-                                <div className="flex max-w-[320px] gap-1">
+                                <div className="flex max-w-[320px] flex-col gap-1">
+                                  <span
+                                    className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(selectedBaseModel.tone)}`}
+                                  >
+                                    Ziel {selectedBaseModel.label}
+                                  </span>
+                                  <div className="flex gap-1">
                                   <select
                                     className="min-w-0 flex-1 border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-text"
                                     onChange={(event) =>
@@ -1680,11 +1715,7 @@ export function RuntimeModelsTab() {
                                     onClick={() => void saveManualPairing(feedbackKey, selectedBaseModelId)}
                                     type="button"
                                   >
-                                    {pairingSaving[feedbackKey] === true
-                                      ? "Speichert ..."
-                                      : pair.source === "manual"
-                                        ? "Neu zuordnen"
-                                        : "Zuordnen"}
+                                    {formatPairingSaveButtonLabel(pair.source, pairingSaving[feedbackKey] === true)}
                                   </button>
                                   <button
                                     className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
@@ -1696,8 +1727,9 @@ export function RuntimeModelsTab() {
                                     }}
                                     type="button"
                                   >
-                                    {pairingProbing[feedbackKey] === true ? "Prueft ..." : "Probe"}
+                                    {formatPairingProbeButtonLabel(pairingProbing[feedbackKey] === true)}
                                   </button>
+                                  </div>
                                 </div>
                               ) : (
                                 <button
@@ -1710,7 +1742,7 @@ export function RuntimeModelsTab() {
                                   }}
                                   type="button"
                                 >
-                                  {pairingProbing[feedbackKey] === true ? "Prueft ..." : "Probe"}
+                                  {formatPairingProbeButtonLabel(pairingProbing[feedbackKey] === true)}
                                 </button>
                               )}
                               {pairingFeedback[feedbackKey] && pairingOutcome[feedbackKey] ? (
@@ -1797,6 +1829,7 @@ export function RuntimeModelsTab() {
                       const pair = multimodalPairs.find((entry) => entry.projector_artifact_id === artifact.id);
                       const selectedBaseModelId =
                         pairingSelections[artifact.id] ?? pair?.base_model_id ?? pair?.candidate_base_model_ids[0] ?? "";
+                      const selectedBaseModel = describeBaseModelSelection(selectedBaseModelId, modelsById);
                       const canPairManually = artifact.artifact_type === "mmproj" && pairingCandidates.length > 0;
                       const manageInControlCenter = shouldManagePairInControlCenter(artifact, pair);
                       const canProbePair = canProbeSupportArtifactPair(artifact, pair);
@@ -1854,6 +1887,11 @@ export function RuntimeModelsTab() {
                               <span className="text-[10px] text-dbzs-muted">Im Bereich "Multimodale Paare" verwalten</span>
                             ) : canPairManually ? (
                               <div className="flex min-w-[280px] flex-col gap-1">
+                                <span
+                                  className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(selectedBaseModel.tone)}`}
+                                >
+                                  Ziel {selectedBaseModel.label}
+                                </span>
                                 <div className="flex gap-2">
                                   <select
                                     className="min-w-0 flex-1 border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-text"
@@ -1878,11 +1916,7 @@ export function RuntimeModelsTab() {
                                     onClick={() => void saveManualPairing(artifact.id, selectedBaseModelId)}
                                     type="button"
                                   >
-                                    {pairingSaving[artifact.id] === true
-                                      ? "Speichert ..."
-                                      : pair?.source === "manual"
-                                        ? "Neu zuordnen"
-                                        : "Zuordnen"}
+                                    {formatPairingSaveButtonLabel(pair?.source, pairingSaving[artifact.id] === true)}
                                   </button>
                                   <button
                                     className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
@@ -1894,7 +1928,7 @@ export function RuntimeModelsTab() {
                                     }}
                                     type="button"
                                   >
-                                    {pairingProbing[artifact.id] === true ? "Prueft ..." : "Probe"}
+                                    {formatPairingProbeButtonLabel(pairingProbing[artifact.id] === true)}
                                   </button>
                                 </div>
                                 {pairingFeedback[artifact.id] && pairingOutcome[artifact.id] ? (

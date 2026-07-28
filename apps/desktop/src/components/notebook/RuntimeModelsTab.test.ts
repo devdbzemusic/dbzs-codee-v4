@@ -11,7 +11,10 @@ import {
   describeMultimodalPairAction,
   describeMultimodalPairBaseModel,
   describeMultimodalPairProjector,
+  describeBaseModelSelection,
   describeSupportArtifactFile,
+  formatPairingProbeButtonLabel,
+  formatPairingSaveButtonLabel,
   formatSupportArtifactStatusLabel,
   multimodalPairActionHint,
   describeSupportArtifactAction,
@@ -1745,6 +1748,42 @@ describe("describeMultimodalPairProjector", () => {
       label: "mmproj-1",
       tone: "warn"
     });
+  });
+});
+
+describe("describeBaseModelSelection", () => {
+  it("describes selected, unresolved and empty base model selections", () => {
+    const modelsById = new Map<string, IndexedModel>([
+      ["m1", { ...baseModel, id: "m1", name: "coder.gguf" }]
+    ]);
+
+    expect(describeBaseModelSelection("m1", modelsById)).toEqual({
+      label: "coder.gguf",
+      tone: "ok"
+    });
+    expect(describeBaseModelSelection("missing-id", modelsById)).toEqual({
+      label: "missing-id",
+      tone: "warn"
+    });
+    expect(describeBaseModelSelection("", modelsById)).toEqual({
+      label: "Keine Auswahl",
+      tone: "info"
+    });
+  });
+});
+
+describe("formatPairingSaveButtonLabel", () => {
+  it("formats save button labels for initial and repeated manual pairing", () => {
+    expect(formatPairingSaveButtonLabel("manual", false)).toBe("Neu zuordnen");
+    expect(formatPairingSaveButtonLabel("catalog", false)).toBe("Zuordnen");
+    expect(formatPairingSaveButtonLabel(undefined, true)).toBe("Speichert ...");
+  });
+});
+
+describe("formatPairingProbeButtonLabel", () => {
+  it("formats probe button labels for idle and running state", () => {
+    expect(formatPairingProbeButtonLabel(false)).toBe("Probe");
+    expect(formatPairingProbeButtonLabel(true)).toBe("Prueft ...");
   });
 });
 
