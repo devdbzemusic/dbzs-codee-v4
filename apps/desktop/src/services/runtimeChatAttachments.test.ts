@@ -3,7 +3,9 @@ import type { RuntimeChatAttachment } from "@dbzs/shared";
 import {
   attachmentRequiresVision,
   buildRuntimeChatAttachmentPrompt,
-  defaultPromptForAttachments
+  defaultPromptForAttachments,
+  mergeRuntimeChatAttachments,
+  summarizeAttachmentImport
 } from "@/services/runtimeChatAttachments";
 
 describe("runtimeChatAttachments", () => {
@@ -116,5 +118,71 @@ describe("runtimeChatAttachments", () => {
     expect(prompt).toContain("Kein inline lesbarer Inhalt verfuegbar.");
     expect(prompt).toContain("```markdown\n# Hello\n```");
     expect(prompt?.indexOf("Name: bundle.zip")).toBeLessThan(prompt?.indexOf("Name: notes.md") ?? 0);
+  });
+
+  it("merges attachments without duplicating the same source payload", () => {
+    const existing: RuntimeChatAttachment[] = [
+      {
+        id: "att-1",
+        name: "notes.md",
+        kind: "text",
+        extension: "md",
+        mimeType: "text/markdown",
+        dataUrl: "",
+        source: "file_dialog",
+        path: "C:/repo/notes.md",
+        sizeBytes: 7
+      }
+    ];
+    const incoming: RuntimeChatAttachment[] = [
+      {
+        id: "att-2",
+        name: "notes.md",
+        kind: "text",
+        extension: "md",
+        mimeType: "text/markdown",
+        dataUrl: "",
+        source: "file_dialog",
+        path: "C:/repo/notes.md",
+        sizeBytes: 7
+      },
+      {
+        id: "att-3",
+        name: "broken.pdf",
+        kind: "document",
+        extension: "pdf",
+        mimeType: "application/pdf",
+        dataUrl: "",
+        source: "clipboard",
+        sizeBytes: 12,
+        error: "PDF defekt"
+      }
+    ];
+
+    const result = mergeRuntimeChatAttachments(existing, incoming);
+    expect(result.attachments).toHaveLength(2);
+    expect(result.addedCount).toBe(1);
+    expect(result.duplicateCount).toBe(1);
+    expect(result.errorCount).toBe(1);
+  });
+
+  it("summarizes attachment import results for the composer note", () => {
+    expect(
+      summarizeAttachmentImport({
+        addedCount: 2,
+        duplicateCount: 1,
+        errorCount: 1,
+        sourceLabel: "hinzugefuegt"
+      })
+    ).toBe("2 Dateien hinzugefuegt · 1 Duplikat uebersprungen · 1 mit Fehlerhinweis.");
+
+    expect(
+      summarizeAttachmentImport({
+        addedCount: 0,
+        duplicateCount: 1,
+        errorCount: 0,
+        sourceLabel: "hinzugefuegt"
+      })
+    ).toBe("Keine neuen Dateien hinzugefuegt · 1 Duplikat uebersprungen.");
   });
 });

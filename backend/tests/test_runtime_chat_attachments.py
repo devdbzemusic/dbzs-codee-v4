@@ -113,3 +113,62 @@ def test_prepare_chat_attachments_rejects_unsupported_extension() -> None:
     )
 
     assert response.status_code == 400
+
+
+def test_prepare_chat_attachments_returns_error_attachment_for_broken_pdf() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/runtime/prepare-chat-attachments",
+        json={
+            "attachments": [
+                {
+                    "name": "broken.pdf",
+                    "source": "clipboard",
+                    "extension": "pdf",
+                    "mime_type": "application/pdf",
+                    "data_base64": _b64(b"not-a-real-pdf"),
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()["attachments"][0]
+    assert payload["kind"] == "document"
+    assert payload["error"]
+    assert payload["derived_summary"] == "Datei konnte nicht aufbereitet werden"
+
+
+def test_prepare_chat_attachments_keeps_successful_files_when_zip_is_broken() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/runtime/prepare-chat-attachments",
+        json={
+            "attachments": [
+                {
+                    "name": "notes.md",
+                    "source": "clipboard",
+                    "extension": "md",
+                    "mime_type": "text/markdown",
+                    "data_base64": _b64(b"# Hello"),
+                },
+                {
+                    "name": "broken.zip",
+                    "source": "clipboard",
+                    "extension": "zip",
+                    "mime_type": "application/zip",
+                    "data_base64": _b64(b"not-a-real-zip"),
+                },
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    attachments = response.json()["attachments"]
+    assert attachments[0]["kind"] == "text"
+    assert attachments[0]["text_content"] == "# Hello"
+    assert attachments[1]["kind"] == "archive"
+    assert attachments[1]["error"]
+    assert attachments[1]["derived_summary"] == "Datei konnte nicht aufbereitet werden"

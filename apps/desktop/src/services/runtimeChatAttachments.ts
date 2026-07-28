@@ -20,6 +20,77 @@ export function defaultPromptForAttachments(attachments: RuntimeChatAttachment[]
     : "Bitte analysiere die angehaengten Dateien.";
 }
 
+function attachmentIdentity(attachment: RuntimeChatAttachment): string {
+  return [
+    attachment.source,
+    attachment.path?.toLowerCase() ?? "",
+    attachment.name.toLowerCase(),
+    attachment.kind,
+    attachment.extension.toLowerCase(),
+    attachment.sizeBytes ?? ""
+  ].join("|");
+}
+
+export function mergeRuntimeChatAttachments(
+  current: RuntimeChatAttachment[],
+  incoming: RuntimeChatAttachment[]
+): {
+  attachments: RuntimeChatAttachment[];
+  addedCount: number;
+  duplicateCount: number;
+  errorCount: number;
+} {
+  const seen = new Set(current.map((attachment) => attachmentIdentity(attachment)));
+  const next = [...current];
+  let addedCount = 0;
+  let duplicateCount = 0;
+  let errorCount = 0;
+
+  for (const attachment of incoming) {
+    const identity = attachmentIdentity(attachment);
+    if (seen.has(identity)) {
+      duplicateCount += 1;
+      continue;
+    }
+    seen.add(identity);
+    next.push(attachment);
+    addedCount += 1;
+    if (attachment.error) {
+      errorCount += 1;
+    }
+  }
+
+  return {
+    attachments: next,
+    addedCount,
+    duplicateCount,
+    errorCount
+  };
+}
+
+export function summarizeAttachmentImport(result: {
+  addedCount: number;
+  duplicateCount: number;
+  errorCount: number;
+  sourceLabel: string;
+}): string {
+  const parts: string[] = [];
+  if (result.addedCount > 0) {
+    parts.push(`${result.addedCount} Datei${result.addedCount === 1 ? "" : "en"} ${result.sourceLabel}`);
+  } else if (result.duplicateCount > 0) {
+    parts.push("Keine neuen Dateien hinzugefuegt");
+  } else {
+    parts.push(`0 Dateien ${result.sourceLabel}`);
+  }
+  if (result.duplicateCount > 0) {
+    parts.push(`${result.duplicateCount} Duplikat${result.duplicateCount === 1 ? "" : "e"} uebersprungen`);
+  }
+  if (result.errorCount > 0) {
+    parts.push(`${result.errorCount} mit Fehlerhinweis`);
+  }
+  return `${parts.join(" · ")}.`;
+}
+
 export function buildRuntimeChatAttachmentPrompt(
   attachments: RuntimeChatAttachment[]
 ): string | null {

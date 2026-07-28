@@ -32,7 +32,9 @@ import { formatBootStateForUi } from "@/services/bootUiFormatter";
 import { observabilityService } from "@/runtime/observability/observabilityService";
 import {
   attachmentRequiresVision,
-  defaultPromptForAttachments
+  defaultPromptForAttachments,
+  mergeRuntimeChatAttachments,
+  summarizeAttachmentImport
 } from "@/services/runtimeChatAttachments";
 import { useCommandPaletteStore } from "@/stores/commandPaletteStore";
 import { useEditorStore } from "@/stores/editorStore";
@@ -113,6 +115,7 @@ export function RuntimeChatTab({
   }, [draft, workspaceFiles]);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const attachmentsRef = useRef<RuntimeChatAttachment[]>([]);
   const previousWorkspaceRootRef = useRef(workspaceRoot);
   const handledCapabilitiesRequestRef = useRef(0);
   const handledPresetRequestRef = useRef(0);
@@ -214,10 +217,21 @@ export function RuntimeChatTab({
 
   const appendAttachments = (nextAttachments: RuntimeChatAttachment[]) => {
     if (nextAttachments.length === 0) {
-      return;
+      return { addedCount: 0, duplicateCount: 0, errorCount: 0 };
     }
-    setAttachments((current) => [...current, ...nextAttachments]);
+    const result = mergeRuntimeChatAttachments(attachmentsRef.current, nextAttachments);
+    attachmentsRef.current = result.attachments;
+    setAttachments(result.attachments);
+    return {
+      addedCount: result.addedCount,
+      duplicateCount: result.duplicateCount,
+      errorCount: result.errorCount
+    };
   };
+
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
 
   useEffect(() => {
     useRuntimeChatApprovalStore.getState().switchWorkspace(workspaceRoot);
@@ -234,6 +248,7 @@ export function RuntimeChatTab({
     useRuntimeChatApprovalStore.getState().switchWorkspace(workspaceRoot);
     setShowPanels(false);
     setContextNote(null);
+    attachmentsRef.current = [];
     setAttachments([]);
   }, [cancelSend, clear, workspaceRoot]);
 
@@ -340,6 +355,7 @@ export function RuntimeChatTab({
         }
       );
       if (sent) {
+        attachmentsRef.current = [];
         setAttachments([]);
         const activity = useRuntimeChatStore.getState().lastActivity;
         const workspaceStep = activity?.steps.find((step) => step.id === "workspace-context");
@@ -349,6 +365,9 @@ export function RuntimeChatTab({
         } else {
           setContextNote("Anfrage gesendet.");
         }
+      } else {
+        setDraft(text);
+        setContextNote("Anfrage konnte nicht gesendet werden.");
       }
     })();
   };
@@ -394,9 +413,12 @@ export function RuntimeChatTab({
           )
         );
         const nextAttachments = await window.dbzs.prepareClipboardChatAttachments(prepared);
-        appendAttachments(nextAttachments);
+        const result = appendAttachments(nextAttachments);
         setContextNote(
-          `${nextAttachments.length} Datei${nextAttachments.length === 1 ? "" : "en"} aus der Zwischenablage eingefuegt.`
+          summarizeAttachmentImport({
+            ...result,
+            sourceLabel: "aus der Zwischenablage eingefuegt"
+          })
         );
       } catch (error) {
         setContextNote(error instanceof Error ? error.message : "Dateien aus Zwischenablage konnten nicht gelesen werden.");
@@ -406,21 +428,34 @@ export function RuntimeChatTab({
 
   const handleOpenAttachmentDialog = () => {
     void (async () => {
-      if (!window.dbzs.openChatAttachmentDialog) {
-        setContextNote("Dateidialog ist in dieser Umgebung nicht verfuegbar.");
-        return;
+      try {
+        if (!window.dbzs.openChatAttachmentDialog) {
+          setContextNote("Dateidialog ist in dieser Umgebung nicht verfuegbar.");
+          return;
+        }
+        const nextAttachments = await window.dbzs.openChatAttachmentDialog();
+        if (nextAttachments.length === 0) {
+          return;
+        }
+        const result = appendAttachments(nextAttachments);
+        setContextNote(
+          summarizeAttachmentImport({
+            ...result,
+            sourceLabel: "hinzugefuegt"
+          })
+        );
+      } catch (error) {
+        setContextNote(error instanceof Error ? error.message : "Dateien konnten nicht hinzugefuegt werden.");
       }
-      const nextAttachments = await window.dbzs.openChatAttachmentDialog();
-      if (nextAttachments.length === 0) {
-        return;
-      }
-      appendAttachments(nextAttachments);
-      setContextNote(`${nextAttachments.length} Datei${nextAttachments.length === 1 ? "" : "en"} hinzugefuegt.`);
     })();
   };
 
   const handleRemoveAttachment = (attachmentId: string) => {
-    setAttachments((current) => current.filter((attachment) => attachment.id !== attachmentId));
+    setAttachments((current) => {
+      const next = current.filter((attachment) => attachment.id !== attachmentId);
+      attachmentsRef.current = next;
+      return next;
+    });
   };
 
   const applyAssistantProposal = (proposal: string) => {

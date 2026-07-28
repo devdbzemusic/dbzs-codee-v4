@@ -29,6 +29,29 @@ MAX_TEXT_CHARS_TOTAL = 40_000
 MAX_ARCHIVE_ENTRIES = 200
 
 
+def _error_attachment(
+    source: ChatAttachmentPrepareSource,
+    extension: str,
+    message: str,
+) -> ChatAttachmentPrepared:
+    if extension in ALLOWED_IMAGE_EXTENSIONS:
+        kind = "image"
+    else:
+        kind = _kind_for_extension(extension)
+    return ChatAttachmentPrepared(
+        id=f"att-{uuid.uuid4().hex}",
+        name=source.name,
+        kind=kind,  # type: ignore[arg-type]
+        extension=extension.lstrip("."),
+        mime_type=source.mime_type or _mime_type_for_extension(extension),
+        source=source.source,
+        size_bytes=source.size_bytes,
+        path=source.path,
+        derived_summary="Datei konnte nicht aufbereitet werden",
+        error=message,
+    )
+
+
 def _normalize_extension(source: ChatAttachmentPrepareSource) -> str:
     candidate = source.extension or Path(source.name).suffix
     if not candidate:
@@ -258,24 +281,31 @@ def prepare_chat_attachments(
         extension = _normalize_extension(source)
         if extension not in ALLOWED_EXTENSIONS:
             raise ValueError(f"Dateityp nicht erlaubt: {source.name}")
-        data = _read_source_bytes(source)
-        if extension in ALLOWED_IMAGE_EXTENSIONS:
-            prepared.append(_prepare_image_attachment(source, extension, data))
+        try:
+            data = _read_source_bytes(source)
+            if extension in ALLOWED_IMAGE_EXTENSIONS:
+                prepared.append(_prepare_image_attachment(source, extension, data))
+                continue
+            if extension in ALLOWED_TEXT_EXTENSIONS:
+                attachment, consumed = _prepare_text_attachment(source, extension, data, remaining_chars)
+                prepared.append(attachment)
+                remaining_chars = max(0, remaining_chars - consumed)
+                continue
+            if extension in ALLOWED_DOCUMENT_EXTENSIONS:
+                attachment, consumed = _prepare_pdf_attachment(source, data, remaining_chars)
+                prepared.append(attachment)
+                remaining_chars = max(0, remaining_chars - consumed)
+                continue
+            if extension in ALLOWED_ARCHIVE_EXTENSIONS:
+                attachment, consumed = _prepare_zip_attachment(source, data, remaining_chars)
+                prepared.append(attachment)
+                remaining_chars = max(0, remaining_chars - consumed)
+                continue
+        except ValueError as exc:
+            prepared.append(_error_attachment(source, extension, str(exc)))
             continue
-        if extension in ALLOWED_TEXT_EXTENSIONS:
-            attachment, consumed = _prepare_text_attachment(source, extension, data, remaining_chars)
-            prepared.append(attachment)
-            remaining_chars = max(0, remaining_chars - consumed)
-            continue
-        if extension in ALLOWED_DOCUMENT_EXTENSIONS:
-            attachment, consumed = _prepare_pdf_attachment(source, data, remaining_chars)
-            prepared.append(attachment)
-            remaining_chars = max(0, remaining_chars - consumed)
-            continue
-        if extension in ALLOWED_ARCHIVE_EXTENSIONS:
-            attachment, consumed = _prepare_zip_attachment(source, data, remaining_chars)
-            prepared.append(attachment)
-            remaining_chars = max(0, remaining_chars - consumed)
+        except Exception as exc:
+            prepared.append(_error_attachment(source, extension, f"Datei konnte nicht aufbereitet werden: {exc}"))
             continue
 
     return prepared
