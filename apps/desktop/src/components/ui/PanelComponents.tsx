@@ -164,7 +164,7 @@ export function ResizeHandle({ label, onPointerDown, side }: ResizeHandleProps) 
 
 interface StatusPillProps {
   label: string;
-  tone: "green" | "amber" | "red";
+  tone: "green" | "amber" | "red" | "cyan";
   value: string;
 }
 
@@ -183,15 +183,21 @@ interface StatusPillProps {
  *   Schnelle Erfassung von Systemzuständen.
  *
  * Input:
- *   - tone: Farbschema (green=ok, amber=warning, red=error)
+ *   - tone: Farbschema (green=ok, amber=warning, red=error, cyan=starting/live)
  *   - label: Beschriftung (z.B. "Backend", "Runtime")
  *   - value: Status-Wert (z.B. "running", "stopped")
+ *
+ * Hinweise:
+ *   - `tone` sollte im Regelfall aus `resolveStatusVocabulary()`
+ *     (apps/desktop/src/utils/statusVocabulary.ts) kommen, damit derselbe
+ *     technische Zustand app-weit dieselbe Farbe/denselben Ton bekommt.
  */
 export function StatusPill({ label, tone, value }: StatusPillProps) {
   const toneClass = {
     amber: "border-dbzs-amber/50 text-dbzs-amber bg-dbzs-amber/10",
     green: "border-dbzs-green/50 text-dbzs-green bg-dbzs-green/10",
-    red: "border-dbzs-red/50 text-dbzs-red bg-dbzs-red/10"
+    red: "border-dbzs-red/50 text-dbzs-red bg-dbzs-red/10",
+    cyan: "border-dbzs-cyan/50 text-dbzs-cyan bg-dbzs-cyan/10"
   }[tone];
 
   return (
