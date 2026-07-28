@@ -527,10 +527,15 @@ def test_runtime_service_build_chat_messages_uses_optimized_system_prompt(tmp_pa
         )
     )
 
+    # The base system prompt and the file-context system message are
+    # consecutive same-role messages, so they get merged into a single
+    # system message (see _merge_consecutive_same_role_messages) to keep
+    # strict-alternation chat templates (e.g. Gemma's) happy.
     assert messages[0].role == "system"
-    assert messages[0].content == RUNTIME_CHAT_SYSTEM_PROMPT
+    assert messages[0].content.startswith(RUNTIME_CHAT_SYSTEM_PROMPT)
     assert "DBZS Code Assistant" not in messages[0].content
-    assert any("README.md" in message.content for message in messages if message.role == "system")
+    assert "README.md" in messages[0].content
+    assert len([m for m in messages if m.role == "system"]) == 1
     assert messages[-1].content.startswith("Zitiere")
 
 

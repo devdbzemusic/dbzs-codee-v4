@@ -1595,7 +1595,37 @@ class RuntimeService:
             )
 
         messages.extend(chat_request.messages)
-        return messages
+        return self._merge_consecutive_same_role_messages(messages)
+
+    @staticmethod
+    def _merge_consecutive_same_role_messages(
+        messages: list[RuntimeChatMessage],
+    ) -> list[RuntimeChatMessage]:
+        """Collapse runs of consecutive same-role messages into one.
+
+        The desktop client assembles the outgoing conversation from several
+        independently-authored system-role fragments (goal capsule, active
+        task contract, runtime tool instructions, project memory, ...), and
+        this service itself prepends its own system prompt and an optional
+        file-context system message on top of that. Several local chat
+        templates (e.g. Gemma's, applied server-side by llama-server) reject
+        a message list whose roles do not strictly alternate -- including
+        runs of consecutive "system" messages -- and fail the whole request
+        with a Jinja "Conversation roles must alternate" error. Merging
+        consecutive same-role messages (joined with a blank line) preserves
+        all content and ordering while producing a template-safe sequence,
+        without needing to know which template a given local model uses.
+        """
+        merged: list[RuntimeChatMessage] = []
+        for message in messages:
+            if merged and merged[-1].role == message.role:
+                merged[-1] = RuntimeChatMessage(
+                    role=merged[-1].role,
+                    content=f"{merged[-1].content}\n\n{message.content}",
+                )
+            else:
+                merged.append(message)
+        return merged
 
     def get_resource_plan_for_slot(self, slot_id: str) -> RuntimeResourcePlan | None:
         """The actual resource plan a running slot was launched with, if known.
