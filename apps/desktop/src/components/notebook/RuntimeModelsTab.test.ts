@@ -8,6 +8,9 @@ import {
   describeModelCapabilities,
   describeModelRoutingReadiness,
   compatibilityTone,
+  describeMultimodalPairAction,
+  describeSupportArtifactAction,
+  supportArtifactActionHint,
   describeModelRowStatus,
   formatCompatibilityLabel,
   formatCapabilityLabel,
@@ -25,6 +28,10 @@ import {
   formatMultimodalPairConfidence,
   launcherTone,
   modelRoleTone,
+  multimodalConfidenceTone,
+  multimodalCandidateSummaryTone,
+  multimodalPairHintTone,
+  multimodalPairSourceTone,
   formatProbeFeedback,
   modelRowActionState,
   modelRoutingTone,
@@ -33,6 +40,9 @@ import {
   shouldManagePairInControlCenter,
   sortStartableModels,
   sortVisibleSupportArtifacts,
+  supportArtifactTypeTone,
+  supportArtifactHintTone,
+  formatSupportArtifactTypeLabel,
   supportArtifactStatusTone,
   summarizeMultimodalPairActions,
   summarizeMultimodalPairSources,
@@ -262,6 +272,149 @@ describe("describeSupportArtifact", () => {
       statusLabel: "candidate",
       hint: "Katalog-Zuordnung erkannt, aber noch nicht runtime-verifiziert"
     });
+  });
+});
+
+describe("describeSupportArtifactAction", () => {
+  const mmprojArtifact: IndexedModel = {
+    ...baseModel,
+    id: "mmproj-1",
+    name: "mmproj-gemma-vision-f16",
+    path: "/models/mmproj-gemma-vision-f16.gguf",
+    artifact_type: "mmproj",
+    capabilities: ["vision"],
+    modality: ["image"],
+    compatibility: "support_artifact",
+    recommended_use: "vision_candidate"
+  };
+
+  it("describes pairing-managed, probe-ready, assignable and read-only support actions", () => {
+    const pairingCandidates = [{ ...baseModel, id: "m1" }];
+
+    expect(
+      describeSupportArtifactAction(
+        mmprojArtifact,
+        {
+          id: "managed:mmproj-1",
+          base_model_id: null,
+          projector_artifact_id: "mmproj-1",
+          modalities: ["text", "image"],
+          source: "same_folder",
+          confidence: 0.4,
+          status: "ambiguous",
+          routing_allowed: false,
+          candidate_base_model_ids: ["m1", "m2"]
+        },
+        pairingCandidates
+      )
+    ).toEqual({ label: "MM-Pairing", tone: "info" });
+
+    expect(
+      describeSupportArtifactAction(
+        mmprojArtifact,
+        {
+          id: "probe:mmproj-1",
+          base_model_id: "m1",
+          projector_artifact_id: "mmproj-1",
+          modalities: ["text", "image"],
+          source: "manual",
+          confidence: 1,
+          status: "candidate",
+          routing_allowed: false,
+          candidate_base_model_ids: ["m1"]
+        },
+        pairingCandidates
+      )
+    ).toEqual({ label: "Probe", tone: "ok" });
+
+    expect(describeSupportArtifactAction(mmprojArtifact, undefined, pairingCandidates)).toEqual({
+      label: "Zuordnen",
+      tone: "warn"
+    });
+
+    expect(
+      describeSupportArtifactAction(
+        {
+          ...baseModel,
+          id: "adapter-1",
+          artifact_type: "adapter",
+          compatibility: "support_artifact"
+        },
+        undefined,
+        pairingCandidates
+      )
+    ).toEqual({ label: "Hinweis", tone: "info" });
+  });
+});
+
+describe("supportArtifactActionHint", () => {
+  const mmprojArtifact: IndexedModel = {
+    ...baseModel,
+    id: "mmproj-1",
+    name: "mmproj-gemma-vision-f16",
+    path: "/models/mmproj-gemma-vision-f16.gguf",
+    artifact_type: "mmproj",
+    capabilities: ["vision"],
+    modality: ["image"],
+    compatibility: "support_artifact",
+    recommended_use: "vision_candidate"
+  };
+
+  it("describes the next step for support artifacts in stable language", () => {
+    const pairingCandidates = [{ ...baseModel, id: "m1" }];
+
+    expect(
+      supportArtifactActionHint(
+        mmprojArtifact,
+        {
+          id: "probe:mmproj-1",
+          base_model_id: "m1",
+          projector_artifact_id: "mmproj-1",
+          modalities: ["text", "image"],
+          source: "manual",
+          confidence: 1,
+          status: "candidate",
+          routing_allowed: false,
+          candidate_base_model_ids: ["m1"]
+        },
+        pairingCandidates
+      )
+    ).toBe("Runtime-Probe kann direkt aus dieser Zeile gestartet werden.");
+
+    expect(
+      supportArtifactActionHint(
+        mmprojArtifact,
+        {
+          id: "managed:mmproj-1",
+          base_model_id: null,
+          projector_artifact_id: "mmproj-1",
+          modalities: ["text", "image"],
+          source: "same_folder",
+          confidence: 0.3,
+          status: "ambiguous",
+          routing_allowed: false,
+          candidate_base_model_ids: ["m1", "m2"]
+        },
+        pairingCandidates
+      )
+    ).toBe('Im Bereich "Multimodale Paare" weiterfuehren.');
+
+    expect(supportArtifactActionHint(mmprojArtifact, undefined, pairingCandidates)).toBe(
+      "Basismodell auswaehlen und Zuordnung hier speichern."
+    );
+
+    expect(
+      supportArtifactActionHint(
+        {
+          ...baseModel,
+          id: "adapter-1",
+          artifact_type: "adapter",
+          compatibility: "support_artifact"
+        },
+        undefined,
+        pairingCandidates
+      )
+    ).toBe("Nur Referenz im Modellindex; keine direkte Runtime-Aktion.");
   });
 });
 
@@ -897,10 +1050,27 @@ describe("formatMultimodalPairModalities", () => {
 
 describe("formatMultimodalPairSource", () => {
   it("returns stable readable source labels", () => {
-    expect(formatMultimodalPairSource("same_folder")).toBe("same_folder");
-    expect(formatMultimodalPairSource("manual")).toBe("manual");
-    expect(formatMultimodalPairSource("catalog")).toBe("catalog");
+    expect(formatMultimodalPairSource("same_folder")).toBe("Same Folder");
+    expect(formatMultimodalPairSource("manual")).toBe("Manual");
+    expect(formatMultimodalPairSource("catalog")).toBe("Catalog");
     expect(formatMultimodalPairSource("custom")).toBe("custom");
+  });
+});
+
+describe("multimodalPairSourceTone", () => {
+  it("maps pair sources to stable badge tones", () => {
+    expect(multimodalPairSourceTone("manual")).toBe("ok");
+    expect(multimodalPairSourceTone("catalog")).toBe("ok");
+    expect(multimodalPairSourceTone("same_folder")).toBe("warn");
+    expect(multimodalPairSourceTone("custom")).toBe("info");
+  });
+});
+
+describe("multimodalConfidenceTone", () => {
+  it("maps confidence values to stable badge tones", () => {
+    expect(multimodalConfidenceTone(0.95)).toBe("ok");
+    expect(multimodalConfidenceTone(0.6)).toBe("warn");
+    expect(multimodalConfidenceTone(0.2)).toBe("error");
   });
 });
 
@@ -989,6 +1159,24 @@ describe("launcherTone", () => {
     expect(launcherTone("llama_server")).toBe("ok");
     expect(launcherTone("ollama")).toBe("ok");
     expect(launcherTone("custom")).toBe("info");
+  });
+});
+
+describe("formatSupportArtifactTypeLabel", () => {
+  it("formats support artifact types for the UI", () => {
+    expect(formatSupportArtifactTypeLabel("mmproj")).toBe("MMProj");
+    expect(formatSupportArtifactTypeLabel("lora")).toBe("LoRA");
+    expect(formatSupportArtifactTypeLabel("adapter")).toBe("Adapter");
+    expect(formatSupportArtifactTypeLabel("clip")).toBe("clip");
+  });
+});
+
+describe("supportArtifactTypeTone", () => {
+  it("maps support artifact types to stable badge tones", () => {
+    expect(supportArtifactTypeTone("mmproj")).toBe("warn");
+    expect(supportArtifactTypeTone("adapter")).toBe("info");
+    expect(supportArtifactTypeTone("lora")).toBe("info");
+    expect(supportArtifactTypeTone("clip")).toBe("info");
   });
 });
 
@@ -1267,6 +1455,198 @@ describe("multimodalPairStatusTone", () => {
   });
 });
 
+describe("multimodalPairHintTone", () => {
+  it("maps pair hint emphasis to stable tones", () => {
+    expect(
+      multimodalPairHintTone({
+        id: "ready:mmproj",
+        base_model_id: "m1",
+        projector_artifact_id: "mmproj-1",
+        modalities: ["text", "image"],
+        source: "manual",
+        confidence: 1,
+        status: "candidate",
+        routing_allowed: true,
+        candidate_base_model_ids: ["m1"]
+      })
+    ).toBe("ok");
+    expect(
+      multimodalPairHintTone({
+        id: "candidate:mmproj",
+        base_model_id: "m1",
+        projector_artifact_id: "mmproj-1",
+        modalities: ["text", "image"],
+        source: "catalog",
+        confidence: 0.8,
+        status: "candidate",
+        routing_allowed: false,
+        candidate_base_model_ids: ["m1"]
+      })
+    ).toBe("warn");
+    expect(
+      multimodalPairHintTone({
+        id: "ambiguous:mmproj",
+        base_model_id: null,
+        projector_artifact_id: "mmproj-1",
+        modalities: ["text", "image"],
+        source: "same_folder",
+        confidence: 0.3,
+        status: "ambiguous",
+        routing_allowed: false,
+        candidate_base_model_ids: ["m1", "m2"]
+      })
+    ).toBe("error");
+  });
+});
+
+describe("multimodalCandidateSummaryTone", () => {
+  it("maps candidate summary emphasis to stable tones", () => {
+    expect(
+      multimodalCandidateSummaryTone({
+        id: "ready:mmproj",
+        base_model_id: "m1",
+        projector_artifact_id: "mmproj-1",
+        modalities: ["text", "image"],
+        source: "manual",
+        confidence: 1,
+        status: "candidate",
+        routing_allowed: true,
+        candidate_base_model_ids: ["m1"]
+      })
+    ).toBe("ok");
+    expect(
+      multimodalCandidateSummaryTone({
+        id: "multi-candidate:mmproj",
+        base_model_id: "m1",
+        projector_artifact_id: "mmproj-1",
+        modalities: ["text", "image"],
+        source: "catalog",
+        confidence: 0.8,
+        status: "candidate",
+        routing_allowed: false,
+        candidate_base_model_ids: ["m1", "m2"]
+      })
+    ).toBe("warn");
+    expect(
+      multimodalCandidateSummaryTone({
+        id: "ambiguous:mmproj",
+        base_model_id: null,
+        projector_artifact_id: "mmproj-1",
+        modalities: ["text", "image"],
+        source: "same_folder",
+        confidence: 0.3,
+        status: "ambiguous",
+        routing_allowed: false,
+        candidate_base_model_ids: ["m1", "m2"]
+      })
+    ).toBe("error");
+    expect(
+      multimodalCandidateSummaryTone({
+        id: "single-candidate:mmproj",
+        base_model_id: "m1",
+        projector_artifact_id: "mmproj-1",
+        modalities: ["text", "image"],
+        source: "catalog",
+        confidence: 0.7,
+        status: "candidate",
+        routing_allowed: false,
+        candidate_base_model_ids: ["m1"]
+      })
+    ).toBe("info");
+  });
+});
+
+describe("describeMultimodalPairAction", () => {
+  const projector: IndexedModel = {
+    ...baseModel,
+    id: "mmproj-1",
+    name: "mmproj-test.gguf",
+    artifact_type: "mmproj",
+    compatibility: "support_artifact",
+    recommended_use: "vision_candidate"
+  };
+
+  it("describes resolved, probe-ready, assignable and blocked pair actions", () => {
+    const pairingCandidates = [{ ...baseModel, id: "m1" }];
+
+    expect(
+      describeMultimodalPairAction(
+        {
+          id: "resolved:mmproj-1",
+          base_model_id: "m1",
+          projector_artifact_id: "mmproj-1",
+          modalities: ["text", "image"],
+          source: "manual",
+          confidence: 1,
+          status: "candidate",
+          routing_allowed: true,
+          candidate_base_model_ids: ["m1"]
+        },
+        projector,
+        pairingCandidates
+      )
+    ).toEqual({ label: "Erledigt", tone: "ok" });
+
+    expect(
+      describeMultimodalPairAction(
+        {
+          id: "probe:mmproj-1",
+          base_model_id: "m1",
+          projector_artifact_id: "mmproj-1",
+          modalities: ["text", "image"],
+          source: "catalog",
+          confidence: 0.8,
+          status: "candidate",
+          routing_allowed: false,
+          candidate_base_model_ids: ["m1"]
+        },
+        projector,
+        pairingCandidates
+      )
+    ).toEqual({ label: "Probe", tone: "ok" });
+
+    expect(
+      describeMultimodalPairAction(
+        {
+          id: "assign:mmproj-1",
+          base_model_id: null,
+          projector_artifact_id: "mmproj-1",
+          modalities: ["text", "image"],
+          source: "same_folder",
+          confidence: 0.4,
+          status: "ambiguous",
+          routing_allowed: false,
+          candidate_base_model_ids: ["m1", "m2"]
+        },
+        projector,
+        pairingCandidates
+      )
+    ).toEqual({ label: "Zuordnen", tone: "warn" });
+
+    expect(
+      describeMultimodalPairAction(
+        {
+          id: "blocked:clip-1",
+          base_model_id: null,
+          projector_artifact_id: "clip-1",
+          modalities: ["text", "image"],
+          source: "imported",
+          confidence: 0.1,
+          status: "missing_base",
+          routing_allowed: false,
+          candidate_base_model_ids: []
+        },
+        {
+          ...projector,
+          id: "clip-1",
+          artifact_type: "clip"
+        },
+        []
+      )
+    ).toEqual({ label: "Blockiert", tone: "error" });
+  });
+});
+
 describe("summarizeStartableModelActions", () => {
   it("counts running, loadable and blocked startable models from action state", () => {
     const models: IndexedModel[] = [
@@ -1319,6 +1699,15 @@ describe("supportArtifactStatusTone", () => {
     expect(supportArtifactStatusTone("orphan")).toBe("error");
     expect(supportArtifactStatusTone("ambiguous")).toBe("error");
     expect(supportArtifactStatusTone("support_artifact")).toBe("info");
+  });
+});
+
+describe("supportArtifactHintTone", () => {
+  it("reuses support artifact status emphasis for hint rendering", () => {
+    expect(supportArtifactHintTone("verified")).toBe("ok");
+    expect(supportArtifactHintTone("candidate")).toBe("warn");
+    expect(supportArtifactHintTone("orphan")).toBe("error");
+    expect(supportArtifactHintTone("support_artifact")).toBe("info");
   });
 });
 

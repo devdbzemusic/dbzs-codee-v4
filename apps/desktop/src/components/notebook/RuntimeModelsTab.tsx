@@ -52,6 +52,19 @@ function statusBadgeClasses(tone: "ok" | "warn" | "error" | "info"): string {
   return "border-dbzs-border bg-dbzs-bg text-dbzs-muted";
 }
 
+function hintToneClasses(tone: "ok" | "warn" | "error" | "info"): string {
+  if (tone === "ok") {
+    return "border-dbzs-cyan/20 bg-dbzs-cyan/5 text-dbzs-cyan";
+  }
+  if (tone === "warn") {
+    return "border-amber-400/20 bg-amber-400/5 text-amber-200";
+  }
+  if (tone === "error") {
+    return "border-red-400/20 bg-red-400/5 text-red-200";
+  }
+  return "border-dbzs-border/70 bg-dbzs-bg text-dbzs-muted";
+}
+
 function ProbeEvidencePanel({
   feedback,
   outcome,
@@ -555,10 +568,135 @@ export function formatMultimodalPairModalities(pair: MultimodalPair): string {
 }
 
 export function formatMultimodalPairSource(source: string): string {
-  if (source === "same_folder") return "same_folder";
-  if (source === "manual") return "manual";
-  if (source === "catalog") return "catalog";
+  if (source === "same_folder") return "Same Folder";
+  if (source === "manual") return "Manual";
+  if (source === "catalog") return "Catalog";
   return source || "-";
+}
+
+export function multimodalPairSourceTone(source: string): "ok" | "warn" | "error" | "info" {
+  if (source === "manual" || source === "catalog") {
+    return "ok";
+  }
+  if (source === "same_folder") {
+    return "warn";
+  }
+  return "info";
+}
+
+export function multimodalConfidenceTone(confidence: number): "ok" | "warn" | "error" | "info" {
+  if (confidence >= 0.9) {
+    return "ok";
+  }
+  if (confidence >= 0.5) {
+    return "warn";
+  }
+  return "error";
+}
+
+export function formatSupportArtifactTypeLabel(artifactType: string): string {
+  if (artifactType === "mmproj") return "MMProj";
+  if (artifactType === "lora") return "LoRA";
+  if (artifactType === "adapter") return "Adapter";
+  return artifactType;
+}
+
+export function supportArtifactTypeTone(artifactType: string): "ok" | "warn" | "error" | "info" {
+  if (artifactType === "mmproj") {
+    return "warn";
+  }
+  if (artifactType === "adapter" || artifactType === "lora") {
+    return "info";
+  }
+  return "info";
+}
+
+export function multimodalPairHintTone(pair: MultimodalPair): "ok" | "warn" | "error" | "info" {
+  if (pair.routing_allowed) {
+    return "ok";
+  }
+  if (pair.status === "candidate") {
+    return "warn";
+  }
+  if (pair.status === "ambiguous" || pair.status === "missing_base") {
+    return "error";
+  }
+  return "info";
+}
+
+export function supportArtifactHintTone(statusLabel: string): "ok" | "warn" | "error" | "info" {
+  return supportArtifactStatusTone(statusLabel);
+}
+
+export function multimodalCandidateSummaryTone(pair: MultimodalPair): "ok" | "warn" | "error" | "info" {
+  if (pair.routing_allowed) {
+    return "ok";
+  }
+  if (pair.status === "candidate" && pair.candidate_base_model_ids.length > 1) {
+    return "warn";
+  }
+  if (pair.status === "ambiguous" || pair.status === "missing_base") {
+    return "error";
+  }
+  return "info";
+}
+
+export function describeMultimodalPairAction(
+  pair: MultimodalPair,
+  projector: IndexedModel | undefined,
+  pairingCandidates: IndexedModel[]
+): { label: string; tone: "ok" | "warn" | "error" | "info" } {
+  if (pair.routing_allowed) {
+    return { label: "Erledigt", tone: "ok" };
+  }
+  if (
+    pair.status === "candidate" &&
+    typeof pair.base_model_id === "string" &&
+    pair.base_model_id.length > 0
+  ) {
+    return { label: "Probe", tone: "ok" };
+  }
+  if (projector?.artifact_type === "mmproj" && pairingCandidates.length > 0) {
+    return { label: "Zuordnen", tone: "warn" };
+  }
+  if (pair.status === "ambiguous" || pair.status === "missing_base") {
+    return { label: "Blockiert", tone: "error" };
+  }
+  return { label: "Hinweis", tone: "info" };
+}
+
+export function describeSupportArtifactAction(
+  artifact: IndexedModel,
+  pair: MultimodalPair | undefined,
+  pairingCandidates: IndexedModel[]
+): { label: string; tone: "ok" | "warn" | "error" | "info" } {
+  if (canProbeSupportArtifactPair(artifact, pair)) {
+    return { label: "Probe", tone: "ok" };
+  }
+  if (shouldManagePairInControlCenter(artifact, pair)) {
+    return { label: "MM-Pairing", tone: "info" };
+  }
+  if (artifact.artifact_type === "mmproj" && pairingCandidates.length > 0) {
+    return { label: "Zuordnen", tone: "warn" };
+  }
+  return { label: "Hinweis", tone: "info" };
+}
+
+export function supportArtifactActionHint(
+  artifact: IndexedModel,
+  pair: MultimodalPair | undefined,
+  pairingCandidates: IndexedModel[]
+): string {
+  if (canProbeSupportArtifactPair(artifact, pair)) {
+    return "Runtime-Probe kann direkt aus dieser Zeile gestartet werden.";
+  }
+  if (shouldManagePairInControlCenter(artifact, pair)) {
+    return 'Im Bereich "Multimodale Paare" weiterfuehren.';
+  }
+  if (artifact.artifact_type === "mmproj" && pairingCandidates.length > 0) {
+    return "Basismodell auswaehlen und Zuordnung hier speichern.";
+  }
+  return "Nur Referenz im Modellindex; keine direkte Runtime-Aktion.";
 }
 
 export function describeModelCapabilities(model: IndexedModel): string[] {
@@ -1343,14 +1481,31 @@ export function RuntimeModelsTab() {
                         pair.routing_allowed !== true &&
                         typeof pair.base_model_id === "string" &&
                         pair.base_model_id.length > 0;
+                      const pairActionDescriptor = describeMultimodalPairAction(pair, projector, pairingCandidates);
                       const feedbackKey = pair.projector_artifact_id;
                       return (
                         <tr className="border-b border-dbzs-border/50" key={pair.id}>
                           <td className="px-2 py-2 text-dbzs-text">{baseModel?.name ?? pair.base_model_id ?? "-"}</td>
                           <td className="px-2 py-2 text-dbzs-text">{projector?.name ?? pair.projector_artifact_id}</td>
-                          <td className="px-2 py-2 text-dbzs-muted">{formatMultimodalPairModalities(pair)}</td>
-                          <td className="px-2 py-2 text-dbzs-muted">{formatMultimodalPairSource(pair.source)}</td>
-                          <td className="px-2 py-2 text-dbzs-muted">{formatMultimodalPairConfidence(pair.confidence)}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">
+                            <span className="inline-flex rounded border border-dbzs-border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em]">
+                              {formatMultimodalPairModalities(pair)}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2 text-dbzs-muted">
+                            <span
+                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(multimodalPairSourceTone(pair.source))}`}
+                            >
+                              {formatMultimodalPairSource(pair.source)}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2 text-dbzs-muted">
+                            <span
+                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(multimodalConfidenceTone(pair.confidence))}`}
+                            >
+                              {formatMultimodalPairConfidence(pair.confidence)}
+                            </span>
+                          </td>
                           <td className="px-2 py-2 text-dbzs-muted">
                             <span
                               className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(multimodalPairStatusTone(pair.status, pair.routing_allowed))}`}
@@ -1367,14 +1522,29 @@ export function RuntimeModelsTab() {
                           </td>
                           <td className="px-2 py-2 text-dbzs-muted">
                             <div className="flex flex-col gap-0.5">
-                              <span>{pairStatus.hint}</span>
+                              <span
+                                className={`rounded border px-1.5 py-1 text-[10px] ${hintToneClasses(multimodalPairHintTone(pair))}`}
+                              >
+                                {pairStatus.hint}
+                              </span>
                               {candidateSummary ? (
-                                <span className="text-[10px] text-dbzs-muted/80">{candidateSummary}</span>
+                                <span
+                                  className={`rounded border px-1.5 py-1 text-[10px] ${hintToneClasses(multimodalCandidateSummaryTone(pair))}`}
+                                >
+                                  {candidateSummary}
+                                </span>
                               ) : null}
                             </div>
                           </td>
                           <td className="px-2 py-2">
                             <div className="flex flex-col items-end gap-1">
+                              <div>
+                                <span
+                                  className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(pairActionDescriptor.tone)}`}
+                                >
+                                  {pairActionDescriptor.label}
+                                </span>
+                              </div>
                               {canPairManually ? (
                                 <div className="flex max-w-[320px] gap-1">
                                   <select
@@ -1519,12 +1689,20 @@ export function RuntimeModelsTab() {
                       const canPairManually = artifact.artifact_type === "mmproj" && pairingCandidates.length > 0;
                       const manageInControlCenter = shouldManagePairInControlCenter(artifact, pair);
                       const canProbePair = canProbeSupportArtifactPair(artifact, pair);
+                      const actionDescriptor = describeSupportArtifactAction(artifact, pair, pairingCandidates);
+                      const actionHint = supportArtifactActionHint(artifact, pair, pairingCandidates);
                       return (
                         <tr className="border-b border-dbzs-border/50" key={artifact.id}>
                           <td className="max-w-[280px] truncate px-2 py-2 font-medium text-dbzs-text" title={artifact.path}>
                             {artifact.name}
                           </td>
-                          <td className="px-2 py-2 text-dbzs-muted">{artifact.artifact_type}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">
+                            <span
+                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(supportArtifactTypeTone(artifact.artifact_type))}`}
+                            >
+                              {formatSupportArtifactTypeLabel(artifact.artifact_type)}
+                            </span>
+                          </td>
                           <td className="px-2 py-2 text-dbzs-muted">
                             <span
                               className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(supportArtifactStatusTone(description.statusLabel))}`}
@@ -1532,12 +1710,30 @@ export function RuntimeModelsTab() {
                               {description.statusLabel}
                             </span>
                           </td>
-                          <td className="px-2 py-2 text-dbzs-muted">{description.hint}</td>
                           <td className="px-2 py-2 text-dbzs-muted">
-                            {manageInControlCenter ? (
-                              <span className="text-[10px] text-dbzs-muted">
-                                Im Bereich "Multimodale Paare" verwalten
+                            <span
+                              className={`rounded border px-1.5 py-1 text-[10px] ${hintToneClasses(supportArtifactHintTone(description.statusLabel))}`}
+                            >
+                              {description.hint}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2 text-dbzs-muted">
+                            <div className="mb-1">
+                              <span
+                                className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(actionDescriptor.tone)}`}
+                              >
+                                {actionDescriptor.label}
                               </span>
+                            </div>
+                            <div className="mb-1">
+                              <span
+                                className={`rounded border px-1.5 py-1 text-[10px] ${hintToneClasses(actionDescriptor.tone)}`}
+                              >
+                                {actionHint}
+                              </span>
+                            </div>
+                            {manageInControlCenter ? (
+                              <span className="text-[10px] text-dbzs-muted">Im Bereich "Multimodale Paare" verwalten</span>
                             ) : canPairManually ? (
                               <div className="flex min-w-[280px] flex-col gap-1">
                                 <div className="flex gap-2">
