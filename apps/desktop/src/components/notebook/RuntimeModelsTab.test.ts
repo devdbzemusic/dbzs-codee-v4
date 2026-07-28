@@ -9,6 +9,10 @@ import {
   describeModelRoutingReadiness,
   compatibilityTone,
   describeMultimodalPairAction,
+  describeMultimodalPairBaseModel,
+  describeMultimodalPairProjector,
+  describeSupportArtifactFile,
+  multimodalPairActionHint,
   describeSupportArtifactAction,
   supportArtifactActionHint,
   describeModelRowStatus,
@@ -415,6 +419,40 @@ describe("supportArtifactActionHint", () => {
         pairingCandidates
       )
     ).toBe("Nur Referenz im Modellindex; keine direkte Runtime-Aktion.");
+  });
+});
+
+describe("describeSupportArtifactFile", () => {
+  it("describes support artifact file label and parent folder for the UI", () => {
+    expect(
+      describeSupportArtifactFile({
+        ...baseModel,
+        id: "mmproj-1",
+        name: "mmproj-test.gguf",
+        path: "D:/Models/Vision/mmproj-test.gguf",
+        artifact_type: "mmproj",
+        compatibility: "support_artifact"
+      })
+    ).toEqual({
+      label: "mmproj-test.gguf",
+      location: "Vision",
+      tone: "info"
+    });
+
+    expect(
+      describeSupportArtifactFile({
+        ...baseModel,
+        id: "adapter-1",
+        name: "adapter.gguf",
+        path: "",
+        artifact_type: "adapter",
+        compatibility: "support_artifact"
+      })
+    ).toEqual({
+      label: "adapter.gguf",
+      location: "-",
+      tone: "info"
+    });
   });
 });
 
@@ -1644,6 +1682,159 @@ describe("describeMultimodalPairAction", () => {
         []
       )
     ).toEqual({ label: "Blockiert", tone: "error" });
+  });
+});
+
+describe("describeMultimodalPairBaseModel", () => {
+  it("describes resolved, unresolved and missing base model references", () => {
+    const pair: MultimodalPair = {
+      id: "pair:mmproj-1",
+      base_model_id: "m1",
+      projector_artifact_id: "mmproj-1",
+      modalities: ["text", "image"],
+      source: "catalog",
+      confidence: 0.8,
+      status: "candidate",
+      routing_allowed: false,
+      candidate_base_model_ids: ["m1"]
+    };
+
+    expect(describeMultimodalPairBaseModel(pair, { ...baseModel, id: "m1", name: "coder.gguf" })).toEqual({
+      label: "coder.gguf",
+      tone: "ok"
+    });
+    expect(describeMultimodalPairBaseModel(pair, undefined)).toEqual({
+      label: "m1",
+      tone: "warn"
+    });
+    expect(describeMultimodalPairBaseModel({ ...pair, base_model_id: null }, undefined)).toEqual({
+      label: "Kein Basismodell",
+      tone: "error"
+    });
+  });
+});
+
+describe("describeMultimodalPairProjector", () => {
+  it("describes resolved and unresolved projector references", () => {
+    const pair: MultimodalPair = {
+      id: "pair:mmproj-1",
+      base_model_id: "m1",
+      projector_artifact_id: "mmproj-1",
+      modalities: ["text", "image"],
+      source: "catalog",
+      confidence: 0.8,
+      status: "candidate",
+      routing_allowed: false,
+      candidate_base_model_ids: ["m1"]
+    };
+
+    expect(
+      describeMultimodalPairProjector(pair, {
+        ...baseModel,
+        id: "mmproj-1",
+        name: "mmproj-test.gguf",
+        artifact_type: "mmproj",
+        compatibility: "support_artifact"
+      })
+    ).toEqual({
+      label: "mmproj-test.gguf",
+      tone: "ok"
+    });
+    expect(describeMultimodalPairProjector(pair, undefined)).toEqual({
+      label: "mmproj-1",
+      tone: "warn"
+    });
+  });
+});
+
+describe("multimodalPairActionHint", () => {
+  const projector: IndexedModel = {
+    ...baseModel,
+    id: "mmproj-1",
+    name: "mmproj-test.gguf",
+    artifact_type: "mmproj",
+    compatibility: "support_artifact",
+    recommended_use: "vision_candidate"
+  };
+
+  it("describes the next step for multimodal pairs in stable language", () => {
+    const pairingCandidates = [{ ...baseModel, id: "m1" }];
+
+    expect(
+      multimodalPairActionHint(
+        {
+          id: "resolved:mmproj-1",
+          base_model_id: "m1",
+          projector_artifact_id: "mmproj-1",
+          modalities: ["text", "image"],
+          source: "manual",
+          confidence: 1,
+          status: "candidate",
+          routing_allowed: true,
+          candidate_base_model_ids: ["m1"]
+        },
+        projector,
+        pairingCandidates
+      )
+    ).toBe("Pair ist verifiziert und fuer Routing freigegeben.");
+
+    expect(
+      multimodalPairActionHint(
+        {
+          id: "probe:mmproj-1",
+          base_model_id: "m1",
+          projector_artifact_id: "mmproj-1",
+          modalities: ["text", "image"],
+          source: "catalog",
+          confidence: 0.8,
+          status: "candidate",
+          routing_allowed: false,
+          candidate_base_model_ids: ["m1"]
+        },
+        projector,
+        pairingCandidates
+      )
+    ).toBe("Runtime-Probe kann direkt aus dieser Zeile gestartet werden.");
+
+    expect(
+      multimodalPairActionHint(
+        {
+          id: "assign:mmproj-1",
+          base_model_id: null,
+          projector_artifact_id: "mmproj-1",
+          modalities: ["text", "image"],
+          source: "same_folder",
+          confidence: 0.4,
+          status: "ambiguous",
+          routing_allowed: false,
+          candidate_base_model_ids: ["m1", "m2"]
+        },
+        projector,
+        pairingCandidates
+      )
+    ).toBe("Basismodell auswaehlen und Pairing hier aktualisieren.");
+
+    expect(
+      multimodalPairActionHint(
+        {
+          id: "blocked:clip-1",
+          base_model_id: null,
+          projector_artifact_id: "clip-1",
+          modalities: ["text", "image"],
+          source: "imported",
+          confidence: 0.1,
+          status: "missing_base",
+          routing_allowed: false,
+          candidate_base_model_ids: []
+        },
+        {
+          ...projector,
+          id: "clip-1",
+          artifact_type: "clip"
+        },
+        []
+      )
+    ).toBe("Erst Zuordnung oder Basismodell-Lage klaeren, dann erneut pruefen.");
   });
 });
 

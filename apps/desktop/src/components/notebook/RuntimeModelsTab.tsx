@@ -65,6 +65,15 @@ function hintToneClasses(tone: "ok" | "warn" | "error" | "info"): string {
   return "border-dbzs-border/70 bg-dbzs-bg text-dbzs-muted";
 }
 
+function parentDirectoryLabel(filePath: string): string {
+  const normalized = filePath.replaceAll("\\", "/");
+  const segments = normalized.split("/").filter(Boolean);
+  if (segments.length <= 1) {
+    return normalized || "-";
+  }
+  return segments[segments.length - 2] || normalized;
+}
+
 function ProbeEvidencePanel({
   feedback,
   outcome,
@@ -641,6 +650,49 @@ export function multimodalCandidateSummaryTone(pair: MultimodalPair): "ok" | "wa
   return "info";
 }
 
+export function describeMultimodalPairBaseModel(
+  pair: MultimodalPair,
+  baseModel: IndexedModel | undefined
+): { label: string; tone: "ok" | "warn" | "error" | "info" } {
+  if (baseModel) {
+    return { label: baseModel.name, tone: "ok" };
+  }
+  if (pair.base_model_id) {
+    return { label: pair.base_model_id, tone: "warn" };
+  }
+  return { label: "Kein Basismodell", tone: "error" };
+}
+
+export function describeMultimodalPairProjector(
+  pair: MultimodalPair,
+  projector: IndexedModel | undefined
+): { label: string; tone: "ok" | "warn" | "error" | "info" } {
+  if (projector) {
+    return { label: projector.name, tone: "ok" };
+  }
+  if (pair.projector_artifact_id) {
+    return { label: pair.projector_artifact_id, tone: "warn" };
+  }
+  return { label: "Kein Projector", tone: "error" };
+}
+
+export function describeSupportArtifactFile(
+  artifact: IndexedModel
+): { label: string; location: string; tone: "ok" | "warn" | "error" | "info" } {
+  if (artifact.path && artifact.path.length > 0) {
+    return {
+      label: artifact.name,
+      location: parentDirectoryLabel(artifact.path),
+      tone: "info"
+    };
+  }
+  return {
+    label: artifact.name,
+    location: "-",
+    tone: "info"
+  };
+}
+
 export function describeMultimodalPairAction(
   pair: MultimodalPair,
   projector: IndexedModel | undefined,
@@ -663,6 +715,30 @@ export function describeMultimodalPairAction(
     return { label: "Blockiert", tone: "error" };
   }
   return { label: "Hinweis", tone: "info" };
+}
+
+export function multimodalPairActionHint(
+  pair: MultimodalPair,
+  projector: IndexedModel | undefined,
+  pairingCandidates: IndexedModel[]
+): string {
+  if (pair.routing_allowed) {
+    return "Pair ist verifiziert und fuer Routing freigegeben.";
+  }
+  if (
+    pair.status === "candidate" &&
+    typeof pair.base_model_id === "string" &&
+    pair.base_model_id.length > 0
+  ) {
+    return "Runtime-Probe kann direkt aus dieser Zeile gestartet werden.";
+  }
+  if (projector?.artifact_type === "mmproj" && pairingCandidates.length > 0) {
+    return "Basismodell auswaehlen und Pairing hier aktualisieren.";
+  }
+  if (pair.status === "ambiguous" || pair.status === "missing_base") {
+    return "Erst Zuordnung oder Basismodell-Lage klaeren, dann erneut pruefen.";
+  }
+  return "Nur Diagnoseeintrag ohne direkte Runtime-Freigabe.";
 }
 
 export function describeSupportArtifactAction(
@@ -1468,6 +1544,8 @@ export function RuntimeModelsTab() {
                     {sortedMultimodalPairs.map((pair) => {
                       const baseModel = pair.base_model_id ? modelsById.get(pair.base_model_id) : undefined;
                       const projector = supportArtifactsById.get(pair.projector_artifact_id);
+                      const baseModelDescriptor = describeMultimodalPairBaseModel(pair, baseModel);
+                      const projectorDescriptor = describeMultimodalPairProjector(pair, projector);
                       const pairStatus = describeMultimodalPairStatus(pair);
                       const candidateSummary = describeMultimodalPairCandidates(pair, modelsById);
                       const selectedBaseModelId = defaultPairingSelection(
@@ -1482,11 +1560,26 @@ export function RuntimeModelsTab() {
                         typeof pair.base_model_id === "string" &&
                         pair.base_model_id.length > 0;
                       const pairActionDescriptor = describeMultimodalPairAction(pair, projector, pairingCandidates);
+                      const pairActionHint = multimodalPairActionHint(pair, projector, pairingCandidates);
                       const feedbackKey = pair.projector_artifact_id;
                       return (
                         <tr className="border-b border-dbzs-border/50" key={pair.id}>
-                          <td className="px-2 py-2 text-dbzs-text">{baseModel?.name ?? pair.base_model_id ?? "-"}</td>
-                          <td className="px-2 py-2 text-dbzs-text">{projector?.name ?? pair.projector_artifact_id}</td>
+                          <td className="px-2 py-2 text-dbzs-text">
+                            <span
+                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] ${statusBadgeClasses(baseModelDescriptor.tone)}`}
+                              title={baseModelDescriptor.label}
+                            >
+                              {baseModelDescriptor.label}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2 text-dbzs-text">
+                            <span
+                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] ${statusBadgeClasses(projectorDescriptor.tone)}`}
+                              title={projectorDescriptor.label}
+                            >
+                              {projectorDescriptor.label}
+                            </span>
+                          </td>
                           <td className="px-2 py-2 text-dbzs-muted">
                             <span className="inline-flex rounded border border-dbzs-border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em]">
                               {formatMultimodalPairModalities(pair)}
@@ -1543,6 +1636,13 @@ export function RuntimeModelsTab() {
                                   className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(pairActionDescriptor.tone)}`}
                                 >
                                   {pairActionDescriptor.label}
+                                </span>
+                              </div>
+                              <div className="max-w-[320px]">
+                                <span
+                                  className={`rounded border px-1.5 py-1 text-[10px] ${hintToneClasses(pairActionDescriptor.tone)}`}
+                                >
+                                  {pairActionHint}
                                 </span>
                               </div>
                               {canPairManually ? (
@@ -1683,6 +1783,7 @@ export function RuntimeModelsTab() {
                   <tbody>
                     {sortedVisibleSupportArtifacts.map((artifact) => {
                       const description = describeSupportArtifact(artifact, multimodalPairs);
+                      const fileDescriptor = describeSupportArtifactFile(artifact);
                       const pair = multimodalPairs.find((entry) => entry.projector_artifact_id === artifact.id);
                       const selectedBaseModelId =
                         pairingSelections[artifact.id] ?? pair?.base_model_id ?? pair?.candidate_base_model_ids[0] ?? "";
@@ -1693,8 +1794,15 @@ export function RuntimeModelsTab() {
                       const actionHint = supportArtifactActionHint(artifact, pair, pairingCandidates);
                       return (
                         <tr className="border-b border-dbzs-border/50" key={artifact.id}>
-                          <td className="max-w-[280px] truncate px-2 py-2 font-medium text-dbzs-text" title={artifact.path}>
-                            {artifact.name}
+                          <td className="max-w-[280px] px-2 py-2 text-dbzs-text" title={artifact.path}>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="truncate font-medium">{fileDescriptor.label}</span>
+                              <span
+                                className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(fileDescriptor.tone)}`}
+                              >
+                                Ordner {fileDescriptor.location}
+                              </span>
+                            </div>
                           </td>
                           <td className="px-2 py-2 text-dbzs-muted">
                             <span
