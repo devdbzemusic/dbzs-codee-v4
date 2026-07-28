@@ -4,11 +4,29 @@ Stand: 2026-07-28
 
 ## Jetzt direkt
 
-- [ ] GUI-Golden-Path manuell durchlaufen (10 Kriterien, siehe `Pläne/DBZS_CODEE_PERSONAL_PRODUCTION_PLAN.md`) — in dieser Sandbox nicht moeglich (`ELECTRON_RUN_AS_NODE=1` verhindert echten Electron-GUI-Start)
-- [ ] Typfehler in `apps/desktop/electron/atomicFileWrite.ts`/`.test.ts` beheben (`AtomicWriteFs.mkdir` vs. `node:fs/promises`-Signatur)
-- [ ] vier offene Kleinaenderungen pruefen (fertigstellen/verwerfen/committen):
-      `skillRunPersistenceService.ts`, `executionHandoff.ts`, `executionIntent.ts(.test)`
+- [ ] GUI-Golden-Path manuell durchlaufen (14 konsolidierte Kriterien, siehe
+      `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md`) — 4 davon bereits
+      automatisiert bestaetigt, Rest braucht die echte Maschine mit
+      verbundenem lokalem Modell
 - [ ] Backup-Restore einmal echt in der laufenden App durchklicken (Diagnostics-Tab)
+- [ ] gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren
+
+## Erledigt: Folgearbeit nach PR #4 (direkt auf `main`)
+
+- [x] `AtomicWriteFs.mkdir`-Typfehler behoben (Node-Recursive-Overload-Signatur) — `npm run typecheck` erstmals vollstaendig fehlerfrei
+- [x] vier lose Kleinaenderungen committet: `skillRunPersistenceService.ts` (nutzt `writeFileAtomic`),
+      `executionHandoff.ts`/`executionIntent.ts(.test)` (Intent-Klassifikation erkennt "Implementierungsplan"/"Umsetzungsplan"/"Fix-Plan")
+- [x] Vite-Warnungen zu gemischten statischen/dynamischen Imports in `runtimeChatStoreRuntimeHelpers.ts`
+      aufgeloest (`backendClient`, `providerRuntimeEvents` auf statische Imports umgestellt) — `electron-vite build` warnungsfrei
+- [x] Repository-Review: neuer `"empty_plan"`-Outcome ersetzt generisches `"failed"` bei nicht-leerem
+      Inventar mit null Batches; Grund wird in `review-state.json` persistiert und im Chat angezeigt;
+      Regressionstest fuer den vorher ungetesteten Zweig ergaenzt
+- [x] Golden-Path-Automatisierung versucht: `env -u ELECTRON_RUN_AS_NODE` erlaubt echten Electron-GUI-Start
+      in dieser Sandbox (neuer Fund) — `boot.spec.ts` + UI-Chrome-Specs (11/41 E2E-Tests) automatisiert
+      bestaetigt; Rest der Suite braucht eine tatsaechlich verbundene lokale Modell-Runtime
+- [x] konsolidierte Golden-Path-Checkliste (14 Punkte) dokumentiert:
+      `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md`
+- [x] `HANDOVER.md`/`TODO.md` final aktualisiert
 
 ## Erledigt: PR #4 (Runtime-Chat-Overhaul + Personal Production Stabilization)
 
@@ -18,7 +36,7 @@ Stand: 2026-07-28
 - [x] PR #4 erstellt, geprueft (`MERGEABLE`, `CLEAN`) und per Merge-Commit in `main` gemergt
 - [x] Feature-Branch lokal und remote geloescht
 
-## Personal Production Stabilization (heute, Basis: `Pläne/DBZS_CODEE_PERSONAL_PRODUCTION_PLAN.md`)
+## Personal Production Stabilization (Basis: `Pläne/DBZS_CODEE_PERSONAL_PRODUCTION_PLAN.md`)
 
 - [x] Default-Bug in `backend/app/models/discovery_mode.py` behoben (`project_local_strict` statt `local_with_ollama`)
 - [x] `backend/app/runtime/doctor.py`: Ollama-Checks im Strict-Mode entfernt/entrümpelt, Tests ergaenzt
@@ -41,7 +59,6 @@ Stand: 2026-07-28
       versehentlich aus — 8 Dateien waren nie versioniert, jetzt per Negation gefixt und getrackt
 - [x] Typecheck, Backend-Pytest (betroffene Suiten), Frontend-Vitest (betroffene Suiten), `electron-vite build`
       — alle gruen
-- [ ] interaktiver Golden-Path-Durchlauf (siehe oben, nicht in dieser Sandbox moeglich)
 
 ## Runtime-Chat-Overhaul (aus der vorherigen Session, jetzt in `main`)
 
@@ -61,15 +78,21 @@ Stand: 2026-07-28
 - [x] lokaler App-Start nach dem Umbau erfolgreich:
       `start-dev.ps1`
 - [ ] laufende Runtime-Chat-UX in echter Session weiter feinjustieren
-- [ ] Vite-Warnungen zu gemischten statischen/dynamischen Imports in
-      `backendClient.ts` und `providerRuntimeEvents.ts` spaeter gezielt entflechten
 
-## Main-Readiness und GitHub-Hygiene
+## Bewusst zurueckgestellt (Personal-Production-Plan-Philosophie: "vorerst nicht noetig")
+
+- [ ] GitHub-CI-Strategie entscheiden: Auto-Trigger fuer `push`/`pull_request` reaktivieren
+      oder dokumentiertes Interimsmodell beibehalten (ohnehin durch GitHub-Billing-Sperre blockiert)
+- [ ] nach CI-Reaktivierung mindestens einen echten GitHub-Lauf dokumentieren
+- [ ] Branch Protection / Merge-Gates fuer `main` sauber nachziehen
+- [ ] weitere Zerlegung grosser Runtime-/Store-Dateien fortsetzen
+- [ ] Contract-Parity zwischen Shared und Backend weiter haerten
+- [ ] Windows-Golden-Path und Installer-Abnahme in aktive Runbooks ueberfuehren
+
+## Main-Readiness und GitHub-Hygiene (Stand PR #4)
 
 - [x] aktives GitHub-Repository live verifiziert:
       `devdbzemusic/dbzs-codee-v4`
-- [x] `origin/main`-Stand live verifiziert:
-      `934d907650b75855bd5d6487fa5ceaa850ac5a64` (Merge von PR #4)
 - [x] offene PRs live verifiziert:
       aktuell keine
 - [x] Branch-Protection-Status live verifiziert:
@@ -81,12 +104,6 @@ Stand: 2026-07-28
 - [x] aktives Audit und Statuspfad aktualisiert:
       `README.md`, `docs/STATUS_TODAY.md`,
       `docs/audits/MAIN_READINESS_AUDIT_2026-07-27.md`
-- [ ] GitHub-CI-Strategie entscheiden:
-      Auto-Trigger fuer `push`/`pull_request` reaktivieren
-      oder dokumentiertes Interimsmodell beibehalten
-- [ ] nach CI-Reaktivierung mindestens einen echten GitHub-Lauf dokumentieren
-- [ ] Branch Protection / Merge-Gates fuer `main` sauber nachziehen
-- [ ] Windows-Golden-Path auf frischer Umgebung dokumentiert abnehmen
 
 ## Repository Review
 
@@ -104,12 +121,7 @@ Stand: 2026-07-28
 - [x] Offline-Review-Inventory gehaertet:
       `apps/desktop/src/services/repositoryReview/nodeReviewWorkspaceIo.ts`
       schliesst jetzt vorhandene `.codee`-Artefakte und `.env` konsistent aus
-- [ ] Fehlerklassifikation fuer leere Review-Plaene verbessern
-- [ ] Diagnose-Export bei `batches: []` expliziter machen
-
-## Struktur und Qualitaet danach
-
-- [ ] weitere Zerlegung grosser Runtime-/Store-Dateien fortsetzen
-- [ ] Contract-Parity zwischen Shared und Backend weiter haerten
-- [ ] Windows-Golden-Path und Installer-Abnahme in aktive Runbooks ueberfuehren
-- [ ] gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren
+- [x] Fehlerklassifikation fuer leere Review-Plaene verbessert:
+      neuer `"empty_plan"`-Outcome statt generischem `"failed"`
+- [x] Diagnose-Export bei `batches: []` expliziter gemacht:
+      `ReviewStateFile.detail` persistiert den konkreten Grund
