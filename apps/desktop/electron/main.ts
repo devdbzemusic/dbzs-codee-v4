@@ -1792,9 +1792,14 @@ ipcMain.handle("dbzs:fs:write-file", async (_event, filePath: string, content: s
   await writeFileAtomic(safePath, content);
 });
 
+// Unlike read-file/write-file/file:save, stat is read-only (existence/size/mtime,
+// no content exposure) and is legitimately called against paths outside the
+// workspace -- e.g. pathValidatorService.ts checks model weight files and the
+// llama.cpp runtime directory, both of which live in the global models/runtimes
+// directories, not inside the workspace. Guarding it the same way as the
+// content-bearing handlers broke that real caller, so it stays unguarded.
 ipcMain.handle("dbzs:fs:stat", async (_event, filePath: string) => {
-  const safePath = await resolveGuardedFsPath(filePath, { allowMissing: true });
-  return fs.stat(safePath);
+  return fs.stat(filePath);
 });
 
 ipcMain.handle("dbzs:file:save", async (_event, request: SaveFileRequest) => {
