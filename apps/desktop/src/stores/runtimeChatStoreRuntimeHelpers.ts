@@ -188,9 +188,21 @@ export async function refreshRuntimeStatus(fallback: RuntimeStatus | null): Prom
   }
 
   try {
-    const slots = await runtimeSlotManager.getAllSlotsStatus();
+    const rawSlots = await runtimeSlotManager.getAllSlotsStatus();
+    const slots = Array.isArray(rawSlots)
+      ? rawSlots.filter(
+          (slot): slot is NonNullable<(typeof rawSlots)[number]> =>
+            Boolean(slot) && typeof slot === "object" && "state" in slot
+        )
+      : [];
     const readySlot = slots.find((slot) => runtimeSlotManager.isSlotReady(slot));
-    const runningSlot = readySlot ?? slots.find((slot) => slot.state === "running");
+    const runningSlot =
+      readySlot ??
+      slots.find(
+        (slot) =>
+          slot.state === "running" &&
+          (slot.provider === "llama.cpp" || slot.provider === "ollama" || slot.provider == null)
+      );
     if (runningSlot) {
       const status: RuntimeStatus = {
         state: runningSlot.state,

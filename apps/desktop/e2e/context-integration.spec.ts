@@ -19,8 +19,15 @@ test("realer Context-Aufbau erreicht den finalen Runtime-Request ohne doppelte Q
     const hooks = (window as unknown as { __dbzsE2E: { chatCalls: Array<{ messages: Array<{ content?: string }> }> } }).__dbzsE2E;
     return hooks.chatCalls.at(-1)?.messages ?? [];
   });
-  const contextMessages = messages.filter((message) => message.content?.includes("Source:"));
-  expect(contextMessages.some((message) => message.content?.includes("src/calculator.ts"))).toBe(true);
-  const sources = contextMessages.flatMap((message) => [...(message.content ?? "").matchAll(/Source: ([^\n]+)/g)].map((match) => match[1]));
-  expect(new Set(sources).size).toBe(sources.length);
+  const serialized = messages.map((message) => message.content ?? "").join("\n\n");
+  expect(serialized).toContain("src/calculator.ts");
+  expect(serialized).toContain("[Code Index]");
+
+  const sourceRefs = [...serialized.matchAll(/Source: ([^\n]+)/g)].map((match) => match[1]);
+  if (sourceRefs.length > 0) {
+    expect(new Set(sourceRefs).size).toBe(sourceRefs.length);
+  }
+
+  const sampledFileRefs = [...serialized.matchAll(/^### ([^\n]+) \(/gm)].map((match) => match[1]);
+  expect(new Set(sampledFileRefs).size).toBe(sampledFileRefs.length);
 });
