@@ -74,7 +74,7 @@ describe("AssistantQuestionCard", () => {
       );
     });
 
-    clickButton(container, "Antworten");
+    clickButton(container, "Weiter");
 
     expect(submitted).not.toBeNull();
     expect(submitted!.optionIds).toEqual(["a"]);
@@ -107,7 +107,7 @@ describe("AssistantQuestionCard", () => {
       checkboxes[1].click();
     });
 
-    clickButton(container, "Antworten");
+    clickButton(container, "Weiter");
 
     expect(submitted).not.toBeNull();
     expect(submitted!.optionIds).toEqual(expect.arrayContaining(["a", "b"]));
@@ -138,7 +138,7 @@ describe("AssistantQuestionCard", () => {
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
     });
 
-    clickButton(container, "Antworten");
+    clickButton(container, "Weiter");
 
     expect(submitted).not.toBeNull();
     expect(submitted!.freeText).toBe("meine eigene Antwort");
@@ -158,7 +158,7 @@ describe("AssistantQuestionCard", () => {
       );
     });
 
-    clickButton(container, "Abbrechen");
+    clickButton(container, "Überspringen");
 
     expect(submitted).not.toBeNull();
     expect(submitted!.skipped).toBe(true);
@@ -178,7 +178,7 @@ describe("AssistantQuestionCard", () => {
       );
     });
 
-    clickButton(container, "Empfehlung übernehmen");
+    clickButton(container, "Empfehlung nutzen");
 
     expect(submitted).not.toBeNull();
     expect(submitted!.optionIds).toEqual(["b"]);
@@ -189,7 +189,7 @@ describe("AssistantQuestionCard", () => {
       root.render(<AssistantQuestionCard busy={true} onSubmit={vi.fn()} question={makeQuestion()} />);
     });
 
-    const button = [...container.querySelectorAll("button")].find((entry) => entry.textContent === "Antworten");
+    const button = [...container.querySelectorAll("button")].find((entry) => entry.textContent === "Weiter");
     expect(button?.hasAttribute("disabled")).toBe(true);
   });
 });

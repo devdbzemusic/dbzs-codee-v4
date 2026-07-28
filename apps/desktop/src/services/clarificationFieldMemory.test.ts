@@ -20,7 +20,11 @@ describe("clarification field memory", () => {
   });
 
   it("asks success_criteria once and stores requiredField", () => {
-    const first = checkMissingInformation("planning", "planning", "Erstelle einen klaren Implementierungsplan", false);
+    // Deliberately avoids PLAN_DELIVERABLE_PATTERN keywords (e.g. "Implementierungsplan",
+    // "naechste Schritte", "Tests") added in c537f3e ("reduce unnecessary runtime
+    // clarifications") - those legitimately imply enough structure to skip asking,
+    // which is exactly the case this test is not exercising.
+    const first = checkMissingInformation("planning", "planning", "Ich möchte mit der Planung beginnen.", false);
     expect(first.find((c) => c.field === "success_criteria")?.present).toBe(false);
     expect(first.find((c) => c.field === "success_criteria")?.askIfMissing.requiredField).toBe(
       "success_criteria"
