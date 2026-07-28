@@ -1,0 +1,143 @@
+{
+  "id": "run-ms3kmz5e-mjte",
+  "userMessageId": "msg-ms3kmz5e-user",
+  "status": "failed",
+  "startedAt": "2026-07-27T18:39:38.354Z",
+  "mode": "auto",
+  "profile": "ask",
+  "contextEnabled": true,
+  "workspaceRoot": "C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\test-fixtures",
+  "events": [
+    {
+      "id": "ev-ms3kmz5e-ys5",
+      "type": "chat.accepted",
+      "timestamp": "2026-07-27T18:39:38.354Z",
+      "message": "Nachricht angenommen",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms3kmz5f-o41",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-27T18:39:38.355Z",
+      "message": "Runtime-Status pruefen",
+      "durationMs": 1
+    },
+    {
+      "id": "ev-ms3kmz7r-wjt",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-27T18:39:38.439Z",
+      "message": "Backend online · Arbeitsmodell: nicht geladen",
+      "durationMs": 84
+    },
+    {
+      "id": "ev-ms3kmz7r-kbv",
+      "type": "routing.started",
+      "timestamp": "2026-07-27T18:39:38.439Z",
+      "message": "Modell-Routing",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms3kmz7t-c2w",
+      "type": "routing.completed",
+      "timestamp": "2026-07-27T18:39:38.441Z",
+      "message": "Modell gewählt: Qwen2.5-VL-3B-Instruct.Q4-K-M",
+      "meta": {
+        "rolloutStage": "canary-100",
+        "routingPath": "broker",
+        "canaryPercent": 100,
+        "shadowMode": false,
+        "shadowMatch": null,
+        "stopOnShadowMismatch": false
+      },
+      "durationMs": 2
+    },
+    {
+      "id": "ev-ms3kn0fy-slz",
+      "type": "context.started",
+      "timestamp": "2026-07-27T18:39:40.030Z",
+      "message": "Runtime-Kontext vorbereiten (Stufe 1)",
+      "durationMs": 1589
+    },
+    {
+      "id": "ev-ms3kn0fy-wgv",
+      "type": "context.completed",
+      "timestamp": "2026-07-27T18:39:40.030Z",
+      "message": "Stufe 1 aktiv — keine pauschalen Workspace-Signale",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms3kn1pa-6r7",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-27T18:39:41.662Z",
+      "message": "resource_risk=low",
+      "meta": {
+        "risk": "low",
+        "reasons": [],
+        "profile": "balanced",
+        "slotNeedsStart": true
+      },
+      "durationMs": 1632
+    },
+    {
+      "id": "ev-ms3kn1pe-vru",
+      "type": "chat.failed",
+      "timestamp": "2026-07-27T18:39:41.666Z",
+      "message": "Pfad-Validierung fehlgeschlagen: Modelldatei nicht gefunden: D:\\Models\\GGUF_LIBRARY\\06-multimodal-vision\\Qwen2.5-VL-3B-Instruct-MM\\Qwen2.5-VL-3B-Instruct.Q4_K_M.gguf, Llama.cpp Runtime-Verzeichnis nicht gefunden: D:/win_runtimes/llama.cpp-win-runtime",
+      "durationMs": 4
+    }
+  ],
+  "turns": [],
+  "toolCalls": [],
+  "fileChanges": [],
+  "commands": [],
+  "provider": "llama-cpp",
+  "modelId": "5232b4c4f733d1e9",
+  "modelName": "Qwen2.5-VL-3B-Instruct.Q4-K-M",
+  "slotId": "fast_gpu",
+  "configuredModelId": "5232b4c4f733d1e9",
+  "selectionSource": "role_setting",
+  "settingsRevision": 172,
+  "warmupStatus": "pending",
+  "workflowLabel": "alles",
+  "phaseLabel": "planning",
+  "targetAgentLabel": "planner",
+  "contextStage": 1,
+  "tokenBudget": {
+    "runtimeContextLimit": 4096,
+    "systemTokens": 525,
+    "toolTokens": 458,
+    "chatTokens": 150,
+    "interviewTokens": 1,
+    "memoryTokens": 1,
+    "fileContextTokens": 1,
+    "ragTokens": 1,
+    "outputReserveTokens": 512,
+    "totalInputTokens": 1137,
+    "totalRequiredTokens": 1649,
+    "overflowTokens": 0
+  },
+  "droppedSources": [],
+  "contextFallbackApplied": false,
+  "promptBindingDiagnostics": {
+    "preFallbackPromptTokens": 679,
+    "postFallbackPromptTokens": 679,
+    "sentPromptTokens": 679,
+    "preFallbackPromptHash": "434a0ac4",
+    "postFallbackPromptHash": "434a0ac4",
+    "sentPromptHash": "434a0ac4",
+    "messageCountBefore": 13,
+    "messageCountAfter": 13,
+    "messageCountSent": 13
+  },
+  "resourceRisk": "low",
+  "resourceRiskReasons": [],
+  "error": {
+    "code": "UNKNOWN_ERROR",
+    "message": "Pfad-Validierung fehlgeschlagen: Modelldatei nicht gefunden: D:\\Models\\GGUF_LIBRARY\\06-multimodal-vision\\Qwen2.5-VL-3B-Instruct-MM\\Qwen2.5-VL-3B-Instruct.Q4_K_M.gguf, Llama.cpp Runtime-Verzeichnis nicht gefunden: D:/win_runtimes/llama.cpp-win-runtime",
+    "phase": "llm-request",
+    "provider": "llama-cpp",
+    "endpoint": "5232b4c4f733d1e9"
+  },
+  "finishedAt": "2026-07-27T18:39:41.666Z",
+  "outcome": "runtime_error"
+}

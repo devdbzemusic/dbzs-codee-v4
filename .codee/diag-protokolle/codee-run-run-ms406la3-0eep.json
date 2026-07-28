@@ -1,0 +1,223 @@
+{
+  "id": "run-ms406la3-0eep",
+  "userMessageId": "msg-ms406la3-user",
+  "status": "failed",
+  "startedAt": "2026-07-28T01:54:47.739Z",
+  "mode": "auto",
+  "profile": "ask",
+  "contextEnabled": true,
+  "workspaceRoot": "C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\test-fixtures\\runtime-chat-tuning-lab",
+  "events": [
+    {
+      "id": "ev-ms406la3-tla",
+      "type": "chat.accepted",
+      "timestamp": "2026-07-28T01:54:47.739Z",
+      "message": "Nachricht angenommen",
+      "durationMs": 1
+    },
+    {
+      "id": "ev-ms406la4-25v",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-28T01:54:47.740Z",
+      "message": "Runtime-Status pruefen",
+      "durationMs": 1
+    },
+    {
+      "id": "ev-ms406lda-52h",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-28T01:54:47.854Z",
+      "message": "Backend online · Residenter Slotstatus: deepseek-coder-6.7b-instruct.Q4-K-M",
+      "durationMs": 114
+    },
+    {
+      "id": "ev-ms406lda-e39",
+      "type": "routing.started",
+      "timestamp": "2026-07-28T01:54:47.854Z",
+      "message": "Modell-Routing",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms406ldc-c6y",
+      "type": "routing.completed",
+      "timestamp": "2026-07-28T01:54:47.856Z",
+      "message": "Modell gewählt: Phi-3-mini-4k-instruct-q4",
+      "meta": {
+        "rolloutStage": "canary-100",
+        "routingPath": "broker",
+        "canaryPercent": 100,
+        "shadowMode": false,
+        "shadowMatch": null,
+        "stopOnShadowMismatch": false
+      },
+      "durationMs": 2
+    },
+    {
+      "id": "ev-ms406lde-hsa",
+      "type": "context.started",
+      "timestamp": "2026-07-28T01:54:47.858Z",
+      "message": "Repository Review gestartet · Scope full_repository · Intent code_review",
+      "durationMs": 2
+    },
+    {
+      "id": "ev-ms406lg8-8im",
+      "type": "context.completed",
+      "timestamp": "2026-07-28T01:54:47.960Z",
+      "message": "Review 0/5",
+      "meta": {
+        "repositoryReview": {
+          "reviewId": "rev-ms406lde-zqrbx",
+          "workspaceId": "c:/users/ralle/source/repos/dbzs-codee-project/test-fixtures/runtime-chat-tuning-lab",
+          "scope": "full_repository",
+          "status": "running",
+          "intentLabel": "code_review",
+          "workflowId": "repository_review",
+          "totalBatches": 5,
+          "completedBatches": 0,
+          "checks": [],
+          "severityCounts": {},
+          "artifactDir": ".codee/reviews/rev-ms406lde-zqrbx",
+          "reportPath": ".codee/reviews/rev-ms406lde-zqrbx/REVIEW_REPORT.md",
+          "findingsPath": ".codee/reviews/rev-ms406lde-zqrbx/findings.json",
+          "analyzerDiagnostics": [],
+          "topFindings": [],
+          "updatedAt": "2026-07-28T01:54:47.960Z"
+        }
+      },
+      "durationMs": 102
+    },
+    {
+      "id": "ev-ms406n57-m47",
+      "type": "context.completed",
+      "timestamp": "2026-07-28T01:54:50.155Z",
+      "message": "Review 0/5 · Projektstruktur und Einstiegspunkte",
+      "meta": {
+        "repositoryReview": {
+          "reviewId": "rev-ms406lde-zqrbx",
+          "workspaceId": "c:/users/ralle/source/repos/dbzs-codee-project/test-fixtures/runtime-chat-tuning-lab",
+          "scope": "full_repository",
+          "status": "running",
+          "intentLabel": "code_review",
+          "workflowId": "repository_review",
+          "totalBatches": 5,
+          "completedBatches": 0,
+          "currentBatchTitle": "Projektstruktur und Einstiegspunkte",
+          "checks": [
+            {
+              "id": "typecheck-0",
+              "label": "Typecheck",
+              "status": "passed"
+            },
+            {
+              "id": "test-0",
+              "label": "Unit tests",
+              "status": "failed"
+            }
+          ],
+          "severityCounts": {},
+          "artifactDir": ".codee/reviews/rev-ms406lde-zqrbx",
+          "reportPath": ".codee/reviews/rev-ms406lde-zqrbx/REVIEW_REPORT.md",
+          "findingsPath": ".codee/reviews/rev-ms406lde-zqrbx/findings.json",
+          "analyzerDiagnostics": [],
+          "topFindings": [],
+          "updatedAt": "2026-07-28T01:54:50.155Z"
+        }
+      },
+      "durationMs": 2195
+    },
+    {
+      "id": "ev-ms406n5m-cu6",
+      "type": "context.completed",
+      "timestamp": "2026-07-28T01:54:50.170Z",
+      "message": "Review 0/5",
+      "meta": {
+        "repositoryReview": {
+          "reviewId": "rev-ms406lde-zqrbx",
+          "workspaceId": "c:/users/ralle/source/repos/dbzs-codee-project/test-fixtures/runtime-chat-tuning-lab",
+          "scope": "full_repository",
+          "status": "failed",
+          "outcome": "failed",
+          "intentLabel": "code_review",
+          "workflowId": "repository_review",
+          "totalBatches": 5,
+          "completedBatches": 0,
+          "checks": [
+            {
+              "id": "typecheck-0",
+              "label": "Typecheck",
+              "status": "passed"
+            },
+            {
+              "id": "test-0",
+              "label": "Unit tests",
+              "status": "failed"
+            }
+          ],
+          "severityCounts": {},
+          "artifactDir": ".codee/reviews/rev-ms406lde-zqrbx",
+          "reportPath": ".codee/reviews/rev-ms406lde-zqrbx/REVIEW_REPORT.md",
+          "findingsPath": ".codee/reviews/rev-ms406lde-zqrbx/findings.json",
+          "analyzerDiagnostics": [],
+          "topFindings": [],
+          "updatedAt": "2026-07-28T01:54:50.170Z"
+        }
+      },
+      "durationMs": 15
+    },
+    {
+      "id": "ev-ms406n5p-ax6",
+      "type": "chat.failed",
+      "timestamp": "2026-07-28T01:54:50.173Z",
+      "message": "Repository Review abgeschlossen\nDauer: 0 min 2 s\nAbdeckung: 0/0 Dateien · 0/5 Batches\nAnalyzer: LLM 0/0 erfolgreich · Heuristik 0/0\nQualitätsstatus: unbekannt · Outcome failed\nChecks: 1 erfolgreich · 0 nicht verfügbar/ausgeführt\nFindings: P0 0 · P1 0 · P2 0 · P3 0\nTop Findings: keine bestätigten Findings\nReport: .codee/reviews/rev-ms406lde-zqrbx/REVIEW_REPORT.md\nFindings: .codee/reviews/rev-ms406lde-zqrbx/findings.json\nArtefaktordner: .codee/reviews/rev-ms406lde-zqrbx",
+      "durationMs": 3
+    }
+  ],
+  "turns": [],
+  "toolCalls": [],
+  "fileChanges": [],
+  "commands": [],
+  "provider": "llama-cpp",
+  "modelId": "5537a3b79b0de881",
+  "modelName": "Phi-3-mini-4k-instruct-q4",
+  "slotId": "fast_gpu",
+  "configuredModelId": "5537a3b79b0de881",
+  "selectionSource": "role_setting",
+  "settingsRevision": 178,
+  "warmupStatus": "pending",
+  "workflowLabel": "repository_review",
+  "phaseLabel": "review",
+  "targetAgentLabel": "reviewer",
+  "repositoryReview": {
+    "reviewId": "rev-ms406lde-zqrbx",
+    "workspaceId": "c:/users/ralle/source/repos/dbzs-codee-project/test-fixtures/runtime-chat-tuning-lab",
+    "scope": "full_repository",
+    "status": "failed",
+    "outcome": "failed",
+    "intentLabel": "code_review",
+    "workflowId": "repository_review",
+    "totalBatches": 5,
+    "completedBatches": 0,
+    "currentBatchTitle": "computeReviewBatchBudget is not defined",
+    "checks": [
+      {
+        "id": "typecheck-0",
+        "label": "Typecheck",
+        "status": "passed"
+      },
+      {
+        "id": "test-0",
+        "label": "Unit tests",
+        "status": "failed"
+      }
+    ],
+    "severityCounts": {},
+    "artifactDir": ".codee/reviews/rev-ms406lde-zqrbx",
+    "reportPath": ".codee/reviews/rev-ms406lde-zqrbx/REVIEW_REPORT.md",
+    "findingsPath": ".codee/reviews/rev-ms406lde-zqrbx/findings.json",
+    "analyzerDiagnostics": [],
+    "topFindings": [],
+    "updatedAt": "2026-07-28T01:54:50.170Z"
+  },
+  "finishedAt": "2026-07-28T01:54:50.173Z",
+  "outcome": "generation_failed",
+  "assistantMessageId": "msg-ms406n5p-assistant-jylo"
+}

@@ -64,6 +64,14 @@ export function createNodeReviewWorkspaceIO(): ReviewWorkspaceIO {
       await fs.mkdir(path.dirname(abs), { recursive: true });
       await fs.writeFile(abs, content, "utf8");
     },
+    async deleteFile(workspaceRoot, relativePath) {
+      const normalized = relativePath.replace(/\\/g, "/");
+      if (!normalized.startsWith(".codee/")) {
+        throw new Error("repository_review_delete_blocked: only .codee/ paths may be deleted");
+      }
+      const abs = path.join(normalizeRoot(workspaceRoot), normalized);
+      await fs.rm(abs, { force: true });
+    },
     async pathExists(workspaceRoot, relativePath) {
       try {
         await fs.access(path.join(normalizeRoot(workspaceRoot), relativePath));

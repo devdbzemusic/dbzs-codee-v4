@@ -1,0 +1,169 @@
+{
+  "id": "run-ms3l2r8c-7mm8",
+  "userMessageId": "msg-ms3l2r8c-user",
+  "status": "failed",
+  "startedAt": "2026-07-27T18:51:54.588Z",
+  "mode": "auto",
+  "profile": "ask",
+  "contextEnabled": true,
+  "workspaceRoot": "C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\test-fixtures",
+  "events": [
+    {
+      "id": "ev-ms3l2r8c-l8z",
+      "type": "chat.accepted",
+      "timestamp": "2026-07-27T18:51:54.588Z",
+      "message": "Nachricht angenommen",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms3l2r8d-l4h",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-27T18:51:54.589Z",
+      "message": "Runtime-Status pruefen",
+      "durationMs": 1
+    },
+    {
+      "id": "ev-ms3l2ra8-5uz",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-27T18:51:54.656Z",
+      "message": "Backend online · Arbeitsmodell: nicht geladen",
+      "durationMs": 67
+    },
+    {
+      "id": "ev-ms3l2ra9-xmh",
+      "type": "routing.started",
+      "timestamp": "2026-07-27T18:51:54.657Z",
+      "message": "Modell-Routing",
+      "durationMs": 1
+    },
+    {
+      "id": "ev-ms3l2raa-rzt",
+      "type": "routing.completed",
+      "timestamp": "2026-07-27T18:51:54.658Z",
+      "message": "Modell gewählt: Qwen2.5-VL-3B-Instruct.Q4-K-M",
+      "meta": {
+        "rolloutStage": "canary-100",
+        "routingPath": "broker",
+        "canaryPercent": 100,
+        "shadowMode": false,
+        "shadowMatch": null,
+        "stopOnShadowMismatch": false
+      },
+      "durationMs": 1
+    },
+    {
+      "id": "ev-ms3l2sir-i8k",
+      "type": "context.started",
+      "timestamp": "2026-07-27T18:51:56.259Z",
+      "message": "Runtime-Kontext vorbereiten (Stufe 1)",
+      "durationMs": 1601
+    },
+    {
+      "id": "ev-ms3l2sir-zl6",
+      "type": "context.completed",
+      "timestamp": "2026-07-27T18:51:56.259Z",
+      "message": "Stufe 1 aktiv — keine pauschalen Workspace-Signale",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms3l2trx-q1j",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-27T18:51:57.885Z",
+      "message": "resource_risk=low",
+      "meta": {
+        "risk": "low",
+        "reasons": [],
+        "profile": "balanced",
+        "slotNeedsStart": true
+      },
+      "durationMs": 1626
+    },
+    {
+      "id": "ev-ms3l2ts0-eyr",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-27T18:51:57.888Z",
+      "message": "Arbeitsmodell wird bei Bedarf geladen …",
+      "meta": {
+        "startTrigger": "post_budget_ondemand",
+        "slotId": "fast_gpu",
+        "modelId": "5232b4c4f733d1e9",
+        "profile": "balanced",
+        "reasons": [
+          "task_type:large_code_change",
+          "target_agent:planner",
+          "workflow_kind:code_change",
+          "workflow_phase:planning",
+          "model_role:planner",
+          "tool_profile:ask",
+          "slot:fast_gpu",
+          "model_selection:large_code_change",
+          "vision_gate:text_only",
+          "role_setting:5232b4c4f733d1e9",
+          "selection_source:role_setting"
+        ]
+      },
+      "durationMs": 3
+    },
+    {
+      "id": "ev-ms3l2v02-nmm",
+      "type": "chat.failed",
+      "timestamp": "2026-07-27T18:51:59.474Z",
+      "message": "target_slot_ondemand_failed: Start fehlgeschlagen: 500 - Internal Server Error",
+      "durationMs": 1586
+    }
+  ],
+  "turns": [],
+  "toolCalls": [],
+  "fileChanges": [],
+  "commands": [],
+  "provider": "llama-cpp",
+  "modelId": "5232b4c4f733d1e9",
+  "modelName": "Qwen2.5-VL-3B-Instruct.Q4-K-M",
+  "slotId": "fast_gpu",
+  "configuredModelId": "5232b4c4f733d1e9",
+  "selectionSource": "role_setting",
+  "settingsRevision": 172,
+  "warmupStatus": "pending",
+  "workflowLabel": "Erstelle einen klaren Implementierungsplan mit konkreten Schritten, Risiken und Tests.",
+  "phaseLabel": "planning",
+  "targetAgentLabel": "planner",
+  "contextStage": 1,
+  "tokenBudget": {
+    "runtimeContextLimit": 4096,
+    "systemTokens": 868,
+    "toolTokens": 458,
+    "chatTokens": 22,
+    "interviewTokens": 1,
+    "memoryTokens": 1,
+    "fileContextTokens": 1,
+    "ragTokens": 1,
+    "outputReserveTokens": 512,
+    "totalInputTokens": 1352,
+    "totalRequiredTokens": 1864,
+    "overflowTokens": 0
+  },
+  "droppedSources": [
+    "active-task-workspace-file-2"
+  ],
+  "contextFallbackApplied": false,
+  "promptBindingDiagnostics": {
+    "preFallbackPromptTokens": 894,
+    "postFallbackPromptTokens": 894,
+    "sentPromptTokens": 894,
+    "preFallbackPromptHash": "bc9162fe",
+    "postFallbackPromptHash": "bc9162fe",
+    "sentPromptHash": "bc9162fe",
+    "messageCountBefore": 11,
+    "messageCountAfter": 11,
+    "messageCountSent": 11
+  },
+  "resourceRisk": "low",
+  "resourceRiskReasons": [],
+  "error": {
+    "code": "runtime_start_failed",
+    "message": "target_slot_ondemand_failed: Start fehlgeschlagen: 500 - Internal Server Error",
+    "phase": "runtime"
+  },
+  "finishedAt": "2026-07-27T18:51:59.474Z",
+  "outcome": "runtime_start_failed"
+}

@@ -12,7 +12,11 @@ import type {
   RepositoryReviewRequest,
   ReviewBatchPlan
 } from "@dbzs/shared";
-import { ensureBatchFitsOrSplit } from "./reviewBatchBudget";
+import {
+  computeReviewBatchBudget,
+  batchFitsBudget,
+  ensureBatchFitsOrSplit
+} from "./reviewBatchBudget";
 import { describeEmptyReviewPlan, planReviewBatches } from "./reviewBatchPlanner";
 import { planReviewCommands } from "./reviewCommandPlanner";
 import { runReviewCommands } from "./reviewCommandRunner";
@@ -317,24 +321,24 @@ export class RepositoryReviewOrchestrator {
 
       if (!plan || plan.batches.length === 0) {
         const detail = plan
-          ? describeEmptyReviewPlan(request)
-          : "Der Review-Plan konnte nicht erstellt werden.";
+          ? describeEmptyReviewPlan(request) // This function provides a user-friendly reason.
+          : "Der Review-Plan konnte nicht erstellt oder geladen werden.";
         state.status = "failed";
         state.outcome = "empty_plan";
-        state.detail = detail;
+        // The 'detail' field is not part of the ReviewStateFile type,
+        // but the information is passed to the progress object.
         state.updatedAt = new Date().toISOString();
         await saveReviewState(this.io, request.workspaceRoot, state);
-        const progress = emit("failed", "empty_plan", detail);
-        return {
+
+        return this.failedResult(
+          request,
           reviewId,
-          outcome: "empty_plan",
+          "empty_plan",
           plan,
           inventory,
-          findings: [],
-          report: null,
-          progress,
-          artifactDir: reviewArtifactPaths(reviewId).root
-        };
+          [],
+          detail
+        );
       }
 
       state.status = "running";
@@ -361,6 +365,11 @@ export class RepositoryReviewOrchestrator {
       while (queue.length > 0) {
         const batch = queue.shift()!;
         if (completed.has(batch.batchId)) continue;
+
+        console.log(`[Review] Starting batch`, {
+          batchId: batch.batchId,
+          pathCount: batch.paths.length
+        });
 
         state.currentBatchId = batch.batchId;
         state.updatedAt = new Date().toISOString();
@@ -402,34 +411,80 @@ export class RepositoryReviewOrchestrator {
           continue;
         }
 
+        const finalBudget = computeReviewBatchBudget({
+          runtimeContextLimit: this.runtimeContextLimit,
+          systemText,
+          taskText,
+          fileTexts: [...fileContents.values()]
+        });
+
+        if (!batchFitsBudget(finalBudget)) {
+          console.warn(`[Review] Skipping oversized, unsplittable batch`, {
+            batchId: batch.batchId,
+            paths: batch.paths,
+            requiredTokens: finalBudget.totalRequiredTokens,
+            limit: finalBudget.runtimeContextLimit
+          });
+          diagnostics.push({
+            batchId: batch.batchId,
+            llmAttempted: false,
+            llmSucceeded: false,
+            llmFindingCount: 0,
+            heuristicExecuted: false,
+            heuristicFindingCount: 0,
+            mode: "failed",
+            providerError: `Batch content (${finalBudget.fileTokens} tokens) exceeds context limit and cannot be split further.`
+          });
+          completed.add(batch.batchId);
+          continue;
+        }
+
         const files = [...fileContents.entries()].map(([path, content]) => ({ path, content }));
         let batchFindings: RepositoryReviewFinding[] = [];
         let batchDiagnostics: ReviewBatchAnalyzerDiagnostics;
         try {
-          const analysis = await this.batchAnalyzer({
+          const BATCH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+          const analysisPromise = this.batchAnalyzer({
             batch: fit.batches[0] ?? batch,
             files,
             request,
             inventory
           });
+
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error(`Batch ${batch.batchId} timed out after ${BATCH_TIMEOUT_MS}ms`)),
+              BATCH_TIMEOUT_MS
+            )
+          );
+
+          console.log(`[Review] Analyzing batch with LLM`, { batchId: batch.batchId });
+          const analysis = await Promise.race([analysisPromise, timeoutPromise]);
+
           batchFindings = analysis.findings;
           batchDiagnostics = analysis.diagnostics;
+          console.log(`[Review] Analysis complete`, {
+            batchId: batch.batchId,
+            findingCount: batchFindings.length
+          });
         } catch (error) {
-          state.status = "failed";
-          state.outcome = "failed";
+          console.error(`[Review] Batch analysis failed for ${batch.batchId}`, { error });
+          diagnostics.push({
+            batchId: batch.batchId,
+            llmAttempted: true,
+            llmSucceeded: false,
+            llmFindingCount: 0,
+            heuristicExecuted: false,
+            heuristicFindingCount: 0,
+            mode: "failed",
+            providerError: error instanceof Error ? error.message : String(error)
+          });
+          state.analyzerDiagnostics = diagnostics;
           state.updatedAt = new Date().toISOString();
           await saveReviewState(this.io, request.workspaceRoot, state);
-          const progress = emit("failed", "failed", batch.title);
-          return {
-            reviewId,
-            outcome: "failed",
-            plan,
-            inventory,
-            findings,
-            report: null,
-            progress,
-            artifactDir: reviewArtifactPaths(reviewId).root
-          };
+          // Mark as completed to skip on resume, but diagnostics will show failure
+          completed.add(batch.batchId);
+          continue;
         }
 
         const verified = filterFindingsToExistingPaths(batchFindings, existingPaths);

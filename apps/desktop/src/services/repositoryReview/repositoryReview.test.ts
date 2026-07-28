@@ -393,6 +393,59 @@ describe("RepositoryReviewOrchestrator", () => {
     expect(result.outcome).toBe("failed");
   });
 
+  it("skips an oversized, unsplittable batch and completes the review", async () => {
+    const io = createMemoryIO({
+      "src/ok.ts": "export const ok = 1;",
+      "src/too-large.ts": "a".repeat(20_000)
+    });
+    const request = buildRepositoryReviewRequest({
+      workspaceId: "c:/demo",
+      workspaceRoot: "C:/demo",
+      scope: "full_repository"
+    });
+    const orch = new RepositoryReviewOrchestrator({
+      io,
+      runtimeContextLimit: 8192,
+      batchAnalyzer: createHeuristicBatchAnalyzer(),
+      createReviewId: () => "rev-oversized-skip"
+    });
+    const result = await orch.start(request);
+
+    // The overall review should complete with warnings, not fail.
+    expect(result.outcome).toBe("completed_with_warnings");
+    expect(result.progress.completedBatches).toBe(result.progress.totalBatches);
+
+    // There should be a diagnostic entry for the skipped batch.
+    const oversizedDiagnostic = result.diagnostics?.find((d) =>
+      d.providerError?.includes("exceeds context limit")
+    );
+    expect(oversizedDiagnostic).toBeDefined();
+    expect(oversizedDiagnostic?.batchId).toContain("too-large");
+  });
+
+  it("classifies a non-empty inventory with zero eligible batches as empty_plan", async () => {
+    const io = createMemoryIO({
+      "styles.css": "body { color: red; }",
+      "notes.txt": "just some notes"
+    });
+    const request = buildRepositoryReviewRequest({
+      workspaceId: "c:/demo",
+      workspaceRoot: "C:/demo",
+      scope: "full_repository"
+    });
+    const orch = new RepositoryReviewOrchestrator({
+      io,
+      createReviewId: () => "rev-empty-plan"
+    });
+    const result = await orch.start(request);
+    expect(result.outcome).toBe("empty_plan");
+    expect(result.inventory?.fileCount).toBeGreaterThan(0);
+    expect(result.plan?.batches.length ?? 0).toBe(0);
+    expect(result.progress.currentBatchTitle).toMatch(/Dateiformat-Filter/);
+
+    // This part was removed as `detail` is not persisted on the state file itself.
+  });
+
   it("classifies a non-empty inventory with zero eligible batches as empty_plan", async () => {
     const io = createMemoryIO({
       "styles.css": "body { color: red; }",

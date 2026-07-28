@@ -1,0 +1,372 @@
+{
+  "id": "run-ms40vk9m-e05a",
+  "userMessageId": "msg-ms40vk9m-user",
+  "status": "failed",
+  "startedAt": "2026-07-28T02:14:12.826Z",
+  "mode": "auto",
+  "profile": "ask",
+  "contextEnabled": true,
+  "workspaceRoot": "C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\test-fixtures\\runtime-chat-tuning-lab",
+  "events": [
+    {
+      "id": "ev-ms40vk9m-lkg",
+      "type": "chat.accepted",
+      "timestamp": "2026-07-28T02:14:12.826Z",
+      "message": "Nachricht angenommen",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms40vk9m-ts2",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-28T02:14:12.826Z",
+      "message": "Runtime-Status pruefen",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms40vkcu-c0u",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-28T02:14:12.942Z",
+      "message": "Backend online · Residenter Slotstatus: Phi-3-mini-4k-instruct-q4",
+      "durationMs": 116
+    },
+    {
+      "id": "ev-ms40vkcu-1hj",
+      "type": "routing.started",
+      "timestamp": "2026-07-28T02:14:12.942Z",
+      "message": "Modell-Routing",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms40vkcv-zuk",
+      "type": "routing.completed",
+      "timestamp": "2026-07-28T02:14:12.943Z",
+      "message": "Modell gewählt: Qwen2.5-Coder-7B-Instruct-Q4-K-M-GGUF",
+      "meta": {
+        "rolloutStage": "canary-100",
+        "routingPath": "broker",
+        "canaryPercent": 100,
+        "shadowMode": false,
+        "shadowMatch": null,
+        "stopOnShadowMismatch": false
+      },
+      "durationMs": 1
+    },
+    {
+      "id": "ev-ms40vlos-ef0",
+      "type": "context.started",
+      "timestamp": "2026-07-28T02:14:14.668Z",
+      "message": "Runtime-Kontext vorbereiten (Stufe 1)",
+      "durationMs": 1725
+    },
+    {
+      "id": "ev-ms40vlot-sad",
+      "type": "context.completed",
+      "timestamp": "2026-07-28T02:14:14.669Z",
+      "message": "Stufe 1 aktiv — keine pauschalen Workspace-Signale",
+      "durationMs": 1
+    },
+    {
+      "id": "ev-ms40vn2u-yih",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-28T02:14:16.470Z",
+      "message": "resource_risk=medium",
+      "meta": {
+        "risk": "medium",
+        "reasons": [
+          "large_model_on_4gb_class_vram"
+        ],
+        "profile": "hybrid",
+        "slotNeedsStart": true
+      },
+      "durationMs": 1801
+    },
+    {
+      "id": "ev-ms40vn30-4ou",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-28T02:14:16.476Z",
+      "message": "Arbeitsmodell wird bei Bedarf geladen …",
+      "meta": {
+        "startTrigger": "post_budget_ondemand",
+        "slotId": "fast_gpu",
+        "modelId": "fd4a19084cdec278",
+        "profile": "hybrid",
+        "reasons": [
+          "task_type:large_code_change",
+          "target_agent:planner",
+          "workflow_kind:code_change",
+          "workflow_phase:planning",
+          "model_role:planner",
+          "tool_profile:ask",
+          "slot:fast_gpu",
+          "model_selection:large_code_change",
+          "vision_gate:text_only",
+          "role_setting:fd4a19084cdec278",
+          "selection_source:role_setting"
+        ]
+      },
+      "durationMs": 6
+    },
+    {
+      "id": "ev-ms40we38-0gt",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-28T02:14:51.476Z",
+      "message": "runtime_endpoint_ready",
+      "meta": {
+        "slotId": "fast_gpu",
+        "modelId": "fd4a19084cdec278",
+        "readinessStage": "endpoint_reachable"
+      },
+      "durationMs": 35000
+    },
+    {
+      "id": "ev-ms40wfai-qmx",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-28T02:14:53.034Z",
+      "message": "runtime_inference_ready",
+      "meta": {
+        "slotId": "fast_gpu",
+        "preview": "OK",
+        "readinessStage": "inference_ready",
+        "tokenVerified": true
+      },
+      "durationMs": 1558
+    },
+    {
+      "id": "ev-ms40wfca-jb2",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-28T02:14:53.098Z",
+      "message": "On-Demand bereit: Qwen2.5-Coder-7B-Instruct-Q4-K-M-GGUF",
+      "meta": {
+        "startTrigger": "post_budget_ondemand",
+        "slotId": "fast_gpu",
+        "modelId": "fd4a19084cdec278",
+        "reasons": [
+          "task_type:large_code_change",
+          "target_agent:planner",
+          "workflow_kind:code_change",
+          "workflow_phase:planning",
+          "model_role:planner",
+          "tool_profile:ask",
+          "slot:fast_gpu",
+          "model_selection:large_code_change",
+          "vision_gate:text_only",
+          "role_setting:fd4a19084cdec278",
+          "selection_source:role_setting"
+        ]
+      },
+      "durationMs": 64
+    },
+    {
+      "id": "ev-ms40wfeg-odk",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-28T02:14:53.176Z",
+      "message": "slot_execution_ready",
+      "meta": {
+        "slotId": "fast_gpu",
+        "processRunning": true,
+        "endpointReachable": true,
+        "modelLoaded": true,
+        "slotBusy": false,
+        "activeRunId": "run-ms40vk9m-e05a",
+        "modelId": "fd4a19084cdec278",
+        "gpuLayers": 8,
+        "cpuOffloadLayers": 24
+      },
+      "durationMs": 78
+    },
+    {
+      "id": "ev-ms40wfem-nvl",
+      "type": "model.request.started",
+      "timestamp": "2026-07-28T02:14:53.182Z",
+      "message": "Agent-Turn Loop gestartet",
+      "durationMs": 6
+    },
+    {
+      "id": "ev-ms40xmm2-0gr",
+      "type": "model.first_token",
+      "timestamp": "2026-07-28T02:15:49.178Z",
+      "message": "Erstes Token empfangen",
+      "durationMs": 55996
+    },
+    {
+      "id": "ev-ms40yt6l-qjs",
+      "type": "chat.failed",
+      "timestamp": "2026-07-28T02:16:44.349Z",
+      "message": "Im Ausführungsmodus wurden keine Tools, Patches oder Commands ausgeführt.",
+      "durationMs": 55171
+    }
+  ],
+  "turns": [
+    {
+      "id": "turn-run-ms40vk9m-e05a-2",
+      "turnNumber": 2,
+      "prompt": "[Agent Mode]\nplane implementierung\n\ngar nicht",
+      "response": "Es tut mir leid für die Verwirrung. Hier sind einige allgemeine Schritte zur Implementierung eines Codes:\n\n1. **Code Analyse**: Überprüfen Sie den bestehenden Code auf Fehler, ineffizienten Code oder potenzielle Sicherheitsrisiken.\n\n2. **Design Pattern Application**: Identifizieren Sie geeignete Design Patterns, um den Code zu verbessern und lesbarer zu gestalten.\n\n3. **Refactoring**: Refaktorieren Sie den Code, indem Sie ihn in kleinere Methoden teilen und unnötige Komplexität entfernen.\n\n4. **Testing**: Fügen Sie Tests hinzu, um sicherzustellen, dass der neue Code funktioniert und keine Regressionen verursacht hat.\n\n5. **Documentation**: Dokumentieren Sie Änderungen und Erklärungen hinzufügen, wenn erforderlich.\n\nWenn Sie spezifische Fragen haben oder Hilfe bei einem bestimmten Aspekt benötigen, lass es mich wissen!",
+      "startedAt": "2026-07-28T02:14:12.826Z",
+      "finishedAt": "2026-07-28T02:16:44.349Z",
+      "durationMs": 151523
+    }
+  ],
+  "toolCalls": [],
+  "fileChanges": [],
+  "commands": [],
+  "provider": "llama-cpp",
+  "modelId": "fd4a19084cdec278",
+  "modelName": "Qwen2.5-Coder-7B-Instruct-Q4-K-M-GGUF",
+  "slotId": "fast_gpu",
+  "configuredModelId": "fd4a19084cdec278",
+  "selectionSource": "role_setting",
+  "settingsRevision": 178,
+  "warmupStatus": "ready",
+  "workflowLabel": "mache kompletten code review",
+  "phaseLabel": "planning",
+  "targetAgentLabel": "planner",
+  "contextStage": 1,
+  "tokenBudget": {
+    "runtimeContextLimit": 4096,
+    "systemTokens": 450,
+    "toolTokens": 458,
+    "chatTokens": 548,
+    "interviewTokens": 1,
+    "memoryTokens": 1,
+    "fileContextTokens": 1,
+    "ragTokens": 1,
+    "outputReserveTokens": 512,
+    "totalInputTokens": 1460,
+    "totalRequiredTokens": 1972,
+    "overflowTokens": 0
+  },
+  "droppedSources": [],
+  "contextFallbackApplied": false,
+  "promptBindingDiagnostics": {
+    "preFallbackPromptTokens": 1002,
+    "postFallbackPromptTokens": 1002,
+    "sentPromptTokens": 1002,
+    "preFallbackPromptHash": "79c4c3fc",
+    "postFallbackPromptHash": "79c4c3fc",
+    "sentPromptHash": "79c4c3fc",
+    "messageCountBefore": 15,
+    "messageCountAfter": 15,
+    "messageCountSent": 15
+  },
+  "resourceRisk": "medium",
+  "resourceRiskReasons": [
+    "large_model_on_4gb_class_vram"
+  ],
+  "readinessStage": "inference_ready",
+  "warmupDiagnostics": {
+    "endpoint": "http://127.0.0.1:8082/v1/chat/completions",
+    "apiMode": "chat",
+    "requestMethod": "POST",
+    "requestBody": "{\"messages\": [{\"role\": \"system\", \"content\": \"Antworte minimal.\"}, {\"role\": \"user\", \"content\": \"Antworte nur mit OK.\"}], \"max_tokens\": 8, \"temperature\": 0, \"stream\": true, \"stream_options\": {\"include_usage\": true}}",
+    "httpStatus": 200,
+    "contentType": "text/event-stream",
+    "responseHeaders": {
+      "Transfer-Encoding": "chunked",
+      "Server": "llama.cpp",
+      "Access-Control-Allow-Origin": "",
+      "Content-Type": "text/event-stream",
+      "Connection": "close"
+    },
+    "streamEvents": [
+      "sse.data",
+      "sse.data",
+      "delta.content_or_reasoning",
+      "sse.data",
+      "finish:stop",
+      "sse.data",
+      "sse.data",
+      "finish:stop"
+    ],
+    "parserDecision": "stream_sse",
+    "maxTokens": 8,
+    "processStartMs": 0,
+    "endpointReadyMs": 0,
+    "modelLoadMs": 0,
+    "promptEvalMs": 1522,
+    "firstTokenMs": 1522,
+    "totalWarmupMs": 1522,
+    "tokenCount": 1,
+    "finishReason": "stop",
+    "streamMode": true,
+    "toolCallDetected": false,
+    "readinessStage": "inference_ready"
+  },
+  "providerRequestDiagnostics": {
+    "endpoint": "http://127.0.0.1:8876",
+    "provider": "llama-cpp",
+    "modelId": "fd4a19084cdec278",
+    "slotId": "fast_gpu",
+    "sentMessageCount": 15,
+    "sentToolCount": 5,
+    "sentPromptTokens": 1002,
+    "sentToolTokens": 458,
+    "totalEstimatedInputTokens": 1460,
+    "totalRequiredTokens": 1972,
+    "outputReserveTokens": 512,
+    "promptHash": "79c4c3fc",
+    "toolsHash": "2e09f528",
+    "requestBodyBytes": 5871,
+    "toolBodyBytes": 1837,
+    "protocolMode": "prompt",
+    "stream": true,
+    "preflight": {
+      "compatible": true,
+      "promptTokens": 1002,
+      "toolTokens": 458,
+      "outputReserveTokens": 512,
+      "totalRequiredTokens": 1972,
+      "requestBodyBytes": 5871,
+      "toolBodyBytes": 1837,
+      "modelSupportsProtocol": true,
+      "templateSupportsProtocol": true,
+      "rejectionReasons": []
+    },
+    "bindingDiagnostics": {
+      "decisionId": "decision-ms40vkcu-a4cj9j",
+      "workflowKind": "code_change",
+      "phase": "planning",
+      "targetAgent": "planner",
+      "configuredModelId": "fd4a19084cdec278",
+      "resolvedModelId": "fd4a19084cdec278",
+      "slotId": "fast_gpu",
+      "preparedRequestModelId": "fd4a19084cdec278",
+      "slotModelId": "fd4a19084cdec278",
+      "providerModelId": "fd4a19084cdec278",
+      "consistent": true,
+      "mismatches": []
+    }
+  },
+  "slotExecutionState": {
+    "slotId": "fast_gpu",
+    "processRunning": true,
+    "endpointReachable": true,
+    "modelLoaded": true,
+    "slotBusy": false,
+    "activeRunId": "run-ms40vk9m-e05a",
+    "modelId": "fd4a19084cdec278",
+    "gpuLayers": 8,
+    "cpuOffloadLayers": 24
+  },
+  "firstTokenAt": "2026-07-28T02:15:49.178Z",
+  "finishedAt": "2026-07-28T02:16:44.349Z",
+  "outcome": "execution_no_action",
+  "finalAnswerDiagnostics": {
+    "correlationId": "run-ms40vk9m-e05a",
+    "runId": "run-ms40vk9m-e05a",
+    "modelId": "fd4a19084cdec278",
+    "modelName": "Qwen2.5-Coder-7B-Instruct-Q4-K-M-GGUF",
+    "slotId": "fast_gpu",
+    "finishReason": "stop",
+    "rawContentLength": 829,
+    "rawContentPreview": "Es tut mir leid für die Verwirrung. Hier sind einige allgemeine Schritte zur Implementierung eines Codes:\n\n1. **Code Analyse**: Überprüfen Sie den bestehenden Code auf Fehler, ineffizienten Code oder potenzielle Sicherheitsrisiken.\n\n2. **Design Pattern Application**: Identifizieren Sie geeignete Design Patterns, um den Code zu verbessern und lesbarer zu gestalten.\n\n3. **Refactoring**: Refaktorieren Sie den Code, indem Sie ihn in kleinere Methoden teilen und unnötige Komplexität entfernen.\n\n4. **Testing**: Fügen Sie Tests hinzu, um sicherzustellen, dass der neue Code funktioniert und keine Regressionen verursacht hat.\n\n5. **Documentation**: Dokumentieren Sie Änderungen und Erklärungen hinzufügen, wenn erforderlich.\n\nWenn Sie spezifische Fragen haben oder Hilfe bei einem bestimmten Aspekt benötigen, lass es mich wissen!",
+    "parserSucceeded": false,
+    "agentTurnCount": 2,
+    "pendingToolCalls": 0,
+    "completedToolCalls": 0,
+    "finalAnswerLength": 73,
+    "finalAnswerDelivered": false,
+    "finalOutcome": "execution_no_action",
+    "contextSafetyMarginTokens": 2124
+  }
+}

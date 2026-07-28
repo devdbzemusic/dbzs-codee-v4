@@ -40,6 +40,14 @@ export function createElectronReviewWorkspaceIO(): ReviewWorkspaceIO {
       await backendClient.writeProjectFile(joinRoot(workspaceRoot, normalized), content);
     },
 
+    async deleteFile(workspaceRoot, relativePath) {
+      const normalized = relativePath.replace(/\\/g, "/");
+      if (!normalized.startsWith(".codee/")) {
+        throw new Error("repository_review_delete_blocked: only .codee/ paths may be deleted");
+      }
+      await backendClient.deleteProjectFile(joinRoot(workspaceRoot, normalized));
+    },
+
     async pathExists(workspaceRoot, relativePath) {
       const text = await this.readText(workspaceRoot, relativePath);
       return text != null;

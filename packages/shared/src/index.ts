@@ -790,7 +790,9 @@ export type RepositoryReviewOutcome =
   | "batch_failed"
   | "context_split_required"
   | "report_generation_failed"
-  /** Plan produced zero batches despite a non-empty inventory (e.g. selectedPaths matched nothing, or no file matched the supported extension filter). */
+  /**
+   * Plan produced zero batches despite a non-empty inventory (e.g. selectedPaths matched nothing, or no file matched the supported extension filter).
+   */
   | "empty_plan";
 
 export type RepositoryReviewFindingSeverity = "P0" | "P1" | "P2" | "P3";
@@ -1173,6 +1175,8 @@ export interface AgentPatchPreview {
   state: AgentPatchState;
   previews: AgentFileChangePreview[];
   approvalVersion: string;
+  restorePointId?: string;
+  validationResult?: PatchValidationResult;
   createdAt: string;
 }
 
