@@ -5,6 +5,8 @@ Datum: 2026-07-28
 Geprueftes GitHub-Repository: `devdbzemusic/dbzs-codee-v4`
 Gepruefter `main`-HEAD zu Beginn dieses Laufs: `934d907650b75855bd5d6487fa5ceaa850ac5a64` (PR #4)
 
+**Statusstufe dieses Dokuments:** `UI_VERIFIED` (teilweise) — dokumentiert einen echten interaktiven Durchlauf ueber die tatsaechliche UI mit einem echten lokalen Modell; Kriterien 7, 9-14 sind darin noch offen (`⏳`). Fuer die ergaenzende Service-Ebene-Verifikation derselben Kriterien siehe [GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md](GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md). Vier Statusstufen werden projektweit verwendet: `SERVICE_VERIFIED` → `UI_VERIFIED` → `INSTALLER_VERIFIED` → `PERSONAL_STABLE`.
+
 ## Zweck
 
 Konsolidiert die 10 Kriterien aus dem Personal-Production-Plan und die 12 aus

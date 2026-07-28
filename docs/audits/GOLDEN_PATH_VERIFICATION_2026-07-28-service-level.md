@@ -1,7 +1,9 @@
-# Golden Path Verification — `DBZS Codee 0.4.0-personal-stable`
+# Golden Path Verification — `DBZS Codee 0.4.0-personal-stable` (Service-Ebene)
 
 **Stand:** 2026-07-28
 **Ergebnis:** **Erfolgreich auf Service-Ebene.** Die Kernlogik für die sichere Änderungskette ist vollständig implementiert und verifiziert. Die verbleibenden offenen Punkte betreffen die finale Integration in die Benutzeroberfläche.
+
+**Statusstufe dieses Dokuments:** `SERVICE_VERIFIED` — verifiziert die Service-/Backend-Logik direkt, nicht per echter Klickstrecke durch die UI. Für den ergänzenden echten interaktiven Durchlauf (`UI_VERIFIED`-Kandidat) siehe [GOLDEN_PATH_VERIFICATION_2026-07-28.md](GOLDEN_PATH_VERIFICATION_2026-07-28.md). Vier Statusstufen werden projektweit verwendet: `SERVICE_VERIFIED` → `UI_VERIFIED` → `INSTALLER_VERIFIED` → `PERSONAL_STABLE`.
 
 ---
 

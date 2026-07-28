@@ -4,12 +4,28 @@ Stand: 2026-07-28
 
 ## Jetzt direkt
 
-- [ ] Rest des Golden-Path in kurzer echter Sitzung abschliessen: Review bis Ende laufen lassen,
+Statusvokabular (projektweit): `SERVICE_VERIFIED` → `UI_VERIFIED` → `INSTALLER_VERIFIED` → `PERSONAL_STABLE`.
+Aktueller Stand der sicheren Aenderungskette (Diff/Approval/Apply/Tests/Rollback) sowie Backup/Restore
+und Crash-Recovery: **`SERVICE_VERIFIED`** — siehe
+`docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md` (Service-Logik vollstaendig verifiziert).
+Der echte interaktive UI-Durchlauf in `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md` hat dieselben
+Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht noch aus) — deshalb bleibt unten offen:
+
+- [ ] Rest des Golden-Path in kurzer echter Sitzung bis `UI_VERIFIED` abschliessen: Review bis Ende laufen lassen,
       Aenderung vorschlagen/anwenden, Restore-Point-Rollback, `npm test` aus Agent Workbench,
       Backup/Restore im Diagnostics-Tab, harter Abbruch + Neustart — siehe
       `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md`
-- [ ] gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren
+- [ ] gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren (`INSTALLER_VERIFIED`)
 - [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen)
+
+## Erledigt: Repository-Bereinigung nach Recheck-Audit 2026-07-28
+
+- [x] `.cache/backend-build/` war versehentlich getrackt (57MB PyInstaller-Artefakte, verdoppelt in `aa22942`) —
+      `.gitignore` ergaenzt, mit `git rm -r --cached` entfernt, per `git-filter-repo` aus der gesamten
+      `main`-Historie getilgt (Repo-Groesse 81MB → 7.6MB) und `origin/main` force-gepusht
+- [x] zweiten Golden-Path-Bericht (`apps/desktop/src/services/repositoryReview/GOLDEN_PATH_VERIFICATION_2026-07-28.md`,
+      Service-Ebene-Ergebnis) aus dem Quellcode-Baum nach `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md`
+      verschoben und mit dem UI-Durchlauf-Bericht ueber gemeinsames Statusvokabular verlinkt
 
 ## Erledigt: echter interaktiver Golden-Path-Durchlauf mit echtem lokalem Modell
 

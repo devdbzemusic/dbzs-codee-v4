@@ -70,7 +70,10 @@ sichtbar, kein Mock haette das gezeigt):
 
 **Noch nicht abgeschlossen in diesem Lauf**: vollstaendiger Review-Abschluss,
 Diff/Apply, Rollback, Testlauf aus Codee, Backup/Restore-Klick, Crash-Recovery
-— siehe Checkliste im Verifikationsdokument fuer den Rest.
+— siehe Checkliste im Verifikationsdokument fuer den Rest. Auf Service-Ebene
+sind genau diese Punkte inzwischen verifiziert — siehe
+[docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md)
+(`SERVICE_VERIFIED`; `UI_VERIFIED` steht fuer diese Punkte noch aus).
 
 ## Zusaetzlich umgesetzt (Runtime-Chat-Overhaul, aus der vorherigen Session, Teil von PR #4)
 
@@ -93,8 +96,10 @@ Diff/Apply, Rollback, Testlauf aus Codee, Backup/Restore-Klick, Crash-Recovery
 
 ### P0
 
-- Rest des Golden-Path in einer kurzen echten Sitzung abschliessen (App laeuft auf dieser Maschine bereits nachweislich mit echtem Modell): Review bis zum Ende laufen lassen, Aenderung vorschlagen/anwenden, Restore-Point-Rollback, `npm test` aus dem Agent Workbench, Backup/Restore im Diagnostics-Tab, harter Abbruch + Neustart — siehe [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md)
-- gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren (bisher nur Dev-Pfad `%TEMP%\dbzs-codee-dev-user-data` bestaetigt)
+Statusvokabular (projektweit): `SERVICE_VERIFIED` → `UI_VERIFIED` → `INSTALLER_VERIFIED` → `PERSONAL_STABLE`.
+
+- Rest des Golden-Path in einer kurzen echten Sitzung bis `UI_VERIFIED` abschliessen (App laeuft auf dieser Maschine bereits nachweislich mit echtem Modell): Review bis zum Ende laufen lassen, Aenderung vorschlagen/anwenden, Restore-Point-Rollback, `npm test` aus dem Agent Workbench, Backup/Restore im Diagnostics-Tab, harter Abbruch + Neustart — siehe [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md); dieselben Punkte sind bereits `SERVICE_VERIFIED` — siehe [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md)
+- gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren (`INSTALLER_VERIFIED`; bisher nur Dev-Pfad `%TEMP%\dbzs-codee-dev-user-data` bestaetigt)
 - Modell-Katalog auf dieser Maschine neu scannen/regenerieren (`models.catalog.json`s `runtime_dir` war veraltet — auch wenn der Code das jetzt abfaengt, lohnt sich ein frischer Scan)
 
 ### P1 — bewusst zurueckgestellt
