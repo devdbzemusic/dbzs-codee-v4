@@ -14,7 +14,7 @@ OnIndexModelError = Callable[[str, Exception], None]
 from app.core.config import get_app_data_dir, get_models_dir, get_ollama_dir, get_ollama_models_dir
 # from app.models.index_service import ModelIndexService  # Zirkulärer Import entfernt
 from app.models.launcher import normalize_launcher
-from app.models.schemas import IndexedModel, ModelIndex, ModelIndexSummary, ModelRuntimeHints, RecommendedUse
+from app.models.schemas import IndexedModel, ModelIndex, ModelIndexSummary, ModelRuntimeHints, MultimodalPair, RecommendedUse
 from app.models.discovery import ModelDiscoveryService
 from app.settings.models import ModelDiscoveryMode
 
@@ -64,6 +64,16 @@ class ModelIndexBuildMetrics:
             "invalidModelCount": self.invalid_model_count,
             "cachedModelCount": self.cached_model_count,
         }
+
+
+@dataclass
+class CatalogPairingHint:
+    source: str = "catalog"
+    base_model_id: str | None = None
+    base_model_path: str | None = None
+    projector_artifact_id: str | None = None
+    projector_path: str | None = None
+    requires_projector: bool = False
 
 
 class ModelIndexService:
@@ -125,7 +135,7 @@ class ModelIndexService:
             runtime_dir=index.summary.runtime_dir,
             ollama_dir=str(self.ollama_dir),
             ollama_models_dir=str(self.ollama_models_dir),
-            models=[*index.models, *(index.support_artifacts or []), *ollama_models],
+            models=[*index.models, *ollama_models],
         )
         self.last_build_metrics.valid_model_count = len(merged.models)
         self._persist_cache(merged)
@@ -173,6 +183,7 @@ class ModelIndexService:
         state_by_id = self._state_by_id()
         gguf_by_filename, gguf_by_slug = _build_gguf_lookup(self.models_dir)
         models: list[IndexedModel] = []
+        pairing_hints: list[CatalogPairingHint] = []
 
         # V2-Kompatibilität: Unterstütze sowohl "models" als auch "artifacts"
         entries = catalog.get("models", []) or catalog.get("artifacts", [])
@@ -204,6 +215,14 @@ class ModelIndexService:
                 capabilities = list(entry.get("capabilities") or _infer_capabilities(path))
                 modality = list(entry.get("modality") or _infer_modality(path, artifact_type))
                 size_bytes = int(entry.get("size_bytes") or 0)
+                pairing_hints.extend(
+                    _catalog_pairing_hints_for_entry(
+                        entry=entry,
+                        model_id=model_id,
+                        resolved_path=path,
+                        artifact_type=artifact_type,
+                    )
+                )
 
                 models.append(
                     IndexedModel(
@@ -260,6 +279,7 @@ class ModelIndexService:
             ollama_dir=str(self.ollama_dir) if self.ollama_dir.exists() else None,
             ollama_models_dir=str(self.ollama_models_dir) if self.ollama_models_dir.exists() else None,
             models=models,
+            pairing_hints=pairing_hints,
         )
         self.last_build_metrics = ModelIndexBuildMetrics(
             scanned_file_count=total,
@@ -376,6 +396,7 @@ class ModelIndexService:
             ollama_dir=str(self.ollama_dir) if self.ollama_dir.exists() else None,
             ollama_models_dir=str(self.ollama_models_dir) if self.ollama_models_dir.exists() else None,
             models=models,
+            pairing_hints=None,
         )
         self.last_build_metrics = ModelIndexBuildMetrics(
             scanned_file_count=total,
@@ -452,6 +473,57 @@ class ModelIndexService:
             self._merge_runtime_hints(model_id, runtime_profile)
 
         return model_id
+
+    def save_manual_multimodal_pairing(self, base_model_id: str, projector_artifact_id: str) -> MultimodalPair:
+        catalog_path = self.models_dir / "models.catalog.json"
+        if not catalog_path.exists():
+            raise ValueError("models.catalog.json fehlt; manuelle Zuordnung braucht einen persistierten Katalog.")
+
+        catalog = _read_json(catalog_path)
+        _, entries = _catalog_entries(catalog)
+
+        base_entry = _find_catalog_entry(entries, base_model_id)
+        if base_entry is None:
+            raise ValueError(f"Basismodell '{base_model_id}' wurde im Katalog nicht gefunden.")
+        projector_entry = _find_catalog_entry(entries, projector_artifact_id)
+        if projector_entry is None:
+            raise ValueError(f"Projector '{projector_artifact_id}' wurde im Katalog nicht gefunden.")
+
+        base_artifact_type = str(base_entry.get("artifact_type") or base_entry.get("type") or "")
+        projector_artifact_type = str(projector_entry.get("artifact_type") or projector_entry.get("type") or "")
+        if base_artifact_type != "model":
+            raise ValueError(f"Ein manuelles Basismodell muss artifact_type='model' sein, nicht '{base_artifact_type or 'unknown'}'.")
+        if projector_artifact_type != "mmproj":
+            raise ValueError(
+                f"Ein manueller Projector muss artifact_type='mmproj' sein, nicht '{projector_artifact_type or 'unknown'}'."
+            )
+
+        for entry in entries:
+            _clear_manual_pairing(entry, base_model_id=base_model_id, projector_artifact_id=projector_artifact_id)
+
+        base_pairing = _entry_pairing_dict(base_entry)
+        base_pairing["source"] = "manual"
+        base_pairing["projector_model_id"] = projector_artifact_id
+        base_pairing.pop("projector_path", None)
+
+        projector_pairing = _entry_pairing_dict(projector_entry)
+        projector_pairing["source"] = "manual"
+        projector_pairing["base_model_id"] = base_model_id
+        projector_pairing.pop("base_model_path", None)
+
+        _write_json(catalog_path, catalog)
+
+        index = self.build_index()
+        pair = next(
+            (
+                item for item in index.multimodal_pairs
+                if item.base_model_id == base_model_id and item.projector_artifact_id == projector_artifact_id
+            ),
+            None,
+        )
+        if pair is None:
+            raise ValueError("Manuelle Zuordnung wurde gespeichert, konnte aber nicht wieder aus dem Index aufgeloest werden.")
+        return pair
 
     def _merge_runtime_hints(self, model_id: str, runtime_profile: dict[str, Any]) -> None:
         runtime_path = self.models_dir / "models.runtime.json"
@@ -685,6 +757,7 @@ def _build_index(
     ollama_dir: str | None,
     ollama_models_dir: str | None,
     models: list[IndexedModel],
+    pairing_hints: list[CatalogPairingHint] | None = None,
 ) -> ModelIndex:
     support_artifacts = [model for model in models if model.artifact_type != "model"]
     sorted_models = sorted(models, key=_priority)
@@ -692,6 +765,7 @@ def _build_index(
         support_artifacts,
         key=lambda model: (model.artifact_type, model.name.lower(), model.path.lower()),
     )
+    multimodal_pairs = _infer_multimodal_pairs(sorted_models, pairing_hints=pairing_hints)
     return ModelIndex(
         generated_from=generated_from,
         summary=ModelIndexSummary(
@@ -712,6 +786,7 @@ def _build_index(
         ),
         models=sorted_models,
         support_artifacts=sorted_support_artifacts,
+        multimodal_pairs=multimodal_pairs,
     )
 
 
@@ -721,7 +796,7 @@ def _infer_quantization(name: str) -> str | None:
 
 
 def _infer_artifact_type(path: str) -> str:
-    value = path.lower()
+    value = Path(path).name.lower()
     if "mmproj" in value:
         return "mmproj"
     if "lora" in value or "adapter" in value:
@@ -732,7 +807,7 @@ def _infer_artifact_type(path: str) -> str:
 
 
 def _infer_capabilities(path: str) -> list[str]:
-    value = path.lower()
+    value = Path(path).name.lower()
     capabilities: set[str] = set()
     if any(token in value for token in ["coder", "code", "diffcoder", "codestral"]):
         capabilities.update(["chat", "code"])
@@ -752,7 +827,7 @@ def _infer_capabilities(path: str) -> list[str]:
 
 
 def _infer_modality(path: str, artifact_type: str) -> list[str]:
-    value = path.lower()
+    value = Path(path).name.lower()
     if artifact_type == "mmproj":
         return ["image"]
     if any(token in value for token in ["vision", "vl", "llava", "janus", "smolvlm", "mmproj"]):
@@ -793,6 +868,381 @@ def _recommended_use(
 
 def _normalize_slug(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", value.lower())
+
+
+def _normalize_pairing_name(value: str) -> str:
+    normalized = value.lower()
+    normalized = normalized.removesuffix(".gguf")
+    normalized = re.sub(r"\bmmproj\b", "", normalized)
+    normalized = re.sub(r"\b(projector|vision|vl|clip|f16|bf16)\b", "", normalized)
+    normalized = re.sub(r"\b(iq\d_[a-z]+|q\d_k_[a-z]+|q\d_[a-z0-9]+)\b", "", normalized)
+    normalized = re.sub(r"[^a-z0-9]+", "", normalized)
+    return normalized
+
+
+def _catalog_pairing_hints_for_entry(
+    *,
+    entry: dict[str, Any],
+    model_id: str,
+    resolved_path: str,
+    artifact_type: str,
+) -> list[CatalogPairingHint]:
+    loader = entry.get("loader", {})
+    if not isinstance(loader, dict):
+        loader = {}
+    pairing = entry.get("pairing", {})
+    if not isinstance(pairing, dict):
+        pairing = {}
+
+    def _first_text(*values: object) -> str | None:
+        for value in values:
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return None
+
+    hints: list[CatalogPairingHint] = []
+    pairing_source = _first_text(
+        pairing.get("source"),
+        entry.get("pairing_source"),
+        loader.get("pairing_source"),
+    )
+    pairing_mode = _first_text(
+        pairing.get("mode"),
+        entry.get("pairing_mode"),
+        loader.get("pairing_mode"),
+    )
+    source = "manual" if pairing_source == "manual" or pairing_mode == "manual" or entry.get("manual_pairing") is True else "catalog"
+    requires_mmproj = bool(loader.get("requires_mmproj") or entry.get("requires_mmproj"))
+    projector_id = _first_text(
+        pairing.get("projector_model_id"),
+        loader.get("mmproj_model_id"),
+        entry.get("mmproj_model_id"),
+        loader.get("projector_model_id"),
+        entry.get("projector_model_id"),
+        entry.get("projector_id"),
+        entry.get("paired_projector_id"),
+    )
+    projector_path = _first_text(
+        pairing.get("projector_path"),
+        loader.get("mmproj_path"),
+        entry.get("mmproj_path"),
+        loader.get("projector_path"),
+        entry.get("projector_path"),
+        entry.get("paired_projector_path"),
+    )
+    if artifact_type == "model" and (requires_mmproj or projector_id or projector_path):
+        hints.append(
+            CatalogPairingHint(
+                source=source,
+                base_model_id=model_id,
+                base_model_path=resolved_path,
+                projector_artifact_id=projector_id,
+                projector_path=projector_path,
+                requires_projector=requires_mmproj or projector_id is not None or projector_path is not None,
+            )
+        )
+
+    if artifact_type == "mmproj":
+        base_model_id = _first_text(
+            pairing.get("base_model_id"),
+            entry.get("base_model_id"),
+            entry.get("paired_model_id"),
+            entry.get("model_id"),
+        )
+        base_model_path = _first_text(
+            pairing.get("base_model_path"),
+            entry.get("base_model_path"),
+            entry.get("paired_model_path"),
+            entry.get("model_path"),
+        )
+        if base_model_id or base_model_path:
+            hints.append(
+                CatalogPairingHint(
+                    source=source,
+                    base_model_id=base_model_id,
+                    base_model_path=base_model_path,
+                    projector_artifact_id=model_id,
+                    projector_path=resolved_path,
+                    requires_projector=True,
+                )
+            )
+
+    return hints
+
+
+def _infer_multimodal_pairs(
+    models: list[IndexedModel],
+    *,
+    pairing_hints: list[CatalogPairingHint] | None = None,
+) -> list[MultimodalPair]:
+    base_models = [model for model in models if model.artifact_type == "model" and model.format == "gguf"]
+    base_models_by_dir: dict[str, list[IndexedModel]] = {}
+    for model in base_models:
+        base_models_by_dir.setdefault(str(Path(model.path).parent).lower(), []).append(model)
+
+    models_by_id = {model.id: model for model in models}
+    models_by_path = {str(Path(model.path)).lower(): model for model in models}
+    models_by_name: dict[str, list[IndexedModel]] = {}
+    models_by_filename: dict[str, list[IndexedModel]] = {}
+    for model in models:
+        models_by_name.setdefault(model.name.lower(), []).append(model)
+        models_by_filename.setdefault(Path(model.path).name.lower(), []).append(model)
+
+    pairs: list[MultimodalPair] = []
+    handled_projector_ids: set[str] = set()
+
+    for hint in pairing_hints or []:
+        base_candidates = _resolve_pairing_candidates(
+            explicit_id=hint.base_model_id,
+            explicit_path=hint.base_model_path,
+            models_by_id=models_by_id,
+            models_by_path=models_by_path,
+            models_by_name=models_by_name,
+            models_by_filename=models_by_filename,
+            expected_artifact_type="model",
+        )
+        projector_candidates = _resolve_pairing_candidates(
+            explicit_id=hint.projector_artifact_id,
+            explicit_path=hint.projector_path,
+            models_by_id=models_by_id,
+            models_by_path=models_by_path,
+            models_by_name=models_by_name,
+            models_by_filename=models_by_filename,
+            expected_artifact_type="mmproj",
+        )
+
+        if len(projector_candidates) != 1:
+            continue
+
+        projector = projector_candidates[0]
+        if projector.id in handled_projector_ids:
+            continue
+
+        if len(base_candidates) == 1:
+            base_model = base_candidates[0]
+            pairs.append(
+                MultimodalPair(
+                    id=f"{base_model.id}:{projector.id}",
+                    base_model_id=base_model.id,
+                    projector_artifact_id=projector.id,
+                    modalities=["text", "image"],
+                    source=hint.source,
+                    confidence=1.0 if hint.source == "manual" else 0.99,
+                    status="candidate",
+                    routing_allowed=False,
+                    candidate_base_model_ids=[base_model.id],
+                )
+            )
+            handled_projector_ids.add(projector.id)
+            continue
+
+        if len(base_candidates) > 1:
+            pairs.append(
+                MultimodalPair(
+                    id=f"ambiguous:{projector.id}",
+                    base_model_id=None,
+                    projector_artifact_id=projector.id,
+                    modalities=["text", "image"],
+                    source=hint.source,
+                    confidence=0.4,
+                    status="ambiguous",
+                    routing_allowed=False,
+                    candidate_base_model_ids=[model.id for model in base_candidates],
+                )
+            )
+            handled_projector_ids.add(projector.id)
+            continue
+
+        if hint.requires_projector:
+            pairs.append(
+                MultimodalPair(
+                    id=f"missing_base:{projector.id}",
+                    base_model_id=None,
+                    projector_artifact_id=projector.id,
+                    modalities=["text", "image"],
+                    source=hint.source,
+                    confidence=0.0,
+                    status="missing_base",
+                    routing_allowed=False,
+                    candidate_base_model_ids=[],
+                )
+            )
+            handled_projector_ids.add(projector.id)
+
+    for artifact in models:
+        if artifact.artifact_type != "mmproj":
+            continue
+        if artifact.id in handled_projector_ids:
+            continue
+
+        parent_dir = str(Path(artifact.path).parent).lower()
+        same_folder_models = base_models_by_dir.get(parent_dir, [])
+        matching_models = _matching_same_folder_models(artifact, same_folder_models)
+
+        if len(matching_models) == 1:
+            base_model = matching_models[0]
+            pairs.append(
+                MultimodalPair(
+                    id=f"{base_model.id}:{artifact.id}",
+                    base_model_id=base_model.id,
+                    projector_artifact_id=artifact.id,
+                    modalities=["text", "image"],
+                    source="same_folder",
+                    confidence=0.92,
+                    status="candidate",
+                    routing_allowed=False,
+                    candidate_base_model_ids=[base_model.id],
+                )
+            )
+            continue
+
+        if len(matching_models) > 1:
+            pairs.append(
+                MultimodalPair(
+                    id=f"ambiguous:{artifact.id}",
+                    base_model_id=None,
+                    projector_artifact_id=artifact.id,
+                    modalities=["text", "image"],
+                    source="same_folder",
+                    confidence=0.45,
+                    status="ambiguous",
+                    routing_allowed=False,
+                    candidate_base_model_ids=[model.id for model in matching_models],
+                )
+            )
+            continue
+
+        if len(same_folder_models) == 1:
+            base_model = same_folder_models[0]
+            pairs.append(
+                MultimodalPair(
+                    id=f"{base_model.id}:{artifact.id}",
+                    base_model_id=base_model.id,
+                    projector_artifact_id=artifact.id,
+                    modalities=["text", "image"],
+                    source="same_folder",
+                    confidence=0.72,
+                    status="candidate",
+                    routing_allowed=False,
+                    candidate_base_model_ids=[base_model.id],
+                )
+            )
+            continue
+
+        pairs.append(
+            MultimodalPair(
+                id=f"missing_base:{artifact.id}" if not same_folder_models else f"ambiguous:{artifact.id}",
+                base_model_id=None,
+                projector_artifact_id=artifact.id,
+                modalities=["text", "image"],
+                source="same_folder",
+                confidence=0.0 if not same_folder_models else 0.3,
+                status="missing_base" if not same_folder_models else "ambiguous",
+                routing_allowed=False,
+                candidate_base_model_ids=[model.id for model in same_folder_models],
+            )
+        )
+
+    return sorted(pairs, key=lambda pair: (pair.status, pair.projector_artifact_id, pair.base_model_id or ""))
+
+
+def _matching_same_folder_models(artifact: IndexedModel, candidates: list[IndexedModel]) -> list[IndexedModel]:
+    artifact_key = _normalize_pairing_name(artifact.name)
+    if not artifact_key:
+        return []
+
+    matches: list[IndexedModel] = []
+    for candidate in candidates:
+        candidate_key = _normalize_pairing_name(candidate.name)
+        if not candidate_key:
+            continue
+        if artifact_key == candidate_key or artifact_key in candidate_key or candidate_key in artifact_key:
+            matches.append(candidate)
+    return matches
+
+
+def _resolve_pairing_candidates(
+    *,
+    explicit_id: str | None,
+    explicit_path: str | None,
+    models_by_id: dict[str, IndexedModel],
+    models_by_path: dict[str, IndexedModel],
+    models_by_name: dict[str, list[IndexedModel]],
+    models_by_filename: dict[str, list[IndexedModel]],
+    expected_artifact_type: str,
+) -> list[IndexedModel]:
+    if explicit_id:
+        candidate = models_by_id.get(explicit_id)
+        if candidate is not None and candidate.artifact_type == expected_artifact_type:
+            return [candidate]
+        return []
+
+    if not explicit_path:
+        return []
+
+    normalized_path = str(Path(explicit_path)).lower()
+    direct = models_by_path.get(normalized_path)
+    if direct is not None and direct.artifact_type == expected_artifact_type:
+        return [direct]
+
+    filename = Path(explicit_path).name.lower()
+    by_filename = [
+        model for model in models_by_filename.get(filename, [])
+        if model.artifact_type == expected_artifact_type
+    ]
+    if by_filename:
+        return by_filename
+
+    stem = Path(explicit_path).stem.lower()
+    return [
+        model for model in models_by_name.get(stem, [])
+        if model.artifact_type == expected_artifact_type
+    ]
+
+
+def _catalog_entries(catalog: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+    if isinstance(catalog.get("models"), list):
+        return "models", catalog["models"]
+    if isinstance(catalog.get("artifacts"), list):
+        return "artifacts", catalog["artifacts"]
+    catalog["models"] = []
+    return "models", catalog["models"]
+
+
+def _find_catalog_entry(entries: list[dict[str, Any]], model_id: str) -> dict[str, Any] | None:
+    for entry in entries:
+        if isinstance(entry, dict) and str(entry.get("id") or "") == model_id:
+            return entry
+    return None
+
+
+def _entry_pairing_dict(entry: dict[str, Any]) -> dict[str, Any]:
+    pairing = entry.get("pairing")
+    if not isinstance(pairing, dict):
+        pairing = {}
+        entry["pairing"] = pairing
+    return pairing
+
+
+def _clear_manual_pairing(entry: dict[str, Any], *, base_model_id: str, projector_artifact_id: str) -> None:
+    pairing = entry.get("pairing")
+    if not isinstance(pairing, dict):
+        return
+    if pairing.get("source") != "manual":
+        return
+
+    references_base = (
+        str(entry.get("id") or "") == base_model_id
+        or str(pairing.get("base_model_id") or "") == base_model_id
+        or str(pairing.get("projector_model_id") or "") == projector_artifact_id
+    )
+    references_projector = (
+        str(entry.get("id") or "") == projector_artifact_id
+        or str(pairing.get("projector_model_id") or "") == projector_artifact_id
+        or str(pairing.get("base_model_id") or "") == base_model_id
+    )
+    if references_base or references_projector:
+        entry.pop("pairing", None)
 
 
 def _build_gguf_lookup(models_dir: Path) -> tuple[dict[str, list[Path]], dict[str, list[Path]]]:

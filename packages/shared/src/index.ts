@@ -1283,11 +1283,29 @@ export interface ModelIndexSummary {
   unsupported: number;
 }
 
+export interface MultimodalPair {
+  id: string;
+  base_model_id: string | null;
+  projector_artifact_id: string;
+  modalities: string[];
+  source: string;
+  confidence: number;
+  status: string;
+  routing_allowed: boolean;
+  candidate_base_model_ids: string[];
+}
+
+export interface ManualMultimodalPairingRequest {
+  base_model_id: string;
+  projector_artifact_id: string;
+}
+
 export interface ModelIndex {
   generated_from: string;
   summary: ModelIndexSummary;
   models: IndexedModel[];
   support_artifacts?: IndexedModel[];
+  multimodal_pairs?: MultimodalPair[];
 }
 
 export * from "./runtime/runtimeSlots";

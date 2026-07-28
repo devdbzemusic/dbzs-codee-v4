@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { IndexedModel, RuntimeStatus } from "@dbzs/shared";
-import { modelRowActionState } from "./RuntimeModelsTab";
+import type { IndexedModel, MultimodalPair, RuntimeStatus } from "@dbzs/shared";
+import { describeSupportArtifact, modelRowActionState } from "./RuntimeModelsTab";
 
 const baseModel: IndexedModel = {
   id: "m1",
@@ -86,5 +86,68 @@ describe("modelRowActionState", () => {
     const state = modelRowActionState(baseModel, running, true);
     expect(state.canStart).toBe(false);
     expect(state.canStop).toBe(false);
+  });
+});
+
+describe("describeSupportArtifact", () => {
+  const mmprojArtifact: IndexedModel = {
+    ...baseModel,
+    id: "mmproj-1",
+    name: "mmproj-gemma-vision-f16",
+    path: "/models/mmproj-gemma-vision-f16.gguf",
+    artifact_type: "mmproj",
+    capabilities: ["vision"],
+    modality: ["image"],
+    compatibility: "support_artifact",
+    recommended_use: "vision_candidate"
+  };
+
+  it("marks unpaired mmproj artifacts as orphan", () => {
+    expect(describeSupportArtifact(mmprojArtifact, [])).toEqual({
+      statusLabel: "orphan",
+      hint: "Kein passendes Basismodell erkannt; Routing bleibt gesperrt"
+    });
+  });
+
+  it("surfaces candidate pair state for mmproj artifacts", () => {
+    const pairs: MultimodalPair[] = [
+      {
+        id: "m1:mmproj-1",
+        base_model_id: "m1",
+        projector_artifact_id: "mmproj-1",
+        modalities: ["text", "image"],
+        source: "same_folder",
+        confidence: 0.92,
+        status: "candidate",
+        routing_allowed: false,
+        candidate_base_model_ids: ["m1"]
+      }
+    ];
+
+    expect(describeSupportArtifact(mmprojArtifact, pairs)).toEqual({
+      statusLabel: "candidate",
+      hint: "Same-Folder-Paar erkannt, aber noch nicht runtime-verifiziert"
+    });
+  });
+
+  it("surfaces manual pair state for mmproj artifacts", () => {
+    const pairs: MultimodalPair[] = [
+      {
+        id: "m1:mmproj-1",
+        base_model_id: "m1",
+        projector_artifact_id: "mmproj-1",
+        modalities: ["text", "image"],
+        source: "manual",
+        confidence: 1,
+        status: "candidate",
+        routing_allowed: false,
+        candidate_base_model_ids: ["m1"]
+      }
+    ];
+
+    expect(describeSupportArtifact(mmprojArtifact, pairs)).toEqual({
+      statusLabel: "candidate",
+      hint: "Manuelle Zuordnung gespeichert; Runtime-Probe und Routing bleiben noch gesperrt"
+    });
   });
 });

@@ -250,6 +250,9 @@ declare global {
       onRuntimeChatWindowState?: (listener: (state: import("@/types/runtimeChatWindow").RuntimeChatWindowState) => void) => () => void;
       onRuntimeChatContext?: (listener: (context: import("@/types/runtimeChatWindow").RuntimeChatContextSnapshot | null) => void) => () => void;
       getModelIndex: () => Promise<ModelIndex>;
+      saveManualMultimodalPairing?: (
+        request: import("@dbzs/shared").ManualMultimodalPairingRequest
+      ) => Promise<import("@dbzs/shared").MultimodalPair>;
       getRuntimeStatus: () => Promise<RuntimeStatus>;
       startRuntimeModel: (modelId: string) => Promise<RuntimeStatus>;
       stopRuntimeModel: () => Promise<RuntimeStatus>;

@@ -31,6 +31,16 @@ hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht no
       Rescan-Button selbst bereits `UI_VERIFIED` (364 Modelle, keine Regression)
 
 ## Neu eingeplant: Model Control Center + MMProj/MM-Pairing
+ 
+- [x] **Zwischenschritt 2026-07-28:** `multimodal_pairs` additiv eingefuehrt; erste Same-Folder-Heuristik erzeugt
+      `candidate`/`ambiguous`/`missing_base`; `RuntimeModelsTab` zeigt MMProj-/Hilfsartefakt-Status jetzt explizit an.
+      Routing bleibt dabei gesperrt (`routingAllowed = false`), also weiterhin nur Diagnose- und Vertragsstufe.
+- [x] **Zwischenschritt 2026-07-28b:** Kataloghinweise haben jetzt Vorrang vor der Heuristik:
+      Basismodell- und projector-seitige Zuordnungen in `models.catalog.json` erzeugen stabile `catalog`-Pairs,
+      selbst wenn Same-Folder ohne diese Hinweise mehrdeutig waere. Weiterhin keine Runtime-Probe und keine Routing-Freigabe.
+- [x] **Zwischenschritt 2026-07-28c:** persistierbare manuelle Zuordnung vorhanden:
+      `POST /models/multimodal-pairings/manual` schreibt `pairing.source = "manual"` in `models.catalog.json`;
+      der Index liest das als `source = "manual"` wieder ein und die Runtime-UI kennzeichnet den Status entsprechend.
 
 Basis: `PlÃ¤ne/03 04 05 DBZS_CODEE_CONSOLIDATED_MODEL_CONTROL_MM_PAIRING_PLAN.md` plus
 `PlÃ¤ne/03 04 05 DBZS_CODEE_ADAPTED_MODEL_CONTROL_MM_PLAN_CURRENT_REPO.md`

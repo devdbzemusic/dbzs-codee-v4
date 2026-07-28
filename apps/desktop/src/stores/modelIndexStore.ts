@@ -23,6 +23,7 @@ const EMPTY_MODEL_INDEX: ModelIndex = {
   },
   models: [],
   support_artifacts: [],
+  multimodal_pairs: [],
 };
 
 interface ModelIndexState {

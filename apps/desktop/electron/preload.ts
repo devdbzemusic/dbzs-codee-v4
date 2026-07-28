@@ -31,7 +31,9 @@ import type {
   BackendHealth,
   BackendStartupStatus,
   BootState,
+  ManualMultimodalPairingRequest,
   ModelIndex,
+  MultimodalPair,
   ProjectMemoryEntry,
   ProjectMemoryUpsertRequest,
   ProjectCreationResult,
@@ -405,6 +407,8 @@ const api = {
     };
   },
   getModelIndex: () => ipcRenderer.invoke("dbzs:models:index") as Promise<ModelIndex>,
+  saveManualMultimodalPairing: (request: ManualMultimodalPairingRequest) =>
+    ipcRenderer.invoke("dbzs:models:multimodal-pairings:manual", request) as Promise<MultimodalPair>,
   getRuntimeStatus: () => ipcRenderer.invoke("dbzs:runtime:status") as Promise<RuntimeStatus>,
   startRuntimeModel: (modelId: string) =>
     ipcRenderer.invoke("dbzs:runtime:start", modelId) as Promise<RuntimeStatus>,

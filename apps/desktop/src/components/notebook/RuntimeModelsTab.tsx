@@ -1,4 +1,6 @@
-import { formatModelSizeBadge, type IndexedModel, type RuntimeStatus } from "@dbzs/shared";
+import { useState } from "react";
+import { formatModelSizeBadge, type IndexedModel, type MultimodalPair, type RuntimeStatus } from "@dbzs/shared";
+import { backendClient } from "@/services/backendClient";
 import { useModelIndexStore } from "@/stores/modelIndexStore";
 import { useRuntimeStore } from "@/stores/runtimeStore";
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -27,15 +29,100 @@ export function canStopRuntime(status: RuntimeStatus | null, runtimeBusy: boolea
   return status?.state === "running" && !runtimeBusy;
 }
 
+export function listManualPairingCandidates(models: IndexedModel[]): IndexedModel[] {
+  return models.filter((model) => model.artifact_type === "model" && model.format === "gguf");
+}
+
+export function describeSupportArtifact(
+  artifact: IndexedModel,
+  multimodalPairs: MultimodalPair[]
+): { statusLabel: string; hint: string } {
+  const pair = multimodalPairs.find((entry) => entry.projector_artifact_id === artifact.id);
+  if (artifact.artifact_type !== "mmproj") {
+    return {
+      statusLabel: artifact.compatibility,
+      hint: "Im Modellindex sichtbar, aber nicht ueber Runtime startbar"
+    };
+  }
+  if (!pair) {
+    return {
+      statusLabel: "orphan",
+      hint: "Kein passendes Basismodell erkannt; Routing bleibt gesperrt"
+    };
+  }
+  if (pair.status === "candidate") {
+    if (pair.source === "manual") {
+      return {
+        statusLabel: "candidate",
+        hint: "Manuelle Zuordnung gespeichert; Runtime-Probe und Routing bleiben noch gesperrt"
+      };
+    }
+    if (pair.source === "catalog") {
+      return {
+        statusLabel: "candidate",
+        hint: "Katalog-Zuordnung erkannt, aber noch nicht runtime-verifiziert"
+      };
+    }
+    return {
+      statusLabel: "candidate",
+      hint: "Same-Folder-Paar erkannt, aber noch nicht runtime-verifiziert"
+    };
+  }
+  if (pair.status === "ambiguous") {
+    return {
+      statusLabel: "ambiguous",
+      hint: "Mehrere Basismodell-Kandidaten erkannt; keine automatische Freigabe"
+    };
+  }
+  if (pair.status === "missing_base") {
+    return {
+      statusLabel: "missing_base",
+      hint: "Projector erkannt, aber kein Basismodell im selben Ordner gefunden"
+    };
+  }
+  return {
+    statusLabel: pair.status,
+    hint: "Kein eigenstaendig startbares Modell"
+  };
+}
+
 export function RuntimeModelsTab() {
   const { index, isLoading: indexLoading, error: indexError, loadModelIndex } = useModelIndexStore();
   const { status, isLoading: runtimeBusy, error: runtimeError, startModel, stopModel } = useRuntimeStore();
   const backendHealth = useSettingsStore((state) => state.backendHealth);
+  const [pairingSelections, setPairingSelections] = useState<Record<string, string>>({});
+  const [pairingSaving, setPairingSaving] = useState<Record<string, boolean>>({});
+  const [pairingFeedback, setPairingFeedback] = useState<Record<string, string>>({});
   const backendOnline = backendHealth?.status === "ok";
   const models = index?.models ?? [];
   const supportArtifacts = index?.support_artifacts ?? models.filter((model) => model.artifact_type !== "model");
+  const multimodalPairs = index?.multimodal_pairs ?? [];
   const startableModels = models.filter((model) => model.artifact_type === "model");
+  const pairingCandidates = listManualPairingCandidates(startableModels);
   const isRunning = status?.state === "running";
+
+  const saveManualPairing = async (artifactId: string, baseModelId: string) => {
+    setPairingSaving((current) => ({ ...current, [artifactId]: true }));
+    setPairingFeedback((current) => ({ ...current, [artifactId]: "" }));
+    try {
+      await backendClient.saveManualMultimodalPairing({
+        base_model_id: baseModelId,
+        projector_artifact_id: artifactId,
+      });
+      await loadModelIndex();
+      setPairingFeedback((current) => ({
+        ...current,
+        [artifactId]: "Manuelle Zuordnung gespeichert."
+      }));
+    } catch (error) {
+      setPairingFeedback((current) => ({
+        ...current,
+        [artifactId]: error instanceof Error ? error.message : "Manuelle Zuordnung fehlgeschlagen."
+      }));
+    } finally {
+      setPairingSaving((current) => ({ ...current, [artifactId]: false }));
+    }
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -77,6 +164,7 @@ export function RuntimeModelsTab() {
             <span>llama-server {index.summary.llama_server_ready}</span>
             <span>Ollama {index.summary.ollama_ready}</span>
             <span>Hilfsartefakte {index.summary.support_artifact_count ?? supportArtifacts.length}</span>
+            <span>MM-Paare {multimodalPairs.length}</span>
           </div>
         ) : null}
         {indexError ? <p className="mt-2 text-xs text-dbzs-red">Modellindex: {indexError}</p> : null}
@@ -185,23 +273,69 @@ export function RuntimeModelsTab() {
                       <th className="px-2 py-2 font-medium">Typ</th>
                       <th className="px-2 py-2 font-medium">Status</th>
                       <th className="px-2 py-2 font-medium">Hinweis</th>
+                      <th className="px-2 py-2 font-medium">Zuordnung</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {supportArtifacts.map((artifact) => (
-                      <tr className="border-b border-dbzs-border/50" key={artifact.id}>
-                        <td className="max-w-[280px] truncate px-2 py-2 font-medium text-dbzs-text" title={artifact.path}>
-                          {artifact.name}
-                        </td>
-                        <td className="px-2 py-2 text-dbzs-muted">{artifact.artifact_type}</td>
-                        <td className="px-2 py-2 text-dbzs-muted">{artifact.compatibility}</td>
-                        <td className="px-2 py-2 text-dbzs-muted">
-                          {artifact.artifact_type === "mmproj"
-                            ? "Kein eigenstaendig startbares Modell"
-                            : "Im Modellindex sichtbar, aber nicht ueber Runtime startbar"}
-                        </td>
-                      </tr>
-                    ))}
+                    {supportArtifacts.map((artifact) => {
+                      const description = describeSupportArtifact(artifact, multimodalPairs);
+                      const pair = multimodalPairs.find((entry) => entry.projector_artifact_id === artifact.id);
+                      const selectedBaseModelId =
+                        pairingSelections[artifact.id] ?? pair?.base_model_id ?? pair?.candidate_base_model_ids[0] ?? "";
+                      const canPairManually = artifact.artifact_type === "mmproj" && pairingCandidates.length > 0;
+                      return (
+                        <tr className="border-b border-dbzs-border/50" key={artifact.id}>
+                          <td className="max-w-[280px] truncate px-2 py-2 font-medium text-dbzs-text" title={artifact.path}>
+                            {artifact.name}
+                          </td>
+                          <td className="px-2 py-2 text-dbzs-muted">{artifact.artifact_type}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">{description.statusLabel}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">{description.hint}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">
+                            {canPairManually ? (
+                              <div className="flex min-w-[280px] flex-col gap-1">
+                                <div className="flex gap-2">
+                                  <select
+                                    className="min-w-0 flex-1 border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-text"
+                                    onChange={(event) =>
+                                      setPairingSelections((current) => ({
+                                        ...current,
+                                        [artifact.id]: event.target.value
+                                      }))
+                                    }
+                                    value={selectedBaseModelId}
+                                  >
+                                    <option value="">Basismodell waehlen</option>
+                                    {pairingCandidates.map((model) => (
+                                      <option key={model.id} value={model.id}>
+                                        {model.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-text disabled:opacity-40"
+                                    disabled={!selectedBaseModelId || pairingSaving[artifact.id] === true}
+                                    onClick={() => void saveManualPairing(artifact.id, selectedBaseModelId)}
+                                    type="button"
+                                  >
+                                    {pairingSaving[artifact.id] === true
+                                      ? "Speichert ..."
+                                      : pair?.source === "manual"
+                                        ? "Neu zuordnen"
+                                        : "Zuordnen"}
+                                  </button>
+                                </div>
+                                {pairingFeedback[artifact.id] ? (
+                                  <span className="text-[10px] text-dbzs-muted">{pairingFeedback[artifact.id]}</span>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-dbzs-muted">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

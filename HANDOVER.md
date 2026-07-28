@@ -45,6 +45,16 @@ Die Planbasis ist gelesen und fuer die naechste Umsetzungssession in eine klare 
 Basismodell und nach erfolgreicher Runtime-Probe als routbares multimodales Paar gelten darf. Der bestehende Integrationspunkt
 `runtime={<RuntimeModelsTab />}` bleibt unveraendert; die Erweiterung ist additiv.
 
+Stand im aktuellen Branch nach dem naechsten sicheren Slice:
+
+- additive Vertragsfelder `multimodal_pairs` (Backend + Shared + Store) sind vorhanden
+- erste Same-Folder-Heuristik erzeugt rein diagnostische Pair-Zustaende `candidate`, `ambiguous` und `missing_base`
+- Kataloghinweise haben jetzt Vorrang: explizite Zuordnungen aus `models.catalog.json` koennen MMProj-Paare stabil als `source="catalog"` binden
+- persistierbare manuelle Zuordnung ist vorhanden: `POST /models/multimodal-pairings/manual` schreibt `pairing.source = "manual"` in den Katalog und wird vom Index bevorzugt wieder eingelesen
+- `RuntimeModelsTab` zeigt fuer MMProj-/Hilfsartefakte jetzt explizite Statushinweise statt nur generischem `support_artifact`
+- MMProj bleibt strikt nicht startbar; `routingAllowed` bleibt durchgaengig `false`
+- Nebenfund behoben: Dateinamen-Heuristiken bewerten jetzt den Dateinamen statt des ganzen Pfads, damit Ordnernamen wie `...mmproj...` keine Fehlklassifikation ausloesen
+
 ### Naechste Umsetzungsreihenfolge
 
 - **1. Index-Haertung zuerst**: `index.models` nur fuer runnable Modelle; neue additive Sammlungen fuer
