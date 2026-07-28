@@ -1,5 +1,5 @@
 import type { ClipboardEvent, KeyboardEvent } from "react";
-import type { RuntimeChatImageAttachment } from "@dbzs/shared";
+import type { RuntimeChatAttachment } from "@dbzs/shared";
 import { Button } from "@/components/ui/Button";
 
 export function RuntimeChatComposer({
@@ -11,7 +11,7 @@ export function RuntimeChatComposer({
   toolProfile,
   includeWorkspaceContext,
   contextNote,
-  imageAttachments,
+  attachments,
   onDraftChange,
   onSubmit,
   onCancel,
@@ -30,7 +30,7 @@ export function RuntimeChatComposer({
   toolProfile: "ask" | "agent" | "full";
   includeWorkspaceContext: boolean;
   contextNote: string | null;
-  imageAttachments: RuntimeChatImageAttachment[];
+  attachments: RuntimeChatAttachment[];
   onDraftChange: (value: string) => void;
   onSubmit: () => void;
   onCancel: () => void;
@@ -41,7 +41,7 @@ export function RuntimeChatComposer({
   setToolProfile: (profile: "ask" | "agent" | "full") => void;
   setIncludeWorkspaceContext: (value: boolean) => void;
 }) {
-  const canSubmit = draft.trim().length > 0 || imageAttachments.length > 0;
+  const canSubmit = draft.trim().length > 0 || attachments.length > 0;
 
   const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== "Enter" || event.shiftKey) {
@@ -92,27 +92,43 @@ export function RuntimeChatComposer({
           Kontext
         </label>
         <span className="ml-auto truncate text-dbzs-muted">
-          {contextNote ?? "Enter senden · Shift+Enter neue Zeile · Strg+V fuer Bilder"}
+          {contextNote ?? "Enter senden · Shift+Enter neue Zeile · Strg+V fuer Dateien"}
         </span>
       </div>
       <div className="mb-2 text-[10px] text-dbzs-muted">
-        Schreib einfach natuerlich, was du erreichen willst. Bilder kannst du per Strg+V einfuegen
-        oder ueber den Bild-Button auswaehlen.
+        Schreib einfach natuerlich, was du erreichen willst. Dateien kannst du per Strg+V einfuegen
+        oder ueber den Anhaengen-Button auswaehlen.
       </div>
-      {imageAttachments.length > 0 ? (
+      {attachments.length > 0 ? (
         <div className="mb-2 grid gap-2 sm:grid-cols-2">
-          {imageAttachments.map((attachment) => (
+          {attachments.map((attachment) => (
             <div
               className="rounded border border-dbzs-border bg-dbzs-bg/70 p-2"
               key={attachment.id}
             >
-              <div className="mb-2 aspect-video overflow-hidden rounded border border-dbzs-border bg-black/20">
-                <img
-                  alt={attachment.name}
-                  className="h-full w-full object-cover"
-                  src={attachment.dataUrl}
-                />
-              </div>
+              {attachment.kind === "image" && attachment.dataUrl ? (
+                <div className="mb-2 aspect-video overflow-hidden rounded border border-dbzs-border bg-black/20">
+                  <img
+                    alt={attachment.name}
+                    className="h-full w-full object-cover"
+                    src={attachment.dataUrl}
+                  />
+                </div>
+              ) : (
+                <div className="mb-2 rounded border border-dbzs-border bg-dbzs-panelSoft p-2 text-[10px] text-dbzs-textSoft">
+                  <div>{attachment.kind.toUpperCase()} · .{attachment.extension || "-"}</div>
+                  {attachment.textContent ? (
+                    <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap text-[9px] leading-4 text-dbzs-muted">
+                      {attachment.textContent.slice(0, 400)}
+                    </pre>
+                  ) : null}
+                  {attachment.archiveEntries?.length ? (
+                    <div className="mt-2 text-dbzs-muted">
+                      {attachment.archiveEntries.length} Archiv-Eintraege
+                    </div>
+                  ) : null}
+                </div>
+              )}
               <div className="flex items-start justify-between gap-2 text-[10px]">
                 <div className="min-w-0">
                   <div className="truncate text-dbzs-text">{attachment.name}</div>
@@ -121,6 +137,7 @@ export function RuntimeChatComposer({
                     {typeof attachment.sizeBytes === "number"
                       ? ` · ${Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB`
                       : ""}
+                    {attachment.derivedSummary ? ` · ${attachment.derivedSummary}` : ""}
                   </div>
                 </div>
                 <button
@@ -144,7 +161,7 @@ export function RuntimeChatComposer({
           onPaste={onPasteImage}
           placeholder={
             runtimeReady
-              ? "Analysiere, plane, debugge oder fuege einen Screenshot ein ..."
+              ? "Analysiere, plane, debugge oder haenge Dateien an ..."
               : "Backend verbinden ..."
           }
           rows={3}
@@ -159,7 +176,7 @@ export function RuntimeChatComposer({
             }}
             type="button"
           >
-            Bild
+            Anhaengen
           </Button>
           {isSending || isStreaming ? (
             <Button

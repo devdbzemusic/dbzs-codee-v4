@@ -23,7 +23,7 @@ import type {
   RestorePointReason,
   RestoreResult,
   ReviewArtifactSummary,
-  RuntimeChatImageAttachment,
+  RuntimeChatAttachment,
   SaveFileRequest,
   SaveFileAsRequest,
   ProjectCreationResult,
@@ -93,6 +93,11 @@ import { exportBootDiagnosticsToFile } from "./boot/bootDiagnosticExport.js";
 import { startBootLogPersistence } from "./boot/bootLogPersistence.js";
 import { writeFileAtomic } from "./atomicFileWrite.js";
 import { registerRuntimeAndJobIpcHandlers } from "./runtimeAndJobIpc.js";
+import {
+  clipboardSourceFromDataUrl,
+  prepareChatAttachments,
+  type ChatAttachmentPreparationSource
+} from "./chatAttachmentService.js";
 
 const BACKEND_PORT = Number(process.env.DBZS_BACKEND_PORT ?? "8876");
 const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
@@ -1750,9 +1755,11 @@ ipcMain.handle("dbzs:file:open-image-dialog", async () => {
               ? "image/bmp"
               : "application/octet-stream";
 
-  const attachment: RuntimeChatImageAttachment = {
+  const attachment: RuntimeChatAttachment = {
     id: `img-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     name: path.basename(filePath),
+    kind: "image",
+    extension: ext.replace(/^\./, ""),
     mimeType,
     dataUrl: `data:${mimeType};base64,${buffer.toString("base64")}`,
     source: "file_dialog",
@@ -1762,6 +1769,51 @@ ipcMain.handle("dbzs:file:open-image-dialog", async () => {
 
   return attachment;
 });
+
+ipcMain.handle("dbzs:file:open-chat-attachment-dialog", async () => {
+  if (!mainWindow) {
+    throw new Error("Main window is not available.");
+  }
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Dateien anhaengen",
+    properties: ["openFile", "multiSelections"],
+    filters: [
+      { name: "Chat-Dateien", extensions: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "pdf", "zip", "md", "json", "js", "ts", "tsx", "py", "txt"] }
+    ]
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return [] as RuntimeChatAttachment[];
+  }
+
+  const sources: ChatAttachmentPreparationSource[] = result.filePaths.map((filePath) => ({
+    name: path.basename(filePath),
+    source: "file_dialog",
+    extension: path.extname(filePath).replace(/^\./, "").toLowerCase(),
+    sizeBytes: undefined,
+    path: filePath
+  }));
+
+  return prepareChatAttachments({
+    requestBackend,
+    sources
+  });
+});
+
+ipcMain.handle(
+  "dbzs:file:prepare-clipboard-chat-attachments",
+  async (
+    _event,
+    items: Array<{ name: string; mimeType: string; sizeBytes?: number; dataUrl: string }>
+  ) => {
+    const sources = items.map((item) => clipboardSourceFromDataUrl(item));
+    return prepareChatAttachments({
+      requestBackend,
+      sources
+    });
+  }
+);
 
 /**
  * These four handlers are reachable from the renderer without going through the

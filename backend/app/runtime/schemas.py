@@ -75,6 +75,8 @@ class StartModelRequest(BaseModel):
 
 
 ChatRole = Literal["system", "user", "assistant"]
+AttachmentSource = Literal["clipboard", "file_dialog"]
+AttachmentKind = Literal["image", "document", "archive", "text", "code"]
 
 
 class RuntimeChatMessage(BaseModel):
@@ -86,6 +88,49 @@ class RuntimeChatFileContext(BaseModel):
     path: str
     language: str
     content: str
+
+
+class ChatAttachmentPrepareSource(BaseModel):
+    name: str
+    source: AttachmentSource
+    extension: str | None = None
+    mime_type: str | None = None
+    size_bytes: int | None = None
+    path: str | None = None
+    data_base64: str | None = None
+
+
+class ChatAttachmentArchiveEntry(BaseModel):
+    path: str
+    kind: AttachmentKind | Literal["binary"]
+    size_bytes: int | None = None
+    included_inline: bool = False
+    truncated: bool = False
+
+
+class ChatAttachmentPrepared(BaseModel):
+    id: str
+    name: str
+    kind: AttachmentKind
+    extension: str
+    mime_type: str
+    source: AttachmentSource
+    size_bytes: int | None = None
+    path: str | None = None
+    data_url: str | None = None
+    text_content: str | None = None
+    derived_summary: str | None = None
+    archive_entries: list[ChatAttachmentArchiveEntry] = []
+    truncated: bool = False
+    error: str | None = None
+
+
+class PrepareChatAttachmentsRequest(BaseModel):
+    attachments: list[ChatAttachmentPrepareSource]
+
+
+class PrepareChatAttachmentsResponse(BaseModel):
+    attachments: list[ChatAttachmentPrepared]
 
 
 class RuntimeChatToolsPayload(BaseModel):

@@ -195,6 +195,7 @@ import { runtimeSlotManager } from "@/services/runtimeSlotManager";
 import { modelRouterService } from "@/services/modelRouterService";
 import { classifyTaskForSend } from "@/services/runtimeChat/taskClassificationPhase";
 import { resolveWorkflowContinuationForSend } from "@/services/runtimeChat/workflowContinuationPhase";
+import { buildRuntimeChatAttachmentPrompt } from "@/services/runtimeChatAttachments";
 import { runReviewRemediationPhase } from "@/services/runtimeChat/reviewRemediationPhase";
 import { mapBrokerAgentToShared, mapWorkflowAgentToShared } from "@/services/runtimeChat/agentMapping";
 import { isClarificationFieldBlockedInMessages } from "@/services/runtimeChat/clarificationGuards";
@@ -364,7 +365,7 @@ export interface RuntimeChatSendOptions {
   workspaceRoot?: string | null;
   workspaceName?: string | null;
   workspaceFiles?: WorkspaceProjectFile[];
-  imageAttachments?: import("@dbzs/shared").RuntimeChatImageAttachment[];
+  attachments?: import("@dbzs/shared").RuntimeChatAttachment[];
   showAnalysisProtocol?: boolean;
   contextHint?: string | null;
   toolsEnabled?: boolean;
@@ -876,7 +877,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
       set,
       get,
       trimmedContent,
-      imageAttachments: sendOptions?.imageAttachments,
+      attachments: sendOptions?.attachments,
       effectiveAgent,
       taskType,
       includeWorkspaceContext,
@@ -884,6 +885,10 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
       activeFile,
       agentMode: sendOptions?.agentMode ?? "auto"
     });
+    const attachmentPrompt = buildRuntimeChatAttachmentPrompt(sendOptions?.attachments ?? []);
+    const requestUserContent = attachmentPrompt
+      ? `${trimmedContent}\n\n${attachmentPrompt}`
+      : trimmedContent;
     let activity = initialActivity;
     let ragResult: RagRetrievalResponse | null = null;
     runsAbortControllers[initialRun.id] = runAbortController;
@@ -1621,6 +1626,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
         content
       });
 
+      const latestUserMessage = [...nextMessages].reverse().find((message) => message.role === "user");
       if (contextSpoolerEnabled) {
         const tokenBudget = buildTokenBudget(resolvedContextWindowTokens ?? 4096, {
           outputReserveRatio: runtimeFlags.tokenBudgetOutputReserveRatio,
@@ -1636,7 +1642,6 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
             estimatedTokens: estimateTokensCharHeuristic(content)
           }));
         // Current user turn is already in mandatory (P0) — do not place it in droppable history.
-        const latestUserMessage = [...nextMessages].reverse().find((message) => message.role === "user");
         const conversationItems: SpoolerLaneItem[] = nextMessages
           .filter((message) => message.id !== latestUserMessage?.id)
           .map((message) => ({
@@ -1679,6 +1684,12 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
           ...retrievedMemoryContents
         ].map(toSystemMessage);
       }
+
+      requestMessages = requestMessages.map((message) =>
+        message.id === latestUserMessage?.id
+          ? { ...message, content: requestUserContent }
+          : message
+      );
 
       const messagesForRequestPreFallback =
         systemMessages.length > 0 ? [...systemMessages, ...requestMessages] : requestMessages;
@@ -1795,7 +1806,11 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
           toSystemMessage(minimal.fileContextText, 3),
           ...toolEstimate.toolSystemMessages
         ];
-        requestMessages = nextMessages.slice(-4);
+        requestMessages = nextMessages.slice(-4).map((message) =>
+          message.id === latestUserMessage?.id
+            ? { ...message, content: requestUserContent }
+            : message
+        );
         messagesForRequest =
           systemMessages.length > 0 ? [...systemMessages, ...requestMessages] : requestMessages;
         finalBudget = computeFinalRequestTokenBudget({

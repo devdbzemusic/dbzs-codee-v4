@@ -7,7 +7,7 @@ Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
   configurable: true,
   value: vi.fn()
 });
-import type { RuntimeChatImageAttachment, WorkspaceFile, WorkspaceProjectFile } from "@dbzs/shared";
+import type { RuntimeChatAttachment, WorkspaceFile, WorkspaceProjectFile } from "@dbzs/shared";
 import { RuntimeChatTab, stripPrivateReasoning } from "@/components/RuntimeChatTab";
 import { mergeAssistantMessageState, useRuntimeChatStore } from "@/stores/runtimeChatStore";
 import { buildWorkspaceContext, buildWorkspaceContextSystemMessage } from "@/services/runtimeChatContext";
@@ -48,7 +48,8 @@ describe("RuntimeChatTab patch card", () => {
   beforeEach(() => {
     window.dbzs = {
       ...window.dbzs,
-      openImageFileDialog: vi.fn()
+      openChatAttachmentDialog: vi.fn(),
+      prepareClipboardChatAttachments: vi.fn()
     };
     useRuntimeChatStore.setState({
       messages: [{
@@ -314,7 +315,7 @@ describe("RuntimeChatTab patch card", () => {
   });
 });
 
-describe("RuntimeChatTab image attachments", () => {
+describe("RuntimeChatTab file attachments", () => {
   beforeEach(() => {
     useRuntimeChatStore.setState({
       messages: [],
@@ -333,19 +334,24 @@ describe("RuntimeChatTab image attachments", () => {
     });
   });
 
-  it("allows sending an image selected from the file dialog", async () => {
+  it("allows sending files selected from the file dialog", async () => {
     const sendMessageMock = vi.fn().mockResolvedValue(true);
-    const attachment: RuntimeChatImageAttachment = {
+    const attachment: RuntimeChatAttachment = {
       id: "img-1",
-      name: "screenshot.png",
-      mimeType: "image/png",
-      dataUrl: "data:image/png;base64,AAAA",
+      name: "notes.md",
+      kind: "text",
+      extension: "md",
+      mimeType: "text/markdown",
+      dataUrl: "",
+      textContent: "# Notes",
+      derivedSummary: "7 Zeichen eingebunden",
       source: "file_dialog",
       sizeBytes: 4096
     };
     window.dbzs = {
       ...window.dbzs,
-      openImageFileDialog: vi.fn().mockResolvedValue(attachment)
+      openChatAttachmentDialog: vi.fn().mockResolvedValue([attachment]),
+      prepareClipboardChatAttachments: vi.fn()
     };
     useRuntimeChatStore.setState({
       sendMessage: sendMessageMock
@@ -368,7 +374,7 @@ describe("RuntimeChatTab image attachments", () => {
     });
 
     const imageButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Bild")
+      button.textContent?.includes("Anhaengen")
     );
     expect(imageButton).toBeTruthy();
 
@@ -376,7 +382,7 @@ describe("RuntimeChatTab image attachments", () => {
       imageButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(container.textContent).toContain("screenshot.png");
+    expect(container.textContent).toContain("notes.md");
 
     const sendButton = Array.from(container.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("Senden")
@@ -389,16 +395,16 @@ describe("RuntimeChatTab image attachments", () => {
 
     expect(sendMessageMock).toHaveBeenCalledOnce();
     expect(sendMessageMock).toHaveBeenCalledWith(
-      "Bitte analysiere das angehaengte Bild.",
+      "Bitte analysiere die angehaengten Dateien.",
       expect.anything(),
       null,
       null,
       null,
       "runtime_chat",
       expect.objectContaining({
-        hasImageInput: true,
-        requiresVision: true,
-        imageAttachments: [attachment]
+        hasImageInput: false,
+        requiresVision: false,
+        attachments: [attachment]
       })
     );
 
@@ -406,7 +412,7 @@ describe("RuntimeChatTab image attachments", () => {
     container.remove();
   });
 
-  it("accepts pasted clipboard images and shows a preview", async () => {
+  it("accepts pasted clipboard files and shows a preview", async () => {
     class FileReaderMock {
       result: string | ArrayBuffer | null = null;
       onerror: null | (() => void) = null;
@@ -439,14 +445,26 @@ describe("RuntimeChatTab image attachments", () => {
     const textarea = container.querySelector("textarea");
     expect(textarea).toBeTruthy();
 
-    const file = new File(["image"], "clip.png", { type: "image/png" });
+    const file = new File(["hello"], "clip.txt", { type: "text/plain" });
+    const preparedAttachment: RuntimeChatAttachment = {
+      id: "clip-1",
+      name: "clip.txt",
+      kind: "text",
+      extension: "txt",
+      mimeType: "text/plain",
+      dataUrl: "",
+      textContent: "hello",
+      source: "clipboard",
+      sizeBytes: 5
+    };
+    window.dbzs.prepareClipboardChatAttachments = vi.fn().mockResolvedValue([preparedAttachment]);
     const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
     Object.defineProperty(pasteEvent, "clipboardData", {
       configurable: true,
       value: {
         items: [{
           kind: "file",
-          type: "image/png",
+          type: "text/plain",
           getAsFile: () => file
         }]
       }
@@ -457,7 +475,7 @@ describe("RuntimeChatTab image attachments", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("clip.png");
+    expect(container.textContent).toContain("clip.txt");
     expect(container.textContent).toContain("Zwischenablage");
 
     root.unmount();
@@ -475,6 +493,8 @@ describe("buildWorkspaceContext", () => {
       updateSettings: vi.fn(),
       openFileDialog: vi.fn(),
       openImageFileDialog: vi.fn(),
+      openChatAttachmentDialog: vi.fn(),
+      prepareClipboardChatAttachments: vi.fn(),
       saveFile: vi.fn(),
       getModelIndex: vi.fn(),
       getRuntimeStatus: vi.fn(),

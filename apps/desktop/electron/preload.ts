@@ -100,6 +100,16 @@ const api = {
     ipcRenderer.invoke("dbzs:file:open-image-dialog") as Promise<
       import("@dbzs/shared").RuntimeChatImageAttachment | null
     >,
+  openChatAttachmentDialog: () =>
+    ipcRenderer.invoke("dbzs:file:open-chat-attachment-dialog") as Promise<
+      import("@dbzs/shared").RuntimeChatAttachment[]
+    >,
+  prepareClipboardChatAttachments: (
+    items: Array<{ name: string; mimeType: string; sizeBytes?: number; dataUrl: string }>
+  ) =>
+    ipcRenderer.invoke("dbzs:file:prepare-clipboard-chat-attachments", items) as Promise<
+      import("@dbzs/shared").RuntimeChatAttachment[]
+    >,
   saveFile: (request: SaveFileRequest) =>
     ipcRenderer.invoke("dbzs:file:save", request) as Promise<WorkspaceFile>,
   saveFileAsDialog: (request: SaveFileAsRequest) =>

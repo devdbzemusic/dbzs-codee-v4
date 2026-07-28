@@ -39,6 +39,7 @@ import type {
   ProjectMemoryUpsertRequest,
   ProjectCreationResult,
   RuntimeChatRequest,
+  RuntimeChatAttachment,
   RuntimeChatImageAttachment,
   RuntimeChatResponse,
   RuntimeStatus,
@@ -94,6 +95,10 @@ declare global {
       getSettingsDiagnostics?: () => Promise<SettingsDiagnostics>;
       openFileDialog: () => Promise<WorkspaceFile | null>;
       openImageFileDialog?: () => Promise<RuntimeChatImageAttachment | null>;
+      openChatAttachmentDialog?: () => Promise<RuntimeChatAttachment[]>;
+      prepareClipboardChatAttachments?: (
+        items: Array<{ name: string; mimeType: string; sizeBytes?: number; dataUrl: string }>
+      ) => Promise<RuntimeChatAttachment[]>;
       saveFile: (request: SaveFileRequest) => Promise<WorkspaceFile>;
       saveFileAsDialog?: (request: import("@dbzs/shared").SaveFileAsRequest) => Promise<WorkspaceFile | null>;
       selectProjectDirectory?: () => Promise<{ projectPath: string; projectName: string } | null>;
