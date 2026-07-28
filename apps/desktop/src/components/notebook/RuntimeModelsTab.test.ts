@@ -20,6 +20,7 @@ import {
   modelRowActionState,
   shouldDisplaySupportArtifact,
   shouldManagePairInControlCenter,
+  summarizeModelRoles,
   summarizeModelRoutingReadiness,
   summarizeMultimodalPairs
 } from "./RuntimeModelsTab";
@@ -912,6 +913,51 @@ describe("summarizeModelRoutingReadiness", () => {
       visionChat: 1,
       visionBlocked: 1,
       screenshotReady: 1
+    });
+  });
+});
+
+describe("summarizeModelRoles", () => {
+  it("counts coding, chat, vision, orchestrator and other role buckets", () => {
+    expect(
+      summarizeModelRoles([
+        {
+          ...baseModel,
+          id: "coding-primary",
+          recommended_use: "primary_coding"
+        },
+        {
+          ...baseModel,
+          id: "coding-candidate",
+          recommended_use: "coding_candidate"
+        },
+        {
+          ...baseModel,
+          id: "chat-candidate",
+          recommended_use: "chat_candidate"
+        },
+        {
+          ...baseModel,
+          id: "vision-candidate",
+          recommended_use: "vision_candidate"
+        },
+        {
+          ...baseModel,
+          id: "orchestrator-model",
+          recommended_use: "orchestrator"
+        },
+        {
+          ...baseModel,
+          id: "other-model",
+          recommended_use: "embedding"
+        }
+      ])
+    ).toEqual({
+      coding: 2,
+      chat: 1,
+      vision: 1,
+      orchestrator: 1,
+      other: 1
     });
   });
 });

@@ -471,6 +471,34 @@ export function summarizeModelRoutingReadiness(
   return summary;
 }
 
+export function summarizeModelRoles(
+  models: IndexedModel[]
+): Record<"coding" | "chat" | "vision" | "orchestrator" | "other", number> {
+  const summary = {
+    coding: 0,
+    chat: 0,
+    vision: 0,
+    orchestrator: 0,
+    other: 0
+  };
+
+  for (const model of models) {
+    if (model.recommended_use === "primary_coding" || model.recommended_use === "coding_candidate") {
+      summary.coding += 1;
+    } else if (model.recommended_use === "chat_candidate") {
+      summary.chat += 1;
+    } else if (model.recommended_use === "vision_candidate") {
+      summary.vision += 1;
+    } else if (model.recommended_use === "orchestrator") {
+      summary.orchestrator += 1;
+    } else {
+      summary.other += 1;
+    }
+  }
+
+  return summary;
+}
+
 export function sortMultimodalPairs(pairs: MultimodalPair[]): MultimodalPair[] {
   const priority = (pair: MultimodalPair): number => {
     if (pair.status === "ambiguous") return 0;
@@ -513,6 +541,7 @@ export function RuntimeModelsTab() {
   const startableModels = models.filter((model) => model.artifact_type === "model");
   const pairingCandidates = listManualPairingCandidates(startableModels);
   const modelRoutingSummary = summarizeModelRoutingReadiness(startableModels, multimodalPairs);
+  const modelRoleSummary = summarizeModelRoles(startableModels);
   const isRunning = status?.state === "running";
 
   const resetPairingProbeUi = (artifactId: string) => {
@@ -668,6 +697,25 @@ export function RuntimeModelsTab() {
                   <h3 className="text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">
                     Startbare Modelle
                   </h3>
+                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                    Coding {modelRoleSummary.coding}
+                  </span>
+                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                    Chat {modelRoleSummary.chat}
+                  </span>
+                  <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
+                    Vision {modelRoleSummary.vision}
+                  </span>
+                  <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
+                    Orchestrator {modelRoleSummary.orchestrator}
+                  </span>
+                  {modelRoleSummary.other > 0 ? (
+                    <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                      Sonstige {modelRoleSummary.other}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
                   <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
                     Text {modelRoutingSummary.text}
                   </span>
