@@ -25,6 +25,7 @@ coverage/
 # Packaging artifacts
 backend-dist/
 backend/build-work/
+.cache/backend-build/
 
 # Logs and local runtime data
 *.log
