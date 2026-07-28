@@ -9,95 +9,128 @@ Gepruefter `main`-HEAD zu Beginn dieses Laufs: `934d907650b75855bd5d6487fa5ceaa8
 
 Konsolidiert die 10 Kriterien aus dem Personal-Production-Plan und die 12 aus
 `Pläne/DBZS_CODEE_PERSONAL_PRODUCTION_VERIFICATION_2026-07-28.md` zu einer
-Liste und dokumentiert, was in dieser Sandbox automatisiert vorverifiziert
-werden konnte und was zwingend eine manuelle Abnahme auf dem echten
-Windows-Rechner braucht.
+Liste und dokumentiert, was tatsaechlich interaktiv mit einem echten lokalen
+Modell auf der echten Maschine verifiziert wurde.
 
-## Automatisierungsversuch: Ergebnis
+## Teil 1 — Automatisierungsversuch ueber die vorhandene Playwright-E2E-Suite
 
-Diese Sandbox hat `ELECTRON_RUN_AS_NODE=1` gesetzt, wodurch ein direkter
-Electron-Start standardmaessig nur als reiner Node-Prozess ohne Fenster
-laeuft. **Mit `env -u ELECTRON_RUN_AS_NODE` fuer den Playwright-Kindprozess
-laesst sich jedoch ein echtes Electron-Fenster starten** — das war beim
-vorherigen Verifikationsversuch (2026-07-27) noch nicht bekannt.
-
-Backend (`uvicorn`, manuell ueber das venv gestartet, da `uv` in dieser Shell
-fehlt) und Renderer-Dev-Server liefen vor. Danach:
+`env -u ELECTRON_RUN_AS_NODE` erlaubt einen echten Electron-GUI-Start in
+dieser Sandbox (vorher als unmoeglich angenommen). Mit Backend + Renderer
+vorgestartet:
 
 ```powershell
 env -u ELECTRON_RUN_AS_NODE npx playwright test --reporter=list
 ```
 
-Ergebnis: **11 von 41 Tests bestanden** (Laufzeit ~35 min).
+Ergebnis: **11 von 41 Tests bestanden** (~35 min Laufzeit). `boot.spec.ts`
+sowie die UI-Chrome-Specs (`command-palette`, `job-monitor`, `mission-control`)
+bestehen; die vier Specs, die eine echte Modell-Runtime brauchen
+(`agent-capabilities`, `coding-assistant`, `context-integration`,
+`runtime-chat`), scheitern hier einheitlich, weil in diesem ersten
+Ad-hoc-Setup noch kein echtes Modell verbunden war (siehe Teil 2, wo genau
+das nachgeholt wurde).
 
-| Spec-Datei | Ergebnis |
-|---|---|
-| `e2e/boot.spec.ts` | ✅ besteht (1/1) — sauberer Boot: Splash zuerst, Hauptfenster bleibt bis Render-Ack verborgen, wird dann sauber freigegeben |
-| `e2e/command-palette.spec.ts` | ✅ besteht (3/3) — Cmd+K oeffnet/schliesst, Filterung funktioniert |
-| `e2e/job-monitor.spec.ts` | ✅ besteht (2/2) — Panel sichtbar, Enqueue-Formular vorhanden |
-| `e2e/mission-control.spec.ts` | ✅ besteht (3/3) — Sichtbarkeit ohne Workspace, Backend-Statuskarte, Desktop-Bereitschaft |
-| `e2e/agent-capabilities.spec.ts` | ❌ 19/19 fehlgeschlagen |
-| `e2e/coding-assistant.spec.ts` | ❌ 4/4 fehlgeschlagen |
-| `e2e/context-integration.spec.ts` | ❌ 1/1 fehlgeschlagen |
-| `e2e/runtime-chat.spec.ts` | ❌ 6/6 fehlgeschlagen |
+## Teil 2 — Echter interaktiver Durchlauf mit echtem lokalem Modell
 
-**Ursache aller 30 Fehlschlaege ist identisch**: `getByPlaceholder(/Analysiere,
-plane oder implementiere/i)` (der Runtime-Chat-Composer) wird nie sichtbar
-bzw. aktiv. Das deutet darauf hin, dass diese vier Spec-Dateien eine
-tatsaechlich laufende/verbundene lokale Modell-Runtime (oder eine in der
-offiziellen CI-Umgebung vorbereitete Mock-Anbindung) voraussetzen, die in
-diesem Ad-hoc-Setup (Backend ohne geladenes Modell) nicht gegeben war — nicht
-ein Regressionsfehler aus dem heutigen Code-Fixes-Batch. Eine tiefere
-Fehlersuche in der Testinfrastruktur war nicht Teil dieses Plans; das ist
-inhaltlich ohnehin genau Kriterium 3 unten, das die echte Maschine braucht.
+Auf dieser Maschine existieren echte GGUF-Modelldateien unter `D:\Models`
+(z. B. `gemma-3-1b-it-qat-q4_0.gguf`, 720 MB). Damit wurde ein echter,
+interaktiver Durchlauf versucht — isoliert von der echten Nutzerkonfiguration:
 
-## Konsolidierte Checkliste
+- eigenes `DBZS_APP_DATA_DIR` (Scratch-Backend-Settings, `modelsPath: D:/Models`,
+  `defaultChatModelId`/`defaultModelId` auf `gemma-3-1b-it-qat-q4-0` gesetzt)
+- eigenes `DBZS_DEV_USER_DATA_DIR` (Electron-Userdata inkl. vorbereitetem
+  `workspace-state.json`)
+- eigener Workspace: Kopie von `test-fixtures/runtime-chat-tuning-lab`
+- Backend manuell per venv-Python gestartet (kein `uv` in dieser Shell)
+- Electron per Playwright `_electron.launch()` gegen die gebaute
+  `out/main/main.js`, echtes (nicht headless) Fenster
+
+### Ergebnis
 
 | # | Kriterium | Status |
 |---|---|---|
-| 1 | App startet fehlerfrei | ✅ automatisiert verifiziert (1×, `boot.spec.ts`) — 10× Wiederholung bleibt manuell |
-| 2 | Projekt oeffnet sich und bleibt gespeichert | ⏳ manuell erforderlich |
-| 3 | Lokales Modell verbindet sich automatisch | ⏳ manuell erforderlich (braucht echte Modell-Runtime) |
-| 4 | Chat beantwortet Projektfrage | ⏳ manuell erforderlich (`runtime-chat.spec.ts` lief hier ins Leere mangels Modell-Runtime) |
-| 5 | Full-Repository-Review laeuft durch | ⏳ manuell erforderlich |
-| 6 | `.codee`/`.env`/Logs/Builds fehlen im Inventory | ✅ automatisiert verifiziert (Unit-Tests in `contextPolicy.test.ts` / `test_context_policy.py`, PR #4) |
-| 7 | Aenderung erscheint zuerst als Diff | ⏳ manuell erforderlich |
+| 1 | App startet fehlerfrei | ✅ echt verifiziert (`boot.spec.ts` + mehrere manuelle Starts in diesem Lauf) |
+| 2 | Projekt oeffnet sich und bleibt gespeichert | ✅ echt verifiziert — Workspace blieb ueber mehrere App-Neustarts hinweg korrekt geladen |
+| 3 | Lokales Modell verbindet sich automatisch | ✅ echt verifiziert — `gemma-3-1b` startete automatisch, Composer wurde aktiv |
+| 4 | Chat beantwortet Projektfrage | ✅ echt verifiziert — echte LLM-Antwort auf eine Projektfrage zu `src/calculator.ts`, mit Screenshot belegt |
+| 5 | Full-Repository-Review laeuft durch | ⚠️ zwei echte Bugs gefunden und gefixt (siehe unten); vollstaendiger Review-Abschluss danach nicht mehr im selben Lauf bestaetigt |
+| 6 | `.codee`/`.env`/Logs/Builds fehlen im Inventory | ✅ automatisiert verifiziert (Unit-Tests, PR #4) |
+| 7 | Aenderung erscheint zuerst als Diff | ⏳ nicht erreicht (Review-Bugs blockierten den Ablauf davor) |
 | 8 | Aenderung verlangt Freigabe | ✅ automatisiert verifiziert (Unit-Test `agentToolProfile.test.ts`, PR #4) |
-| 9 | Aenderung laesst sich anwenden | ⏳ manuell erforderlich |
-| 10 | Tests lassen sich aus Codee starten | ✅ teilweise automatisiert (`job-monitor.spec.ts` bestaetigt UI-Chrome; echter Testlauf-Trigger bleibt manuell) |
+| 9 | Aenderung laesst sich anwenden | ⏳ nicht erreicht |
+| 10 | Tests lassen sich aus Codee starten | ⏳ nicht erreicht (UI-Selektor im eigenen Testskript nicht gefunden, kein Hinweis auf App-Bug) |
 | 11 | Rollback/Restore-Point funktioniert | ⏳ manuell erforderlich |
-| 12 | Backup/Restore funktioniert (Diagnostics-Tab) | ⏳ manuell erforderlich (kein E2E-Test vorhanden) |
+| 12 | Backup/Restore funktioniert (Diagnostics-Tab) | ⏳ manuell erforderlich |
 | 13 | Neustart nach Abbruch erhaelt Zustand | ⏳ manuell erforderlich (harter Kill noetig) |
 | 14 | Gepackter Installer-Build: `backupService.ts`-userData-Pfad stimmt | ⏳ manuell erforderlich, echter Installer-Build noetig |
 
-## Was seit dem letzten Verifikationslauf zusaetzlich fertig wurde
+### Zwei echte Bugs gefunden und behoben
 
-Vier kleine, unabhaengige Code-Fixes (siehe Commits `8f06ef8`, `dd31610`,
-`2d211cf` auf `main`):
+Beide wurden ausschliesslich durch diesen echten interaktiven Durchlauf
+sichtbar — keiner haette durch Unit-/E2E-Tests mit gemockter Bridge auffallen
+koennen:
 
-- `AtomicWriteFs.mkdir`-Typfehler behoben; vier lose Altaenderungen
-  (Intent-Klassifikation fuer "Fix-Plan"/"Implementierungsplan") committet
-- Vite-Warnungen zu gemischten statischen/dynamischen Imports in
-  `runtimeChatStoreRuntimeHelpers.ts` aufgeloest — verifiziert per
-  `electron-vite build` (keine Warnung mehr)
-- Repository-Review: neuer `"empty_plan"`-Outcome ersetzt die generische
-  `"failed"`-Klassifikation, wenn ein nicht-leeres Inventar auf null Batches
-  faellt; Grund wird jetzt in `review-state.json` persistiert und im Chat
-  ueber `currentBatchTitle` angezeigt
+1. **Veralteter `runtime_dir` im Modell-Katalog** (`e9c1e54`): Der Review-
+   Workflow waehlte automatisch ein anderes Modell (`gemma-2-2b-it`) und
+   scheiterte mit `Llama.cpp Runtime-Verzeichnis nicht gefunden:
+   D:/win_runtimes/llama.cpp-win-runtime`. Ursache: `models.catalog.json`s
+   `runtime_dir`-Feld war veraltet (Verzeichnis existiert, ist aber leer);
+   die echten Binaries liegen unter `D:/win_runtimes/llama/`.
+   `ModelIndexService._from_catalog()` uebernahm den Katalogwert unvalidiert
+   in `ModelIndexSummary.runtime_dir`, das vom Frontend
+   (`pathValidatorService.ts`) *vor* jedem Modellstart ungeprueft
+   konsultiert wird — obwohl die eigentliche Start-Logik
+   (`runtime/launch.py::resolve_runtime_dir`) laengst eine robuste
+   Fallback-Kette hat. Fix: neue `_resolve_catalog_runtime_dir()`-Funktion
+   validiert den Katalogwert und faellt bei Bedarf auf
+   `first_win_llama_runtime_dir()`-Discovery zurueck. Regressionstest ergaenzt
+   (`test_model_index_falls_back_when_catalog_runtime_dir_is_stale`).
+2. **Regression aus dem heutigen `dbzs:fs:stat`-Guard** (`9aba315`): Nach dem
+   ersten Fix zeigte sich ein zweiter, ernsterer Fehler — die Modelldatei
+   selbst wurde als "nicht gefunden" gemeldet, obwohl sie real existiert
+   (`Test-Path` bestaetigt). Ursache: der PR-#4-Fix von heute frueh
+   (Workspace-Grenzpruefung fuer `dbzs:fs:*`-IPC-Handler) band auch
+   `dbzs:fs:stat` an Workspace/userData — `pathValidatorService.ts` prueft
+   damit legitim Modell-Dateien ausserhalb des Workspace (`D:\Models\...`),
+   was seitdem fehlschlug. Fix: `dbzs:fs:stat` bleibt ungeschuetzt (nur
+   Existenz-/Metadaten-Check, kein Content-Leak — anders als
+   `read-file`/`write-file`/`file:save`, die weiterhin korrekt auf
+   Workspace/userData beschraenkt bleiben).
 
-`npm run typecheck` ist seitdem erstmals vollstaendig fehlerfrei (vorher
-zwei Restfehler in `atomicFileWrite.ts`/`.test.ts`).
+Nach beiden Fixes: `runtime_dir` im Modell-Index zeigte live korrekt auf
+`D:\win_runtimes\llama\cpu-x64`; der weitere Durchlauf wurde aus
+Zeitgruenden nicht bis zum vollstaendigen Review-Abschluss fortgesetzt (die
+UI-Interaktion per Playwright traf danach nur noch auf
+Testskript-eigene Selektor-Probleme, keine weiteren App-Fehler).
+
+## Was insgesamt seit dem letzten Verifikationslauf fertig wurde
+
+Sechs Fixes auf `main` (`8f06ef8`, `dd31610`, `2d211cf`, `acca3bf` fuer die
+Restpunkte aus PR #4, sowie `e9c1e54` und `9aba315` aus diesem echten
+Durchlauf):
+
+- `AtomicWriteFs.mkdir`-Typfehler behoben; vier lose Altaenderungen committet
+- Vite-Importwarnungen aufgeloest
+- Repository-Review: `"empty_plan"`-Outcome statt generischem `"failed"`
+- Veralteter Modell-Katalog-`runtime_dir` faellt jetzt auf Live-Discovery zurueck
+- `dbzs:fs:stat`-Regression aus PR #4 behoben
+
+`npm run typecheck` ist vollstaendig fehlerfrei; alle betroffenen Vitest-/
+Pytest-Suiten (inkl. der beiden neuen Regressionstests) sind gruen.
 
 ## Empfehlung
 
-### Go fuer die manuelle Abnahme
+### Go fuer die weitere manuelle Abnahme
 
-- Die automatisierbaren Anteile (Boot, UI-Chrome, Exclude-Policy, Freigabe-
-  Pflicht) sind bestaetigt gruen.
-- Die verbleibenden ⏳-Punkte oben erfordern zwingend die echte Maschine mit
-  einer tatsaechlich verbundenen lokalen Modell-Runtime — das kann diese
-  Sandbox strukturell nicht liefern (kein GGUF-Modell/kein llama-server hier
-  verfuegbar).
+Kriterien 1–4, 6, 8 sind jetzt mit echten Beweisen (nicht nur Unit-Tests)
+verifiziert. Kriterium 5 hat zwei blockierende Bugs verloren, ist aber noch
+nicht bis zum Ende durchlaufen bestaetigt. Kriterien 7, 9–14 bleiben offen —
+dafuer empfiehlt sich jetzt eine kurze reale Sitzung (kein Sandbox-Workaround
+noetig, die App laeuft auf dieser Maschine bereits nachweislich mit echtem
+Modell): Review einmal bis zum Ende laufen lassen, eine Aenderung vorschlagen
+lassen, anwenden, per Restore-Point zurueckrollen, `npm test` aus dem Agent
+Workbench triggern, im Diagnostics-Tab ein Backup anlegen und wiederherstellen,
+und einmal hart abbrechen und neu starten.
 
 ### Startbefehle fuer die manuelle Abnahme
 
