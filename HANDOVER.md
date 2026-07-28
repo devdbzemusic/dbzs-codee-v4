@@ -102,9 +102,13 @@ Ein automatisiert getriebener UI-Fortsetzungslauf (per Playwright, echtes lokale
 (Backup/Restore) neu auf `UI_VERIFIED` gehoben und einen echten Bug in Kriterium 4 (Chat) gefunden und gefixt
 (`a5171b7` — aufeinanderfolgende `system`-Rollen-Nachrichten liessen Gemmas Chat-Template scheitern). Kriterien
 5/7/9/10/11 waren blockiert, weil die "canonical workflow assignment"-Schicht bei Review-/Coding-Anfragen
-`targetAgent` nicht auf `"reviewer"` aufloeste — **inzwischen behoben** (`inferWorkflowKind()` in
-`workflowStateResolver.ts` bevorzugte faelschlich den `workflowKind` eines aelteren, noch offenen Task-Contracts
-vor der korrekt klassifizierten Review-Absicht). Details: [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md).
+`targetAgent` nicht auf `"reviewer"` aufloeste — **behoben und real durch die UI bestaetigt** (`inferWorkflowKind()`
+in `workflowStateResolver.ts` bevorzugte faelschlich den `workflowKind` eines aelteren, noch offenen Task-Contracts
+vor der korrekt klassifizierten Review-Absicht; ein zweiter UI-Lauf hat das exakte Regressionsszenario
+reproduziert und bestaetigt, dass das `.codee/reviews/rev-*`-Artefakt jetzt korrekt entsteht). **Neuer,
+separater Blocker fuer 7/9/10/11:** das kleine lokale Modell (`gemma-3-1b-it-qat-q4-0`, auch getestet mit
+`qwen2.5-coder-7b-instruct`) liefert bei strukturierter Review-/Coding-Analyse keine parsbare Ausgabe
+(`no_json_array`). Details: [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md).
 
 **Wichtige Korrektur:** Bei der Code-Vertiefung stellte sich heraus, dass der Service-Level-Bericht fuer 2.6
 (Tests) und 2.7 (Rollback) auf nicht-kompilierbarem, nirgendwo verdrahtetem Code beruhte (`patchValidationService.ts`/

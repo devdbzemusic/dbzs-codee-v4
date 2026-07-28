@@ -13,9 +13,13 @@ inzwischen entfernt — siehe Korrekturhinweis im Dokument und `GOLDEN_PATH_VERI
 gelten wieder als offen. Der echte interaktive UI-Durchlauf in `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md`
 hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht noch aus):
 
-- [ ] Rest des Golden-Path (Diff/Apply/Rollback/Tests, harter Abbruch + Neustart) bis `UI_VERIFIED` abschliessen —
-      der bisherige Blocker (Review-Routing landete nicht beim `reviewer`-Agent) ist gefixt (siehe unten),
-      naechster echter Durchlauf sollte weiterkommen; Backup/Restore ist bereits `UI_VERIFIED` (siehe unten)
+- [ ] **Neuer Blocker fuer 7/9/10/11 (Diff/Apply/Test/Rollback):** Review-Routing-Fix ist real verifiziert
+      (`.codee/reviews/rev-*`-Artefakt wird jetzt korrekt erzeugt), aber das kleine lokale Modell
+      (`gemma-3-1b-it-qat-q4-0`) liefert bei strukturierter Review-/Coding-Analyse keine parsbare Ausgabe
+      (`no_json_array`, nur ~70 Zeichen Antwort; `qwen2.5-coder-7b-instruct` als Alternative getestet, gleiches
+      Ergebnis). Ursache noch offen — siehe `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md` ("Fortsetzungslauf 2")
+- [ ] unerklaerter App-/Backend-Absturz kurz nach Modellwechsel auf `qwen2.5-coder-7b-instruct` root-causen
+      (Logs: `golden-path-run-2/user-data/logs/crash.log`, zeitliche Korrelation nicht abschliessend belegt)
 - [ ] 2.6 (Tests)/2.7 (Rollback) gegen den echten, verdrahteten Pfad neu verifizieren:
       `apps/desktop/electron/patchPipelineService.ts`/`restorePointService.ts` ueber `runtimeChatStorePatchActions.ts`
       (nicht die entfernten `repositoryReview/patchValidationService.ts`/`patchRollbackService.ts`)
@@ -25,6 +29,13 @@ hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht no
       hartem `"Rollenmodell in Settings fehlt"`-Fehler beim ersten Coding-Task-Versuch (in `GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md` gefunden)
 - [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen) —
       Rescan-Button selbst bereits `UI_VERIFIED` (364 Modelle, keine Regression)
+
+## Erledigt: Routing-Fix real durch die UI verifiziert (2026-07-28)
+
+- [x] Zweiter automatisiert getriebener UI-Lauf (`golden-path-run-2`) hat den Routing-Fix (`c811923`) real
+      bestaetigt: exakt das Regressionsszenario reproduziert (offener Chat-Contract + Review-Anfrage ohne
+      "Neue Aufgabe:"-Praefix) → `.codee/reviews/rev-*`-Artefakt mit `Agent: reviewer` wurde korrekt erzeugt,
+      vorher entstand das nie. Details: `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md` ("Fortsetzungslauf 2")
 
 ## Erledigt: vorbestehende Testleichen von c537f3e repariert (2026-07-28)
 

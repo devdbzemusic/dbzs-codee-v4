@@ -72,3 +72,58 @@ Kriterien 1-4, 6, 8, 12 sind jetzt mit echten Beweisen verifiziert (12 neu in di
 1. "Canonical workflow assignment"-Schicht instrumentieren, um zu verstehen, warum `targetAgent` nicht auf `reviewer` aufloest — das ist der einzige verbleibende Blocker fuer 7, 9, 10, 11.
 2. Rollenspezifische Modell-IDs (`defaultCoderModelId`/`defaultReviewerModelId`/...) standardmaessig aus `defaultChatModelId` ableiten oder beim ersten Start explizit abfragen, statt einen harten Fehler zu zeigen.
 3. Sobald 5/7/9/10/11 erreichbar sind: Kriterien 13 (harter Abbruch) und 14 (Installer) manuell nach `GOLDEN_PATH_MANUAL_VERIFICATION_SCRIPT.md` durchfuehren, dann zwei Wiederholungslaeufe fuer `PERSONAL_STABLE`.
+
+---
+
+## Fortsetzungslauf 2 — Verifikation des Routing-Fixes (`c811923`)
+
+Nach der Root-Cause-Analyse und dem Fix in `apps/desktop/src/runtime/workflow/workflowStateResolver.ts`
+(`inferWorkflowKind()` bevorzugte faelschlich den `workflowKind` eines noch offenen, aelteren Task-Contracts
+vor der korrekt klassifizierten Review-Absicht — Commit `c811923`) wurde ein weiterer automatisiert getriebener
+UI-Lauf durchgefuehrt, um den Fix real zu verifizieren. Neuer Scratch-Ordner `golden-path-run-2/`. Vor dem Lauf
+wurde `apps/desktop` neu gebaut, da der vorhandene `out/`-Build aelter als der Fix-Commit war.
+
+### Kriterium 5 — Routing-Fix: ✅ real verifiziert
+
+Um exakt das Regressionsszenario zu reproduzieren, wurde zuerst eine normale Chat-Nachricht gesendet (oeffnet
+einen "chat"-Contract), danach die kanonische Review-Phrase `"Mache einen vollständigen Repository Review."`.
+Ergebnis: `Workflow: repository_review`, `Phase: review`, `Agent: reviewer` — echtes `.codee/reviews/rev-*`-
+Artefakt (`REVIEW_REPORT.md`, `findings.json`, `review-state.json` mit `"status": "completed"`) wurde angelegt.
+Das ist genau das Artefakt, das im ersten Fortsetzungslauf **nie** entstand. Der Routing-Bug ist behoben.
+
+### Neuer, separater Blocker fuer 7/9/10/11: kleines lokales Modell liefert keine parsbare Struktur-Ausgabe
+
+Der Review lief alle 5/5 Batches durch (`status: completed`), aber `findings.json` blieb leer. Laut
+`analyzer-diagnostics.json`: fuer jeden Batch `"llmSucceeded": false`, `"parserError": "no_json_array: No JSON
+array was found in the LLM response."`, `"rawResponseLength": 70` — `gemma-3-1b-it-qat-q4-0` liefert bei der
+strukturierten Review-Analyse nur eine 70-Zeichen-Antwort statt eines JSON-Arrays. Outcome `degraded_heuristic_only`,
+Qualitaet `low`. Deckt sich mit der bereits vorher dokumentierten Vermutung zur Tool-Call-Zuverlaessigkeit
+kleiner lokaler Modelle.
+
+- Versuch, `defaultReviewerModelId` per `/settings`-PATCH auf `qwen2.5-coder-7b-instruct` umzustellen: identisches
+  Ergebnis (`rawResponseLength: 70`, 0/5 LLM-Erfolge).
+- Kurz danach quittierten sowohl Electron als auch das Backend unerwartet den Dienst (`crash.log`:
+  `[will-quit] Application is quitting.`). Zeitliche Korrelation mit dem Modellwechsel auffaellig, aber nicht
+  abschliessend belegt (Zeitbudget) — **offener Folgepunkt, noch nicht root-caused.**
+- Direkter Coding-Versuch ("Füge in README.md einen Abschnitt hinzu") statt Review scheiterte deterministisch
+  (auch bei Retry) mit `generation_failed` in der `planning`-Phase (Agent `planner`, ebenfalls kleines Modell) —
+  deckt sich mit dem bereits im ersten Fortsetzungslauf notierten offenen Punkt.
+
+Es wurden in diesem Lauf keine Code-Aenderungen vorgenommen (Settings wurden zurueckgesetzt).
+
+### Aktualisierter Stand der 14-Punkte-Tabelle
+
+| # | Kriterium | Status nach Lauf 2 |
+| --- | --- | --- |
+| 5 | Full-Repository-Review laeuft durch | ✅ **Routing** jetzt real verifiziert; Review laeuft strukturell durch, aber ohne verwertbare Findings — blockiert durch Modell-Output-Qualitaet, nicht mehr durch Routing |
+| 7, 9, 10, 11 | Diff/Apply/Test/Rollback | ⏳ weiterhin nicht erreicht — neuer Blockierungsgrund: kein Modell in diesem Setup liefert bisher eine anwendbare Aenderung |
+
+### Naechste Schritte (aktualisiert)
+
+1. Ursache fuer `no_json_array`/`generation_failed` bei strukturierten Agenten-Turns kleiner lokaler Modelle
+   untersuchen (Prompt-Groesse? Tool-Envelope-Format? Modellwahl?) — das ist jetzt der einzige verbleibende
+   Blocker fuer 7/9/10/11.
+2. Den unerwarteten App-/Backend-Absturz nach dem Modellwechsel auf `qwen2.5-coder-7b-instruct` root-causen
+   (Logs liegen unter `golden-path-run-2/user-data/logs/crash.log`).
+3. Sobald eine anwendbare Aenderung erzeugt werden kann: Diff/Freigabe/Apply/Test/Rollback wie geplant
+   durchlaufen, dann weiter mit Schritt 3 aus dem vorherigen Abschnitt.
