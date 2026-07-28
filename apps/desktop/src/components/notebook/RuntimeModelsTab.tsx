@@ -3,6 +3,7 @@ import {
   formatModelSizeBadge,
   type IndexedModel,
   type MultimodalPair,
+  type RuntimeProbeFailureCode,
   type RuntimeProbeResponse,
   type RuntimeStatus
 } from "@dbzs/shared";
@@ -166,7 +167,30 @@ export function collectProbeEvidenceLines(response: RuntimeProbeResponse): strin
   if (typeof response.stdout_tail === "string" && response.stdout_tail.trim().length > 0) {
     lines.push(`stdout: ${response.stdout_tail.trim()}`);
   }
+  const failureSummary = describeProbeFailureCodes(response.verification_failures);
+  if (failureSummary) {
+    lines.push(`Fehlgeschlagene Checks: ${failureSummary}`);
+  }
   return lines;
+}
+
+export function describeProbeFailureCodes(
+  failureCodes: RuntimeProbeFailureCode[] | undefined
+): string {
+  if (!Array.isArray(failureCodes) || failureCodes.length === 0) {
+    return "";
+  }
+  const labels: Record<RuntimeProbeFailureCode, string> = {
+    allow_start_disabled: "allow_start",
+    model_id_missing: "model_id",
+    pair_missing: "pairing",
+    projector_missing: "projector",
+    runtime_start: "runtime_start",
+    endpoint: "endpoint",
+    models_endpoint: "models_endpoint",
+    vision_chat: "vision_chat"
+  };
+  return failureCodes.map((code) => labels[code] ?? code).join(", ");
 }
 
 export function RuntimeModelsTab() {

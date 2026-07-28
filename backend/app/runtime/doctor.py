@@ -18,6 +18,16 @@ from app.runtime.service import RuntimeService
 
 
 CheckStatus = Literal["ok", "warn", "error"]
+RuntimeProbeFailureCode = Literal[
+    "allow_start_disabled",
+    "model_id_missing",
+    "pair_missing",
+    "projector_missing",
+    "runtime_start",
+    "endpoint",
+    "models_endpoint",
+    "vision_chat",
+]
 
 
 class RuntimeCheck(BaseModel):
@@ -87,6 +97,7 @@ class RuntimeProbeResponse(BaseModel):
     advertised_models: list[str] = Field(default_factory=list)
     vision_chat_verified: bool = False
     vision_response_preview: str | None = None
+    verification_failures: list[RuntimeProbeFailureCode] = Field(default_factory=list)
 
 
 HARDWARE_PRESETS: list[SuggestedProfile] = [
@@ -181,6 +192,23 @@ def _probe_verification_failure_message(endpoint_verified: bool, models_endpoint
     if not missing_checks:
         return "Controlled probe started, but runtime endpoint verification did not complete successfully."
     return "Controlled probe started, but verification failed for: " + ", ".join(missing_checks) + "."
+
+
+def _collect_probe_failure_codes(
+    *,
+    endpoint_verified: bool,
+    models_endpoint_verified: bool,
+    vision_required: bool,
+    vision_chat_verified: bool,
+) -> list[RuntimeProbeFailureCode]:
+    failures: list[RuntimeProbeFailureCode] = []
+    if not endpoint_verified:
+        failures.append("endpoint")
+    if not models_endpoint_verified:
+        failures.append("models_endpoint")
+    if vision_required and not vision_chat_verified:
+        failures.append("vision_chat")
+    return failures
 
 
 def _build_probe_image_data_url() -> str:
@@ -397,12 +425,14 @@ def probe_runtime(
         return RuntimeProbeResponse(
             allowed=False,
             message="Probe disabled. Set allow_start=true to permit controlled probe.",
+            verification_failures=["allow_start_disabled"],
         )
 
     if not request.model_id:
         return RuntimeProbeResponse(
             allowed=False,
             message="model_id is required for controlled probe.",
+            verification_failures=["model_id_missing"],
         )
 
     mmproj_path: str | None = None
@@ -427,6 +457,7 @@ def probe_runtime(
                 allowed=False,
                 message=f"Kein multimodales Paar fuer Modell '{request.model_id}' und Projector '{projector_artifact_id}' gefunden.",
                 projector_artifact_id=projector_artifact_id,
+                verification_failures=["pair_missing"],
             )
         projector = next((item for item in index.support_artifacts if item.id == projector_artifact_id), None)
         if projector is None:
@@ -434,6 +465,7 @@ def probe_runtime(
                 allowed=False,
                 message=f"Projector-Artefakt '{projector_artifact_id}' ist im Index nicht verfuegbar.",
                 projector_artifact_id=projector_artifact_id,
+                verification_failures=["projector_missing"],
             )
         mmproj_path = projector.path
 
@@ -461,6 +493,7 @@ def probe_runtime(
             stdout_tail=status.stdout_tail or logs.stdout_tail,
             projector_artifact_id=projector_artifact_id,
             mmproj_path=mmproj_path,
+            verification_failures=["runtime_start"],
         )
 
     endpoint_verified = False
@@ -481,6 +514,12 @@ def probe_runtime(
 
     runtime.stop_model()
     if not endpoint_verified or not models_endpoint_verified or (mmproj_path is not None and not vision_chat_verified):
+        verification_failures = _collect_probe_failure_codes(
+            endpoint_verified=endpoint_verified,
+            models_endpoint_verified=models_endpoint_verified,
+            vision_required=mmproj_path is not None,
+            vision_chat_verified=vision_chat_verified,
+        )
         failure_message = _probe_verification_failure_message(endpoint_verified, models_endpoint_verified)
         if mmproj_path is not None and vision_chat_verified is False:
             failure_message = (
@@ -498,6 +537,7 @@ def probe_runtime(
             advertised_models=advertised_models,
             vision_chat_verified=vision_chat_verified,
             vision_response_preview=vision_response_preview,
+            verification_failures=verification_failures,
         )
     if projector_artifact_id and mmproj_path:
         index_service.mark_multimodal_pair_verified(request.model_id, projector_artifact_id)

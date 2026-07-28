@@ -55,6 +55,16 @@ export interface RuntimeProbeRequest {
   projector_artifact_id?: string | null;
 }
 
+export type RuntimeProbeFailureCode =
+  | "allow_start_disabled"
+  | "model_id_missing"
+  | "pair_missing"
+  | "projector_missing"
+  | "runtime_start"
+  | "endpoint"
+  | "models_endpoint"
+  | "vision_chat";
+
 export interface RuntimeProbeResponse {
   allowed: boolean;
   message: string;
@@ -67,6 +77,7 @@ export interface RuntimeProbeResponse {
   advertised_models?: string[];
   vision_chat_verified?: boolean;
   vision_response_preview?: string | null;
+  verification_failures?: RuntimeProbeFailureCode[];
 }
 
 export interface RuntimeLogsResponse {

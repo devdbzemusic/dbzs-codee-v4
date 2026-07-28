@@ -3,6 +3,7 @@ import type { IndexedModel, MultimodalPair, RuntimeProbeResponse, RuntimeStatus 
 import {
   canProbeSupportArtifactPair,
   collectProbeEvidenceLines,
+  describeProbeFailureCodes,
   describeSupportArtifact,
   formatProbeFeedback,
   modelRowActionState
@@ -335,7 +336,8 @@ describe("collectProbeEvidenceLines", () => {
       models_endpoint_verified: false,
       advertised_models: [],
       mmproj_path: "/models/mmproj-vision-base-f16.gguf",
-      vision_chat_verified: false
+      vision_chat_verified: false,
+      verification_failures: ["endpoint", "models_endpoint", "vision_chat"]
     };
 
     expect(collectProbeEvidenceLines(response)).toEqual([
@@ -344,7 +346,19 @@ describe("collectProbeEvidenceLines", () => {
       "Bildtest: fehlt",
       "MMProj: /models/mmproj-vision-base-f16.gguf",
       "stderr: port already in use",
-      "stdout: retrying"
+      "stdout: retrying",
+      "Fehlgeschlagene Checks: endpoint, models_endpoint, vision_chat"
     ]);
+  });
+});
+
+describe("describeProbeFailureCodes", () => {
+  it("formats structured probe failure codes for UI evidence", () => {
+    expect(describeProbeFailureCodes(["pair_missing", "vision_chat"])).toBe("pairing, vision_chat");
+  });
+
+  it("returns an empty string when no structured failures are present", () => {
+    expect(describeProbeFailureCodes([])).toBe("");
+    expect(describeProbeFailureCodes(undefined)).toBe("");
   });
 });
