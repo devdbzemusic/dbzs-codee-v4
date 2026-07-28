@@ -272,11 +272,12 @@ describe("formatProbeFeedback", () => {
       stdout_tail: "",
       endpoint_verified: true,
       models_endpoint_verified: true,
-      advertised_models: ["vision-base"]
+      advertised_models: ["vision-base"],
+      vision_chat_verified: true
     };
 
     expect(formatProbeFeedback(response)).toBe(
-      "Controlled probe succeeded for vision-base on port 8091. (Endpoint ok | /v1/models ok | Modelle: vision-base)"
+      "Controlled probe succeeded for vision-base on port 8091. (Endpoint ok | /v1/models ok | Modelle: vision-base | Bildtest ok)"
     );
   });
 
@@ -288,11 +289,13 @@ describe("formatProbeFeedback", () => {
       stdout_tail: "",
       endpoint_verified: true,
       models_endpoint_verified: false,
-      advertised_models: []
+      advertised_models: [],
+      mmproj_path: "/models/mmproj-vision-base-f16.gguf",
+      vision_chat_verified: false
     };
 
     expect(formatProbeFeedback(response)).toBe(
-      "Controlled probe started, but verification failed for: /v1/models. (Endpoint ok | /v1/models fehlt)"
+      "Controlled probe started, but verification failed for: /v1/models. (Endpoint ok | /v1/models fehlt | Bildtest fehlt)"
     );
   });
 });
@@ -307,13 +310,17 @@ describe("collectProbeEvidenceLines", () => {
       endpoint_verified: true,
       models_endpoint_verified: true,
       advertised_models: ["vision-base"],
-      mmproj_path: "/models/mmproj-vision-base-f16.gguf"
+      mmproj_path: "/models/mmproj-vision-base-f16.gguf",
+      vision_chat_verified: true,
+      vision_response_preview: "ok"
     };
 
     expect(collectProbeEvidenceLines(response)).toEqual([
       "Basis-Endpoint: ok",
       "/v1/models: ok",
       "Gemeldete Modelle: vision-base",
+      "Bildtest: ok",
+      "Vision-Antwort: ok",
       "MMProj: /models/mmproj-vision-base-f16.gguf"
     ]);
   });
@@ -326,12 +333,16 @@ describe("collectProbeEvidenceLines", () => {
       stdout_tail: "retrying",
       endpoint_verified: false,
       models_endpoint_verified: false,
-      advertised_models: []
+      advertised_models: [],
+      mmproj_path: "/models/mmproj-vision-base-f16.gguf",
+      vision_chat_verified: false
     };
 
     expect(collectProbeEvidenceLines(response)).toEqual([
       "Basis-Endpoint: fehlt",
       "/v1/models: fehlt",
+      "Bildtest: fehlt",
+      "MMProj: /models/mmproj-vision-base-f16.gguf",
       "stderr: port already in use",
       "stdout: retrying"
     ]);

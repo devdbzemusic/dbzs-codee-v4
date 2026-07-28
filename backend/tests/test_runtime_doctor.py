@@ -189,6 +189,7 @@ def test_runtime_probe_allow_start_runs_controlled_start(tmp_path: Path) -> None
     assert response.endpoint_verified is True
     assert response.models_endpoint_verified is True
     assert response.advertised_models == ["coder"]
+    assert response.vision_chat_verified is False
 
 
 def test_runtime_probe_allows_mmproj_pairing_and_passes_mmproj_path(tmp_path: Path) -> None:
@@ -235,6 +236,7 @@ def test_runtime_probe_allows_mmproj_pairing_and_passes_mmproj_path(tmp_path: Pa
         ollama_dir=tmp_path / "ollama",
         ollama_models_dir=tmp_path / "ollama-models",
         endpoint_verifier=lambda endpoint: (True, True, ["vision-base"]),
+        multimodal_verifier=lambda runtime, endpoint, model_id: (True, "ok"),
     )
 
     assert response.allowed is True
@@ -244,6 +246,8 @@ def test_runtime_probe_allows_mmproj_pairing_and_passes_mmproj_path(tmp_path: Pa
     assert response.endpoint_verified is True
     assert response.models_endpoint_verified is True
     assert response.advertised_models == ["vision-base"]
+    assert response.vision_chat_verified is True
+    assert response.vision_response_preview == "ok"
 
     persisted = json.loads((tmp_path / "models.catalog.json").read_text(encoding="utf-8"))
     base_entry = next(entry for entry in persisted["models"] if entry["id"] == "vision-base")
@@ -292,6 +296,7 @@ def test_runtime_probe_requires_endpoint_verification_before_marking_pair_verifi
         ollama_dir=tmp_path / "ollama",
         ollama_models_dir=tmp_path / "ollama-models",
         endpoint_verifier=lambda endpoint: (True, False, []),
+        multimodal_verifier=lambda runtime, endpoint, model_id: (True, "ok"),
     )
 
     assert response.allowed is False
@@ -304,5 +309,112 @@ def test_runtime_probe_requires_endpoint_verification_before_marking_pair_verifi
 
     assert "pairing" not in base_entry or base_entry["pairing"].get("routing_allowed") is not True
     assert "pairing" not in projector_entry or projector_entry["pairing"].get("routing_allowed") is not True
+
+
+def test_runtime_probe_requires_multimodal_chat_verification_for_mmproj_pairs(tmp_path: Path) -> None:
+    _write_multimodal_catalog(tmp_path)
+
+    running = RuntimeStatus(
+        state="running",
+        provider="llama.cpp",
+        model_id="vision-base",
+        model_name="Vision Base",
+        port=8091,
+        pid=42,
+        endpoint="http://127.0.0.1:8091",
+        message="ok",
+    )
+    stopped = RuntimeStatus(state="stopped", message="Runtime stopped.")
+
+    class FakeRuntimeService:
+        def start_model(self, model_id: str, config: dict | None = None) -> RuntimeStatus:
+            assert model_id == "vision-base"
+            return running
+
+        def stop_model(self) -> RuntimeStatus:
+            return stopped
+
+        def get_logs(self):
+            from app.runtime.schemas import RuntimeLogsResponse
+
+            return RuntimeLogsResponse(state="running", model_id="vision-base")
+
+    response = probe_runtime(
+        RuntimeProbeRequest(
+            allow_start=True,
+            model_id="vision-base",
+            projector_artifact_id="vision-proj",
+        ),
+        service=FakeRuntimeService(),  # type: ignore[arg-type]
+        models_dir=tmp_path,
+        ollama_dir=tmp_path / "ollama",
+        ollama_models_dir=tmp_path / "ollama-models",
+        endpoint_verifier=lambda endpoint: (True, True, ["vision-base"]),
+        multimodal_verifier=lambda runtime, endpoint, model_id: (False, None),
+    )
+
+    assert response.allowed is False
+    assert response.endpoint_verified is True
+    assert response.models_endpoint_verified is True
+    assert response.vision_chat_verified is False
+    assert "Bildtest fehlgeschlagen" in response.message
+
+    persisted = json.loads((tmp_path / "models.catalog.json").read_text(encoding="utf-8"))
+    base_entry = next(entry for entry in persisted["models"] if entry["id"] == "vision-base")
+    projector_entry = next(entry for entry in persisted["models"] if entry["id"] == "vision-proj")
+
+    assert "pairing" not in base_entry or base_entry["pairing"].get("routing_allowed") is not True
+    assert "pairing" not in projector_entry or projector_entry["pairing"].get("routing_allowed") is not True
+
+
+def test_runtime_probe_surfaces_multimodal_chat_exception_details(tmp_path: Path) -> None:
+    _write_multimodal_catalog(tmp_path)
+
+    running = RuntimeStatus(
+        state="running",
+        provider="llama.cpp",
+        model_id="vision-base",
+        model_name="Vision Base",
+        port=8091,
+        pid=42,
+        endpoint="http://127.0.0.1:8091",
+        message="ok",
+    )
+    stopped = RuntimeStatus(state="stopped", message="Runtime stopped.")
+
+    class FakeRuntimeService:
+        def start_model(self, model_id: str, config: dict | None = None) -> RuntimeStatus:
+            assert model_id == "vision-base"
+            return running
+
+        def stop_model(self) -> RuntimeStatus:
+            return stopped
+
+        def get_logs(self):
+            from app.runtime.schemas import RuntimeLogsResponse
+
+            return RuntimeLogsResponse(state="running", model_id="vision-base")
+
+    def failing_multimodal_verifier(runtime, endpoint, model_id):
+        raise RuntimeError("vision endpoint rejected image payload")
+
+    response = probe_runtime(
+        RuntimeProbeRequest(
+            allow_start=True,
+            model_id="vision-base",
+            projector_artifact_id="vision-proj",
+        ),
+        service=FakeRuntimeService(),  # type: ignore[arg-type]
+        models_dir=tmp_path,
+        ollama_dir=tmp_path / "ollama",
+        ollama_models_dir=tmp_path / "ollama-models",
+        endpoint_verifier=lambda endpoint: (True, True, ["vision-base"]),
+        multimodal_verifier=failing_multimodal_verifier,
+    )
+
+    assert response.allowed is False
+    assert response.vision_chat_verified is False
+    assert response.vision_response_preview == "vision endpoint rejected image payload"
+    assert "Bildtest fehlgeschlagen: vision endpoint rejected image payload." in response.message
 
 

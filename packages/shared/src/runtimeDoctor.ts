@@ -65,6 +65,8 @@ export interface RuntimeProbeResponse {
   endpoint_verified?: boolean;
   models_endpoint_verified?: boolean;
   advertised_models?: string[];
+  vision_chat_verified?: boolean;
+  vision_response_preview?: string | null;
 }
 
 export interface RuntimeLogsResponse {

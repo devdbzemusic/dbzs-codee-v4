@@ -126,6 +126,11 @@ export function formatProbeFeedback(response: RuntimeProbeResponse): string {
   if (Array.isArray(response.advertised_models) && response.advertised_models.length > 0) {
     details.push(`Modelle: ${response.advertised_models.join(", ")}`);
   }
+  if (response.vision_chat_verified === true) {
+    details.push("Bildtest ok");
+  } else if (response.mmproj_path && response.vision_chat_verified === false) {
+    details.push("Bildtest fehlt");
+  }
   return details.length > 0 ? `${response.message} (${details.join(" | ")})` : response.message;
 }
 
@@ -143,6 +148,14 @@ export function collectProbeEvidenceLines(response: RuntimeProbeResponse): strin
   }
   if (Array.isArray(response.advertised_models) && response.advertised_models.length > 0) {
     lines.push(`Gemeldete Modelle: ${response.advertised_models.join(", ")}`);
+  }
+  if (response.mmproj_path && response.vision_chat_verified === true) {
+    lines.push("Bildtest: ok");
+  } else if (response.mmproj_path && response.vision_chat_verified === false) {
+    lines.push("Bildtest: fehlt");
+  }
+  if (typeof response.vision_response_preview === "string" && response.vision_response_preview.length > 0) {
+    lines.push(`Vision-Antwort: ${response.vision_response_preview}`);
   }
   if (typeof response.mmproj_path === "string" && response.mmproj_path.length > 0) {
     lines.push(`MMProj: ${response.mmproj_path}`);
