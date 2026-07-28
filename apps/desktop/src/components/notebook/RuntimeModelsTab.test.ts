@@ -7,6 +7,13 @@ import {
   defaultPairingSelection,
   describeModelCapabilities,
   describeModelRoutingReadiness,
+  compatibilityTone,
+  describeModelRowStatus,
+  formatCompatibilityLabel,
+  formatCapabilityLabel,
+  formatLauncherLabel,
+  formatModelRoleLabel,
+  capabilityTone,
   describeMultimodalPairCandidates,
   describeProbeOutcome,
   describeMultimodalPairStatus,
@@ -16,6 +23,8 @@ import {
   formatMultimodalPairSource,
   sortMultimodalPairs,
   formatMultimodalPairConfidence,
+  launcherTone,
+  modelRoleTone,
   formatProbeFeedback,
   modelRowActionState,
   modelRoutingTone,
@@ -120,6 +129,34 @@ describe("modelRowActionState", () => {
     const state = modelRowActionState(baseModel, running, true);
     expect(state.canStart).toBe(false);
     expect(state.canStop).toBe(false);
+  });
+});
+
+describe("describeModelRowStatus", () => {
+  it("describes running, loadable and blocked model rows from action state", () => {
+    const running: RuntimeStatus = {
+      state: "running",
+      model_id: "m1",
+      model_name: "test.gguf",
+      provider: "llama.cpp",
+      port: 8080,
+      pid: 1234,
+      endpoint: "http://127.0.0.1:8080",
+      message: "running"
+    };
+
+    expect(describeModelRowStatus(baseModel, running, false)).toEqual({
+      label: "laeuft",
+      tone: "ok"
+    });
+    expect(describeModelRowStatus(baseModel, { state: "stopped" } as RuntimeStatus, false)).toEqual({
+      label: "ladbar",
+      tone: "info"
+    });
+    expect(describeModelRowStatus({ ...baseModel, id: "m2", name: "other.gguf" }, running, true)).toEqual({
+      label: "blockiert",
+      tone: "error"
+    });
   });
 });
 
@@ -879,6 +916,79 @@ describe("describeModelCapabilities", () => {
 
   it("falls back to a dash when no capabilities are present", () => {
     expect(describeModelCapabilities({ ...baseModel, capabilities: [] })).toEqual(["-"]);
+  });
+});
+
+describe("formatCapabilityLabel", () => {
+  it("formats capability labels for the UI", () => {
+    expect(formatCapabilityLabel("chat")).toBe("Chat");
+    expect(formatCapabilityLabel("code")).toBe("Code");
+    expect(formatCapabilityLabel("vision")).toBe("Vision");
+    expect(formatCapabilityLabel("reasoning")).toBe("Reasoning");
+    expect(formatCapabilityLabel("-")).toBe("-");
+  });
+});
+
+describe("capabilityTone", () => {
+  it("maps capabilities to stable badge tones", () => {
+    expect(capabilityTone("code")).toBe("ok");
+    expect(capabilityTone("reasoning")).toBe("ok");
+    expect(capabilityTone("vision")).toBe("warn");
+    expect(capabilityTone("chat")).toBe("info");
+  });
+});
+
+describe("formatModelRoleLabel", () => {
+  it("formats known and fallback role labels for the UI", () => {
+    expect(formatModelRoleLabel("primary_coding")).toBe("Primary Coding");
+    expect(formatModelRoleLabel("vision_candidate")).toBe("Vision");
+    expect(formatModelRoleLabel("embedding")).toBe("embedding");
+    expect(formatModelRoleLabel(undefined)).toBe("-");
+  });
+});
+
+describe("modelRoleTone", () => {
+  it("maps recommended_use values to stable badge tones", () => {
+    expect(modelRoleTone("primary_coding")).toBe("ok");
+    expect(modelRoleTone("orchestrator")).toBe("ok");
+    expect(modelRoleTone("vision_candidate")).toBe("warn");
+    expect(modelRoleTone("chat_candidate")).toBe("info");
+  });
+});
+
+describe("formatCompatibilityLabel", () => {
+  it("formats compatibility values for the UI", () => {
+    expect(formatCompatibilityLabel("llama_server_ready")).toBe("llama-server ready");
+    expect(formatCompatibilityLabel("ollama_ready")).toBe("Ollama ready");
+    expect(formatCompatibilityLabel("support_artifact")).toBe("Support artifact");
+    expect(formatCompatibilityLabel("custom_value")).toBe("custom value");
+    expect(formatCompatibilityLabel(null)).toBe("-");
+  });
+});
+
+describe("compatibilityTone", () => {
+  it("maps compatibility values to stable badge tones", () => {
+    expect(compatibilityTone("llama_server_ready")).toBe("ok");
+    expect(compatibilityTone("ollama_ready")).toBe("ok");
+    expect(compatibilityTone("support_artifact")).toBe("warn");
+    expect(compatibilityTone("unknown")).toBe("info");
+  });
+});
+
+describe("formatLauncherLabel", () => {
+  it("formats runtime launcher values for the UI", () => {
+    expect(formatLauncherLabel("llama_server")).toBe("llama-server");
+    expect(formatLauncherLabel("ollama")).toBe("Ollama");
+    expect(formatLauncherLabel("custom_launcher")).toBe("custom launcher");
+    expect(formatLauncherLabel(null)).toBe("-");
+  });
+});
+
+describe("launcherTone", () => {
+  it("maps runtime launchers to stable badge tones", () => {
+    expect(launcherTone("llama_server")).toBe("ok");
+    expect(launcherTone("ollama")).toBe("ok");
+    expect(launcherTone("custom")).toBe("info");
   });
 });
 

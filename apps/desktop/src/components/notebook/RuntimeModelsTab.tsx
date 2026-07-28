@@ -105,6 +105,21 @@ export function modelRowActionState(
   };
 }
 
+export function describeModelRowStatus(
+  model: IndexedModel,
+  status: RuntimeStatus | null,
+  runtimeBusy: boolean
+): { label: string; tone: "ok" | "warn" | "error" | "info" } {
+  const actionState = modelRowActionState(model, status, runtimeBusy);
+  if (actionState.isActive) {
+    return { label: "laeuft", tone: "ok" };
+  }
+  if (actionState.canStart) {
+    return { label: "ladbar", tone: "info" };
+  }
+  return { label: "blockiert", tone: "error" };
+}
+
 export function canStopRuntime(status: RuntimeStatus | null, runtimeBusy: boolean): boolean {
   return status?.state === "running" && !runtimeBusy;
 }
@@ -553,6 +568,87 @@ export function describeModelCapabilities(model: IndexedModel): string[] {
   if (model.capabilities.includes("vision")) labels.push("vision");
   if (model.capabilities.includes("reasoning")) labels.push("reasoning");
   return labels.length > 0 ? labels : ["-"];
+}
+
+export function formatCapabilityLabel(label: string): string {
+  if (label === "chat") return "Chat";
+  if (label === "code") return "Code";
+  if (label === "vision") return "Vision";
+  if (label === "reasoning") return "Reasoning";
+  if (label === "-") return "-";
+  return label;
+}
+
+export function capabilityTone(label: string): "ok" | "warn" | "error" | "info" {
+  if (label === "code" || label === "reasoning") {
+    return "ok";
+  }
+  if (label === "vision") {
+    return "warn";
+  }
+  return "info";
+}
+
+export function formatModelRoleLabel(
+  recommendedUse: IndexedModel["recommended_use"] | null | undefined
+): string {
+  if (recommendedUse === "primary_coding") return "Primary Coding";
+  if (recommendedUse === "coding_candidate") return "Coding";
+  if (recommendedUse === "chat_candidate") return "Chat";
+  if (recommendedUse === "vision_candidate") return "Vision";
+  if (recommendedUse === "orchestrator") return "Orchestrator";
+  if (typeof recommendedUse === "string" && recommendedUse.length > 0) {
+    return recommendedUse.replaceAll("_", " ");
+  }
+  return "-";
+}
+
+export function modelRoleTone(
+  recommendedUse: IndexedModel["recommended_use"] | null | undefined
+): "ok" | "warn" | "error" | "info" {
+  if (recommendedUse === "primary_coding" || recommendedUse === "orchestrator") {
+    return "ok";
+  }
+  if (recommendedUse === "vision_candidate") {
+    return "warn";
+  }
+  return "info";
+}
+
+export function formatCompatibilityLabel(compatibility: string | null | undefined): string {
+  if (compatibility === "llama_server_ready") return "llama-server ready";
+  if (compatibility === "ollama_ready") return "Ollama ready";
+  if (compatibility === "support_artifact") return "Support artifact";
+  if (typeof compatibility === "string" && compatibility.length > 0) {
+    return compatibility.replaceAll("_", " ");
+  }
+  return "-";
+}
+
+export function compatibilityTone(compatibility: string | null | undefined): "ok" | "warn" | "error" | "info" {
+  if (compatibility === "llama_server_ready" || compatibility === "ollama_ready") {
+    return "ok";
+  }
+  if (compatibility === "support_artifact") {
+    return "warn";
+  }
+  return "info";
+}
+
+export function formatLauncherLabel(runtimeLauncher: string | null | undefined): string {
+  if (runtimeLauncher === "llama_server") return "llama-server";
+  if (runtimeLauncher === "ollama") return "Ollama";
+  if (typeof runtimeLauncher === "string" && runtimeLauncher.length > 0) {
+    return runtimeLauncher.replaceAll("_", " ");
+  }
+  return "-";
+}
+
+export function launcherTone(runtimeLauncher: string | null | undefined): "ok" | "warn" | "error" | "info" {
+  if (runtimeLauncher === "llama_server" || runtimeLauncher === "ollama") {
+    return "ok";
+  }
+  return "info";
 }
 
 export function describeModelRoutingReadiness(
@@ -1071,6 +1167,7 @@ export function RuntimeModelsTab() {
                   <tbody>
                     {sortedStartableModels.map((model) => {
                       const { canStart, canStop, isActive } = modelRowActionState(model, status, runtimeBusy);
+                      const rowStatus = describeModelRowStatus(model, status, runtimeBusy);
                       const capabilityLabels = describeModelCapabilities(model);
                       const routingReadiness = describeModelRoutingReadiness(model, multimodalPairs);
                       return (
@@ -1079,33 +1176,49 @@ export function RuntimeModelsTab() {
                           key={model.id}
                         >
                           <td className="px-2 py-2">
-                            {isActive ? (
-                              <span className="inline-flex items-center gap-1 text-dbzs-cyan">
-                                <span className="h-1.5 w-1.5 rounded-full bg-dbzs-cyan" />
-                                laeuft
-                              </span>
-                            ) : (
-                              <span className="text-dbzs-muted">-</span>
-                            )}
+                            <span
+                              className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(rowStatus.tone)}`}
+                            >
+                              {isActive ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : null}
+                              {rowStatus.label}
+                            </span>
                           </td>
                           <td className="max-w-[220px] truncate px-2 py-2 font-medium text-dbzs-text" title={model.name}>
                             {model.name}
                           </td>
-                          <td className="px-2 py-2 text-dbzs-muted">{model.recommended_use}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">
+                            <span
+                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(modelRoleTone(model.recommended_use))}`}
+                            >
+                              {formatModelRoleLabel(model.recommended_use)}
+                            </span>
+                          </td>
                           <td className="px-2 py-2 text-dbzs-muted">
                             <div className="flex flex-wrap gap-1">
                               {capabilityLabels.map((label) => (
                                 <span
-                                  className="rounded border border-dbzs-border px-1.5 py-0.5 text-[9px]"
+                                  className={`rounded border px-1.5 py-0.5 text-[9px] ${statusBadgeClasses(capabilityTone(label))}`}
                                   key={`${model.id}:cap:${label}`}
                                 >
-                                  {label}
+                                  {formatCapabilityLabel(label)}
                                 </span>
                               ))}
                             </div>
                           </td>
-                          <td className="px-2 py-2 text-dbzs-muted">{model.runtime_launcher}</td>
-                          <td className="px-2 py-2 text-dbzs-muted">{model.compatibility}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">
+                            <span
+                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(launcherTone(model.runtime_launcher))}`}
+                            >
+                              {formatLauncherLabel(model.runtime_launcher)}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2 text-dbzs-muted">
+                            <span
+                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(compatibilityTone(model.compatibility))}`}
+                            >
+                              {formatCompatibilityLabel(model.compatibility)}
+                            </span>
+                          </td>
                           <td className="px-2 py-2 text-dbzs-muted">
                             <div className="flex max-w-[220px] flex-col gap-0.5">
                               <span
