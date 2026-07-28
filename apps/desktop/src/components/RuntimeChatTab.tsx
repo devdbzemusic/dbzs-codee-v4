@@ -96,6 +96,7 @@ export function RuntimeChatTab({
   const queueProposedChanges = useEditorStore((state) => state.queueProposedChanges);
   const requestTakeoverApproval = useRuntimeChatApprovalStore((state) => state.requestTakeoverApproval);
   const pendingApprovalCount = useRuntimeChatPendingApprovalCount(workspaceRoot);
+  const activePatchProposal = useRuntimeChatStore((state) => state.activePatchProposal);
   const previousWorkspaceRootRef = useRef(workspaceRoot);
 
   useEffect(() => {
@@ -104,6 +105,14 @@ export function RuntimeChatTab({
       setShowPanels(true);
     }
   }, [pendingApprovalCount]);
+
+  useEffect(() => {
+    // Ein neuer Patch-Vorschlag darf nicht unsichtbar bleiben, bis der Nutzer
+    // zufällig auf "Werkzeuge & Freigaben" klickt.
+    if (activePatchProposal) {
+      setShowPanels(true);
+    }
+  }, [activePatchProposal]);
   const settings = useSettingsStore((state) => state.settings);
   const activeActivity = useRuntimeChatStore((state) => state.currentActivity ?? state.lastActivity);
   const workspaceContextStep = activeActivity?.steps.find((step) => step.id === "workspace-context");

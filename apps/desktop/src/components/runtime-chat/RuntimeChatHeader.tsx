@@ -1,4 +1,5 @@
 import React from "react";
+import { Button } from "@/components/ui/Button";
 
 export function RuntimeChatHeader({
   title,
@@ -82,73 +83,52 @@ export function RuntimeChatHeader({
               {pendingApprovalCount}
             </span>
           ) : null}
-          <button
-            className={`rounded border px-1.5 py-0.5 text-[10px] ${
-              showPanels ? "border-dbzs-cyan/50 text-dbzs-cyan" : "border-dbzs-border text-dbzs-muted"
-            }`}
+          <Button
+            active={showPanels}
             onClick={onTogglePanels}
-            type="button"
+            title="Werkzeuge, Aktivität, Freigaben, Patch-Vorschau, Recherche"
           >
-            Panels
-          </button>
-          <button
-            className={`rounded border px-1.5 py-0.5 text-[10px] ${
-              showSlotPanel
-                ? "border-dbzs-cyan/50 text-dbzs-cyan"
-                : "border-dbzs-border text-dbzs-muted"
-            }`}
+            Werkzeuge &amp; Freigaben
+          </Button>
+          <Button
+            active={showSlotPanel}
             onClick={onToggleSlots}
-            type="button"
-            title="Runtime Slots verwalten"
+            title="Modell-Slots verwalten"
           >
             Slots
-          </button>
+          </Button>
           {!compact ? (
-            <button
-              className={`rounded border px-1.5 py-0.5 text-[10px] ${
-                showDiagnostics
-                  ? "border-dbzs-cyan/50 text-dbzs-cyan"
-                  : "border-dbzs-border text-dbzs-muted"
-              }`}
+            <Button
+              active={showDiagnostics}
               onClick={onToggleDiagnostics}
-              type="button"
+              title="Technische Routing-/Token-/Modell-Diagnose und Session-Traces — betrifft nicht den eigentlichen Workflow"
             >
               Diagnose
-            </button>
+            </Button>
           ) : null}
           {detached ? (
-            <button
-              className="rounded border border-dbzs-border px-1.5 py-0.5 text-[10px] text-dbzs-muted"
-              onClick={onClose}
-              type="button"
-            >
+            <Button onClick={onClose} title="Abgedocktes Fenster schließen">
               ✕
-            </button>
+            </Button>
           ) : (
-            <button
-              className="rounded border border-dbzs-cyan/40 bg-dbzs-cyan/10 px-1.5 py-0.5 text-[10px] text-dbzs-cyan"
-              onClick={onDetach}
-              type="button"
-            >
+            <Button variant="primary" onClick={onDetach} title="In eigenem Fenster öffnen">
               ↗
-            </button>
+            </Button>
           )}
-          <button
-            className="rounded border border-dbzs-border px-1.5 py-0.5 text-[10px] text-dbzs-muted disabled:opacity-40"
+          <Button
             disabled={!canCompactConversation}
             onClick={onCompactConversation}
-            type="button"
+            title="Ältere Nachrichten platzsparend zusammenfassen"
           >
             Kompakt
-          </button>
-          <button
-            className="rounded border border-dbzs-border px-1.5 py-0.5 text-[10px] text-dbzs-muted disabled:opacity-40"
+          </Button>
+          <Button
             disabled={!canClearConversation}
             onClick={onClearConversation}
-            type="button"
+            title="Unterhaltung leeren"
           >
             Leeren
-          </button>
+          </Button>
         </div>
       </div>
 
