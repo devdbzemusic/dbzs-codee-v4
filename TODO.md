@@ -25,9 +25,18 @@ hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht no
       hartem `"Rollenmodell in Settings fehlt"`-Fehler beim ersten Coding-Task-Versuch (in `GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md` gefunden)
 - [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen) —
       Rescan-Button selbst bereits `UI_VERIFIED` (364 Modelle, keine Regression)
-- [ ] vorbestehende, unabhaengige Testfehler reparieren (nicht heute verursacht): 5 Fehlschlaege in
-      `AssistantQuestionCard.test.tsx` (Button-Query findet nichts), 2 in `clarificationFieldMemory.test.ts`
-      (`success_criteria`-Feld-Erwartung)
+
+## Erledigt: vorbestehende Testleichen von c537f3e repariert (2026-07-28)
+
+- [x] `c537f3e` ("fix(chat): reduce unnecessary runtime clarifications") hatte
+      `AssistantQuestionCard.tsx`-Button-Labels geaendert ("Antworten"→"Weiter",
+      "Empfehlung uebernehmen"→"Empfehlung nutzen", "Abbrechen"→"Ueberspringen") und
+      `PLAN_DELIVERABLE_PATTERN` in `missingInformationPolicy.ts` bewusst erweitert
+      (u. a. "Implementierungsplan" gilt jetzt als genug Struktur) — aber nur
+      `missingInformationPolicy.test.ts` aktualisiert, nicht `AssistantQuestionCard.test.tsx`
+      (6 Fehlschlaege) und `clarificationFieldMemory.test.ts` (1 Fehlschlag). Beide Testdateien
+      repariert (Labels/Testnachricht angepasst, nicht die App-Logik). `npm run typecheck` sauber,
+      alle 1076 Tests gruen.
 
 ## Erledigt: Code-Review-Vertiefung nach Runtime-Chat-Scope-Erweiterung (2026-07-28)
 
