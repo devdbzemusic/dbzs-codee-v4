@@ -97,6 +97,27 @@ describe("modelSelectionBroker", () => {
       ).toThrow(/Visionmodell/);
     });
 
+    it("rejects support artifacts as configured role models", () => {
+      const settings = {
+        ...mockSettings,
+        defaultPlannerModelId: "mmproj-qwen2.5-vl-3b-f16.gguf"
+      };
+
+      expect(() =>
+        brokerDecision("small_code_change", settings, {
+          catalog: [
+            {
+              id: "mmproj-qwen2.5-vl-3b-f16.gguf",
+              name: "mmproj-qwen2.5-vl-3b-f16",
+              artifact_type: "mmproj",
+              capabilities: ["vision"],
+              recommended_use: "vision_candidate"
+            }
+          ]
+        })
+      ).toThrow(/Support-Artefakt/);
+    });
+
     it("allows Instruct-VL as chat role for text-only when supportsTextOnly is true", () => {
       const settings = {
         ...mockSettings,

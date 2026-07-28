@@ -310,6 +310,7 @@ export function classifyTaskTypeDetailed(
 export interface BrokerModelCatalogEntry {
   id: string;
   name?: string;
+  artifact_type?: string;
   capabilities?: string[];
   recommended_use?: string;
   /** Explicit: model can run pure text chat without an image. */
@@ -337,6 +338,10 @@ export interface BrokerDecisionOptions {
   >;
 }
 
+function isNonRunnableSupportArtifact(entry?: BrokerModelCatalogEntry | null): boolean {
+  return entry?.artifact_type != null && entry.artifact_type !== "model";
+}
+
 function mapWorkflowAgentToModelTarget(agent: WorkflowAgentRole): ModelTargetAgent {
   switch (agent) {
     case "runtime_chat":
@@ -360,6 +365,7 @@ export function looksLikeVisionModel(
   catalogEntry?: BrokerModelCatalogEntry | null,
 ): boolean {
   if (catalogEntry) {
+    if (isNonRunnableSupportArtifact(catalogEntry)) return false;
     if (catalogEntry.recommended_use === "vision_candidate") return true;
     if (catalogEntry.capabilities?.includes("vision")) return true;
   }
@@ -370,7 +376,6 @@ export function looksLikeVisionModel(
     key.includes("llava") ||
     key.includes("janus") ||
     key.includes("smolvlm") ||
-    key.includes("mmproj") ||
     key.includes("qwen2.5-vl") ||
     key.includes("qwen2-vl") ||
     key.includes("image_text_to_text") ||
@@ -522,6 +527,15 @@ function resolveModelIdWithVisionGate(
         ["Anderes Rollenmodell wählen", "Abbrechen"]
       );
     }
+  }
+
+  const configuredEntry = findCatalogEntry(preferred, catalog);
+  if (isNonRunnableSupportArtifact(configuredEntry)) {
+    throw new BindingModelError(
+      `Konfiguriertes Rollenmodell '${preferred}' ist ein Support-Artefakt (${configuredEntry?.artifact_type ?? "unknown"}) und nicht direkt startbar.`,
+      "role_model_not_runnable",
+      ["Anderes Rollenmodell waehlen", "Abbrechen"]
+    );
   }
 
   if (allowVision || !isVisionModelRef(preferred, catalog)) {

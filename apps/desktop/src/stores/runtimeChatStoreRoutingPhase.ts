@@ -120,6 +120,7 @@ export async function runRoutingPhaseAction(input: {
       useModelIndexStore.getState().index?.models.map((model) => ({
         id: model.id,
         name: model.name,
+        artifact_type: model.artifact_type,
         capabilities: model.capabilities,
         recommended_use: model.recommended_use,
         supportsVision: model.capabilities?.includes("vision"),
