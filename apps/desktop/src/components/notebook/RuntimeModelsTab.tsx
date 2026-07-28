@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { formatModelSizeBadge, type IndexedModel, type MultimodalPair, type RuntimeStatus } from "@dbzs/shared";
+import {
+  formatModelSizeBadge,
+  type IndexedModel,
+  type MultimodalPair,
+  type RuntimeProbeResponse,
+  type RuntimeStatus
+} from "@dbzs/shared";
 import { backendClient } from "@/services/backendClient";
 import { useModelIndexStore } from "@/stores/modelIndexStore";
 import { useRuntimeStore } from "@/stores/runtimeStore";
@@ -105,6 +111,51 @@ export function canProbeSupportArtifactPair(
   );
 }
 
+export function formatProbeFeedback(response: RuntimeProbeResponse): string {
+  const details: string[] = [];
+  if (response.endpoint_verified === true) {
+    details.push("Endpoint ok");
+  } else if (response.endpoint_verified === false) {
+    details.push("Endpoint fehlt");
+  }
+  if (response.models_endpoint_verified === true) {
+    details.push("/v1/models ok");
+  } else if (response.models_endpoint_verified === false) {
+    details.push("/v1/models fehlt");
+  }
+  if (Array.isArray(response.advertised_models) && response.advertised_models.length > 0) {
+    details.push(`Modelle: ${response.advertised_models.join(", ")}`);
+  }
+  return details.length > 0 ? `${response.message} (${details.join(" | ")})` : response.message;
+}
+
+export function collectProbeEvidenceLines(response: RuntimeProbeResponse): string[] {
+  const lines: string[] = [];
+  if (response.endpoint_verified === true) {
+    lines.push("Basis-Endpoint: ok");
+  } else if (response.endpoint_verified === false) {
+    lines.push("Basis-Endpoint: fehlt");
+  }
+  if (response.models_endpoint_verified === true) {
+    lines.push("/v1/models: ok");
+  } else if (response.models_endpoint_verified === false) {
+    lines.push("/v1/models: fehlt");
+  }
+  if (Array.isArray(response.advertised_models) && response.advertised_models.length > 0) {
+    lines.push(`Gemeldete Modelle: ${response.advertised_models.join(", ")}`);
+  }
+  if (typeof response.mmproj_path === "string" && response.mmproj_path.length > 0) {
+    lines.push(`MMProj: ${response.mmproj_path}`);
+  }
+  if (typeof response.stderr_tail === "string" && response.stderr_tail.trim().length > 0) {
+    lines.push(`stderr: ${response.stderr_tail.trim()}`);
+  }
+  if (typeof response.stdout_tail === "string" && response.stdout_tail.trim().length > 0) {
+    lines.push(`stdout: ${response.stdout_tail.trim()}`);
+  }
+  return lines;
+}
+
 export function RuntimeModelsTab() {
   const { index, isLoading: indexLoading, error: indexError, loadModelIndex } = useModelIndexStore();
   const { status, isLoading: runtimeBusy, error: runtimeError, startModel, stopModel } = useRuntimeStore();
@@ -113,6 +164,7 @@ export function RuntimeModelsTab() {
   const [pairingSaving, setPairingSaving] = useState<Record<string, boolean>>({});
   const [pairingProbing, setPairingProbing] = useState<Record<string, boolean>>({});
   const [pairingFeedback, setPairingFeedback] = useState<Record<string, string>>({});
+  const [pairingEvidence, setPairingEvidence] = useState<Record<string, string[]>>({});
   const backendOnline = backendHealth?.status === "ok";
   const models = index?.models ?? [];
   const supportArtifacts = index?.support_artifacts ?? models.filter((model) => model.artifact_type !== "model");
@@ -124,6 +176,7 @@ export function RuntimeModelsTab() {
   const saveManualPairing = async (artifactId: string, baseModelId: string) => {
     setPairingSaving((current) => ({ ...current, [artifactId]: true }));
     setPairingFeedback((current) => ({ ...current, [artifactId]: "" }));
+    setPairingEvidence((current) => ({ ...current, [artifactId]: [] }));
     try {
       await backendClient.saveManualMultimodalPairing({
         base_model_id: baseModelId,
@@ -147,6 +200,7 @@ export function RuntimeModelsTab() {
   const probePairing = async (artifactId: string, baseModelId: string) => {
     setPairingProbing((current) => ({ ...current, [artifactId]: true }));
     setPairingFeedback((current) => ({ ...current, [artifactId]: "" }));
+    setPairingEvidence((current) => ({ ...current, [artifactId]: [] }));
     try {
       const response = await backendClient.probeRuntimeModel({
         allow_start: true,
@@ -158,13 +212,18 @@ export function RuntimeModelsTab() {
       }
       setPairingFeedback((current) => ({
         ...current,
-        [artifactId]: response.message
+        [artifactId]: formatProbeFeedback(response)
+      }));
+      setPairingEvidence((current) => ({
+        ...current,
+        [artifactId]: collectProbeEvidenceLines(response)
       }));
     } catch (error) {
       setPairingFeedback((current) => ({
         ...current,
         [artifactId]: error instanceof Error ? error.message : "Probe fehlgeschlagen."
       }));
+      setPairingEvidence((current) => ({ ...current, [artifactId]: [] }));
     } finally {
       setPairingProbing((current) => ({ ...current, [artifactId]: false }));
     }
@@ -385,7 +444,14 @@ export function RuntimeModelsTab() {
                                   </button>
                                 </div>
                                 {pairingFeedback[artifact.id] ? (
-                                  <span className="text-[10px] text-dbzs-muted">{pairingFeedback[artifact.id]}</span>
+                                  <div className="flex flex-col gap-0.5 text-[10px] text-dbzs-muted">
+                                    <span>{pairingFeedback[artifact.id]}</span>
+                                    {(pairingEvidence[artifact.id] ?? []).map((line) => (
+                                      <span className="text-[9px] text-dbzs-muted/80" key={`${artifact.id}:${line}`}>
+                                        {line}
+                                      </span>
+                                    ))}
+                                  </div>
                                 ) : null}
                               </div>
                             ) : (

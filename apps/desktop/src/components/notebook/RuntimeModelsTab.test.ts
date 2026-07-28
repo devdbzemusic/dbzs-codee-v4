@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { IndexedModel, MultimodalPair, RuntimeStatus } from "@dbzs/shared";
-import { canProbeSupportArtifactPair, describeSupportArtifact, modelRowActionState } from "./RuntimeModelsTab";
+import type { IndexedModel, MultimodalPair, RuntimeProbeResponse, RuntimeStatus } from "@dbzs/shared";
+import {
+  canProbeSupportArtifactPair,
+  collectProbeEvidenceLines,
+  describeSupportArtifact,
+  formatProbeFeedback,
+  modelRowActionState
+} from "./RuntimeModelsTab";
 
 const baseModel: IndexedModel = {
   id: "m1",
@@ -254,5 +260,80 @@ describe("canProbeSupportArtifactPair", () => {
     };
 
     expect(canProbeSupportArtifactPair(mmprojArtifact, verifiedPair)).toBe(false);
+  });
+});
+
+describe("formatProbeFeedback", () => {
+  it("includes endpoint verification details for successful probes", () => {
+    const response: RuntimeProbeResponse = {
+      allowed: true,
+      message: "Controlled probe succeeded for vision-base on port 8091.",
+      stderr_tail: "",
+      stdout_tail: "",
+      endpoint_verified: true,
+      models_endpoint_verified: true,
+      advertised_models: ["vision-base"]
+    };
+
+    expect(formatProbeFeedback(response)).toBe(
+      "Controlled probe succeeded for vision-base on port 8091. (Endpoint ok | /v1/models ok | Modelle: vision-base)"
+    );
+  });
+
+  it("includes missing verification details for partial probe failures", () => {
+    const response: RuntimeProbeResponse = {
+      allowed: false,
+      message: "Controlled probe started, but verification failed for: /v1/models.",
+      stderr_tail: "",
+      stdout_tail: "",
+      endpoint_verified: true,
+      models_endpoint_verified: false,
+      advertised_models: []
+    };
+
+    expect(formatProbeFeedback(response)).toBe(
+      "Controlled probe started, but verification failed for: /v1/models. (Endpoint ok | /v1/models fehlt)"
+    );
+  });
+});
+
+describe("collectProbeEvidenceLines", () => {
+  it("collects structured probe evidence for successful multimodal probes", () => {
+    const response: RuntimeProbeResponse = {
+      allowed: true,
+      message: "Controlled probe succeeded for vision-base on port 8091.",
+      stderr_tail: "",
+      stdout_tail: "",
+      endpoint_verified: true,
+      models_endpoint_verified: true,
+      advertised_models: ["vision-base"],
+      mmproj_path: "/models/mmproj-vision-base-f16.gguf"
+    };
+
+    expect(collectProbeEvidenceLines(response)).toEqual([
+      "Basis-Endpoint: ok",
+      "/v1/models: ok",
+      "Gemeldete Modelle: vision-base",
+      "MMProj: /models/mmproj-vision-base-f16.gguf"
+    ]);
+  });
+
+  it("collects failure evidence including stream tails", () => {
+    const response: RuntimeProbeResponse = {
+      allowed: false,
+      message: "Controlled probe failed.",
+      stderr_tail: "port already in use",
+      stdout_tail: "retrying",
+      endpoint_verified: false,
+      models_endpoint_verified: false,
+      advertised_models: []
+    };
+
+    expect(collectProbeEvidenceLines(response)).toEqual([
+      "Basis-Endpoint: fehlt",
+      "/v1/models: fehlt",
+      "stderr: port already in use",
+      "stdout: retrying"
+    ]);
   });
 });
