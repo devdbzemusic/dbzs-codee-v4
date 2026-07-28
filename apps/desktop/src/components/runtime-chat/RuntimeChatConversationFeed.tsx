@@ -22,7 +22,8 @@ export function RuntimeChatConversationFeed({
   onApplyAssistantProposal,
   onCancelRun,
   onFixFindings,
-  onRerunReview
+  onRerunReview,
+  onSelectExample
 }: {
   messages: RuntimeChatMessage[];
   historicalRuns: Record<string, RuntimeChatRun>;
@@ -35,6 +36,7 @@ export function RuntimeChatConversationFeed({
   onCancelRun: (runId?: string) => void;
   onFixFindings: (reviewId: string) => void;
   onRerunReview: () => void;
+  onSelectExample: (example: string) => void;
 }) {
   const activeRunId = activeRun?.id ?? null;
 
@@ -62,14 +64,16 @@ export function RuntimeChatConversationFeed({
               "Prüfe die Ursache für den Fehler im Review-Controller.",
               "Mach weiter mit dem laufenden Fix.",
               "Wie weit bist du gerade?",
-              "Zaehle alle gguf Modelle im Workspace."
+              "Zähle alle gguf Modelle im Workspace."
             ].map((example) => (
-              <span
-                className="rounded border border-dbzs-border/70 bg-dbzs-bg/70 px-2 py-1"
+              <button
+                className="rounded border border-dbzs-border/70 bg-dbzs-bg/70 px-2 py-1 text-left transition-colors hover:border-dbzs-cyan/40 hover:text-dbzs-cyan"
                 key={example}
+                onClick={() => onSelectExample(example)}
+                type="button"
               >
                 {example}
-              </span>
+              </button>
             ))}
           </div>
         </div>

@@ -1,4 +1,5 @@
 import React, { type KeyboardEvent } from "react";
+import { Button } from "@/components/ui/Button";
 
 export function RuntimeChatComposer({
   draft,
@@ -49,32 +50,20 @@ export function RuntimeChatComposer({
         onSubmit();
       }}
     >
-      <div className="mb-1 flex flex-wrap items-center gap-1 text-[10px]">
-        <button
-          className={`rounded border px-1.5 py-0.5 ${
-            chatMode === "auto"
-              ? "border-dbzs-cyan/60 bg-dbzs-cyan/10 text-dbzs-cyan"
-              : "border-dbzs-border text-dbzs-muted"
-          }`}
-          onClick={() => setChatMode("auto")}
-          type="button"
-        >
-          Auto
-        </button>
-        <button
-          className={`rounded border px-1.5 py-0.5 ${
-            chatMode === "agent"
-              ? "border-dbzs-cyan/60 bg-dbzs-cyan/10 text-dbzs-cyan"
-              : "border-dbzs-border text-dbzs-muted"
-          }`}
-          onClick={() => setChatMode("agent")}
-          type="button"
-        >
-          Agent
-        </button>
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px]">
+        <span className="text-dbzs-muted">Gesprächsmodus:</span>
+        <Button active={chatMode === "auto"} onClick={() => setChatMode("auto")} title="Codee entscheidet selbst, wie agentisch die Antwort sein soll.">
+          Automatisch
+        </Button>
+        <Button active={chatMode === "agent"} onClick={() => setChatMode("agent")} title="Mehr explizite Umsetzungs- und Ausführungsschritte statt nur Antworttext.">
+          Als Agent
+        </Button>
+        <label className="text-dbzs-muted" htmlFor="runtime-chat-tool-profile">Werkzeugrechte:</label>
         <select
           className="rounded border border-dbzs-border bg-dbzs-bg px-1.5 py-0.5 text-[10px] text-dbzs-muted"
           disabled={isSending}
+          id="runtime-chat-tool-profile"
+          title="Steuert, wie offensiv Codee Tools und Ausführungen nutzen darf."
           value={toolProfile}
           onChange={(event) => setToolProfile(event.currentTarget.value as "ask" | "agent" | "full")}
         >
@@ -82,7 +71,7 @@ export function RuntimeChatComposer({
           <option value="agent">Agent</option>
           <option value="full">Full</option>
         </select>
-        <label className="inline-flex items-center gap-1 text-dbzs-muted">
+        <label className="inline-flex items-center gap-1 text-dbzs-muted" title="Wenn aktiv, darf der Chat Workspace, aktive Datei und Mentions mitdenken.">
           <input
             checked={includeWorkspaceContext}
             className="h-3 w-3"
@@ -92,7 +81,7 @@ export function RuntimeChatComposer({
           Kontext
         </label>
         <span className="ml-auto truncate text-dbzs-muted">
-          {contextNote ?? "Enter senden · Shift+Enter Zeile"}
+          {contextNote ?? "Enter senden · Shift+Enter neue Zeile"}
         </span>
       </div>
       <div className="mb-2 text-[10px] text-dbzs-muted">
@@ -115,24 +104,23 @@ export function RuntimeChatComposer({
         />
         <div className="flex shrink-0 flex-col gap-1">
           {isSending || isStreaming ? (
-            <button
-              className="rounded border border-red-400/50 bg-red-400/10 px-2 py-1 text-[10px] text-red-400"
+            <Button
+              variant="danger"
               onClick={(event) => {
                 event.preventDefault();
                 onCancel();
               }}
-              type="button"
             >
               Stopp
-            </button>
+            </Button>
           ) : null}
-          <button
-            className="rounded border border-dbzs-cyan/50 bg-dbzs-cyan/10 px-2 py-1 text-[10px] font-medium text-dbzs-cyan disabled:opacity-40"
+          <Button
+            variant="primary"
             disabled={!runtimeReady || isSending || draft.trim().length === 0}
             type="submit"
           >
             {isSending ? "…" : "Senden"}
-          </button>
+          </Button>
         </div>
       </div>
     </form>

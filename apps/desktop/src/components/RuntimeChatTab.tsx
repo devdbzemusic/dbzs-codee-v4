@@ -2,37 +2,41 @@ import {
   type BackendStartupStatus,
   type RuntimeStatus,
   type WorkspaceFile,
-  type WorkspaceProjectFile,
+  type WorkspaceProjectFile
 } from "@dbzs/shared";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useRuntimeChatStore } from "@/stores/runtimeChatStore";
-import { useRuntimeChatApprovalStore } from "@/stores/runtimeChatApprovalStore";
-import { useSettingsStore } from "@/stores/settingsStore";
-import { closeRuntimeChatWindow, openRuntimeChatWindow } from "@/utils/runtimeChatWindow";
 import { useRuntimeChatPendingApprovalCount } from "@/components/RuntimeChatApprovals";
+import { RuntimeChatCapabilitiesOverlay } from "@/components/runtime-chat/RuntimeChatCapabilitiesOverlay";
+import { RuntimeChatComposer } from "@/components/runtime-chat/RuntimeChatComposer";
+import { RuntimeChatConversationFeed } from "@/components/runtime-chat/RuntimeChatConversationFeed";
+import { RuntimeChatHeader } from "@/components/runtime-chat/RuntimeChatHeader";
+import {
+  stripPrivateReasoning
+} from "@/components/runtime-chat/RuntimeChatMessageCard";
+import { RuntimeChatSecondaryPanels } from "@/components/runtime-chat/RuntimeChatSecondaryPanels";
+import {
+  detachActiveTaskContract,
+  restoreActiveTaskContract
+} from "@/services/activeTaskContract";
+import { agentLabel } from "@/services/runtimeChatActivityHelpers";
 import { buildWorkspaceContext } from "@/services/runtimeChatContext";
 import { insertMention, suggestMentionPaths } from "@/services/runtimeChatContextMentions";
-import { agentLabel } from "@/services/runtimeChatActivityHelpers";
-import { useEditorStore } from "@/stores/editorStore";
+import { listRuntimeChatSkills } from "@/services/runtimeChatSkills";
 import { codeIndexService } from "@/services/codeIndexService";
 import {
   isWorkModelLoaded,
   looksLikeOrchestratorModel
 } from "@/services/lazyRuntimePolicy";
-import {
-  detachActiveTaskContract,
-  restoreActiveTaskContract
-} from "@/services/activeTaskContract";
-import type { RoutingDiagnostics } from "@/types/runtimeRoutingDiagnostics";
 import { formatBootStateForUi } from "@/services/bootUiFormatter";
-import { TokenBudgetVisualizer } from "./TokenBudgetVisualizer";
-import {
-  stripPrivateReasoning
-} from "@/components/runtime-chat/RuntimeChatMessageCard";
-import { RuntimeChatConversationFeed } from "@/components/runtime-chat/RuntimeChatConversationFeed";
-import { RuntimeChatComposer } from "@/components/runtime-chat/RuntimeChatComposer";
-import { RuntimeChatHeader } from "@/components/runtime-chat/RuntimeChatHeader";
-import { RuntimeChatSecondaryPanels } from "@/components/runtime-chat/RuntimeChatSecondaryPanels";
+import { observabilityService } from "@/runtime/observability/observabilityService";
+import { useCommandPaletteStore } from "@/stores/commandPaletteStore";
+import { useEditorStore } from "@/stores/editorStore";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { useRuntimeChatApprovalStore } from "@/stores/runtimeChatApprovalStore";
+import { useRuntimeChatStore } from "@/stores/runtimeChatStore";
+import { PRESET_MESSAGES } from "@/stores/runtimeChatStoreRuntimeHelpers";
+import type { RoutingDiagnostics } from "@/types/runtimeRoutingDiagnostics";
+import { closeRuntimeChatWindow, openRuntimeChatWindow } from "@/utils/runtimeChatWindow";
 
 interface RuntimeChatTabProps {
   activeFile: WorkspaceFile | null;
@@ -45,6 +49,14 @@ interface RuntimeChatTabProps {
   compact?: boolean;
   detached?: boolean;
 }
+
+const PRESET_LABELS = {
+  plan: "Plan",
+  refactor: "Refactor",
+  review: "Review",
+  summarize: "Zusammenfassen",
+  next_steps: "Nächste Schritte"
+} as const;
 
 export function RuntimeChatTab({
   activeFile,
@@ -79,10 +91,12 @@ export function RuntimeChatTab({
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [showPanels, setShowPanels] = useState(false);
   const [showSlotPanel, setShowSlotPanel] = useState(false);
+  const [showCapabilities, setShowCapabilities] = useState(false);
   const [chatMode, setChatMode] = useState<"auto" | "agent">("auto");
   const [selectedProvider, setSelectedProvider] = useState("llama.cpp");
   const [availableProviders, setAvailableProviders] = useState<string[]>(["llama.cpp", "ollama", "antigravity"]);
   const [includeWorkspaceContext, setIncludeWorkspaceContext] = useState(true);
+  const [traceCount, setTraceCount] = useState(() => observabilityService.getAllTraces().length);
   const mentionSuggestions = useMemo(() => {
     const at = draft.lastIndexOf("@");
     if (at < 0) return [];
@@ -93,34 +107,50 @@ export function RuntimeChatTab({
   }, [draft, workspaceFiles]);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const previousWorkspaceRootRef = useRef(workspaceRoot);
+  const handledCapabilitiesRequestRef = useRef(0);
+  const handledPresetRequestRef = useRef(0);
   const queueProposedChanges = useEditorStore((state) => state.queueProposedChanges);
   const requestTakeoverApproval = useRuntimeChatApprovalStore((state) => state.requestTakeoverApproval);
   const pendingApprovalCount = useRuntimeChatPendingApprovalCount(workspaceRoot);
   const activePatchProposal = useRuntimeChatStore((state) => state.activePatchProposal);
-  const previousWorkspaceRootRef = useRef(workspaceRoot);
+  const settings = useSettingsStore((state) => state.settings);
+  const activeActivity = useRuntimeChatStore((state) => state.currentActivity ?? state.lastActivity);
+  const workspaceContextStep = activeActivity?.steps.find((step) => step.id === "workspace-context");
+  const lastBrokerDecision = useRuntimeChatStore((state) => state.lastBrokerDecision);
+  const capabilityRequestId = useCommandPaletteStore((state) => state.runtimeChatCapabilitiesRequestId);
+  const presetRequest = useCommandPaletteStore((state) => state.runtimeChatPresetRequest);
+  const runtimeReady = status != null;
+  const workModelReady = isWorkModelLoaded(status) && !looksLikeOrchestratorModel(status);
+  const skills = useMemo(() => listRuntimeChatSkills(), []);
+  const presetEntries = useMemo(
+    () =>
+      (Object.keys(PRESET_MESSAGES) as Array<keyof typeof PRESET_MESSAGES>).map((preset) => ({
+        id: preset,
+        label: PRESET_LABELS[preset],
+        description: PRESET_MESSAGES[preset]
+      })),
+    []
+  );
 
   useEffect(() => {
-    // Rückfragen (inkl. Resource-Risk A/B/C) liegen im Panel — bei offenen Fragen automatisch einblenden.
     if (pendingApprovalCount > 0) {
       setShowPanels(true);
     }
   }, [pendingApprovalCount]);
 
   useEffect(() => {
-    // Ein neuer Patch-Vorschlag darf nicht unsichtbar bleiben, bis der Nutzer
-    // zufällig auf "Werkzeuge & Freigaben" klickt.
     if (activePatchProposal) {
       setShowPanels(true);
     }
   }, [activePatchProposal]);
-  const settings = useSettingsStore((state) => state.settings);
-  const activeActivity = useRuntimeChatStore((state) => state.currentActivity ?? state.lastActivity);
-  const workspaceContextStep = activeActivity?.steps.find((step) => step.id === "workspace-context");
 
-  const lastBrokerDecision = useRuntimeChatStore((state) => state.lastBrokerDecision);
-  // Lazy Runtime: Chat darf senden sobald Backend-Status bekannt ist (auch stopped).
-  const runtimeReady = status != null;
-  const workModelReady = isWorkModelLoaded(status) && !looksLikeOrchestratorModel(status);
+  useEffect(() => {
+    const refresh = () => setTraceCount(observabilityService.getAllTraces().length);
+    refresh();
+    const interval = setInterval(refresh, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const workspaceChipLabel = useMemo(() => {
     if (!workspaceRoot) {
@@ -138,19 +168,17 @@ export function RuntimeChatTab({
       return "Kontext aus";
     }
     if (!workspaceRoot) {
-      return "Kein Workspace geoeffnet";
+      return "Kein Workspace geöffnet";
     }
     if (workspaceFiles.length === 0) {
       return detached
         ? "Detached: Dateiliste nicht synchronisiert — Hauptfenster fokussieren oder Chat im Panel nutzen"
-        : "Dateiscan leer — Projekt neu oeffnen oder scannen";
+        : "Dateiscan leer — Projekt neu öffnen oder scannen";
     }
     return null;
   }, [detached, includeWorkspaceContext, workspaceFiles.length, workspaceRoot]);
 
   const statusLabel = useMemo(() => {
-    // PRIORITÄT 6: Backend-Status vereinheitlichen.
-    // Der Status wird nun ausschließlich aus dem zentralen Boot-State abgeleitet.
     const bootStateLabel = formatBootStateForUi(backendStartupStatus);
 
     if (isSending && activeRun && !activeRun.firstTokenAt) {
@@ -249,6 +277,30 @@ export function RuntimeChatTab({
     }
   }, [currentActivity?.steps.length, isSending, isStreaming, messages.length]);
 
+  useEffect(() => {
+    if (detached) {
+      return;
+    }
+    if (capabilityRequestId > handledCapabilitiesRequestRef.current) {
+      handledCapabilitiesRequestRef.current = capabilityRequestId;
+      setShowCapabilities(true);
+    }
+  }, [capabilityRequestId, detached]);
+
+  useEffect(() => {
+    if (detached || !presetRequest || presetRequest.id <= handledPresetRequestRef.current) {
+      return;
+    }
+    handledPresetRequestRef.current = presetRequest.id;
+    if (runtimeReady && !isSending) {
+      void sendPresetPrompt(presetRequest.preset, status, activeFile, null, contextHint, sendOptions);
+      setContextNote(`Preset gestartet: ${PRESET_LABELS[presetRequest.preset]}`);
+    } else {
+      setDraft(PRESET_MESSAGES[presetRequest.preset]);
+      setContextNote(`Preset eingefügt: ${PRESET_LABELS[presetRequest.preset]}`);
+    }
+  }, [activeFile, contextHint, detached, isSending, presetRequest, runtimeReady, sendOptions, sendPresetPrompt, status]);
+
   const submitMessage = () => {
     const text = draft;
     if (text.trim().length === 0) return;
@@ -297,12 +349,17 @@ export function RuntimeChatTab({
     })();
   };
 
+  const runPreset = (preset: keyof typeof PRESET_MESSAGES) => {
+    setShowCapabilities(false);
+    void sendPresetPrompt(preset, status, activeFile, null, contextHint, sendOptions);
+  };
+
   const embeddedInPanel = compact && !detached;
   const shellClass = embeddedInPanel
-    ? "border border-dbzs-border bg-dbzs-panelSoft"
+    ? "relative border border-dbzs-border bg-dbzs-panelSoft"
     : compact
-    ? "flex h-full min-h-0 flex-col overflow-hidden border border-dbzs-border bg-dbzs-panelSoft"
-    : "mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden border border-dbzs-border bg-dbzs-panelSoft";
+      ? "relative flex h-full min-h-0 flex-col overflow-hidden border border-dbzs-border bg-dbzs-panelSoft"
+      : "relative mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden border border-dbzs-border bg-dbzs-panelSoft";
 
   const chatContent = (
     <>
@@ -320,12 +377,14 @@ export function RuntimeChatTab({
         selectedProvider={selectedProvider}
         availableProviders={availableProviders}
         pendingApprovalCount={pendingApprovalCount}
+        traceCount={traceCount}
         showPanels={showPanels}
         showSlotPanel={showSlotPanel}
         showDiagnostics={showDiagnostics}
         compact={compact}
         detached={detached}
         onProviderChange={setSelectedProvider}
+        onOpenCapabilities={() => setShowCapabilities(true)}
         onTogglePanels={() => setShowPanels((value) => !value)}
         onToggleSlots={() => setShowSlotPanel((value) => !value)}
         onToggleDiagnostics={() => setShowDiagnostics((value) => !value)}
@@ -340,49 +399,50 @@ export function RuntimeChatTab({
         contextLabel={contextReadinessHint ?? "Kontext bereit"}
       />
 
-        <details className="border-b border-dbzs-border bg-dbzs-bg px-2 py-1">
-          <summary className="cursor-pointer text-[10px] text-dbzs-muted">
-            Schnellaktionen & erweiterte Optionen
-          </summary>
-          <div className="mt-2 flex flex-wrap items-center gap-1">
-            {(["plan", "refactor", "review", "summarize", "next_steps"] as const).map((preset) => (
-              <button
-                className="rounded border border-dbzs-border bg-dbzs-panelSoft px-1.5 py-0.5 text-[10px] text-dbzs-muted hover:border-dbzs-cyan/40 hover:text-dbzs-cyan disabled:opacity-40"
-                disabled={!runtimeReady || isSending}
-                key={preset}
-                onClick={() => void sendPresetPrompt(preset, status, activeFile, null, contextHint, sendOptions)}
-                type="button"
-              >
-                {preset === "next_steps" ? "Next" : preset.charAt(0).toUpperCase() + preset.slice(1, 4)}
-              </button>
-            ))}
-            <span className="ml-auto truncate text-[10px] text-dbzs-muted" title={contextReadinessHint ?? undefined}>
-              {activeFile?.name ?? "keine Datei"} · {workspaceChipLabel}
-            </span>
-          </div>
-        </details>
+      <details className="border-b border-dbzs-border bg-dbzs-bg px-2 py-1">
+        <summary className="cursor-pointer text-[10px] text-dbzs-muted">
+          Schnellaktionen & erweiterte Optionen
+        </summary>
+        <div className="mt-2 flex flex-wrap items-center gap-1">
+          {presetEntries.map((preset) => (
+            <button
+              className="rounded border border-dbzs-border bg-dbzs-panelSoft px-1.5 py-0.5 text-[10px] text-dbzs-muted hover:border-dbzs-cyan/40 hover:text-dbzs-cyan disabled:opacity-40"
+              disabled={!runtimeReady || isSending}
+              key={preset.id}
+              onClick={() => runPreset(preset.id)}
+              title={preset.description}
+              type="button"
+            >
+              {preset.label}
+            </button>
+          ))}
+          <span className="ml-auto truncate text-[10px] text-dbzs-muted" title={contextReadinessHint ?? undefined}>
+            {activeFile?.name ?? "keine Datei"} · {workspaceChipLabel}
+          </span>
+        </div>
+      </details>
 
-        {contextReadinessHint ? (
-          <p className="border-b border-dbzs-amber/30 bg-dbzs-amber/5 px-2 py-1 text-[10px] leading-4 text-dbzs-amber">
-            {contextReadinessHint}
-          </p>
-        ) : null}
+      {contextReadinessHint ? (
+        <p className="border-b border-dbzs-amber/30 bg-dbzs-amber/5 px-2 py-1 text-[10px] leading-4 text-dbzs-amber">
+          {contextReadinessHint}
+        </p>
+      ) : null}
 
-        {mentionSuggestions.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-1 border-b border-dbzs-border bg-dbzs-panel px-2 py-1">
-            <span className="text-[10px] uppercase tracking-wide text-dbzs-muted">Mentions</span>
-            {mentionSuggestions.map((mention) => (
-              <button
-                key={`${mention.type}:${mention.path}`}
-                className="rounded border border-dbzs-border bg-dbzs-bg px-1.5 py-0.5 text-[10px] text-dbzs-muted hover:border-dbzs-cyan/40 hover:text-dbzs-cyan"
-                type="button"
-                onClick={() => setDraft((prev) => insertMention(prev, mention))}
-              >
-                @{mention.type}:{mention.path}
-              </button>
-            ))}
-          </div>
-        ) : null}
+      {mentionSuggestions.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-1 border-b border-dbzs-border bg-dbzs-panel px-2 py-1">
+          <span className="text-[10px] uppercase tracking-wide text-dbzs-muted">Mentions</span>
+          {mentionSuggestions.map((mention) => (
+            <button
+              key={`${mention.type}:${mention.path}`}
+              className="rounded border border-dbzs-border bg-dbzs-bg px-1.5 py-0.5 text-[10px] text-dbzs-muted hover:border-dbzs-cyan/40 hover:text-dbzs-cyan"
+              type="button"
+              onClick={() => setDraft((prev) => insertMention(prev, mention))}
+            >
+              @{mention.type}:{mention.path}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <RuntimeChatSecondaryPanels
         compact={compact}
@@ -456,16 +516,17 @@ export function RuntimeChatTab({
             sendOptions
           )
         }
+        onSelectExample={setDraft}
       />
 
-        {error ? (
-          <div
-            className="border-t border-dbzs-red/40 bg-dbzs-red/10 px-3 py-2 text-xs leading-5 text-dbzs-red"
-            role="alert"
-          >
-            <strong className="font-medium">Chat-Fehler:</strong> {error}
-          </div>
-        ) : null}
+      {error ? (
+        <div
+          className="border-t border-dbzs-red/40 bg-dbzs-red/10 px-3 py-2 text-xs leading-5 text-dbzs-red"
+          role="alert"
+        >
+          <strong className="font-medium">Chat-Fehler:</strong> {error}
+        </div>
+      ) : null}
 
       <div ref={messagesEndRef} />
 
@@ -484,6 +545,14 @@ export function RuntimeChatTab({
         setChatMode={setChatMode}
         setToolProfile={setToolProfile}
         setIncludeWorkspaceContext={setIncludeWorkspaceContext}
+      />
+
+      <RuntimeChatCapabilitiesOverlay
+        open={showCapabilities}
+        presetEntries={presetEntries}
+        skills={skills}
+        onClose={() => setShowCapabilities(false)}
+        onSelectPreset={runPreset}
       />
     </>
   );

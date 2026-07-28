@@ -8,12 +8,14 @@ export function RuntimeChatHeader({
   selectedProvider,
   availableProviders,
   pendingApprovalCount,
+  traceCount,
   showPanels,
   showSlotPanel,
   showDiagnostics,
   compact,
   detached,
   onProviderChange,
+  onOpenCapabilities,
   onTogglePanels,
   onToggleSlots,
   onToggleDiagnostics,
@@ -33,12 +35,14 @@ export function RuntimeChatHeader({
   selectedProvider: string;
   availableProviders: string[];
   pendingApprovalCount: number;
+  traceCount: number;
   showPanels: boolean;
   showSlotPanel: boolean;
   showDiagnostics: boolean;
   compact: boolean;
   detached: boolean;
   onProviderChange: (provider: string) => void;
+  onOpenCapabilities: () => void;
   onTogglePanels: () => void;
   onToggleSlots: () => void;
   onToggleDiagnostics: () => void;
@@ -65,12 +69,12 @@ export function RuntimeChatHeader({
             </div>
           ) : null}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
           <select
             className="rounded border border-dbzs-border bg-dbzs-panelSoft px-1.5 py-0.5 text-[10px] text-dbzs-text"
             onChange={(event) => onProviderChange(event.target.value)}
-            value={selectedProvider}
             title="Provider für die Chat-Anfrage"
+            value={selectedProvider}
           >
             {availableProviders.map((provider) => (
               <option key={provider} value={provider}>
@@ -84,9 +88,15 @@ export function RuntimeChatHeader({
             </span>
           ) : null}
           <Button
+            onClick={onOpenCapabilities}
+            title="Preset-Erklärungen, Skills und Modus-Hilfen an einer Stelle"
+          >
+            Was kann ich hier tun?
+          </Button>
+          <Button
             active={showPanels}
             onClick={onTogglePanels}
-            title="Werkzeuge, Aktivität, Freigaben, Patch-Vorschau, Recherche"
+            title="Werkzeuge, Aktivität, Freigaben, Patch-Vorschau und Recherche"
           >
             Werkzeuge &amp; Freigaben
           </Button>
@@ -103,12 +113,12 @@ export function RuntimeChatHeader({
               onClick={onToggleDiagnostics}
               title="Technische Routing-/Token-/Modell-Diagnose und Session-Traces — betrifft nicht den eigentlichen Workflow"
             >
-              Diagnose
+              Diagnose{traceCount > 0 ? ` · ${traceCount}` : ""}
             </Button>
           ) : null}
           {detached ? (
             <Button onClick={onClose} title="Abgedocktes Fenster schließen">
-              ✕
+              ×
             </Button>
           ) : (
             <Button variant="primary" onClick={onDetach} title="In eigenem Fenster öffnen">

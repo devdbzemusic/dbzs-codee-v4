@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/Button";
 import { listRuntimeChatSkills } from "@/services/runtimeChatSkills";
 import {
   getSkillRegistrySnapshot,
@@ -86,46 +87,40 @@ export function RuntimeChatToolsBar({ compact = false }: { compact?: boolean }) 
   };
 
   return (
-    <div className={`flex flex-wrap items-center gap-1 ${compact ? "px-2 py-1" : "px-3 py-1.5"} border-b border-dbzs-border bg-dbzs-panelSoft`}>
-      <button
-        className={`rounded border px-1.5 py-0.5 text-[10px] ${
-          toolsEnabled
-            ? "border-dbzs-cyan/50 bg-dbzs-cyan/10 text-dbzs-cyan"
-            : "border-dbzs-border bg-dbzs-bg text-dbzs-muted"
-        }`}
+    <div className={`flex flex-wrap items-start gap-1 ${compact ? "px-2 py-1" : "px-3 py-1.5"} border-b border-dbzs-border bg-dbzs-panelSoft`}>
+      <Button
+        active={toolsEnabled}
         onClick={() => setToolsEnabled(!toolsEnabled)}
         title="Backend-Orchestrierung und Tools"
-        type="button"
       >
         Tools {toolsEnabled ? "an" : "aus"}
-      </button>
+      </Button>
 
       {skills.map((skill) => {
         const active = enabledSkillIds.includes(skill.id);
         return (
           <button
-            className={`rounded border px-1.5 py-0.5 text-[10px] ${
+            className={`rounded border px-2 py-1 text-left text-[10px] ${
               active
                 ? "border-dbzs-cyan/50 bg-dbzs-cyan/10 text-dbzs-cyan"
-                : "border-dbzs-border bg-dbzs-bg text-dbzs-muted hover:text-dbzs-text"
+                : "border-dbzs-border bg-dbzs-bg text-dbzs-muted hover:border-dbzs-cyan/40 hover:text-dbzs-text"
             }`}
             key={skill.id}
             onClick={() => toggleWithTrust(skill.id)}
             title={`${skill.description} · ${skill.mode ?? ""} · Risiko ${skill.riskLevel ?? ""}`}
             type="button"
           >
-            {skill.label}
+            <div className="font-medium">{skill.label}</div>
+            <div className={`mt-0.5 max-w-[180px] truncate text-[9px] ${active ? "text-dbzs-cyan/80" : "text-dbzs-muted"}`}>
+              {skill.description}
+            </div>
           </button>
         );
       })}
 
-      <button
-        className="rounded border border-dbzs-border bg-dbzs-bg px-1.5 py-0.5 text-[10px] text-dbzs-muted hover:text-dbzs-text"
-        onClick={() => setSkillsOpen((open) => !open)}
-        type="button"
-      >
+      <Button onClick={() => setSkillsOpen((open) => !open)}>
         Skills …
-      </button>
+      </Button>
 
       {toolsEnabled && (availableTools.length > 0 || desktopToolNames.length > 0) ? (
         <span

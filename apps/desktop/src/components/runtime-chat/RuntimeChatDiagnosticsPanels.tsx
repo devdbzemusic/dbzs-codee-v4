@@ -1,7 +1,10 @@
+import { useMemo } from "react";
 import type { RoutingDiagnostics } from "@/types/runtimeRoutingDiagnostics";
 import { RoutingDiagnosticsCard } from "@/components/RoutingDiagnosticsCard";
 import { TokenBudgetVisualizer } from "@/components/TokenBudgetVisualizer";
 import { RuntimeModelTestPanel } from "@/components/RuntimeModelTestPanel";
+import { RuntimeChatTraceViewer } from "@/components/RuntimeChatTraceViewer";
+import { observabilityService } from "@/runtime/observability/observabilityService";
 
 /**
  * Pure technical diagnostics: routing decisions, token budget, model
@@ -19,6 +22,8 @@ export function RuntimeChatDiagnosticsPanels({
   tokenBudget: unknown;
   runtimeReady: boolean;
 }) {
+  const traceCount = useMemo(() => observabilityService.getAllTraces().length, []);
+
   return (
     <div className="space-y-2">
       {diagnostics ? (
@@ -30,6 +35,15 @@ export function RuntimeChatDiagnosticsPanels({
       )}
       <TokenBudgetVisualizer budget={tokenBudget as never} />
       <RuntimeModelTestPanel runtimeReady={runtimeReady} />
+      <details className="rounded border border-dbzs-border/60 bg-dbzs-bg/50 p-2">
+        <summary className="cursor-pointer text-[10px] font-medium text-dbzs-text">
+          Session-Traces (Observability)
+          <span className="ml-2 text-dbzs-muted">{traceCount > 0 ? `${traceCount} gespeichert` : "leer"}</span>
+        </summary>
+        <div className="mt-2">
+          <RuntimeChatTraceViewer />
+        </div>
+      </details>
     </div>
   );
 }
