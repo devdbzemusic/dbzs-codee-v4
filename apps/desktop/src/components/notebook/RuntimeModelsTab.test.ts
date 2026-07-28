@@ -20,9 +20,16 @@ import {
   modelRowActionState,
   shouldDisplaySupportArtifact,
   shouldManagePairInControlCenter,
+  sortStartableModels,
+  sortVisibleSupportArtifacts,
+  summarizeMultimodalPairActions,
   summarizeMultimodalPairSources,
   summarizeModelRoles,
   summarizeModelRoutingReadiness,
+  summarizeStartableModelActions,
+  summarizeSupportArtifacts,
+  summarizeVisibleSupportArtifactStatuses,
+  summarizeVisibleSupportArtifactActions,
   summarizeMultimodalPairs
 } from "./RuntimeModelsTab";
 
@@ -714,6 +721,64 @@ describe("summarizeMultimodalPairSources", () => {
   });
 });
 
+describe("summarizeMultimodalPairActions", () => {
+  it("counts probe-ready, assignment-needed, resolved and blocked pair actions", () => {
+    expect(
+      summarizeMultimodalPairActions([
+        {
+          id: "resolved:mmproj-1",
+          base_model_id: "m1",
+          projector_artifact_id: "mmproj-1",
+          modalities: ["text", "image"],
+          source: "manual",
+          confidence: 1,
+          status: "candidate",
+          routing_allowed: true,
+          candidate_base_model_ids: ["m1"]
+        },
+        {
+          id: "probe:mmproj-2",
+          base_model_id: "m2",
+          projector_artifact_id: "mmproj-2",
+          modalities: ["text", "image"],
+          source: "catalog",
+          confidence: 0.9,
+          status: "candidate",
+          routing_allowed: false,
+          candidate_base_model_ids: ["m2"]
+        },
+        {
+          id: "assign:mmproj-3",
+          base_model_id: null,
+          projector_artifact_id: "mmproj-3",
+          modalities: ["text", "image"],
+          source: "same_folder",
+          confidence: 0.5,
+          status: "ambiguous",
+          routing_allowed: false,
+          candidate_base_model_ids: ["m3", "m4"]
+        },
+        {
+          id: "blocked:mmproj-4",
+          base_model_id: null,
+          projector_artifact_id: "mmproj-4",
+          modalities: ["text", "image"],
+          source: "same_folder",
+          confidence: 0,
+          status: "missing_base",
+          routing_allowed: false,
+          candidate_base_model_ids: []
+        }
+      ])
+    ).toEqual({
+      probeReady: 1,
+      needsAssignment: 1,
+      resolved: 1,
+      blocked: 1
+    });
+  });
+});
+
 describe("shouldDisplaySupportArtifact", () => {
   const mmprojArtifact: IndexedModel = {
     ...baseModel,
@@ -1018,6 +1083,302 @@ describe("summarizeModelRoles", () => {
       orchestrator: 1,
       other: 1
     });
+  });
+});
+
+describe("sortStartableModels", () => {
+  it("prioritizes the active model and strongest routing candidates first", () => {
+    const models: IndexedModel[] = [
+      {
+        ...baseModel,
+        id: "text-only",
+        name: "text-only.gguf",
+        capabilities: ["chat"],
+        modality: ["text"],
+        recommended_use: "chat_candidate"
+      },
+      {
+        ...baseModel,
+        id: "vision-direct",
+        name: "vision-direct.gguf",
+        capabilities: ["chat", "vision"],
+        modality: ["text", "image"],
+        recommended_use: "vision_candidate"
+      },
+      {
+        ...baseModel,
+        id: "text-code-active",
+        name: "text-code-active.gguf",
+        capabilities: ["chat", "code"],
+        modality: ["text"],
+        recommended_use: "primary_coding"
+      }
+    ];
+
+    const runningStatus: RuntimeStatus = {
+      state: "running",
+      model_id: "text-code-active",
+      model_name: "text-code-active.gguf",
+      provider: "llama.cpp",
+      port: 8080,
+      pid: 1234,
+      endpoint: "http://127.0.0.1:8080",
+      message: "running"
+    };
+
+    expect(sortStartableModels(models, [], runningStatus).map((model) => model.id)).toEqual([
+      "text-code-active",
+      "vision-direct",
+      "text-only"
+    ]);
+  });
+});
+
+describe("summarizeStartableModelActions", () => {
+  it("counts running, loadable and blocked startable models from action state", () => {
+    const models: IndexedModel[] = [
+      {
+        ...baseModel,
+        id: "running-model",
+        name: "running-model.gguf"
+      },
+      {
+        ...baseModel,
+        id: "loadable-model",
+        name: "loadable-model.gguf"
+      },
+      {
+        ...baseModel,
+        id: "blocked-model",
+        name: "blocked-model.gguf"
+      }
+    ];
+
+    const runningStatus: RuntimeStatus = {
+      state: "running",
+      model_id: "running-model",
+      model_name: "running-model.gguf",
+      provider: "llama.cpp",
+      port: 8080,
+      pid: 1234,
+      endpoint: "http://127.0.0.1:8080",
+      message: "running"
+    };
+
+    expect(summarizeStartableModelActions(models, runningStatus, false)).toEqual({
+      running: 1,
+      loadable: 0,
+      blocked: 2
+    });
+
+    expect(summarizeStartableModelActions(models, { state: "stopped" } as RuntimeStatus, false)).toEqual({
+      running: 0,
+      loadable: 3,
+      blocked: 0
+    });
+  });
+});
+
+describe("summarizeSupportArtifacts", () => {
+  it("counts mmproj, adapter/lora and other visible support artifacts", () => {
+    expect(
+      summarizeSupportArtifacts([
+        {
+          ...baseModel,
+          id: "mmproj-1",
+          artifact_type: "mmproj",
+          recommended_use: "vision_candidate"
+        },
+        {
+          ...baseModel,
+          id: "adapter-1",
+          artifact_type: "adapter",
+          recommended_use: "coding_candidate"
+        },
+        {
+          ...baseModel,
+          id: "lora-1",
+          artifact_type: "lora",
+          recommended_use: "coding_candidate"
+        },
+        {
+          ...baseModel,
+          id: "clip-1",
+          artifact_type: "clip",
+          recommended_use: "vision_candidate"
+        }
+      ])
+    ).toEqual({
+      mmproj: 1,
+      adapter: 2,
+      other: 1
+    });
+  });
+});
+
+describe("summarizeVisibleSupportArtifactActions", () => {
+  it("counts probe-ready, manual-assignment and read-only visible support actions", () => {
+    const visibleArtifacts: IndexedModel[] = [
+      {
+        ...baseModel,
+        id: "mmproj-probe",
+        artifact_type: "mmproj",
+        recommended_use: "vision_candidate"
+      },
+      {
+        ...baseModel,
+        id: "mmproj-manual",
+        artifact_type: "mmproj",
+        recommended_use: "vision_candidate"
+      },
+      {
+        ...baseModel,
+        id: "adapter-1",
+        artifact_type: "adapter",
+        recommended_use: "coding_candidate"
+      }
+    ];
+
+    const pairs: MultimodalPair[] = [
+      {
+        id: "m1:mmproj-probe",
+        base_model_id: "m1",
+        projector_artifact_id: "mmproj-probe",
+        modalities: ["text", "image"],
+        source: "catalog",
+        confidence: 0.9,
+        status: "candidate",
+        routing_allowed: false,
+        candidate_base_model_ids: ["m1"]
+      }
+    ];
+
+    expect(
+      summarizeVisibleSupportArtifactActions(visibleArtifacts, pairs, [
+        {
+          ...baseModel,
+          id: "m1"
+        }
+      ])
+    ).toEqual({
+      probeReady: 1,
+      manualAssignment: 1,
+      readOnly: 1
+    });
+  });
+});
+
+describe("summarizeVisibleSupportArtifactStatuses", () => {
+  it("counts verified, candidate, orphan and other visible support statuses", () => {
+    const visibleArtifacts: IndexedModel[] = [
+      {
+        ...baseModel,
+        id: "mmproj-verified",
+        artifact_type: "mmproj",
+        recommended_use: "vision_candidate"
+      },
+      {
+        ...baseModel,
+        id: "mmproj-candidate",
+        artifact_type: "mmproj",
+        recommended_use: "vision_candidate"
+      },
+      {
+        ...baseModel,
+        id: "mmproj-orphan",
+        artifact_type: "mmproj",
+        recommended_use: "vision_candidate"
+      },
+      {
+        ...baseModel,
+        id: "adapter-1",
+        artifact_type: "adapter",
+        recommended_use: "coding_candidate"
+      }
+    ];
+
+    const pairs: MultimodalPair[] = [
+      {
+        id: "m1:mmproj-verified",
+        base_model_id: "m1",
+        projector_artifact_id: "mmproj-verified",
+        modalities: ["text", "image"],
+        source: "manual",
+        confidence: 1,
+        status: "candidate",
+        routing_allowed: true,
+        candidate_base_model_ids: ["m1"]
+      },
+      {
+        id: "m2:mmproj-candidate",
+        base_model_id: "m2",
+        projector_artifact_id: "mmproj-candidate",
+        modalities: ["text", "image"],
+        source: "catalog",
+        confidence: 0.8,
+        status: "candidate",
+        routing_allowed: false,
+        candidate_base_model_ids: ["m2"]
+      }
+    ];
+
+    expect(summarizeVisibleSupportArtifactStatuses(visibleArtifacts, pairs)).toEqual({
+      verified: 1,
+      candidate: 1,
+      orphan: 1,
+      other: 1
+    });
+  });
+});
+
+describe("sortVisibleSupportArtifacts", () => {
+  it("prioritizes probe-ready and manual mmproj artifacts before read-only support files", () => {
+    const visibleArtifacts: IndexedModel[] = [
+      {
+        ...baseModel,
+        id: "adapter-1",
+        name: "adapter-a.gguf",
+        artifact_type: "adapter",
+        recommended_use: "coding_candidate"
+      },
+      {
+        ...baseModel,
+        id: "mmproj-manual",
+        name: "mmproj-manual.gguf",
+        artifact_type: "mmproj",
+        recommended_use: "vision_candidate"
+      },
+      {
+        ...baseModel,
+        id: "mmproj-probe",
+        name: "mmproj-probe.gguf",
+        artifact_type: "mmproj",
+        recommended_use: "vision_candidate"
+      }
+    ];
+
+    const pairs: MultimodalPair[] = [
+      {
+        id: "m1:mmproj-probe",
+        base_model_id: "m1",
+        projector_artifact_id: "mmproj-probe",
+        modalities: ["text", "image"],
+        source: "catalog",
+        confidence: 0.8,
+        status: "candidate",
+        routing_allowed: false,
+        candidate_base_model_ids: ["m1"]
+      }
+    ];
+
+    expect(
+      sortVisibleSupportArtifacts(visibleArtifacts, pairs, [
+        {
+          ...baseModel,
+          id: "m1"
+        }
+      ]).map((artifact) => artifact.id)
+    ).toEqual(["mmproj-probe", "mmproj-manual", "adapter-1"]);
   });
 });
 

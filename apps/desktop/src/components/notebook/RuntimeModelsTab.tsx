@@ -372,6 +372,145 @@ export function summarizeMultimodalPairSources(
   return summary;
 }
 
+export function summarizeMultimodalPairActions(
+  pairs: MultimodalPair[]
+): Record<"probeReady" | "needsAssignment" | "resolved" | "blocked", number> {
+  const summary = {
+    probeReady: 0,
+    needsAssignment: 0,
+    resolved: 0,
+    blocked: 0
+  };
+
+  for (const pair of pairs) {
+    if (pair.routing_allowed) {
+      summary.resolved += 1;
+      continue;
+    }
+    if (pair.status === "candidate" && pair.base_model_id) {
+      summary.probeReady += 1;
+      continue;
+    }
+    if (
+      (pair.status === "ambiguous" && pair.candidate_base_model_ids.length > 0) ||
+      (pair.status === "missing_base" && pair.candidate_base_model_ids.length > 0)
+    ) {
+      summary.needsAssignment += 1;
+      continue;
+    }
+    summary.blocked += 1;
+  }
+
+  return summary;
+}
+
+export function summarizeSupportArtifacts(
+  artifacts: IndexedModel[]
+): Record<"mmproj" | "adapter" | "other", number> {
+  const summary = {
+    mmproj: 0,
+    adapter: 0,
+    other: 0
+  };
+
+  for (const artifact of artifacts) {
+    if (artifact.artifact_type === "mmproj") {
+      summary.mmproj += 1;
+    } else if (artifact.artifact_type === "adapter" || artifact.artifact_type === "lora") {
+      summary.adapter += 1;
+    } else {
+      summary.other += 1;
+    }
+  }
+
+  return summary;
+}
+
+export function summarizeVisibleSupportArtifactStatuses(
+  artifacts: IndexedModel[],
+  pairs: MultimodalPair[]
+): Record<"verified" | "candidate" | "orphan" | "other", number> {
+  const summary = {
+    verified: 0,
+    candidate: 0,
+    orphan: 0,
+    other: 0
+  };
+
+  for (const artifact of artifacts) {
+    const description = describeSupportArtifact(artifact, pairs);
+    if (description.statusLabel === "verified") {
+      summary.verified += 1;
+    } else if (description.statusLabel === "candidate") {
+      summary.candidate += 1;
+    } else if (description.statusLabel === "orphan") {
+      summary.orphan += 1;
+    } else {
+      summary.other += 1;
+    }
+  }
+
+  return summary;
+}
+
+export function summarizeVisibleSupportArtifactActions(
+  artifacts: IndexedModel[],
+  pairs: MultimodalPair[],
+  pairingCandidates: IndexedModel[]
+): Record<"probeReady" | "manualAssignment" | "readOnly", number> {
+  const summary = {
+    probeReady: 0,
+    manualAssignment: 0,
+    readOnly: 0
+  };
+
+  for (const artifact of artifacts) {
+    const pair = pairs.find((entry) => entry.projector_artifact_id === artifact.id);
+    if (canProbeSupportArtifactPair(artifact, pair)) {
+      summary.probeReady += 1;
+      continue;
+    }
+
+    const canPairManually = artifact.artifact_type === "mmproj" && pairingCandidates.length > 0;
+    if (canPairManually) {
+      summary.manualAssignment += 1;
+      continue;
+    }
+
+    summary.readOnly += 1;
+  }
+
+  return summary;
+}
+
+export function sortVisibleSupportArtifacts(
+  artifacts: IndexedModel[],
+  pairs: MultimodalPair[],
+  pairingCandidates: IndexedModel[]
+): IndexedModel[] {
+  return [...artifacts].sort((left, right) => {
+    const leftPair = pairs.find((entry) => entry.projector_artifact_id === left.id);
+    const rightPair = pairs.find((entry) => entry.projector_artifact_id === right.id);
+    const leftProbeReady = canProbeSupportArtifactPair(left, leftPair);
+    const rightProbeReady = canProbeSupportArtifactPair(right, rightPair);
+    if (leftProbeReady !== rightProbeReady) {
+      return leftProbeReady ? -1 : 1;
+    }
+
+    const leftManual = left.artifact_type === "mmproj" && pairingCandidates.length > 0;
+    const rightManual = right.artifact_type === "mmproj" && pairingCandidates.length > 0;
+    if (leftManual !== rightManual) {
+      return leftManual ? -1 : 1;
+    }
+
+    if (left.artifact_type !== right.artifact_type) {
+      return left.artifact_type.localeCompare(right.artifact_type);
+    }
+
+    return left.name.localeCompare(right.name);
+  });
+}
+
 export function shouldDisplaySupportArtifact(
   artifact: IndexedModel,
   pair: MultimodalPair | undefined
@@ -524,6 +663,73 @@ export function summarizeModelRoles(
   return summary;
 }
 
+export function summarizeStartableModelActions(
+  models: IndexedModel[],
+  status: RuntimeStatus | null,
+  runtimeBusy: boolean
+): Record<"running" | "loadable" | "blocked", number> {
+  const summary = {
+    running: 0,
+    loadable: 0,
+    blocked: 0
+  };
+
+  for (const model of models) {
+    const actionState = modelRowActionState(model, status, runtimeBusy);
+    if (actionState.isActive) {
+      summary.running += 1;
+    } else if (actionState.canStart) {
+      summary.loadable += 1;
+    } else {
+      summary.blocked += 1;
+    }
+  }
+
+  return summary;
+}
+
+function routingReadinessPriority(label: string): number {
+  if (label === "Vision + Code") return 0;
+  if (label === "Text + Code") return 1;
+  if (label === "Vision direkt") return 2;
+  if (label === "Vision Chat") return 3;
+  if (label === "Text") return 4;
+  return 5;
+}
+
+export function sortStartableModels(
+  models: IndexedModel[],
+  multimodalPairs: MultimodalPair[],
+  status: RuntimeStatus | null
+): IndexedModel[] {
+  return [...models].sort((left, right) => {
+    const leftActive =
+      status?.state === "running" &&
+      (status.model_id === left.id || (status.model_name != null && status.model_name === left.name));
+    const rightActive =
+      status?.state === "running" &&
+      (status.model_id === right.id || (status.model_name != null && status.model_name === right.name));
+    if (leftActive !== rightActive) {
+      return leftActive ? -1 : 1;
+    }
+
+    const leftRouting = describeModelRoutingReadiness(left, multimodalPairs);
+    const rightRouting = describeModelRoutingReadiness(right, multimodalPairs);
+    const routingDelta = routingReadinessPriority(leftRouting.label) - routingReadinessPriority(rightRouting.label);
+    if (routingDelta !== 0) {
+      return routingDelta;
+    }
+
+    const leftRole = left.recommended_use ?? "";
+    const rightRole = right.recommended_use ?? "";
+    if (leftRole !== rightRole) {
+      return leftRole.localeCompare(rightRole);
+    }
+
+    return left.name.localeCompare(right.name);
+  });
+}
+
 export function sortMultimodalPairs(pairs: MultimodalPair[]): MultimodalPair[] {
   const priority = (pair: MultimodalPair): number => {
     if (pair.status === "ambiguous") return 0;
@@ -558,6 +764,7 @@ export function RuntimeModelsTab() {
   const sortedMultimodalPairs = sortMultimodalPairs(multimodalPairs);
   const multimodalPairSummary = summarizeMultimodalPairs(multimodalPairs);
   const multimodalPairSourceSummary = summarizeMultimodalPairSources(multimodalPairs);
+  const multimodalPairActionSummary = summarizeMultimodalPairActions(multimodalPairs);
   const visibleSupportArtifacts = supportArtifacts.filter((artifact) => {
     const pair = multimodalPairs.find((entry) => entry.projector_artifact_id === artifact.id);
     return shouldDisplaySupportArtifact(artifact, pair);
@@ -565,9 +772,30 @@ export function RuntimeModelsTab() {
   const modelsById = new Map(models.map((model) => [model.id, model] as const));
   const supportArtifactsById = new Map(supportArtifacts.map((artifact) => [artifact.id, artifact] as const));
   const startableModels = models.filter((model) => model.artifact_type === "model");
+  const sortedStartableModels = sortStartableModels(startableModels, multimodalPairs, status);
   const pairingCandidates = listManualPairingCandidates(startableModels);
-  const modelRoutingSummary = summarizeModelRoutingReadiness(startableModels, multimodalPairs);
-  const modelRoleSummary = summarizeModelRoles(startableModels);
+  const sortedVisibleSupportArtifacts = sortVisibleSupportArtifacts(
+    visibleSupportArtifacts,
+    multimodalPairs,
+    pairingCandidates
+  );
+  const supportArtifactSummary = summarizeSupportArtifacts(sortedVisibleSupportArtifacts);
+  const supportArtifactActionSummary = summarizeVisibleSupportArtifactActions(
+    sortedVisibleSupportArtifacts,
+    multimodalPairs,
+    pairingCandidates
+  );
+  const supportArtifactStatusSummary = summarizeVisibleSupportArtifactStatuses(
+    sortedVisibleSupportArtifacts,
+    multimodalPairs
+  );
+  const modelRoutingSummary = summarizeModelRoutingReadiness(sortedStartableModels, multimodalPairs);
+  const modelRoleSummary = summarizeModelRoles(sortedStartableModels);
+  const startableModelActionSummary = summarizeStartableModelActions(
+    sortedStartableModels,
+    status,
+    runtimeBusy
+  );
   const isRunning = status?.state === "running";
 
   const resetPairingProbeUi = (artifactId: string) => {
@@ -740,6 +968,19 @@ export function RuntimeModelsTab() {
                       Sonstige {modelRoleSummary.other}
                     </span>
                   ) : null}
+                  {startableModelActionSummary.running > 0 ? (
+                    <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
+                      Laufend {startableModelActionSummary.running}
+                    </span>
+                  ) : null}
+                  <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
+                    Ladbar {startableModelActionSummary.loadable}
+                  </span>
+                  {startableModelActionSummary.blocked > 0 ? (
+                    <span className="border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] text-red-300">
+                      Blockiert {startableModelActionSummary.blocked}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
@@ -776,7 +1017,7 @@ export function RuntimeModelsTab() {
                     </tr>
                   </thead>
                   <tbody>
-                    {startableModels.map((model) => {
+                    {sortedStartableModels.map((model) => {
                       const { canStart, canStop, isActive } = modelRowActionState(model, status, runtimeBusy);
                       const capabilityLabels = describeModelCapabilities(model);
                       const routingReadiness = describeModelRoutingReadiness(model, multimodalPairs);
@@ -879,6 +1120,20 @@ export function RuntimeModelsTab() {
                   {multimodalPairSourceSummary.other > 0 ? (
                     <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
                       Sonstige {multimodalPairSourceSummary.other}
+                    </span>
+                  ) : null}
+                  <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
+                    Probe bereit {multimodalPairActionSummary.probeReady}
+                  </span>
+                  <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
+                    Zuordnung noetig {multimodalPairActionSummary.needsAssignment}
+                  </span>
+                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                    Erledigt {multimodalPairActionSummary.resolved}
+                  </span>
+                  {multimodalPairActionSummary.blocked > 0 ? (
+                    <span className="border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] text-red-300">
+                      Blockiert {multimodalPairActionSummary.blocked}
                     </span>
                   ) : null}
                   <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
@@ -1015,11 +1270,55 @@ export function RuntimeModelsTab() {
               </div>
             ) : null}
 
-            {visibleSupportArtifacts.length > 0 ? (
+            {sortedVisibleSupportArtifacts.length > 0 ? (
               <div>
-                <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">
-                  Hilfsartefakte
-                </h3>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <h3 className="text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">
+                    Hilfsartefakte
+                  </h3>
+                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                    MMProj {supportArtifactSummary.mmproj}
+                  </span>
+                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                    Adapter/LoRA {supportArtifactSummary.adapter}
+                  </span>
+                  {supportArtifactSummary.other > 0 ? (
+                    <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                      Sonstige {supportArtifactSummary.other}
+                    </span>
+                  ) : null}
+                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                    Probe bereit {supportArtifactActionSummary.probeReady}
+                  </span>
+                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                    Manuelle Zuordnung {supportArtifactActionSummary.manualAssignment}
+                  </span>
+                  {supportArtifactStatusSummary.verified > 0 ? (
+                    <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
+                      Verifiziert {supportArtifactStatusSummary.verified}
+                    </span>
+                  ) : null}
+                  {supportArtifactStatusSummary.candidate > 0 ? (
+                    <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
+                      Candidate {supportArtifactStatusSummary.candidate}
+                    </span>
+                  ) : null}
+                  {supportArtifactStatusSummary.orphan > 0 ? (
+                    <span className="border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] text-red-300">
+                      Orphan {supportArtifactStatusSummary.orphan}
+                    </span>
+                  ) : null}
+                  {supportArtifactActionSummary.readOnly > 0 ? (
+                    <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                      Nur Hinweis {supportArtifactActionSummary.readOnly}
+                    </span>
+                  ) : null}
+                  {supportArtifactStatusSummary.other > 0 ? (
+                    <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                      Sonstige Status {supportArtifactStatusSummary.other}
+                    </span>
+                  ) : null}
+                </div>
                 <table className="w-full min-w-[760px] border-collapse text-left text-[11px]">
                   <thead className="bg-[#091017]">
                     <tr className="border-b border-dbzs-border text-dbzs-muted">
@@ -1031,7 +1330,7 @@ export function RuntimeModelsTab() {
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleSupportArtifacts.map((artifact) => {
+                    {sortedVisibleSupportArtifacts.map((artifact) => {
                       const description = describeSupportArtifact(artifact, multimodalPairs);
                       const pair = multimodalPairs.find((entry) => entry.projector_artifact_id === artifact.id);
                       const selectedBaseModelId =
