@@ -243,6 +243,72 @@ export function defaultPairingSelection(
   return pairingSelections[artifactId] ?? pair.base_model_id ?? pair.candidate_base_model_ids[0] ?? "";
 }
 
+export function shouldManagePairInControlCenter(
+  artifact: IndexedModel,
+  pair: MultimodalPair | undefined
+): boolean {
+  return artifact.artifact_type === "mmproj" && pair != null;
+}
+
+export function summarizeMultimodalPairs(pairs: MultimodalPair[]): Record<string, number> {
+  const summary: Record<string, number> = {
+    total: pairs.length,
+    verified: 0,
+    candidate: 0,
+    ambiguous: 0,
+    missing_base: 0
+  };
+  for (const pair of pairs) {
+    if (pair.routing_allowed) {
+      summary.verified += 1;
+      continue;
+    }
+    if (pair.status in summary) {
+      summary[pair.status] += 1;
+    }
+  }
+  return summary;
+}
+
+export function shouldDisplaySupportArtifact(
+  artifact: IndexedModel,
+  pair: MultimodalPair | undefined
+): boolean {
+  return !shouldManagePairInControlCenter(artifact, pair);
+}
+
+export function formatMultimodalPairConfidence(confidence: number): string {
+  return `${Math.round(confidence * 100)}%`;
+}
+
+export function formatMultimodalPairModalities(pair: MultimodalPair): string {
+  return pair.modalities.length > 0 ? pair.modalities.join(" + ") : "-";
+}
+
+export function formatMultimodalPairSource(source: string): string {
+  if (source === "same_folder") return "same_folder";
+  if (source === "manual") return "manual";
+  if (source === "catalog") return "catalog";
+  return source || "-";
+}
+
+export function sortMultimodalPairs(pairs: MultimodalPair[]): MultimodalPair[] {
+  const priority = (pair: MultimodalPair): number => {
+    if (pair.status === "ambiguous") return 0;
+    if (pair.status === "missing_base") return 1;
+    if (pair.routing_allowed) return 3;
+    if (pair.status === "candidate") return 2;
+    return 4;
+  };
+  return [...pairs].sort((left, right) => {
+    const delta = priority(left) - priority(right);
+    if (delta !== 0) return delta;
+    if (left.routing_allowed !== right.routing_allowed) return left.routing_allowed ? 1 : -1;
+    if (left.confidence !== right.confidence) return right.confidence - left.confidence;
+    return left.projector_artifact_id.localeCompare(right.projector_artifact_id);
+  });
+}
+
 export function RuntimeModelsTab() {
   const { index, isLoading: indexLoading, error: indexError, loadModelIndex } = useModelIndexStore();
   const { status, isLoading: runtimeBusy, error: runtimeError, startModel, stopModel } = useRuntimeStore();
@@ -256,6 +322,12 @@ export function RuntimeModelsTab() {
   const models = index?.models ?? [];
   const supportArtifacts = index?.support_artifacts ?? models.filter((model) => model.artifact_type !== "model");
   const multimodalPairs = index?.multimodal_pairs ?? [];
+  const sortedMultimodalPairs = sortMultimodalPairs(multimodalPairs);
+  const multimodalPairSummary = summarizeMultimodalPairs(multimodalPairs);
+  const visibleSupportArtifacts = supportArtifacts.filter((artifact) => {
+    const pair = multimodalPairs.find((entry) => entry.projector_artifact_id === artifact.id);
+    return shouldDisplaySupportArtifact(artifact, pair);
+  });
   const modelsById = new Map(models.map((model) => [model.id, model] as const));
   const supportArtifactsById = new Map(supportArtifacts.map((artifact) => [artifact.id, artifact] as const));
   const startableModels = models.filter((model) => model.artifact_type === "model");
@@ -357,7 +429,7 @@ export function RuntimeModelsTab() {
             <span>GGUF {index.summary.gguf_total}</span>
             <span>llama-server {index.summary.llama_server_ready}</span>
             <span>Ollama {index.summary.ollama_ready}</span>
-            <span>Hilfsartefakte {index.summary.support_artifact_count ?? supportArtifacts.length}</span>
+            <span>Hilfsartefakte {visibleSupportArtifacts.length}</span>
             <span>MM-Paare {multimodalPairs.length}</span>
           </div>
         ) : null}
@@ -373,7 +445,7 @@ export function RuntimeModelsTab() {
           <p className="text-xs text-dbzs-muted">
             {indexLoading ? "Indexiere lokale Modelle ..." : "Noch kein Modellindex geladen."}
           </p>
-        ) : startableModels.length === 0 && supportArtifacts.length === 0 ? (
+        ) : startableModels.length === 0 && visibleSupportArtifacts.length === 0 ? (
           <p className="text-xs text-dbzs-muted">
             {indexError
               ? "Modellindex konnte nicht geladen werden - siehe Fehlermeldung oben."
@@ -455,17 +527,36 @@ export function RuntimeModelsTab() {
               </div>
             ) : null}
 
-            {multimodalPairs.length > 0 ? (
+            {sortedMultimodalPairs.length > 0 ? (
               <div>
-                <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">
-                  Multimodale Paare
-                </h3>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <h3 className="text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">
+                    Multimodale Paare
+                  </h3>
+                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                    Gesamt {multimodalPairSummary.total}
+                  </span>
+                  <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-2 py-0.5 text-[10px] text-dbzs-cyan">
+                    Verifiziert {multimodalPairSummary.verified}
+                  </span>
+                  <span className="border border-dbzs-border px-2 py-0.5 text-[10px] text-dbzs-muted">
+                    Offen {multimodalPairSummary.candidate}
+                  </span>
+                  <span className="border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-300">
+                    Ambiguous {multimodalPairSummary.ambiguous}
+                  </span>
+                  <span className="border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] text-red-300">
+                    Missing Base {multimodalPairSummary.missing_base}
+                  </span>
+                </div>
                 <table className="w-full min-w-[760px] border-collapse text-left text-[11px]">
                   <thead className="bg-[#091017]">
                     <tr className="border-b border-dbzs-border text-dbzs-muted">
                       <th className="px-2 py-2 font-medium">Basismodell</th>
                       <th className="px-2 py-2 font-medium">Projector</th>
+                      <th className="px-2 py-2 font-medium">Modalitaet</th>
                       <th className="px-2 py-2 font-medium">Quelle</th>
+                      <th className="px-2 py-2 font-medium">Confidence</th>
                       <th className="px-2 py-2 font-medium">Status</th>
                       <th className="px-2 py-2 font-medium">Routing</th>
                       <th className="px-2 py-2 font-medium">Hinweis</th>
@@ -473,7 +564,7 @@ export function RuntimeModelsTab() {
                     </tr>
                   </thead>
                   <tbody>
-                    {multimodalPairs.map((pair) => {
+                    {sortedMultimodalPairs.map((pair) => {
                       const baseModel = pair.base_model_id ? modelsById.get(pair.base_model_id) : undefined;
                       const projector = supportArtifactsById.get(pair.projector_artifact_id);
                       const pairStatus = describeMultimodalPairStatus(pair);
@@ -494,7 +585,9 @@ export function RuntimeModelsTab() {
                         <tr className="border-b border-dbzs-border/50" key={pair.id}>
                           <td className="px-2 py-2 text-dbzs-text">{baseModel?.name ?? pair.base_model_id ?? "-"}</td>
                           <td className="px-2 py-2 text-dbzs-text">{projector?.name ?? pair.projector_artifact_id}</td>
-                          <td className="px-2 py-2 text-dbzs-muted">{pair.source}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">{formatMultimodalPairModalities(pair)}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">{formatMultimodalPairSource(pair.source)}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">{formatMultimodalPairConfidence(pair.confidence)}</td>
                           <td className="px-2 py-2 text-dbzs-muted">{pairStatus.label}</td>
                           <td className="px-2 py-2 text-dbzs-muted">{pair.routing_allowed ? "freigegeben" : "gesperrt"}</td>
                           <td className="px-2 py-2 text-dbzs-muted">
@@ -585,7 +678,7 @@ export function RuntimeModelsTab() {
               </div>
             ) : null}
 
-            {supportArtifacts.length > 0 ? (
+            {visibleSupportArtifacts.length > 0 ? (
               <div>
                 <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">
                   Hilfsartefakte
@@ -601,12 +694,13 @@ export function RuntimeModelsTab() {
                     </tr>
                   </thead>
                   <tbody>
-                    {supportArtifacts.map((artifact) => {
+                    {visibleSupportArtifacts.map((artifact) => {
                       const description = describeSupportArtifact(artifact, multimodalPairs);
                       const pair = multimodalPairs.find((entry) => entry.projector_artifact_id === artifact.id);
                       const selectedBaseModelId =
                         pairingSelections[artifact.id] ?? pair?.base_model_id ?? pair?.candidate_base_model_ids[0] ?? "";
                       const canPairManually = artifact.artifact_type === "mmproj" && pairingCandidates.length > 0;
+                      const manageInControlCenter = shouldManagePairInControlCenter(artifact, pair);
                       const canProbePair = canProbeSupportArtifactPair(artifact, pair);
                       return (
                         <tr className="border-b border-dbzs-border/50" key={artifact.id}>
@@ -617,7 +711,11 @@ export function RuntimeModelsTab() {
                           <td className="px-2 py-2 text-dbzs-muted">{description.statusLabel}</td>
                           <td className="px-2 py-2 text-dbzs-muted">{description.hint}</td>
                           <td className="px-2 py-2 text-dbzs-muted">
-                            {canPairManually ? (
+                            {manageInControlCenter ? (
+                              <span className="text-[10px] text-dbzs-muted">
+                                Im Bereich "Multimodale Paare" verwalten
+                              </span>
+                            ) : canPairManually ? (
                               <div className="flex min-w-[280px] flex-col gap-1">
                                 <div className="flex gap-2">
                                   <select
