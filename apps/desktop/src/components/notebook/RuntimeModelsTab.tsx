@@ -717,6 +717,16 @@ export function describeBaseModelSelection(
   return { label: selectedBaseModelId, tone: "warn" };
 }
 
+export function describePairingTargetBadge(
+  selectedBaseModelId: string,
+  selectedBaseModel: { label: string; tone: "ok" | "warn" | "error" | "info" }
+): { label: string; tone: "ok" | "warn" | "error" | "info" } {
+  if (!selectedBaseModelId) {
+    return { label: "Ziel offen", tone: "warn" };
+  }
+  return { label: `Ziel ${selectedBaseModel.label}`, tone: selectedBaseModel.tone };
+}
+
 export function formatPairingSaveButtonLabel(
   source: string | undefined,
   isSaving: boolean
@@ -779,6 +789,19 @@ export function multimodalPairActionHint(
   return "Nur Diagnoseeintrag ohne direkte Runtime-Freigabe.";
 }
 
+export function formatMultimodalPairControlSurface(
+  canPairManually: boolean,
+  canProbePair: boolean
+): { label: string; tone: "ok" | "warn" | "error" | "info" } {
+  if (canPairManually) {
+    return { label: "Inline-Steuerung", tone: "ok" };
+  }
+  if (canProbePair) {
+    return { label: "Probe bereit", tone: "info" };
+  }
+  return { label: "Nur Status", tone: "info" };
+}
+
 export function describeSupportArtifactAction(
   artifact: IndexedModel,
   pair: MultimodalPair | undefined,
@@ -811,6 +834,19 @@ export function supportArtifactActionHint(
     return "Basismodell auswaehlen und Zuordnung hier speichern.";
   }
   return "Nur Referenz im Modellindex; keine direkte Runtime-Aktion.";
+}
+
+export function formatSupportArtifactControlSurface(
+  manageInControlCenter: boolean,
+  canPairManually: boolean
+): { label: string; tone: "ok" | "warn" | "error" | "info" } {
+  if (manageInControlCenter) {
+    return { label: "MM-Bereich", tone: "info" };
+  }
+  if (canPairManually) {
+    return { label: "Inline-Steuerung", tone: "ok" };
+  }
+  return { label: "Nur Anzeige", tone: "info" };
 }
 
 export function describeModelCapabilities(model: IndexedModel): string[] {
@@ -1592,6 +1628,7 @@ export function RuntimeModelsTab() {
                         pairingSelections
                       );
                       const selectedBaseModel = describeBaseModelSelection(selectedBaseModelId, modelsById);
+                      const targetBadge = describePairingTargetBadge(selectedBaseModelId, selectedBaseModel);
                       const canPairManually = projector?.artifact_type === "mmproj" && pairingCandidates.length > 0;
                       const canProbePair =
                         pair.status === "candidate" &&
@@ -1600,6 +1637,7 @@ export function RuntimeModelsTab() {
                         pair.base_model_id.length > 0;
                       const pairActionDescriptor = describeMultimodalPairAction(pair, projector, pairingCandidates);
                       const pairActionHint = multimodalPairActionHint(pair, projector, pairingCandidates);
+                      const controlSurface = formatMultimodalPairControlSurface(canPairManually, canProbePair);
                       const feedbackKey = pair.projector_artifact_id;
                       return (
                         <tr className="border-b border-dbzs-border/50" key={pair.id}>
@@ -1684,12 +1722,19 @@ export function RuntimeModelsTab() {
                                   {pairActionHint}
                                 </span>
                               </div>
+                              <div>
+                                <span
+                                  className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(controlSurface.tone)}`}
+                                >
+                                  {controlSurface.label}
+                                </span>
+                              </div>
                               {canPairManually ? (
                                 <div className="flex max-w-[320px] flex-col gap-1">
                                   <span
-                                    className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(selectedBaseModel.tone)}`}
+                                    className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(targetBadge.tone)}`}
                                   >
-                                    Ziel {selectedBaseModel.label}
+                                    {targetBadge.label}
                                   </span>
                                   <div className="flex gap-1">
                                   <select
@@ -1830,11 +1875,13 @@ export function RuntimeModelsTab() {
                       const selectedBaseModelId =
                         pairingSelections[artifact.id] ?? pair?.base_model_id ?? pair?.candidate_base_model_ids[0] ?? "";
                       const selectedBaseModel = describeBaseModelSelection(selectedBaseModelId, modelsById);
+                      const targetBadge = describePairingTargetBadge(selectedBaseModelId, selectedBaseModel);
                       const canPairManually = artifact.artifact_type === "mmproj" && pairingCandidates.length > 0;
                       const manageInControlCenter = shouldManagePairInControlCenter(artifact, pair);
                       const canProbePair = canProbeSupportArtifactPair(artifact, pair);
                       const actionDescriptor = describeSupportArtifactAction(artifact, pair, pairingCandidates);
                       const actionHint = supportArtifactActionHint(artifact, pair, pairingCandidates);
+                      const controlSurface = formatSupportArtifactControlSurface(manageInControlCenter, canPairManually);
                       return (
                         <tr className="border-b border-dbzs-border/50" key={artifact.id}>
                           <td className="max-w-[280px] px-2 py-2 text-dbzs-text" title={artifact.path}>
@@ -1884,13 +1931,31 @@ export function RuntimeModelsTab() {
                               </span>
                             </div>
                             {manageInControlCenter ? (
-                              <span className="text-[10px] text-dbzs-muted">Im Bereich "Multimodale Paare" verwalten</span>
+                              <div className="flex flex-col gap-1">
+                                <span
+                                  className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(controlSurface.tone)}`}
+                                >
+                                  {controlSurface.label}
+                                </span>
+                                {selectedBaseModelId ? (
+                                  <span
+                                    className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(targetBadge.tone)}`}
+                                  >
+                                    {targetBadge.label}
+                                  </span>
+                                ) : null}
+                              </div>
                             ) : canPairManually ? (
                               <div className="flex min-w-[280px] flex-col gap-1">
                                 <span
-                                  className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(selectedBaseModel.tone)}`}
+                                  className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(controlSurface.tone)}`}
                                 >
-                                  Ziel {selectedBaseModel.label}
+                                  {controlSurface.label}
+                                </span>
+                                <span
+                                  className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(targetBadge.tone)}`}
+                                >
+                                  {targetBadge.label}
                                 </span>
                                 <div className="flex gap-2">
                                   <select

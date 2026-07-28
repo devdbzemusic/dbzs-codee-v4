@@ -12,9 +12,12 @@ import {
   describeMultimodalPairBaseModel,
   describeMultimodalPairProjector,
   describeBaseModelSelection,
+  describePairingTargetBadge,
   describeSupportArtifactFile,
+  formatMultimodalPairControlSurface,
   formatPairingProbeButtonLabel,
   formatPairingSaveButtonLabel,
+  formatSupportArtifactControlSurface,
   formatSupportArtifactStatusLabel,
   multimodalPairActionHint,
   describeSupportArtifactAction,
@@ -426,6 +429,40 @@ describe("supportArtifactActionHint", () => {
   });
 });
 
+describe("formatMultimodalPairControlSurface", () => {
+  it("describes whether multimodal pairs can be managed inline, probed, or only inspected", () => {
+    expect(formatMultimodalPairControlSurface(true, false)).toEqual({
+      label: "Inline-Steuerung",
+      tone: "ok"
+    });
+    expect(formatMultimodalPairControlSurface(false, true)).toEqual({
+      label: "Probe bereit",
+      tone: "info"
+    });
+    expect(formatMultimodalPairControlSurface(false, false)).toEqual({
+      label: "Nur Status",
+      tone: "info"
+    });
+  });
+});
+
+describe("formatSupportArtifactControlSurface", () => {
+  it("describes whether support actions continue in the mm block or inline", () => {
+    expect(formatSupportArtifactControlSurface(true, false)).toEqual({
+      label: "MM-Bereich",
+      tone: "info"
+    });
+    expect(formatSupportArtifactControlSurface(false, true)).toEqual({
+      label: "Inline-Steuerung",
+      tone: "ok"
+    });
+    expect(formatSupportArtifactControlSurface(false, false)).toEqual({
+      label: "Nur Anzeige",
+      tone: "info"
+    });
+  });
+});
+
 describe("describeSupportArtifactFile", () => {
   it("describes support artifact file label and parent folder for the UI", () => {
     expect(
@@ -801,6 +838,29 @@ describe("defaultPairingSelection", () => {
 
     expect(defaultPairingSelection("mmproj-1", paired, {})).toBe("m1");
     expect(defaultPairingSelection("mmproj-2", ambiguous, {})).toBe("m2");
+  });
+});
+
+describe("describePairingTargetBadge", () => {
+  it("marks empty targets as open and selected targets as concrete destinations", () => {
+    expect(
+      describePairingTargetBadge("", {
+        label: "Keine Auswahl",
+        tone: "info"
+      })
+    ).toEqual({
+      label: "Ziel offen",
+      tone: "warn"
+    });
+    expect(
+      describePairingTargetBadge("m1", {
+        label: "Qwen3 Coder",
+        tone: "ok"
+      })
+    ).toEqual({
+      label: "Ziel Qwen3 Coder",
+      tone: "ok"
+    });
   });
 });
 
