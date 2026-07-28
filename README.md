@@ -62,6 +62,26 @@ cd ..\..
 backend\.venv\Scripts\python.exe -m pytest backend/tests/test_runtime_api.py backend/tests/test_runtime_chat_attachments.py -q
 ```
 
+## Runtime Model Control Center
+
+Im aktuellen Arbeitsbranch `feature/runtime-chat-ux-overhaul` ist der `RuntimeModelsTab` zusaetzlich zu einem
+kompakten Runtime-Model-Control-Dashboard verdichtet:
+
+- `Startbare Modelle` zeigen jetzt Rollen-, Routing- und Aktions-Summaries direkt ueber der Tabelle
+- die Modellliste priorisiert laufende Modelle sowie starke Routing-Kandidaten wie `Vision + Code` und `Text + Code`
+- `Multimodale Paare` haben getrennte Source- und Action-Summaries fuer Probe-, Zuordnungs- und Blockerstatus
+- sichtbare Hilfsartefakte zeigen Typ-, Aktions- und Status-Summaries und werden handlungsorientiert sortiert
+- die Detailtabellen bleiben erhalten; die neue Verdichtung soll die Runtime-Steuerung schneller scanbar machen,
+  ohne den bestehenden Integrationspunkt `runtime={<RuntimeModelsTab />}` aufzubrechen
+
+Frisch geprueft fuer diesen Slice:
+
+```powershell
+cd apps/desktop
+npm run test -- src/components/notebook/RuntimeModelsTab.test.ts src/services/modelSelectionBroker.test.ts
+npm run typecheck
+```
+
 ## Bestaetigte Nachweise
 
 ### Required Gates

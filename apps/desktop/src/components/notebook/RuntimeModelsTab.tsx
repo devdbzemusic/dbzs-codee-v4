@@ -39,6 +39,19 @@ function probeToneClasses(tone: ProbeEvidenceTone): string {
   return "border-dbzs-border bg-dbzs-bg text-dbzs-muted";
 }
 
+function statusBadgeClasses(tone: "ok" | "warn" | "error" | "info"): string {
+  if (tone === "ok") {
+    return "border-dbzs-cyan/30 bg-dbzs-cyan/10 text-dbzs-cyan";
+  }
+  if (tone === "warn") {
+    return "border-amber-400/30 bg-amber-400/10 text-amber-300";
+  }
+  if (tone === "error") {
+    return "border-red-400/30 bg-red-400/10 text-red-300";
+  }
+  return "border-dbzs-border bg-dbzs-bg text-dbzs-muted";
+}
+
 function ProbeEvidencePanel({
   feedback,
   outcome,
@@ -599,6 +612,19 @@ export function describeModelRoutingReadiness(
   };
 }
 
+export function modelRoutingTone(label: string): "ok" | "warn" | "error" | "info" {
+  if (label === "Vision + Code" || label === "Text + Code") {
+    return "ok";
+  }
+  if (label === "Vision direkt" || label === "Vision Chat") {
+    return "warn";
+  }
+  if (label === "MM-Pair fehlt") {
+    return "error";
+  }
+  return "info";
+}
+
 export function summarizeModelRoutingReadiness(
   models: IndexedModel[],
   multimodalPairs: MultimodalPair[]
@@ -745,6 +771,32 @@ export function sortMultimodalPairs(pairs: MultimodalPair[]): MultimodalPair[] {
     if (left.confidence !== right.confidence) return right.confidence - left.confidence;
     return left.projector_artifact_id.localeCompare(right.projector_artifact_id);
   });
+}
+
+export function multimodalPairStatusTone(status: MultimodalPair["status"], routingAllowed: boolean): "ok" | "warn" | "error" | "info" {
+  if (routingAllowed) {
+    return "ok";
+  }
+  if (status === "candidate") {
+    return "warn";
+  }
+  if (status === "ambiguous" || status === "missing_base") {
+    return "error";
+  }
+  return "info";
+}
+
+export function supportArtifactStatusTone(statusLabel: string): "ok" | "warn" | "error" | "info" {
+  if (statusLabel === "verified") {
+    return "ok";
+  }
+  if (statusLabel === "candidate") {
+    return "warn";
+  }
+  if (statusLabel === "orphan" || statusLabel === "missing_base" || statusLabel === "ambiguous") {
+    return "error";
+  }
+  return "info";
 }
 
 export function RuntimeModelsTab() {
@@ -1056,7 +1108,11 @@ export function RuntimeModelsTab() {
                           <td className="px-2 py-2 text-dbzs-muted">{model.compatibility}</td>
                           <td className="px-2 py-2 text-dbzs-muted">
                             <div className="flex max-w-[220px] flex-col gap-0.5">
-                              <span>{routingReadiness.label}</span>
+                              <span
+                                className={`inline-flex w-fit rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(modelRoutingTone(routingReadiness.label))}`}
+                              >
+                                {routingReadiness.label}
+                              </span>
                               <span className="text-[10px] text-dbzs-muted/80">{routingReadiness.hint}</span>
                             </div>
                           </td>
@@ -1182,8 +1238,20 @@ export function RuntimeModelsTab() {
                           <td className="px-2 py-2 text-dbzs-muted">{formatMultimodalPairModalities(pair)}</td>
                           <td className="px-2 py-2 text-dbzs-muted">{formatMultimodalPairSource(pair.source)}</td>
                           <td className="px-2 py-2 text-dbzs-muted">{formatMultimodalPairConfidence(pair.confidence)}</td>
-                          <td className="px-2 py-2 text-dbzs-muted">{pairStatus.label}</td>
-                          <td className="px-2 py-2 text-dbzs-muted">{pair.routing_allowed ? "freigegeben" : "gesperrt"}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">
+                            <span
+                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(multimodalPairStatusTone(pair.status, pair.routing_allowed))}`}
+                            >
+                              {pairStatus.label}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2 text-dbzs-muted">
+                            <span
+                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(pair.routing_allowed ? "ok" : "error")}`}
+                            >
+                              {pair.routing_allowed ? "freigegeben" : "gesperrt"}
+                            </span>
+                          </td>
                           <td className="px-2 py-2 text-dbzs-muted">
                             <div className="flex flex-col gap-0.5">
                               <span>{pairStatus.hint}</span>
@@ -1344,7 +1412,13 @@ export function RuntimeModelsTab() {
                             {artifact.name}
                           </td>
                           <td className="px-2 py-2 text-dbzs-muted">{artifact.artifact_type}</td>
-                          <td className="px-2 py-2 text-dbzs-muted">{description.statusLabel}</td>
+                          <td className="px-2 py-2 text-dbzs-muted">
+                            <span
+                              className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusBadgeClasses(supportArtifactStatusTone(description.statusLabel))}`}
+                            >
+                              {description.statusLabel}
+                            </span>
+                          </td>
                           <td className="px-2 py-2 text-dbzs-muted">{description.hint}</td>
                           <td className="px-2 py-2 text-dbzs-muted">
                             {manageInControlCenter ? (

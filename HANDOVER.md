@@ -63,6 +63,10 @@ Stand im aktuellen Branch nach dem naechsten sicheren Slice:
 - `RuntimeModelsTab` arbeitet jetzt als eigenes MM-Pairing-Control-Center: separate Paarliste, Risiko-Sortierung,
   Status-Summary, direkte Probe und manuelle Neu-Zuordnung; gekoppelte MMProj-Artefakte tauchen nicht mehr doppelt
   in den generischen Hilfsartefakten auf
+- im aktuellen Branch ist der `RuntimeModelsTab` jetzt zusaetzlich als kompaktes Runtime-Model-Control-Dashboard verdichtet:
+  Startmodelle werden nach Laufstatus und Routing-Nutzen priorisiert sortiert; fuer startbare Modelle, multimodale Paare
+  und sichtbare Hilfsartefakte gibt es jetzt getrennte Rollen-, Routing-, Aktions- und Status-Summaries direkt ueber den
+  Tabellen. Die Detailtabellen bleiben erhalten, sind aber schneller scanbar und auf direkte Steuerung ausgelegt
 - `runtimeChatStoreRoutingPhase` reicht `multimodal_pairs` jetzt in den `modelSelectionBroker` durch; projector-pflichtige
   Visionmodelle werden ohne verifiziertes `routing_allowed = true` sauber blockiert statt blind gestartet
 - fuer Screenshot-Coding/-Review mit Bildinput gilt jetzt zusaetzlich ein Capability-Gate:
@@ -178,6 +182,28 @@ Frisch verifiziert fuer diesen Slice:
 - `npm run typecheck` in `apps/desktop`
 - fokussierter Desktop-Vitest-Lauf: 58 Tests gruen
 - Backend-Pytest fuer Runtime-API plus Attachment-Aufbereitung: 14 Tests gruen
+
+## Neu im Arbeitsbranch: vertieftes Runtime Model Control Center
+
+Stand im Branch `feature/runtime-chat-ux-overhaul` nach Commit `1865dc3`:
+
+- [apps/desktop/src/components/notebook/RuntimeModelsTab.tsx](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/components/notebook/RuntimeModelsTab.tsx)
+  - `Startbare Modelle` zeigen jetzt zusaetzlich Rollen-, Routing- und Aktions-Summaries (`Laufend`, `Ladbar`, `Blockiert`)
+  - die Modellliste wird nach aktivem Laufstatus und Routing-Nutzen sortiert, damit `Vision + Code`- und `Text + Code`-
+    Kandidaten vor rein informativen Eintraegen landen
+  - `Multimodale Paare` haben jetzt getrennte Source- und Action-Summaries (`Probe bereit`, `Zuordnung noetig`,
+    `Erledigt`, `Blockiert`)
+  - `Hilfsartefakte` zeigen jetzt Typ-, Aktions- und Status-Summaries (`MMProj`, `Adapter/LoRA`, `Verifiziert`,
+    `Candidate`, `Orphan`, `Nur Hinweis`) und werden handlungsorientiert sortiert
+- [apps/desktop/src/components/notebook/RuntimeModelsTab.test.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/components/notebook/RuntimeModelsTab.test.ts)
+  - gezielte Regressionsabdeckung fuer die neuen Dashboard-Helfer: Startmodell-Sortierung, Modell-Aktionssummary,
+    MM-Pair-Aktionssummary sowie Support-Artefakt-Typ-, Status- und Aktionssummaries
+
+Frisch verifiziert fuer diesen Slice:
+
+- `npm run test -- src/components/notebook/RuntimeModelsTab.test.ts src/services/modelSelectionBroker.test.ts`
+  - 87 Tests gruen
+- `npm run typecheck` in `apps/desktop`
 
 ## Aktive offene Aufgaben
 

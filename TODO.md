@@ -112,6 +112,20 @@ Basis: `Pläne/03 04 05 DBZS_CODEE_CONSOLIDATED_MODEL_CONTROL_MM_PAIRING_PLAN.md
 - [ ] **Integrationsregel beibehalten:** externer Vertrag bleibt `runtime={<RuntimeModelsTab />}` â€” keine neue Parallel-Ansicht
       und kein spontaner Integrationsbruch, sondern additive Erweiterung des bestehenden Tabs.
 
+## Erledigt: Runtime Model Control Center weiter verdichtet (2026-07-28)
+
+- [x] `RuntimeModelsTab` zeigt jetzt fuer Startmodelle Rollen-, Routing- und Aktions-Summaries
+      (`Laufend`, `Ladbar`, `Blockiert`) und priorisiert die Tabelle nach aktivem Laufstatus sowie Routing-Nutzen
+- [x] `Multimodale Paare` sind ueber Source- und Action-Summaries (`Probe bereit`, `Zuordnung noetig`,
+      `Erledigt`, `Blockiert`) direkt scanbar
+- [x] sichtbare Hilfsartefakte zeigen jetzt Typ-, Aktions- und Status-Summaries
+      (`MMProj`, `Adapter/LoRA`, `Verifiziert`, `Candidate`, `Orphan`, `Nur Hinweis`) und werden
+      handlungsorientiert sortiert
+- [x] Verifikation:
+      `npm run test -- src/components/notebook/RuntimeModelsTab.test.ts src/services/modelSelectionBroker.test.ts`
+      (87 Tests gruen),
+      `npm run typecheck` in `apps/desktop`
+
 ## Erledigt: Routing-Fix real durch die UI verifiziert (2026-07-28)
 
 - [x] Zweiter automatisiert getriebener UI-Lauf (`golden-path-run-2`) hat den Routing-Fix (`c811923`) real

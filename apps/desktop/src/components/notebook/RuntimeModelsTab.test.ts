@@ -18,10 +18,13 @@ import {
   formatMultimodalPairConfidence,
   formatProbeFeedback,
   modelRowActionState,
+  modelRoutingTone,
+  multimodalPairStatusTone,
   shouldDisplaySupportArtifact,
   shouldManagePairInControlCenter,
   sortStartableModels,
   sortVisibleSupportArtifacts,
+  supportArtifactStatusTone,
   summarizeMultimodalPairActions,
   summarizeMultimodalPairSources,
   summarizeModelRoles,
@@ -957,6 +960,17 @@ describe("describeModelRoutingReadiness", () => {
   });
 });
 
+describe("modelRoutingTone", () => {
+  it("maps routing labels to stable badge tones", () => {
+    expect(modelRoutingTone("Vision + Code")).toBe("ok");
+    expect(modelRoutingTone("Text + Code")).toBe("ok");
+    expect(modelRoutingTone("Vision direkt")).toBe("warn");
+    expect(modelRoutingTone("Vision Chat")).toBe("warn");
+    expect(modelRoutingTone("MM-Pair fehlt")).toBe("error");
+    expect(modelRoutingTone("Text")).toBe("info");
+  });
+});
+
 describe("summarizeModelRoutingReadiness", () => {
   it("counts text, coding, direct vision, vision chat, blocked vision and screenshot-ready models", () => {
     expect(
@@ -1134,6 +1148,15 @@ describe("sortStartableModels", () => {
   });
 });
 
+describe("multimodalPairStatusTone", () => {
+  it("maps pair status and routing gate to stable tones", () => {
+    expect(multimodalPairStatusTone("candidate", true)).toBe("ok");
+    expect(multimodalPairStatusTone("candidate", false)).toBe("warn");
+    expect(multimodalPairStatusTone("ambiguous", false)).toBe("error");
+    expect(multimodalPairStatusTone("missing_base", false)).toBe("error");
+  });
+});
+
 describe("summarizeStartableModelActions", () => {
   it("counts running, loadable and blocked startable models from action state", () => {
     const models: IndexedModel[] = [
@@ -1176,6 +1199,16 @@ describe("summarizeStartableModelActions", () => {
       loadable: 3,
       blocked: 0
     });
+  });
+});
+
+describe("supportArtifactStatusTone", () => {
+  it("maps support artifact status labels to stable tones", () => {
+    expect(supportArtifactStatusTone("verified")).toBe("ok");
+    expect(supportArtifactStatusTone("candidate")).toBe("warn");
+    expect(supportArtifactStatusTone("orphan")).toBe("error");
+    expect(supportArtifactStatusTone("ambiguous")).toBe("error");
+    expect(supportArtifactStatusTone("support_artifact")).toBe("info");
   });
 });
 
