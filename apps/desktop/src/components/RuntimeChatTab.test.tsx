@@ -482,6 +482,69 @@ describe("RuntimeChatTab file attachments", () => {
     container.remove();
     vi.unstubAllGlobals();
   });
+
+  it("renders truncation and archive diagnostics in the composer preview", async () => {
+    const attachment: RuntimeChatAttachment = {
+      id: "zip-1",
+      name: "bundle.zip",
+      kind: "archive",
+      extension: "zip",
+      mimeType: "application/zip",
+      dataUrl: "",
+      source: "file_dialog",
+      sizeBytes: 1024 * 1024,
+      textContent: "A".repeat(480),
+      derivedSummary: "ZIP mit 4 Eintraegen (gekuerzt)",
+      truncated: true,
+      error: "Eine Datei im Archiv war nicht als UTF-8 lesbar.",
+      archiveEntries: [
+        { path: "src/a.ts", kind: "code", includedInline: true },
+        { path: "src/b.ts", kind: "code", includedInline: true, truncated: true },
+        { path: "README.md", kind: "text" },
+        { path: "logo.png", kind: "binary" }
+      ]
+    };
+    window.dbzs = {
+      ...window.dbzs,
+      openChatAttachmentDialog: vi.fn().mockResolvedValue([attachment]),
+      prepareClipboardChatAttachments: vi.fn()
+    };
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <RuntimeChatTab
+          activeFile={null}
+          status={{ state: "running", provider: "ollama", model_id: "phi", model_name: "phi", port: 1234, pid: 1, endpoint: "http://localhost:1234", message: "Runtime aktiv" }}
+          workspaceRoot="D:/repo"
+          workspaceName="dbzs-codee"
+          workspaceFiles={[]}
+        />
+      );
+    });
+
+    const attachButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Anhaengen")
+    );
+
+    await act(async () => {
+      attachButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("Gekuerzt");
+    expect(container.textContent).toContain("Fehler");
+    expect(container.textContent).toContain("4 Eintraege");
+    expect(container.textContent).toContain("2 inline");
+    expect(container.textContent).toContain("1 binaer");
+    expect(container.textContent).toContain("Eine Datei im Archiv war nicht als UTF-8 lesbar.");
+    expect(container.textContent).toContain("Vorschau gekuerzt fuer die Kartenansicht.");
+
+    root.unmount();
+    container.remove();
+  });
 });
 
 describe("buildWorkspaceContext", () => {

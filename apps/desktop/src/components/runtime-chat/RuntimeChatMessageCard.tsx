@@ -2,6 +2,7 @@ import type { RuntimeChatMessage } from "@dbzs/shared";
 import { workspaceScopeId } from "@dbzs/shared";
 import { useMemo } from "react";
 import { MessageMarkdown } from "@/components/chat/MessageMarkdown";
+import { RuntimeChatAttachmentPreview } from "@/components/runtime-chat/RuntimeChatAttachmentPreview";
 import { getRuntimeAgentActionsForMessage, getTransportActionTone, getTransportChatActions, hasPendingRuntimeActionKind, isRejectTransportAction } from "@/services/runtimeChatActionSelectors";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useRuntimeChatStore } from "@/stores/runtimeChatStore";
@@ -232,41 +233,11 @@ export function RuntimeChatMessageCard({
       {message.attachments?.length ? (
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           {message.attachments.map((attachment) => (
-            <figure
-              className="overflow-hidden rounded border border-dbzs-border/60 bg-dbzs-bg/50"
+            <RuntimeChatAttachmentPreview
+              attachment={attachment}
               key={attachment.id}
-            >
-              {attachment.kind === "image" && attachment.dataUrl ? (
-                <img
-                  alt={attachment.name}
-                  className="h-40 w-full object-cover"
-                  src={attachment.dataUrl}
-                />
-              ) : (
-                <div className="p-2 text-[10px] text-dbzs-textSoft">
-                  <div className="font-medium text-dbzs-text">
-                    {attachment.kind.toUpperCase()} · .{attachment.extension || "-"}
-                  </div>
-                  {attachment.textContent ? (
-                    <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap text-[9px] leading-4 text-dbzs-muted">
-                      {attachment.textContent.slice(0, 500)}
-                    </pre>
-                  ) : null}
-                  {attachment.archiveEntries?.length ? (
-                    <div className="mt-2 text-dbzs-muted">
-                      {attachment.archiveEntries.length} Archiv-Eintraege
-                    </div>
-                  ) : null}
-                </div>
-              )}
-              <figcaption className="flex items-center justify-between gap-2 px-2 py-1 text-[10px] text-dbzs-muted">
-                <span className="truncate">{attachment.name}</span>
-                <span>
-                  {attachment.source === "clipboard" ? "Zwischenablage" : "Datei"}
-                  {attachment.derivedSummary ? ` · ${attachment.derivedSummary}` : ""}
-                </span>
-              </figcaption>
-            </figure>
+              maxPreviewChars={500}
+            />
           ))}
         </div>
       ) : null}

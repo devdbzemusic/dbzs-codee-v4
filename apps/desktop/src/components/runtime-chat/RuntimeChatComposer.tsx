@@ -1,5 +1,6 @@
 import type { ClipboardEvent, KeyboardEvent } from "react";
 import type { RuntimeChatAttachment } from "@dbzs/shared";
+import { RuntimeChatAttachmentPreview } from "@/components/runtime-chat/RuntimeChatAttachmentPreview";
 import { Button } from "@/components/ui/Button";
 
 export function RuntimeChatComposer({
@@ -15,9 +16,9 @@ export function RuntimeChatComposer({
   onDraftChange,
   onSubmit,
   onCancel,
-  onPasteImage,
-  onOpenImageDialog,
-  onRemoveImage,
+  onPasteAttachments,
+  onOpenAttachmentDialog,
+  onRemoveAttachment,
   setChatMode,
   setToolProfile,
   setIncludeWorkspaceContext
@@ -34,9 +35,9 @@ export function RuntimeChatComposer({
   onDraftChange: (value: string) => void;
   onSubmit: () => void;
   onCancel: () => void;
-  onPasteImage: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
-  onOpenImageDialog: () => void;
-  onRemoveImage: (attachmentId: string) => void;
+  onPasteAttachments: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
+  onOpenAttachmentDialog: () => void;
+  onRemoveAttachment: (attachmentId: string) => void;
   setChatMode: (mode: "auto" | "agent") => void;
   setToolProfile: (profile: "ask" | "agent" | "full") => void;
   setIncludeWorkspaceContext: (value: boolean) => void;
@@ -102,53 +103,12 @@ export function RuntimeChatComposer({
       {attachments.length > 0 ? (
         <div className="mb-2 grid gap-2 sm:grid-cols-2">
           {attachments.map((attachment) => (
-            <div
-              className="rounded border border-dbzs-border bg-dbzs-bg/70 p-2"
+            <RuntimeChatAttachmentPreview
+              attachment={attachment}
               key={attachment.id}
-            >
-              {attachment.kind === "image" && attachment.dataUrl ? (
-                <div className="mb-2 aspect-video overflow-hidden rounded border border-dbzs-border bg-black/20">
-                  <img
-                    alt={attachment.name}
-                    className="h-full w-full object-cover"
-                    src={attachment.dataUrl}
-                  />
-                </div>
-              ) : (
-                <div className="mb-2 rounded border border-dbzs-border bg-dbzs-panelSoft p-2 text-[10px] text-dbzs-textSoft">
-                  <div>{attachment.kind.toUpperCase()} · .{attachment.extension || "-"}</div>
-                  {attachment.textContent ? (
-                    <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap text-[9px] leading-4 text-dbzs-muted">
-                      {attachment.textContent.slice(0, 400)}
-                    </pre>
-                  ) : null}
-                  {attachment.archiveEntries?.length ? (
-                    <div className="mt-2 text-dbzs-muted">
-                      {attachment.archiveEntries.length} Archiv-Eintraege
-                    </div>
-                  ) : null}
-                </div>
-              )}
-              <div className="flex items-start justify-between gap-2 text-[10px]">
-                <div className="min-w-0">
-                  <div className="truncate text-dbzs-text">{attachment.name}</div>
-                  <div className="text-dbzs-muted">
-                    {attachment.source === "clipboard" ? "Zwischenablage" : "Datei"}
-                    {typeof attachment.sizeBytes === "number"
-                      ? ` · ${Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB`
-                      : ""}
-                    {attachment.derivedSummary ? ` · ${attachment.derivedSummary}` : ""}
-                  </div>
-                </div>
-                <button
-                  className="rounded border border-dbzs-border px-1.5 py-0.5 text-dbzs-muted hover:border-dbzs-red/40 hover:text-dbzs-red"
-                  onClick={() => onRemoveImage(attachment.id)}
-                  type="button"
-                >
-                  Entfernen
-                </button>
-              </div>
-            </div>
+              maxPreviewChars={400}
+              onRemove={() => onRemoveAttachment(attachment.id)}
+            />
           ))}
         </div>
       ) : null}
@@ -158,7 +118,7 @@ export function RuntimeChatComposer({
           disabled={!runtimeReady || isSending}
           onChange={(event) => onDraftChange(event.currentTarget.value)}
           onKeyDown={onComposerKeyDown}
-          onPaste={onPasteImage}
+          onPaste={onPasteAttachments}
           placeholder={
             runtimeReady
               ? "Analysiere, plane, debugge oder haenge Dateien an ..."
@@ -172,7 +132,7 @@ export function RuntimeChatComposer({
             disabled={!runtimeReady || isSending}
             onClick={(event) => {
               event.preventDefault();
-              onOpenImageDialog();
+              onOpenAttachmentDialog();
             }}
             type="button"
           >

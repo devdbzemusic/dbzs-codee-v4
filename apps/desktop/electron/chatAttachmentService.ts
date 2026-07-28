@@ -42,6 +42,10 @@ const TEXT_EXTENSIONS = new Set(["md", "json", "js", "ts", "tsx", "py", "txt"]);
 const CODE_EXTENSIONS = new Set(["js", "ts", "tsx", "py"]);
 const PREVIEW_TEXT_LIMIT = 12_000;
 
+function attachmentId(): string {
+  return `att-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function normalizeExtension(source: ChatAttachmentPreparationSource): string {
   const fromSource = source.extension?.replace(/^\./, "");
   const fromName = path.extname(source.name).replace(/^\./, "");
@@ -120,6 +124,31 @@ async function readSourceBuffer(source: ChatAttachmentPreparationSource): Promis
   throw new Error(`attachment_preparation_failed:kein_inhalt:${source.name}`);
 }
 
+function buildLocalAttachmentError(
+  source: ChatAttachmentPreparationSource,
+  extension: string,
+  mimeType: string,
+  sizeBytes?: number,
+  errorMessage?: string
+): RuntimeChatAttachment {
+  const kind = CODE_EXTENSIONS.has(extension) ? "code" : "text";
+  return {
+    id: attachmentId(),
+    name: source.name,
+    kind,
+    extension,
+    mimeType,
+    source: source.source,
+    sizeBytes,
+    path: source.path,
+    dataUrl: "",
+    textContent: undefined,
+    derivedSummary: "Datei konnte nicht inline gelesen werden",
+    truncated: false,
+    error: errorMessage ?? "Datei konnte nicht gelesen werden."
+  };
+}
+
 async function prepareLocalAttachment(
   source: ChatAttachmentPreparationSource
 ): Promise<RuntimeChatAttachment> {
@@ -129,7 +158,7 @@ async function prepareLocalAttachment(
 
   if (IMAGE_EXTENSIONS.has(extension)) {
     return {
-      id: `att-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      id: attachmentId(),
       name: source.name,
       kind: "image",
       extension,
@@ -142,10 +171,19 @@ async function prepareLocalAttachment(
   }
 
   const text = buffer.toString("utf-8");
+  if (text.includes("\uFFFD")) {
+    return buildLocalAttachmentError(
+      source,
+      extension,
+      mimeType,
+      source.sizeBytes ?? buffer.byteLength,
+      "Datei ist nicht als UTF-8 lesbar."
+    );
+  }
   const truncated = text.length > PREVIEW_TEXT_LIMIT;
   const clipped = truncated ? text.slice(0, PREVIEW_TEXT_LIMIT) : text;
   return {
-    id: `att-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    id: attachmentId(),
     name: source.name,
     kind: CODE_EXTENSIONS.has(extension) ? "code" : "text",
     extension,
@@ -176,7 +214,22 @@ export async function prepareChatAttachments(input: {
     }
   }
 
-  const localAttachments = await Promise.all(localSources.map((source) => prepareLocalAttachment(source)));
+  const localAttachments = await Promise.all(
+    localSources.map(async (source) => {
+      try {
+        return await prepareLocalAttachment(source);
+      } catch (error) {
+        const extension = normalizeExtension(source);
+        return buildLocalAttachmentError(
+          source,
+          extension,
+          source.mimeType || mimeTypeForExtension(extension),
+          source.sizeBytes,
+          error instanceof Error ? error.message : "Datei konnte nicht gelesen werden."
+        );
+      }
+    })
+  );
   if (backendSources.length === 0) {
     return localAttachments;
   }

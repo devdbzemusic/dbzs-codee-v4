@@ -636,9 +636,9 @@ export function RuntimeChatTab({
         onDraftChange={setDraft}
         onSubmit={submitMessage}
         onCancel={() => cancelSend()}
-        onPasteImage={handleComposerPaste}
-        onOpenImageDialog={handleOpenAttachmentDialog}
-        onRemoveImage={handleRemoveAttachment}
+        onPasteAttachments={handleComposerPaste}
+        onOpenAttachmentDialog={handleOpenAttachmentDialog}
+        onRemoveAttachment={handleRemoveAttachment}
         setChatMode={setChatMode}
         setToolProfile={setToolProfile}
         setIncludeWorkspaceContext={setIncludeWorkspaceContext}
