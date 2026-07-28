@@ -130,10 +130,21 @@ export interface ChatActionRequest {
   createdAt: string;
 }
 
+export interface RuntimeChatImageAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  dataUrl: string;
+  source: "clipboard" | "file_dialog";
+  sizeBytes?: number;
+  path?: string;
+}
+
 export interface RuntimeChatMessage {
   id: string;
   role: ChatRole;
   content: string;
+  attachments?: RuntimeChatImageAttachment[];
   rawContent?: string;
   visibleContent?: string;
   toolCalls?: RuntimeChatToolCallRecord[];

@@ -147,6 +147,109 @@ describe("modelSelectionBroker", () => {
       expect(decision.modelId).toMatch(/vl/i);
     });
 
+    it("blocks projector-based vision models without verified multimodal pair", () => {
+      const settings = {
+        ...mockSettings,
+        defaultChatModelId: "Qwen2.5-VL-3B-Instruct.Q4_K_M.gguf"
+      };
+
+      expect(() =>
+        brokerDecision("casual_chat", settings, {
+          hasImageInput: true,
+          catalog: [
+            {
+              id: "Qwen2.5-VL-3B-Instruct.Q4_K_M.gguf",
+              name: "Qwen2.5-VL-3B-Instruct.Q4_K_M",
+              capabilities: ["chat", "vision"],
+              supportsTextOnly: true,
+              requiresVisionProjector: true
+            }
+          ]
+        })
+      ).toThrow(/MMProj-Pairing/);
+    });
+
+    it("allows projector-based vision models with verified multimodal pair", () => {
+      const settings = {
+        ...mockSettings,
+        defaultChatModelId: "Qwen2.5-VL-3B-Instruct.Q4_K_M.gguf"
+      };
+
+      const decision = brokerDecision("casual_chat", settings, {
+        hasImageInput: true,
+        catalog: [
+          {
+            id: "Qwen2.5-VL-3B-Instruct.Q4_K_M.gguf",
+            name: "Qwen2.5-VL-3B-Instruct.Q4_K_M",
+            capabilities: ["chat", "vision"],
+            supportsTextOnly: true,
+            requiresVisionProjector: true
+          }
+        ],
+        multimodalPairs: [
+          {
+            id: "pair-qwen-mmproj",
+            base_model_id: "Qwen2.5-VL-3B-Instruct.Q4_K_M.gguf",
+            projector_artifact_id: "mmproj-qwen2.5-vl-3b-f16.gguf",
+            modalities: ["image", "text"],
+            source: "manual",
+            confidence: 1,
+            status: "candidate",
+            routing_allowed: true,
+            candidate_base_model_ids: ["Qwen2.5-VL-3B-Instruct.Q4_K_M.gguf"]
+          }
+        ]
+      });
+
+      expect(decision.modelId).toBe("Qwen2.5-VL-3B-Instruct.Q4_K_M.gguf");
+      expect(decision.reason).toContain(
+        "multimodal_pair:routing_allowed:mmproj-qwen2.5-vl-3b-f16.gguf"
+      );
+    });
+
+    it("blocks screenshot coding turns when the selected vision model lacks code capability", () => {
+      const settings = {
+        ...mockSettings,
+        defaultPlannerModelId: "Qwen2.5-VL-3B-Instruct.Q4_K_M.gguf"
+      };
+
+      expect(() =>
+        brokerDecision("small_code_change", settings, {
+          hasImageInput: true,
+          catalog: [
+            {
+              id: "Qwen2.5-VL-3B-Instruct.Q4_K_M.gguf",
+              name: "Qwen2.5-VL-3B-Instruct.Q4_K_M",
+              capabilities: ["chat", "vision"],
+              supportsTextOnly: true
+            }
+          ]
+        })
+      ).toThrow(/Code-Faehigkeit/);
+    });
+
+    it("allows screenshot coding turns when the selected vision model has code capability", () => {
+      const settings = {
+        ...mockSettings,
+        defaultPlannerModelId: "Qwen2.5-VL-Coder-3B-Instruct.Q4_K_M.gguf"
+      };
+
+      const decision = brokerDecision("small_code_change", settings, {
+        hasImageInput: true,
+        catalog: [
+          {
+            id: "Qwen2.5-VL-Coder-3B-Instruct.Q4_K_M.gguf",
+            name: "Qwen2.5-VL-Coder-3B-Instruct.Q4_K_M",
+            capabilities: ["chat", "vision", "code"],
+            supportsTextOnly: true
+          }
+        ]
+      });
+
+      expect(decision.modelId).toBe("Qwen2.5-VL-Coder-3B-Instruct.Q4_K_M.gguf");
+      expect(decision.capabilities).toContain("code");
+    });
+
     it("warns on manual vision override without image but keeps the model", () => {
       const decision = brokerDecision(
         "casual_chat",

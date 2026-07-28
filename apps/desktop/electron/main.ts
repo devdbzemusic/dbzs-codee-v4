@@ -23,6 +23,7 @@ import type {
   RestorePointReason,
   RestoreResult,
   ReviewArtifactSummary,
+  RuntimeChatImageAttachment,
   SaveFileRequest,
   SaveFileAsRequest,
   ProjectCreationResult,
@@ -1716,6 +1717,50 @@ ipcMain.handle("dbzs:file:open-dialog", async () => {
   }
 
   return readWorkspaceFile(result.filePaths[0]);
+});
+
+ipcMain.handle("dbzs:file:open-image-dialog", async () => {
+  if (!mainWindow) {
+    throw new Error("Main window is not available.");
+  }
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Bild einfuegen",
+    properties: ["openFile"],
+    filters: [{ name: "Bilder", extensions: ["png", "jpg", "jpeg", "gif", "webp", "bmp"] }]
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+
+  const filePath = result.filePaths[0];
+  const buffer = await fs.readFile(filePath);
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeType =
+    ext === ".png"
+      ? "image/png"
+      : ext === ".jpg" || ext === ".jpeg"
+        ? "image/jpeg"
+        : ext === ".gif"
+          ? "image/gif"
+          : ext === ".webp"
+            ? "image/webp"
+            : ext === ".bmp"
+              ? "image/bmp"
+              : "application/octet-stream";
+
+  const attachment: RuntimeChatImageAttachment = {
+    id: `img-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    name: path.basename(filePath),
+    mimeType,
+    dataUrl: `data:${mimeType};base64,${buffer.toString("base64")}`,
+    source: "file_dialog",
+    sizeBytes: buffer.byteLength,
+    path: filePath
+  };
+
+  return attachment;
 });
 
 /**

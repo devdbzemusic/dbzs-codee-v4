@@ -96,6 +96,10 @@ const api = {
       import("@dbzs/shared").SettingsDiagnostics
     >,
   openFileDialog: () => ipcRenderer.invoke("dbzs:file:open-dialog") as Promise<WorkspaceFile | null>,
+  openImageFileDialog: () =>
+    ipcRenderer.invoke("dbzs:file:open-image-dialog") as Promise<
+      import("@dbzs/shared").RuntimeChatImageAttachment | null
+    >,
   saveFile: (request: SaveFileRequest) =>
     ipcRenderer.invoke("dbzs:file:save", request) as Promise<WorkspaceFile>,
   saveFileAsDialog: (request: SaveFileAsRequest) =>

@@ -7,7 +7,7 @@ Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
   configurable: true,
   value: vi.fn()
 });
-import type { WorkspaceFile, WorkspaceProjectFile } from "@dbzs/shared";
+import type { RuntimeChatImageAttachment, WorkspaceFile, WorkspaceProjectFile } from "@dbzs/shared";
 import { RuntimeChatTab, stripPrivateReasoning } from "@/components/RuntimeChatTab";
 import { mergeAssistantMessageState, useRuntimeChatStore } from "@/stores/runtimeChatStore";
 import { buildWorkspaceContext, buildWorkspaceContextSystemMessage } from "@/services/runtimeChatContext";
@@ -46,6 +46,10 @@ function projectFile(path: string, relativePath: string, language: string): Work
 
 describe("RuntimeChatTab patch card", () => {
   beforeEach(() => {
+    window.dbzs = {
+      ...window.dbzs,
+      openImageFileDialog: vi.fn()
+    };
     useRuntimeChatStore.setState({
       messages: [{
         id: "msg-1",
@@ -310,6 +314,158 @@ describe("RuntimeChatTab patch card", () => {
   });
 });
 
+describe("RuntimeChatTab image attachments", () => {
+  beforeEach(() => {
+    useRuntimeChatStore.setState({
+      messages: [],
+      patchProposalsById: {},
+      patchPreviewsById: {},
+      agentActionsById: {},
+      activePatchProposal: null,
+      activePatchPreview: null,
+      patchState: null,
+      patchError: null,
+      patchApplyResult: null,
+      patchValidationResult: null,
+      isSending: false,
+      isStreaming: false,
+      error: null
+    });
+  });
+
+  it("allows sending an image selected from the file dialog", async () => {
+    const sendMessageMock = vi.fn().mockResolvedValue(true);
+    const attachment: RuntimeChatImageAttachment = {
+      id: "img-1",
+      name: "screenshot.png",
+      mimeType: "image/png",
+      dataUrl: "data:image/png;base64,AAAA",
+      source: "file_dialog",
+      sizeBytes: 4096
+    };
+    window.dbzs = {
+      ...window.dbzs,
+      openImageFileDialog: vi.fn().mockResolvedValue(attachment)
+    };
+    useRuntimeChatStore.setState({
+      sendMessage: sendMessageMock
+    });
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <RuntimeChatTab
+          activeFile={null}
+          status={{ state: "running", provider: "ollama", model_id: "phi", model_name: "phi", port: 1234, pid: 1, endpoint: "http://localhost:1234", message: "Runtime aktiv" }}
+          workspaceRoot="D:/repo"
+          workspaceName="dbzs-codee"
+          workspaceFiles={[]}
+        />
+      );
+    });
+
+    const imageButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Bild")
+    );
+    expect(imageButton).toBeTruthy();
+
+    await act(async () => {
+      imageButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("screenshot.png");
+
+    const sendButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Senden")
+    ) as HTMLButtonElement | undefined;
+    expect(sendButton?.disabled).toBe(false);
+
+    await act(async () => {
+      sendButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(sendMessageMock).toHaveBeenCalledOnce();
+    expect(sendMessageMock).toHaveBeenCalledWith(
+      "Bitte analysiere das angehaengte Bild.",
+      expect.anything(),
+      null,
+      null,
+      null,
+      "runtime_chat",
+      expect.objectContaining({
+        hasImageInput: true,
+        requiresVision: true,
+        imageAttachments: [attachment]
+      })
+    );
+
+    root.unmount();
+    container.remove();
+  });
+
+  it("accepts pasted clipboard images and shows a preview", async () => {
+    class FileReaderMock {
+      result: string | ArrayBuffer | null = null;
+      onerror: null | (() => void) = null;
+      onload: null | (() => void) = null;
+
+      readAsDataURL(file: File) {
+        this.result = `data:${file.type};base64,BBBB`;
+        this.onload?.();
+      }
+    }
+
+    vi.stubGlobal("FileReader", FileReaderMock);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <RuntimeChatTab
+          activeFile={null}
+          status={{ state: "running", provider: "ollama", model_id: "phi", model_name: "phi", port: 1234, pid: 1, endpoint: "http://localhost:1234", message: "Runtime aktiv" }}
+          workspaceRoot="D:/repo"
+          workspaceName="dbzs-codee"
+          workspaceFiles={[]}
+        />
+      );
+    });
+
+    const textarea = container.querySelector("textarea");
+    expect(textarea).toBeTruthy();
+
+    const file = new File(["image"], "clip.png", { type: "image/png" });
+    const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, "clipboardData", {
+      configurable: true,
+      value: {
+        items: [{
+          kind: "file",
+          type: "image/png",
+          getAsFile: () => file
+        }]
+      }
+    });
+
+    await act(async () => {
+      textarea?.dispatchEvent(pasteEvent);
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("clip.png");
+    expect(container.textContent).toContain("Zwischenablage");
+
+    root.unmount();
+    container.remove();
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("buildWorkspaceContext", () => {
   beforeEach(() => {
     window.dbzs = {
@@ -318,6 +474,7 @@ describe("buildWorkspaceContext", () => {
       getSettings: vi.fn(),
       updateSettings: vi.fn(),
       openFileDialog: vi.fn(),
+      openImageFileDialog: vi.fn(),
       saveFile: vi.fn(),
       getModelIndex: vi.fn(),
       getRuntimeStatus: vi.fn(),

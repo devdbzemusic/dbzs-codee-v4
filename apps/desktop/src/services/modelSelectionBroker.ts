@@ -8,7 +8,11 @@
  * No re-evaluation, no implicit re-routing.
  */
 
-import type { RuntimeTaskType, RuntimeSlotId as SharedRuntimeSlotId } from "@dbzs/shared";
+import type {
+  MultimodalPair,
+  RuntimeTaskType,
+  RuntimeSlotId as SharedRuntimeSlotId
+} from "@dbzs/shared";
 import {
   matchesCompleteRepositoryReviewIntent as matchesCompleteRepoReview,
   resolveRepositoryReviewScope
@@ -328,6 +332,7 @@ export interface BrokerDecisionOptions {
   /** Manual model override id — kept even if vision, but reason warns. */
   manualModelId?: string;
   catalog?: BrokerModelCatalogEntry[];
+  multimodalPairs?: MultimodalPair[];
   /** Current settings revision — stamped onto the decision. */
   settingsRevision?: number;
   /** Original user message — used to attach repository-review meta. */
@@ -407,6 +412,16 @@ function findCatalogEntry(
   );
 }
 
+function findVerifiedMultimodalPair(
+  modelId: string,
+  multimodalPairs?: MultimodalPair[],
+): MultimodalPair | undefined {
+  if (!multimodalPairs?.length) return undefined;
+  return multimodalPairs.find(
+    (pair) => pair.base_model_id === modelId && pair.routing_allowed === true,
+  );
+}
+
 /** Content-hash / opaque ids must never be shown as the sole model label. */
 export function looksLikeOpaqueModelId(value: string): boolean {
   const base = value.replace(/\\/g, "/").split("/").pop() ?? value;
@@ -449,6 +464,28 @@ export function modelRequiresVisionProjector(
   if (entry?.requiresVisionProjector === true) return true;
   if (entry?.supportsTextOnly === false && isVisionModelRef(modelId, catalog)) return true;
   return false;
+}
+
+function taskRequiresCodingCapability(taskType: TaskType): boolean {
+  return (
+    taskType === "small_code_change" ||
+    taskType === "large_code_change" ||
+    taskType === "refactoring" ||
+    taskType === "debugging" ||
+    taskType === "review" ||
+    taskType === "test_analysis"
+  );
+}
+
+function modelSupportsCodingCapability(
+  modelId: string,
+  catalog?: BrokerModelCatalogEntry[],
+): boolean {
+  const entry = findCatalogEntry(modelId, catalog);
+  if (!entry) {
+    return false;
+  }
+  return entry.capabilities?.includes("code") === true;
 }
 
 export function deriveModelDisplayName(
@@ -500,10 +537,27 @@ function resolveModelIdWithVisionGate(
   },
   allowVision: boolean,
   catalog: BrokerModelCatalogEntry[] | undefined,
+  multimodalPairs: MultimodalPair[] | undefined,
   reasons: string[],
   manualModelId?: string,
 ): { modelId: string; selectionSource: BindingSelectionSource; fallbackReason?: string } {
   if (manualModelId?.trim()) {
+    const verifiedManualPair = findVerifiedMultimodalPair(manualModelId, multimodalPairs);
+    if (allowVision && verifiedManualPair) {
+      reasons.push(`multimodal_pair:routing_allowed:${verifiedManualPair.projector_artifact_id}`);
+    }
+    if (
+      allowVision &&
+      modelRequiresVisionProjector(manualModelId, catalog) &&
+      !verifiedManualPair
+    ) {
+      reasons.push(`multimodal_pair:missing_verified_pair:${manualModelId}`);
+      throw new BindingModelError(
+        `Visionmodell '${manualModelId}' benoetigt ein verifiziertes MMProj-Pairing, aber es ist keine Routing-Freigabe vorhanden.`,
+        "vision_pairing_required",
+        ["MM-Pairing verifizieren", "Anderes Modell waehlen", "Abbrechen"]
+      );
+    }
     if (!allowVision && isVisionModelRef(manualModelId, catalog)) {
       reasons.push(`vision_gate:manual_override_warning:${manualModelId}`);
     }
@@ -539,6 +593,18 @@ function resolveModelIdWithVisionGate(
   }
 
   if (allowVision || !isVisionModelRef(preferred, catalog)) {
+    const verifiedPair = allowVision ? findVerifiedMultimodalPair(preferred, multimodalPairs) : undefined;
+    if (allowVision && verifiedPair) {
+      reasons.push(`multimodal_pair:routing_allowed:${verifiedPair.projector_artifact_id}`);
+    }
+    if (allowVision && modelRequiresVisionProjector(preferred, catalog) && !verifiedPair) {
+      reasons.push(`multimodal_pair:missing_verified_pair:${preferred}`);
+      throw new BindingModelError(
+        `Visionmodell '${preferred}' benoetigt ein verifiziertes MMProj-Pairing, aber es ist keine Routing-Freigabe vorhanden.`,
+        "vision_pairing_required",
+        ["MM-Pairing verifizieren", "Anderes Rollenmodell waehlen", "Abbrechen"]
+      );
+    }
     reasons.push(`role_setting:${preferred}`);
     return { modelId: preferred, selectionSource: "role_setting" };
   }
@@ -614,6 +680,7 @@ export function brokerDecision(
     settings,
     allowVision,
     catalog,
+    options?.multimodalPairs,
     reasons,
     options?.manualModelId,
   );
@@ -623,6 +690,19 @@ export function brokerDecision(
     ? catalogEntry.name.trim()
     : deriveModelDisplayName(resolvedModelId, settings.defaultModelName, catalog);
   reasons.push(`selection_source:${resolved.selectionSource}`);
+
+  if (
+    allowVision &&
+    taskRequiresCodingCapability(taskType) &&
+    !modelSupportsCodingCapability(resolvedModelId, catalog)
+  ) {
+    reasons.push(`capability_gate:code_missing:${resolvedModelId}`);
+    throw new BindingModelError(
+      `Modell '${resolvedModelName}' ist fuer diese Bild-Coding-/Review-Anfrage nicht freigegeben, weil die Code-Faehigkeit im Modellindex fehlt.`,
+      "code_capability_missing",
+      ["Coding-faehiges Visionmodell waehlen", "Textmodell ohne Bild nutzen", "Abbrechen"]
+    );
+  }
 
   const decision: ModelSelectionDecision = {
     taskType,

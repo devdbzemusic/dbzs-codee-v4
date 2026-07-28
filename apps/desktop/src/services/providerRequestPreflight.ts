@@ -6,7 +6,8 @@ export type ProviderPreflightRejectReason =
   | "tool_protocol_incompatible"
   | "request_body_too_large"
   | "context_budget_exceeded"
-  | "model_capability_missing";
+  | "model_capability_missing"
+  | "vision_transport_unavailable";
 
 export interface ProviderRequestPreflight {
   compatible: boolean;
@@ -29,6 +30,7 @@ export function evaluateProviderRequestPreflight(input: {
   taskType: RuntimeTaskType;
   currentPhase?: string | null;
   providerId?: string | null;
+  hasImageInput?: boolean;
 }): ProviderRequestPreflight {
   const promptTokens = input.preparedRequest.promptTokens;
   const toolTokens = input.preparedRequest.toolPayloadTokens;
@@ -67,6 +69,9 @@ export function evaluateProviderRequestPreflight(input: {
   }
   if (!input.preparedRequest.messages.length) {
     rejectionReasons.push("model_capability_missing");
+  }
+  if (input.hasImageInput === true) {
+    rejectionReasons.push("vision_transport_unavailable");
   }
 
   return {

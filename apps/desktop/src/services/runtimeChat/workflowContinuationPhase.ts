@@ -220,7 +220,9 @@ export function resolveWorkflowContinuationForSend(
           targetAgent: effectiveAgent,
           workspaceRoot: workspaceRootForWorkflow,
           workflow: "workflow_ambiguity",
-          taskType: activeContract.taskType
+          taskType: activeContract.taskType,
+          hasImageInput: sendOptions?.hasImageInput === true,
+          requiresVision: sendOptions?.requiresVision === true
         }
       },
       state: "pending",

@@ -1,4 +1,5 @@
-import React, { type KeyboardEvent } from "react";
+import type { ClipboardEvent, KeyboardEvent } from "react";
+import type { RuntimeChatImageAttachment } from "@dbzs/shared";
 import { Button } from "@/components/ui/Button";
 
 export function RuntimeChatComposer({
@@ -10,9 +11,13 @@ export function RuntimeChatComposer({
   toolProfile,
   includeWorkspaceContext,
   contextNote,
+  imageAttachments,
   onDraftChange,
   onSubmit,
   onCancel,
+  onPasteImage,
+  onOpenImageDialog,
+  onRemoveImage,
   setChatMode,
   setToolProfile,
   setIncludeWorkspaceContext
@@ -25,19 +30,25 @@ export function RuntimeChatComposer({
   toolProfile: "ask" | "agent" | "full";
   includeWorkspaceContext: boolean;
   contextNote: string | null;
+  imageAttachments: RuntimeChatImageAttachment[];
   onDraftChange: (value: string) => void;
   onSubmit: () => void;
   onCancel: () => void;
+  onPasteImage: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
+  onOpenImageDialog: () => void;
+  onRemoveImage: (attachmentId: string) => void;
   setChatMode: (mode: "auto" | "agent") => void;
   setToolProfile: (profile: "ask" | "agent" | "full") => void;
   setIncludeWorkspaceContext: (value: boolean) => void;
 }) {
+  const canSubmit = draft.trim().length > 0 || imageAttachments.length > 0;
+
   const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== "Enter" || event.shiftKey) {
       return;
     }
     event.preventDefault();
-    if (!isSending && runtimeReady && draft.trim().length > 0) {
+    if (!isSending && runtimeReady && canSubmit) {
       onSubmit();
     }
   };
@@ -51,11 +62,11 @@ export function RuntimeChatComposer({
       }}
     >
       <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px]">
-        <span className="text-dbzs-muted">Gesprächsmodus:</span>
+        <span className="text-dbzs-muted">Gespraechsmodus:</span>
         <Button active={chatMode === "auto"} onClick={() => setChatMode("auto")} title="Codee entscheidet selbst, wie agentisch die Antwort sein soll.">
           Automatisch
         </Button>
-        <Button active={chatMode === "agent"} onClick={() => setChatMode("agent")} title="Mehr explizite Umsetzungs- und Ausführungsschritte statt nur Antworttext.">
+        <Button active={chatMode === "agent"} onClick={() => setChatMode("agent")} title="Mehr explizite Umsetzungs- und Ausfuehrungsschritte statt nur Antworttext.">
           Als Agent
         </Button>
         <label className="text-dbzs-muted" htmlFor="runtime-chat-tool-profile">Werkzeugrechte:</label>
@@ -63,7 +74,7 @@ export function RuntimeChatComposer({
           className="rounded border border-dbzs-border bg-dbzs-bg px-1.5 py-0.5 text-[10px] text-dbzs-muted"
           disabled={isSending}
           id="runtime-chat-tool-profile"
-          title="Steuert, wie offensiv Codee Tools und Ausführungen nutzen darf."
+          title="Steuert, wie offensiv Codee Tools und Ausfuehrungen nutzen darf."
           value={toolProfile}
           onChange={(event) => setToolProfile(event.currentTarget.value as "ask" | "agent" | "full")}
         >
@@ -81,28 +92,75 @@ export function RuntimeChatComposer({
           Kontext
         </label>
         <span className="ml-auto truncate text-dbzs-muted">
-          {contextNote ?? "Enter senden · Shift+Enter neue Zeile"}
+          {contextNote ?? "Enter senden · Shift+Enter neue Zeile · Strg+V fuer Bilder"}
         </span>
       </div>
       <div className="mb-2 text-[10px] text-dbzs-muted">
-        Schreib einfach natürlich, was du erreichen willst. Kurze Antworten wie
-        &quot;mach weiter&quot; oder &quot;genau so&quot; werden als Fortsetzung behandelt.
+        Schreib einfach natuerlich, was du erreichen willst. Bilder kannst du per Strg+V einfuegen
+        oder ueber den Bild-Button auswaehlen.
       </div>
+      {imageAttachments.length > 0 ? (
+        <div className="mb-2 grid gap-2 sm:grid-cols-2">
+          {imageAttachments.map((attachment) => (
+            <div
+              className="rounded border border-dbzs-border bg-dbzs-bg/70 p-2"
+              key={attachment.id}
+            >
+              <div className="mb-2 aspect-video overflow-hidden rounded border border-dbzs-border bg-black/20">
+                <img
+                  alt={attachment.name}
+                  className="h-full w-full object-cover"
+                  src={attachment.dataUrl}
+                />
+              </div>
+              <div className="flex items-start justify-between gap-2 text-[10px]">
+                <div className="min-w-0">
+                  <div className="truncate text-dbzs-text">{attachment.name}</div>
+                  <div className="text-dbzs-muted">
+                    {attachment.source === "clipboard" ? "Zwischenablage" : "Datei"}
+                    {typeof attachment.sizeBytes === "number"
+                      ? ` · ${Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB`
+                      : ""}
+                  </div>
+                </div>
+                <button
+                  className="rounded border border-dbzs-border px-1.5 py-0.5 text-dbzs-muted hover:border-dbzs-red/40 hover:text-dbzs-red"
+                  onClick={() => onRemoveImage(attachment.id)}
+                  type="button"
+                >
+                  Entfernen
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="flex gap-2">
         <textarea
           className="min-h-[72px] flex-1 resize-y rounded border border-dbzs-border bg-dbzs-bg px-2 py-2 text-[11px] leading-5 text-dbzs-text outline-none focus:border-dbzs-cyan/60"
           disabled={!runtimeReady || isSending}
           onChange={(event) => onDraftChange(event.currentTarget.value)}
           onKeyDown={onComposerKeyDown}
+          onPaste={onPasteImage}
           placeholder={
             runtimeReady
-              ? "Analysiere, plane, debugge oder frag nach dem Status …"
-              : "Backend verbinden …"
+              ? "Analysiere, plane, debugge oder fuege einen Screenshot ein ..."
+              : "Backend verbinden ..."
           }
           rows={3}
           value={draft}
         />
         <div className="flex shrink-0 flex-col gap-1">
+          <Button
+            disabled={!runtimeReady || isSending}
+            onClick={(event) => {
+              event.preventDefault();
+              onOpenImageDialog();
+            }}
+            type="button"
+          >
+            Bild
+          </Button>
           {isSending || isStreaming ? (
             <Button
               variant="danger"
@@ -116,10 +174,10 @@ export function RuntimeChatComposer({
           ) : null}
           <Button
             variant="primary"
-            disabled={!runtimeReady || isSending || draft.trim().length === 0}
+            disabled={!runtimeReady || isSending || !canSubmit}
             type="submit"
           >
-            {isSending ? "…" : "Senden"}
+            {isSending ? "..." : "Senden"}
           </Button>
         </div>
       </div>

@@ -1,10 +1,11 @@
 import {
   type BackendStartupStatus,
+  type RuntimeChatImageAttachment,
   type RuntimeStatus,
   type WorkspaceFile,
   type WorkspaceProjectFile
 } from "@dbzs/shared";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { type ClipboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRuntimeChatPendingApprovalCount } from "@/components/RuntimeChatApprovals";
 import { RuntimeChatCapabilitiesOverlay } from "@/components/runtime-chat/RuntimeChatCapabilitiesOverlay";
 import { RuntimeChatComposer } from "@/components/runtime-chat/RuntimeChatComposer";
@@ -87,6 +88,7 @@ export function RuntimeChatTab({
     historicalRuns
   } = useRuntimeChatStore();
   const [draft, setDraft] = useState("");
+  const [imageAttachments, setImageAttachments] = useState<RuntimeChatImageAttachment[]>([]);
   const [contextNote, setContextNote] = useState<string | null>(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [showPanels, setShowPanels] = useState(false);
@@ -206,6 +208,39 @@ export function RuntimeChatTab({
     provider: selectedProvider
   };
 
+  const appendImageAttachments = (attachments: RuntimeChatImageAttachment[]) => {
+    if (attachments.length === 0) {
+      return;
+    }
+    setImageAttachments((current) => [...current, ...attachments]);
+  };
+
+  const readClipboardImageAttachment = async (
+    file: File
+  ): Promise<RuntimeChatImageAttachment> => {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error(`Bild konnte nicht gelesen werden: ${file.name}`));
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result);
+          return;
+        }
+        reject(new Error(`Bild konnte nicht gelesen werden: ${file.name}`));
+      };
+      reader.readAsDataURL(file);
+    });
+
+    return {
+      id: `img-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      name: file.name || `clipboard-image-${Date.now()}.png`,
+      mimeType: file.type || "image/png",
+      dataUrl,
+      source: "clipboard",
+      sizeBytes: file.size
+    };
+  };
+
   useEffect(() => {
     useRuntimeChatApprovalStore.getState().switchWorkspace(workspaceRoot);
   }, []);
@@ -221,6 +256,7 @@ export function RuntimeChatTab({
     useRuntimeChatApprovalStore.getState().switchWorkspace(workspaceRoot);
     setShowPanels(false);
     setContextNote(null);
+    setImageAttachments([]);
   }, [cancelSend, clear, workspaceRoot]);
 
   useEffect(() => {
@@ -303,11 +339,14 @@ export function RuntimeChatTab({
 
   const submitMessage = () => {
     const text = draft;
-    if (text.trim().length === 0) return;
+    const trimmedText = text.trim();
+    const hasImageInput = imageAttachments.length > 0;
+    if (trimmedText.length === 0 && !hasImageInput) return;
     setDraft("");
 
     void (async () => {
-      const payload = chatMode === "agent" ? `[Agent Mode]\n${text}` : text;
+      const basePayload = trimmedText.length > 0 ? text : "Bitte analysiere das angehaengte Bild.";
+      const payload = chatMode === "agent" ? `[Agent Mode]\n${basePayload}` : basePayload;
       const sent = await sendMessage(
         payload,
         status,
@@ -315,9 +354,15 @@ export function RuntimeChatTab({
         null,
         contextHint,
         chatMode === "agent" ? "coder" : "runtime_chat",
-        sendOptions
+        {
+          ...sendOptions,
+          imageAttachments,
+          hasImageInput,
+          requiresVision: hasImageInput
+        }
       );
       if (sent) {
+        setImageAttachments([]);
         const activity = useRuntimeChatStore.getState().lastActivity;
         const workspaceStep = activity?.steps.find((step) => step.id === "workspace-context");
         if (workspaceStep) {
@@ -328,6 +373,50 @@ export function RuntimeChatTab({
         }
       }
     })();
+  };
+
+  const handleComposerPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(event.clipboardData?.items ?? []);
+    const imageFiles = items
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file instanceof File);
+    if (imageFiles.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    void (async () => {
+      try {
+        const attachments = await Promise.all(
+          imageFiles.map((file) => readClipboardImageAttachment(file))
+        );
+        appendImageAttachments(attachments);
+        setContextNote(
+          `${attachments.length} Bild${attachments.length === 1 ? "" : "er"} aus der Zwischenablage eingefuegt.`
+        );
+      } catch (error) {
+        setContextNote(error instanceof Error ? error.message : "Bild aus Zwischenablage konnte nicht gelesen werden.");
+      }
+    })();
+  };
+
+  const handleOpenImageDialog = () => {
+    void (async () => {
+      if (!window.dbzs.openImageFileDialog) {
+        setContextNote("Bilddialog ist in dieser Umgebung nicht verfuegbar.");
+        return;
+      }
+      const attachment = await window.dbzs.openImageFileDialog();
+      if (!attachment) {
+        return;
+      }
+      appendImageAttachments([attachment]);
+      setContextNote(`Bild hinzugefuegt: ${attachment.name}`);
+    })();
+  };
+
+  const handleRemoveImage = (attachmentId: string) => {
+    setImageAttachments((current) => current.filter((attachment) => attachment.id !== attachmentId));
   };
 
   const applyAssistantProposal = (proposal: string) => {
@@ -539,9 +628,13 @@ export function RuntimeChatTab({
         toolProfile={toolProfile}
         includeWorkspaceContext={includeWorkspaceContext}
         contextNote={contextNote}
+        imageAttachments={imageAttachments}
         onDraftChange={setDraft}
         onSubmit={submitMessage}
         onCancel={() => cancelSend()}
+        onPasteImage={handleComposerPaste}
+        onOpenImageDialog={handleOpenImageDialog}
+        onRemoveImage={handleRemoveImage}
         setChatMode={setChatMode}
         setToolProfile={setToolProfile}
         setIncludeWorkspaceContext={setIncludeWorkspaceContext}

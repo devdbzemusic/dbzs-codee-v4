@@ -60,6 +60,14 @@ Stand im aktuellen Branch nach dem naechsten sicheren Slice:
   muss erfolgreich sein, bevor `routingAllowed` gesetzt wird. Fehlerursachen aus dem Vision-Test werden als Probe-Evidenz
   bis in den `RuntimeModelsTab` durchgereicht
 - `RuntimeModelsTab` zeigt fuer MMProj-/Hilfsartefakte jetzt explizite Statushinweise statt nur generischem `support_artifact`
+- `RuntimeModelsTab` arbeitet jetzt als eigenes MM-Pairing-Control-Center: separate Paarliste, Risiko-Sortierung,
+  Status-Summary, direkte Probe und manuelle Neu-Zuordnung; gekoppelte MMProj-Artefakte tauchen nicht mehr doppelt
+  in den generischen Hilfsartefakten auf
+- `runtimeChatStoreRoutingPhase` reicht `multimodal_pairs` jetzt in den `modelSelectionBroker` durch; projector-pflichtige
+  Visionmodelle werden ohne verifiziertes `routing_allowed = true` sauber blockiert statt blind gestartet
+- fuer Screenshot-Coding/-Review mit Bildinput gilt jetzt zusaetzlich ein Capability-Gate:
+  das gewaehlte Visionmodell muss im Modellindex explizit `code` tragen; vision-only/chat-only Visionmodelle werden
+  fuer diese Pfade mit klarer Broker-Diagnose blockiert
 - MMProj bleibt strikt nicht startbar; nur verifizierte Paare werden jetzt als `routingAllowed = true` sichtbar
 - Nebenfund behoben: Dateinamen-Heuristiken bewerten jetzt den Dateinamen statt des ganzen Pfads, damit Ordnernamen wie `...mmproj...` keine Fehlklassifikation ausloesen
 
@@ -74,9 +82,11 @@ Stand im aktuellen Branch nach dem naechsten sicheren Slice:
   bleibt vor allem ein weiter verfeinerter Ergebnisverlauf fuer fehlgeschlagene versus erfolgreiche Proben.
   Endpoint-, `/v1/models`- und kleiner Bildtest-Nachweis sind jetzt Teil des Gates. Erst `verified`-Paare duerfen
   Routing freigeben.
-- **4. Dann UI/Control Center**: `RuntimeModelsTab` um Paare, Hilfsartefakte, Diagnose und manuelle Zuordnung erweitern.
-- **5. Routing zuletzt anschliessen**: Textanfragen unveraendert text-only; Bildinput nur ueber verifizierte multimodale Paare.
-  Erste Produktionsstufe fuer Screenshot-Coding/Review: Vision analysiert, spezialisiertes Coding-/Review-Modell setzt um.
+- **4. Dann UI/Control Center**: dieser Block ist jetzt weit fortgeschritten; offen bleiben vor allem weitere
+  Routing-/Capability-Ansichten und Ergebnis-Feinschliff.
+- **5. Routing zuletzt anschliessen**: erstes Broker-Gate fuer projector-pflichtige Visionmodelle ist aktiv.
+  Das erste Screenshot-Coding/Review-Capability-Gate (`vision + code`) ist ebenfalls aktiv.
+  Offen bleiben die produktive Screenshot-Coding/Review-Kette und weitere Routing-/Capability-Regeln.
 - **6. Capability-Zertifizierung getrennt**: direkte Vision-Coding-/Review-Ausfuehrung erst nach expliziter
   Zertifizierung von `code_generation`, `code_review`, `structured_output`, `instruction_following`, `tool_calling`.
 

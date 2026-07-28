@@ -364,6 +364,7 @@ export interface RuntimeChatSendOptions {
   workspaceRoot?: string | null;
   workspaceName?: string | null;
   workspaceFiles?: WorkspaceProjectFile[];
+  imageAttachments?: import("@dbzs/shared").RuntimeChatImageAttachment[];
   showAnalysisProtocol?: boolean;
   contextHint?: string | null;
   toolsEnabled?: boolean;
@@ -875,6 +876,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
       set,
       get,
       trimmedContent,
+      imageAttachments: sendOptions?.imageAttachments,
       effectiveAgent,
       taskType,
       includeWorkspaceContext,
@@ -2237,6 +2239,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
         toolEstimate,
         finalBudgetRuntimeContextLimit: finalBudget.runtimeContextLimit,
         taskType,
+        hasImageInput: requestCapabilities.hasImageInput,
         currentPhase: bindingDecision?.phase ?? activeTaskContract?.currentPhase ?? workflowAssignment.phase,
         providerId: bindingDecision?.providerId ?? routing.providerId ?? brokerDecisionFull?.providerId ?? sendOptions?.provider,
         endpoint: useSettingsStore.getState().settings.backendUrl || "http://127.0.0.1:8876",

@@ -237,7 +237,9 @@ export async function prepareOnDemandRuntimeAction(input: {
           targetAgent: effectiveAgent,
           workspaceRoot: sendOptions?.workspaceRoot ?? null,
           workflow: workflowForTaskType(taskType) ?? "review",
-          taskType
+          taskType,
+          hasImageInput: brokerDecisionFull.hasImageInput,
+          requiresVision: brokerDecisionFull.requiresVision
         }
       },
       state: "pending",

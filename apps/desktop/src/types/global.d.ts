@@ -39,6 +39,7 @@ import type {
   ProjectMemoryUpsertRequest,
   ProjectCreationResult,
   RuntimeChatRequest,
+  RuntimeChatImageAttachment,
   RuntimeChatResponse,
   RuntimeStatus,
   GitCommitSuggestion,
@@ -92,6 +93,7 @@ declare global {
       patchSettings?: (request: SettingsPatchRequest) => Promise<SettingsPatchResponse>;
       getSettingsDiagnostics?: () => Promise<SettingsDiagnostics>;
       openFileDialog: () => Promise<WorkspaceFile | null>;
+      openImageFileDialog?: () => Promise<RuntimeChatImageAttachment | null>;
       saveFile: (request: SaveFileRequest) => Promise<WorkspaceFile>;
       saveFileAsDialog?: (request: import("@dbzs/shared").SaveFileAsRequest) => Promise<WorkspaceFile | null>;
       selectProjectDirectory?: () => Promise<{ projectPath: string; projectName: string } | null>;

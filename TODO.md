@@ -31,6 +31,14 @@ hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht no
       Rescan-Button selbst bereits `UI_VERIFIED` (364 Modelle, keine Regression)
 
 ## Neu eingeplant: Model Control Center + MMProj/MM-Pairing
+
+Kurzstatus 2026-07-28h:
+- `RuntimeModelsTab` arbeitet jetzt als eigenes MM-Pairing-Control-Center mit separater Paarliste, Risiko-Sortierung,
+  Probe und manueller Neu-Zuordnung.
+- `runtimeChatStoreRoutingPhase` reicht `multimodal_pairs` jetzt in den `modelSelectionBroker` durch; projector-pflichtige
+  Visionmodelle werden ohne verifiziertes `routing_allowed = true` sauber blockiert.
+- Screenshot-Coding/-Review mit Bildinput wird jetzt zusaetzlich nur noch fuer Visionmodelle mit expliziter `code`-Capability
+  freigegeben; vision-only/chat-only Modelle werden im Broker mit Diagnose gestoppt.
  
 - [x] **Zwischenschritt 2026-07-28:** `multimodal_pairs` additiv eingefuehrt; erste Same-Folder-Heuristik erzeugt
       `candidate`/`ambiguous`/`missing_base`; `RuntimeModelsTab` zeigt MMProj-/Hilfsartefakt-Status jetzt explizit an.

@@ -229,6 +229,27 @@ export function RuntimeChatMessageCard({
         />
       ) : null}
 
+      {message.attachments?.length ? (
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {message.attachments.map((attachment) => (
+            <figure
+              className="overflow-hidden rounded border border-dbzs-border/60 bg-dbzs-bg/50"
+              key={attachment.id}
+            >
+              <img
+                alt={attachment.name}
+                className="h-40 w-full object-cover"
+                src={attachment.dataUrl}
+              />
+              <figcaption className="flex items-center justify-between gap-2 px-2 py-1 text-[10px] text-dbzs-muted">
+                <span className="truncate">{attachment.name}</span>
+                <span>{attachment.source === "clipboard" ? "Zwischenablage" : "Datei"}</span>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      ) : null}
+
       {planProposal ? (
         <div className="mt-2 rounded border border-dbzs-cyan/30 bg-dbzs-cyan/5 p-2 text-[10px]">
           <div className="mb-1 flex items-center justify-between gap-2">
