@@ -939,6 +939,8 @@ export interface ReviewBatchAnalyzerDiagnostics {
   parserError?: string;
   providerError?: string;
   rawResponseLength?: number;
+  /** Redacted preview (max 500 chars) of the raw LLM text when parsing failed — for diagnosing why. */
+  rawResponsePreview?: string;
   repairAttempted?: boolean;
   mode: "llm" | "hybrid" | "heuristic_fallback" | "failed";
 }

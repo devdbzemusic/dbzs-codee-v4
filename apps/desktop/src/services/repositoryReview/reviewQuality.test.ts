@@ -82,6 +82,21 @@ describe("LLM review parser and diagnostics", () => {
     });
   });
 
+  it("weist das Modell an, bei fehlenden Findings ein leeres Array statt Prosa zurückzugeben", async () => {
+    const chat = vi.fn().mockResolvedValue("[]");
+    await createLlmBatchAnalyzer(chat)(input);
+    const firstCallPrompt = chat.mock.calls[0]![0] as { system: string; user: string };
+    expect(firstCallPrompt.system).toMatch(/empty array/i);
+    expect(firstCallPrompt.system).toContain("[]");
+  });
+
+  it("persistiert eine redigierte Antwort-Vorschau, wenn kein JSON-Array gefunden wurde", async () => {
+    const chat = vi.fn().mockResolvedValue("Keine wesentlichen Probleme gefunden.");
+    const result = await createLlmBatchAnalyzer(chat)(input);
+    expect(result.diagnostics.mode).toBe("failed");
+    expect(result.diagnostics.rawResponsePreview).toContain("Keine wesentlichen Probleme gefunden.");
+  });
+
   it("redigiert Providerfehler in der Diagnostik", async () => {
     const result = await createLlmBatchAnalyzer(async () => {
       throw new Error("Bearer super-secret-token");
