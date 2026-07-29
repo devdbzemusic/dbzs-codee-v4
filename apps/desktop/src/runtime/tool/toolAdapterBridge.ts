@@ -77,6 +77,22 @@ function toPathFilter(pathValue: string, recursive: boolean): string {
   return recursive ? `${normalized}/` : normalized;
 }
 
+/**
+ * Workspace tools only accept paths relative to the workspace root. A leading
+ * slash (e.g. "/models") is treated as workspace-root-anchored rather than an
+ * absolute filesystem path — otherwise it silently matches nothing.
+ */
+function normalizeWorkspaceToolPath(pathValue: string): string {
+  if (/^[A-Za-z]:[\\/]/.test(pathValue)) {
+    throw new Error("Path must be relative to the workspace root, not an absolute filesystem path.");
+  }
+  const normalized = pathValue.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (normalized.split("/").some((segment) => segment === "..")) {
+    throw new Error("Path must not contain '..' segments.");
+  }
+  return normalized;
+}
+
 export class DesktopToolAdapterBridge implements ToolAdapterBridge {
   async readFile(path: string, startLine?: number, endLine?: number): Promise<string> {
     if (!isContextPathAllowed(path)) {
@@ -156,7 +172,8 @@ export class DesktopToolAdapterBridge implements ToolAdapterBridge {
       return files;
     }
 
-    const filter = toPathFilter(path, recursive);
+    const normalizedPath = normalizeWorkspaceToolPath(path);
+    const filter = toPathFilter(normalizedPath, recursive);
     return files.filter((entry) =>
       recursive ? entry.startsWith(filter) : entry === filter
     );

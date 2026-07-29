@@ -94,7 +94,7 @@ export function RuntimeChatMessageCard({
   const hasRequiredChatActions = requiredChatActions.length > 0;
   const hasFollowUpChatActions = isLatestAssistantMessage && followUpChatActions.length > 0;
 
-  if (isCollapsedSystem && compact) {
+  if (isCollapsedSystem) {
     return (
       <details className="rounded border border-dbzs-border/60 bg-dbzs-panelSoft px-2 py-1 text-[10px] text-dbzs-muted">
         <summary className="cursor-pointer">System-Kontext</summary>

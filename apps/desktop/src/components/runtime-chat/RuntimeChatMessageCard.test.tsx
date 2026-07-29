@@ -140,3 +140,64 @@ describe("RuntimeChatMessageCard follow-up actions", () => {
     expect((button as HTMLButtonElement).disabled).toBe(false);
   });
 });
+
+describe("RuntimeChatMessageCard system message collapsing", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    useWorkspaceStore.setState({
+      state: { ...useWorkspaceStore.getState().state, projectPath: "C:/work/a" }
+    } as never);
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it("collapses a long tool-result system message even without the compact prop (real app default)", () => {
+    const toolResultMessage: RuntimeChatMessage = {
+      id: "msg-tool-result",
+      role: "system",
+      content: `[Tool Result: list_files]\nStatus: ok\nOutput:\n${"x".repeat(300)}`
+    };
+
+    act(() => {
+      root.render(
+        <RuntimeChatMessageCard
+          message={toolResultMessage}
+          canApply={false}
+          onApply={() => {}}
+        />
+      );
+    });
+
+    expect(container.querySelector("details")).not.toBeNull();
+    expect(container.textContent).toContain("System-Kontext");
+  });
+
+  it("does not collapse an [Analyse-Protokoll] system message", () => {
+    const analysisMessage: RuntimeChatMessage = {
+      id: "msg-analysis",
+      role: "system",
+      content: `[Analyse-Protokoll]\n${"x".repeat(300)}`
+    };
+
+    act(() => {
+      root.render(
+        <RuntimeChatMessageCard
+          message={analysisMessage}
+          canApply={false}
+          onApply={() => {}}
+        />
+      );
+    });
+
+    expect(container.querySelector("details")).toBeNull();
+  });
+});

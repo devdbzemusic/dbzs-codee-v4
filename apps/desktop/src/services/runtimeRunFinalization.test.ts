@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import {
   finalizeRuntimeRun,
   isGenericRuntimeErrorSentinel,
+  isToolOnlyAnswer,
   isValidFinalAnswer,
   looksLikeContextOverflowMessage,
   resetRuntimeRunFinalizationForTests
@@ -20,6 +21,56 @@ describe("runtimeRunFinalization", () => {
     ).toBe(true);
     expect(isValidFinalAnswer("1) Schritt A\n2) Schritt B\n3) Schritt C")).toBe(true);
     expect(isValidFinalAnswer("")).toBe(false);
+  });
+
+  it("erkennt einen rohen Tool-Call-Envelope als isToolOnlyAnswer", () => {
+    expect(
+      isToolOnlyAnswer(
+        '<CODEE_TOOL_CALL>{"name":"list_files","arguments":{"path":"/models","recursive":true}}</CODEE_TOOL_CALL>'
+      )
+    ).toBe(true);
+    expect(isToolOnlyAnswer("")).toBe(false);
+    expect(isToolOnlyAnswer("Im Workspace wurden 3 GGUF-Modelle gefunden.")).toBe(false);
+    expect(
+      isToolOnlyAnswer(
+        'Hier ist das Ergebnis. <CODEE_TOOL_CALL>{"name":"list_files","arguments":{}}</CODEE_TOOL_CALL>'
+      )
+    ).toBe(true);
+  });
+
+  it("lehnt eine reine Tool-Call-Envelope als gültige Endantwort ab", () => {
+    expect(
+      isValidFinalAnswer(
+        '<CODEE_TOOL_CALL>{"name":"list_files","arguments":{"path":"/models","recursive":true}}</CODEE_TOOL_CALL>'
+      )
+    ).toBe(false);
+  });
+
+  it("markiert einen Lauf als agent_loop_incomplete, wenn agentLoopCompleted false ist (Budget/Cancel-Faelle)", () => {
+    const result = finalizeRuntimeRun({
+      runId: "run-loop-incomplete",
+      outcome: "success",
+      finalAnswer: "Teilweise Ausgabe, aber der Turn-Loop wurde nicht sauber abgeschlossen.",
+      agentTurnCount: 5,
+      pipeline: { modelOutputReceived: true, agentLoopCompleted: false, outputParsed: true }
+    });
+    expect(result.outcome).toBe("agent_loop_incomplete");
+    expect(result.status).toBe("failed");
+    expect(result.suppressAssistantSuccess).toBe(true);
+  });
+
+  it("markiert einen Lauf mit reinem Tool-Call-Envelope als Endantwort nicht als success", () => {
+    const result = finalizeRuntimeRun({
+      runId: "run-tool-only",
+      outcome: "success",
+      finalAnswer:
+        '<CODEE_TOOL_CALL>{"name":"list_files","arguments":{"path":"/models","recursive":true}}</CODEE_TOOL_CALL>',
+      agentTurnCount: 1,
+      pipeline: { modelOutputReceived: true, agentLoopCompleted: true, outputParsed: true }
+    });
+    expect(result.outcome).not.toBe("success");
+    expect(result.status).toBe("failed");
+    expect(result.suppressAssistantSuccess).toBe(true);
   });
 
   it("markiert Safe-Fallback nicht als success", () => {

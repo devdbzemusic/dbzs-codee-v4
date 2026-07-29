@@ -282,7 +282,7 @@ export async function runAgentTurnEngine(params: AgentTurnEngineParams): Promise
 
     lastResponse = response;
     const rawContent = response.message.content || streamedContent;
-    finalContent = stripToolCallBlocks(rawContent) || rawContent;
+    finalContent = stripToolCallBlocks(rawContent);
 
     const toolCalls = [
       ...parseNativeToolCallsFromMessage(response.message as any),

@@ -123,10 +123,20 @@ export function isGenericRuntimeErrorSentinel(content: string | null | undefined
   return GENERIC_ERROR_SENTINELS.some((sentinel) => text.includes(sentinel));
 }
 
+const RESIDUAL_TOOL_CALL_PATTERN = /<CODEE_TOOL_CALL>[\s\S]*?<\/CODEE_TOOL_CALL>/;
+
+/** True when the content is only unexecuted tool-call protocol markup, not a real answer. */
+export function isToolOnlyAnswer(content: string | null | undefined): boolean {
+  const text = (content ?? "").trim();
+  if (!text) return false;
+  return RESIDUAL_TOOL_CALL_PATTERN.test(text);
+}
+
 export function isValidFinalAnswer(content: string | null | undefined): boolean {
   const text = (content ?? "").trim();
   if (!text) return false;
   if (isGenericRuntimeErrorSentinel(text)) return false;
+  if (isToolOnlyAnswer(text)) return false;
   return true;
 }
 
