@@ -3,7 +3,7 @@ import { workspaceScopeId } from "@dbzs/shared";
 import { useMemo } from "react";
 import { MessageMarkdown } from "@/components/chat/MessageMarkdown";
 import { RuntimeChatAttachmentPreview } from "@/components/runtime-chat/RuntimeChatAttachmentPreview";
-import { getRuntimeAgentActionsForMessage, getTransportActionTone, getTransportChatActions, hasPendingRuntimeActionKind, isRejectTransportAction } from "@/services/runtimeChatActionSelectors";
+import { getFollowUpChatActions, getRequiredChatActions, getRuntimeAgentActionsForMessage, getTransportActionTone, hasPendingRuntimeActionKind, isRejectTransportAction } from "@/services/runtimeChatActionSelectors";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useRuntimeChatStore } from "@/stores/runtimeChatStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
@@ -21,12 +21,16 @@ export function RuntimeChatMessageCard({
   canApply,
   compact = false,
   isStreaming = false,
+  isSending = false,
+  isLatestAssistantMessage = false,
   onApply
 }: {
   message: RuntimeChatMessage;
   canApply: boolean;
   compact?: boolean;
   isStreaming?: boolean;
+  isSending?: boolean;
+  isLatestAssistantMessage?: boolean;
   onApply: (proposal: string) => void;
 }) {
   const isUser = message.role === "user";
@@ -61,7 +65,8 @@ export function RuntimeChatMessageCard({
   );
   const handleChatAction = useRuntimeChatStore((state) => state.handleChatAction);
   const agentActionsById = useRuntimeChatStore((state) => state.agentActionsById);
-  const transportChatActions = useMemo(() => getTransportChatActions(message), [message.actions]);
+  const requiredChatActions = useMemo(() => getRequiredChatActions(message), [message.actions]);
+  const followUpChatActions = useMemo(() => getFollowUpChatActions(message), [message.actions]);
   const runtimeAgentActions = useMemo(
     () => getRuntimeAgentActionsForMessage(message, agentActionsById),
     [agentActionsById, message.actionIds]
@@ -86,7 +91,8 @@ export function RuntimeChatMessageCard({
   };
   const hasPendingCommandApproval = hasPendingRuntimeActionKind(runtimeAgentActions, "command");
   const hasPendingWebApproval = hasPendingRuntimeActionKind(runtimeAgentActions, "web");
-  const hasTransportChatActions = transportChatActions.length > 0;
+  const hasRequiredChatActions = requiredChatActions.length > 0;
+  const hasFollowUpChatActions = isLatestAssistantMessage && followUpChatActions.length > 0;
 
   if (isCollapsedSystem && compact) {
     return (
@@ -402,12 +408,12 @@ export function RuntimeChatMessageCard({
         </div>
       ) : null}
 
-      {hasTransportChatActions && (
+      {hasRequiredChatActions && (
         <div
           className="mt-2 flex flex-wrap items-center gap-2 rounded border border-dbzs-border/60 bg-dbzs-panelSoft p-2"
           aria-label="Erforderliche Freigabe oder Aktion"
         >
-          {transportChatActions.map((act) => {
+          {requiredChatActions.map((act) => {
             const isPending = act.state === "pending";
             const isApproved = act.state === "approved";
             const isCompleted = act.state === "completed";
@@ -463,6 +469,29 @@ export function RuntimeChatMessageCard({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {hasFollowUpChatActions && (
+        <div
+          className="mt-2 flex flex-wrap items-center gap-2 rounded border border-dbzs-border/40 bg-dbzs-bg/40 p-2"
+          aria-label="Vorgeschlagene Folgeaktionen"
+        >
+          {followUpChatActions.map((act) => (
+            <button
+              key={act.id}
+              type="button"
+              disabled={isSending || act.state !== "pending"}
+              onClick={() =>
+                workspaceRoot &&
+                handleChatAction(act.id, message.id, true, workspaceScopeId(workspaceRoot))
+              }
+              className="rounded border border-dbzs-border/60 px-2.5 py-1 text-[11px] text-dbzs-textSoft transition-colors hover:border-dbzs-cyan/40 hover:text-dbzs-cyan disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {act.title}
+              {act.state === "completed" ? " ✓" : ""}
+            </button>
+          ))}
         </div>
       )}
     </div>

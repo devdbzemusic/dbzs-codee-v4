@@ -109,6 +109,7 @@ import { approvalCoordinator } from "@/services/approvalCoordinator";
 import { questionCoordinator } from "@/services/questionCoordinator";
 import { clearPendingQuestion, readPendingQuestion } from "@/services/pendingQuestionPersistence";
 import { buildRuntimeAgentActionRegistry } from "@/services/runtimeAgentActions";
+import { attachFollowUpActionsToMessages } from "@/services/runtimeChatFollowUpActions";
 import { brokerDecision, formatModelDisplayLabel, BindingModelError } from "@/services/modelSelectionBroker";
 import {
   answeredFieldIds,
@@ -2467,8 +2468,17 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
                 ? { ...state.planProposalsById, [finalizedAssistantMessage.planProposal.id]: finalizedAssistantMessage.planProposal }
                 : state.planProposalsById;
             const syncedRuntimeActions = syncRuntimeAgentActions(resultMessages, nextPlanProposalsById);
-            return {
+            const messagesWithFollowUps = attachFollowUpActionsToMessages({
               messages: syncedRuntimeActions.messages,
+              finalizedAssistantMessage,
+              run: state.activeRun,
+              taskType,
+              hasPlanProposal: Boolean(finalizedAssistantMessage.planProposal),
+              hasPatchProposal: Boolean(finalizedAssistantMessage.patchProposalId),
+              workspaceRoot: sendOptions?.workspaceRoot ?? null
+            });
+            return {
+              messages: messagesWithFollowUps,
               agentActionsById: syncedRuntimeActions.agentActionsById,
               lastTrajectory: agentResult.trajectory,
               toolProfile: profile,
@@ -2723,8 +2733,23 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
             finalizedResultMessages,
             state.planProposalsById
           );
+          const streamTargetMessage =
+            streamFinalizationResult.assistantIndex >= 0
+              ? finalizedResultMessages[streamFinalizationResult.assistantIndex]
+              : null;
+          const messagesWithFollowUps = streamTargetMessage
+            ? attachFollowUpActionsToMessages({
+                messages: syncedRuntimeActions.messages,
+                finalizedAssistantMessage: streamTargetMessage,
+                run: state.activeRun,
+                taskType,
+                hasPlanProposal: Boolean(streamTargetMessage.planProposal),
+                hasPatchProposal: Boolean(streamTargetMessage.patchProposalId),
+                workspaceRoot: sendOptions?.workspaceRoot ?? null
+              })
+            : syncedRuntimeActions.messages;
           return {
-            messages: syncedRuntimeActions.messages,
+            messages: messagesWithFollowUps,
             agentActionsById: syncedRuntimeActions.agentActionsById
           };
         }

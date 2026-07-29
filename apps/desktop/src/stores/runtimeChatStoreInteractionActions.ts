@@ -15,6 +15,7 @@ import type {
 } from "@dbzs/shared";
 import { workspaceScopeId } from "@dbzs/shared";
 import type { RuntimeChatState } from "@/stores/runtimeChatStore";
+import { FOLLOW_UP_ACTION_KINDS } from "@/services/runtimeChatFollowUpActions";
 import type { AgentToolProfile } from "@/runtime/agent/agentToolProfile";
 import { useEditorStore } from "@/stores/editorStore";
 import { useRuntimeStore } from "@/stores/runtimeStore";
@@ -326,6 +327,22 @@ export async function handleChatActionAction(
         const filePath = typeof payload?.filePath === "string" ? payload.filePath : null;
         if (filePath) {
           await useEditorStore.getState().openWorkspaceFile(filePath);
+        }
+      } else if (FOLLOW_UP_ACTION_KINDS.has(action.kind)) {
+        const prompt = typeof action.payload?.prompt === "string" ? action.payload.prompt : null;
+        if (prompt) {
+          await get().sendMessage(
+            prompt,
+            useRuntimeStore.getState().status,
+            null,
+            undefined,
+            null,
+            "runtime_chat",
+            {
+              workspaceRoot: action.workspaceRoot || useWorkspaceStore.getState().state.projectPath || undefined,
+              toolProfile: get().toolProfile
+            }
+          );
         }
       }
     } else {

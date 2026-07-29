@@ -111,7 +111,13 @@ export type ChatActionKind =
   | "confirm_continue"
   | "cancel_run"
   | "open_file"
-  | "answer_question";
+  | "answer_question"
+  | "continue_task"
+  | "implement_plan"
+  | "show_next_steps"
+  | "retry_run"
+  | "inspect_result"
+  | "new_task";
 
 export interface ChatActionRequest {
   id: string;

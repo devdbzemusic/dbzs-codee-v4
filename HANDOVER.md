@@ -1,6 +1,6 @@
 # Handover
 
-Stand: 2026-07-28
+Stand: 2026-07-29
 
 ## Aktueller Arbeitsbranch
 
@@ -182,6 +182,54 @@ Frisch verifiziert fuer diesen Slice:
 - `npm run typecheck` in `apps/desktop`
 - fokussierter Desktop-Vitest-Lauf: 58 Tests gruen
 - Backend-Pytest fuer Runtime-API plus Attachment-Aufbereitung: 14 Tests gruen
+
+## Neu im Arbeitsbranch: generische Post-Response-Folgeaktionen im Chat (Phase 1)
+
+Basis: `Pläne/06 DBZS_CODEE_CHAT_FOLLOW_UP_ACTIONS_DIAGNOSE_PLAN.md` — Diagnose war: normale, erfolgreich
+abgeschlossene Chat-/Planungs-/Debug-Antworten bekamen `actions: []`, weil die vorhandene Action-Infrastruktur
+nur Patch-Approval/Rollback/Tests/Terminal-/Web-Freigaben und Review-Findings abdeckt; `confirm_continue` war
+zu eng auf "Tests starten nach Patch-Apply" verdrahtet. Der Chat wirkte deshalb subjektiv, als wuerde er nach
+jeder normalen Antwort "einfach enden".
+
+Phase-1-Umsetzung (kein Phase-2-Umbau):
+
+- neuer deterministischer (nicht LLM-gesteuerter) Builder
+  [apps/desktop/src/services/runtimeChatFollowUpActions.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/runtimeChatFollowUpActions.ts):
+  `buildFollowUpActions()`/`attachFollowUpActionsToMessages()`, max. 3 Vorschlaege pro Antwort
+- sechs additive `ChatActionKind`-Werte in `packages/shared/src/index.ts`
+  (`continue_task`, `implement_plan`, `show_next_steps`, `retry_run`, `inspect_result`, `new_task`);
+  `confirm_continue` bleibt unveraendert dem echten Patch-Approval-Flow vorbehalten
+- Gating: `needs_user_input`/`cancelled`/`repositoryReview`/offene Plan- oder Patch-Proposal unterdruecken
+  Vorschlaege komplett (Review-Findings-Aktionen in `CodeeRunLiveBlock` bleiben der einzige Weg fuer Reviews);
+  echter Fehlschlag → `Erneut versuchen`/`Ergebnis pruefen`; Tool-Call mit `status: "error"` → `Fehler beheben`
+  (selbes `continue_task`-Kind wie `Vertiefen`, nur anderer Titel/Prompt); `taskType` `planning`/`architecture`
+  → `Plan umsetzen`; Standardfall → `Vertiefen`/`Naechste Schritte`/`Neue Aufgabe`
+- Verdrahtung an beiden Stellen, die eine Assistentenantwort tatsaechlich abschliessen, in
+  `apps/desktop/src/stores/runtimeChatStore.ts` (Agent-Turn-Loop-Pfad und Streaming-Pfad)
+- Klick dispatcht ueber die bestehende Pipeline (`handleChatAction` → `handleChatActionAction` in
+  `runtimeChatStoreInteractionActions.ts`) und sendet einen festen Prompt ueber die vorhandene `sendMessage()` —
+  keine neue Sonder-Pipeline
+- `RuntimeChatMessageCard.tsx` zeigt jetzt zwei getrennte Bloecke: bestehende Pflicht-Freigaben unveraendert,
+  neuer "Vorgeschlagene Folgeaktionen"-Block ohne Risiko-Styling, waehrend `isSending` deaktiviert
+- "nur die letzte Assistentenantwort zeigt aktive Vorschlaege" ist reine Renderzeit-Logik
+  (`isLatestAssistantMessage` aus `findLastAssistantMessageIndex()` in `RuntimeChatConversationFeed.tsx`) —
+  keine neue Invalidierungslogik noetig, weil jede neue Turn-Runde ohnehin eine frische Platzhalter-Nachricht
+  anlegt; Workspace-Wechsel (`clear()`) entfernt stale Folgeaktionen automatisch mit, weil sie Teil von
+  `message.actions` sind
+
+Bewusst zurueckgestellt (Phase 2, siehe Diagnoseplan): echtes Retry mit demselben Run-Kontext,
+Modellwechsel-Angebot nach Fehlschlag, Fehlererkennung aus Freitext (aktuell nur ueber
+`toolCalls[].status === "error"`), persistierte Folgeaktionen ueber Sessions hinweg.
+
+Verifikation:
+
+- `npx tsc --noEmit -p tsconfig.web.json` und `-p tsconfig.node.json` (apps/desktop) — beide fehlerfrei
+- voller Desktop-Vitest-Lauf: 194 Testdateien / 1223 Tests gruen, keine Regressionen
+- vier neue/erweiterte Testdateien: `runtimeChatFollowUpActions.test.ts` (neu), `runtimeChatActionSelectors.test.ts`
+  (erweitert), `RuntimeChatMessageCard.test.tsx` (neu, `createRoot`/`act`-Harness), `chatActions.test.ts`
+  (Dispatch- und Workspace-Clear-Regression ergaenzt)
+- **noch offen:** manueller Durchklick in einer echten Desktop-Session (Vorschlaege erscheinen nur unter der
+  letzten Antwort, Klick sendet richtigen Prompt, Buttons werden waehrend Senden inaktiv) — siehe TODO.md
 
 ## Neu im Arbeitsbranch: vertieftes Runtime Model Control Center
 

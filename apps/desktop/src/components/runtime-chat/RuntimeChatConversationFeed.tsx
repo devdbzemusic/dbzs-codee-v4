@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useMemo } from "react";
 import type { RuntimeChatMessage, RuntimeChatRun } from "@dbzs/shared";
 import { CodeeRunLiveBlock } from "@/components/chat/CodeeRunLiveBlock";
 import { RuntimeChatMessageCard } from "@/components/runtime-chat/RuntimeChatMessageCard";
+import { findLastAssistantMessageIndex } from "@/services/runtimeChatActionSelectors";
 
 function shouldRenderInlineRun(run: RuntimeChatRun, activeRunId: string | null): boolean {
   if (run.id === activeRunId) return true;
@@ -39,6 +40,7 @@ export function RuntimeChatConversationFeed({
   onSelectExample: (example: string) => void;
 }) {
   const activeRunId = activeRun?.id ?? null;
+  const lastAssistantIndex = useMemo(() => findLastAssistantMessageIndex(messages), [messages]);
 
   const renderRunBlock = (run: RuntimeChatRun) => (
     <CodeeRunLiveBlock
@@ -96,6 +98,8 @@ export function RuntimeChatConversationFeed({
                   isStreaming={
                     isStreaming && index === messages.length - 1 && message.role === "assistant"
                   }
+                  isSending={isSending}
+                  isLatestAssistantMessage={message.role === "assistant" && index === lastAssistantIndex}
                   onApply={onApplyAssistantProposal}
                 />
                 {renderRun ? renderRunBlock(userRun) : null}

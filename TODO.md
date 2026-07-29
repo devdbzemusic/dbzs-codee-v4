@@ -1,6 +1,6 @@
 # TODO
 
-Stand: 2026-07-28
+Stand: 2026-07-29
 
 ## Jetzt direkt
 
@@ -30,6 +30,24 @@ hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht no
 - [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen) —
       Rescan-Button selbst bereits `UI_VERIFIED` (364 Modelle, keine Regression)
 
+## Neu offen: Chat-Folgeaktionen (Phase 1) manuell verifizieren
+
+Basis: `Pläne/06 DBZS_CODEE_CHAT_FOLLOW_UP_ACTIONS_DIAGNOSE_PLAN.md`, umgesetzt und automatisiert getestet
+(siehe HANDOVER.md), aber noch nicht manuell in einer echten Desktop-Session durchgeklickt:
+
+- [ ] normale Chat-Antwort senden und pruefen, dass genau die letzte Assistentenantwort einen
+      "Vorgeschlagene Folgeaktionen"-Block mit `Vertiefen`/`Naechste Schritte`/`Neue Aufgabe` zeigt
+- [ ] Klick auf `Naechste Schritte` sendet den erwarteten festen Prompt; Buttons auf der aelteren Antwort
+      bleiben danach inaktiv, weil nur noch die neue letzte Antwort aktive Vorschlaege zeigt
+- [ ] Planungsantwort ausloesen → `Plan umsetzen` erscheint; echten Fehlschlag ausloesen →
+      `Erneut versuchen`/`Ergebnis pruefen` statt der Standardvorschlaege
+- [ ] waehrend eine Antwort noch gesendet wird sind die Folgeaktionen-Buttons sichtbar deaktiviert
+- [ ] Patch-Approval- und Repository-Review-Flows optisch unveraendert gegenpruefen (keine Vermischung
+      mit den neuen Folgeaktionen)
+- [ ] Phase 2 einordnen/priorisieren, sobald Phase 1 im echten Gebrauch bestaetigt ist: echtes Retry mit
+      Run-Kontext, Modellwechsel-Angebot nach Fehlschlag, Fehlererkennung aus Freitext statt nur ueber
+      `toolCalls[].status`, persistierte Folgeaktionen
+
 ## Neu offen: Runtime-Chat-Dateianhaenge
 
 - [ ] manuellen Desktop-Durchlauf fuer generische Dateianhaenge fahren:
@@ -38,6 +56,27 @@ hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht no
       leere/gesperrte PDFs, grosse ZIPs, abgeschnittene Inhalte, klare UI-Hinweise bei Limits
 - [ ] optionalen Folge-Slice entscheiden:
       Drag-and-Drop bewusst spaeter oder als naechsten UX-Ausbau aufnehmen
+
+## Erledigt: generische Post-Response-Folgeaktionen im Chat, Phase 1 (2026-07-29)
+
+- [x] `apps/desktop/src/services/runtimeChatFollowUpActions.ts` neu: deterministischer
+      `buildFollowUpActions()`/`attachFollowUpActionsToMessages()`-Builder, max. 3 Vorschlaege pro Antwort
+- [x] sechs additive `ChatActionKind`-Werte in `packages/shared/src/index.ts`
+      (`continue_task`, `implement_plan`, `show_next_steps`, `retry_run`, `inspect_result`, `new_task`);
+      `confirm_continue` bleibt unveraendert dem Patch-Approval-Flow vorbehalten
+- [x] Gating fuer needs_user_input/cancelled/repositoryReview/offene Plan- oder Patch-Proposal
+      (unterdruecken Vorschlaege komplett), echten Fehlschlag (Retry/Ergebnis pruefen), Tool-Call-Fehler
+      (Fehler beheben) und Planungsantworten (Plan umsetzen) implementiert
+- [x] in beiden Finalisierungspfaden verdrahtet (Agent-Turn-Loop und Streaming) in `runtimeChatStore.ts`
+- [x] Klick-Dispatch ueber bestehende `handleChatAction`/`sendMessage`-Pipeline, keine neue Sonder-Pipeline
+- [x] `RuntimeChatMessageCard.tsx`/`RuntimeChatConversationFeed.tsx`: getrennter "Vorgeschlagene
+      Folgeaktionen"-Block, nur auf der jeweils letzten Assistentennachricht aktiv, waehrend `isSending`
+      deaktiviert; Workspace-Wechsel entfernt stale Folgeaktionen automatisch mit
+- [x] Verifikation: `npx tsc --noEmit` (web + node) fehlerfrei; voller Desktop-Vitest-Lauf
+      194 Testdateien/1223 Tests gruen, keine Regressionen; vier neue/erweiterte Testdateien
+      (`runtimeChatFollowUpActions.test.ts`, `runtimeChatActionSelectors.test.ts`,
+      `RuntimeChatMessageCard.test.tsx`, `chatActions.test.ts`)
+- [ ] manueller Durchklick in echter Desktop-Session steht noch aus — siehe "Neu offen" oben
 
 ## Erledigt: generische Runtime-Chat-Dateianhaenge (2026-07-28)
 
