@@ -43,5 +43,5 @@ def test_resume_detects_external_change_and_accepts_revalidated_snapshot(tmp_pat
 def test_parallel_slots_are_independent_contracts() -> None:
     from app.runtime.slot_contract import load_slot_contract
     slots = load_slot_contract()["slots"]
-    assert {slot["port"] for slot in slots} == {8081, 8082, 8083, 8084}
-    assert {slot["id"] for slot in slots} == {"quality_cpu", "fast_gpu", "utility", "orchestrator_cpu"}
+    assert {slot["port"] for slot in slots} == {8081, 8082, 8083, 8084, 8085}
+    assert {slot["id"] for slot in slots} == {"quality_cpu", "fast_gpu", "utility", "orchestrator_cpu", "vision_gpu"}

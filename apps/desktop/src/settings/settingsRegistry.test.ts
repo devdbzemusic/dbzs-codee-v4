@@ -53,6 +53,8 @@ describe("settings contract registry", () => {
     expect(getSettingDefinition("autoSave")?.control).toBe("readonly");
     expect(getSettingDefinition("runtimeChatUseBroker")?.control).toBe("readonly");
     expect(getSettingDefinition("agentExecutionEnabled")?.control).toBe("readonly");
+    expect(getSettingDefinition("defaultVisionModelId")?.control).toBe("readonly");
+    expect(getSettingDefinition("defaultVisionModelId")?.classification).toBe("orphaned");
   });
 
   it("keeps shared defaults aligned for critical fields", () => {

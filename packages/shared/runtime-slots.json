@@ -4,6 +4,7 @@
     { "id": "quality_cpu", "port": 8081, "role": "chat", "devicePolicy": "cpu" },
     { "id": "fast_gpu", "port": 8082, "role": "coding", "devicePolicy": "gpu" },
     { "id": "utility", "port": 8083, "role": "embedding_reranking", "devicePolicy": "cpu" },
-    { "id": "orchestrator_cpu", "port": 8084, "role": "routing_function_calling", "devicePolicy": "cpu" }
+    { "id": "orchestrator_cpu", "port": 8084, "role": "routing_function_calling", "devicePolicy": "cpu" },
+    { "id": "vision_gpu", "port": 8085, "role": "vision", "devicePolicy": "gpu" }
   ]
 }

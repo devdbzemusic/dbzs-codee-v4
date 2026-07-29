@@ -835,7 +835,7 @@ class RuntimeService:
                     endpoint=f"http://127.0.0.1:{sim_port}",
                     message="Simulationsmodus aktiv — kein echtes Modell geladen.",
                     slot_id=target_slot_id,
-                    hardware_mode="cpu" if target_slot_id == "quality_cpu" else "gpu" if target_slot_id == "fast_gpu" else "cpu",
+                    hardware_mode="cpu" if target_slot_id == "quality_cpu" else "gpu" if target_slot_id in ("fast_gpu", "vision_gpu") else "cpu",
                     gpu_layers=0 if target_slot_id in ("quality_cpu", "orchestrator_cpu") else None,
                 )
                 self._statuses[target_slot_id] = status

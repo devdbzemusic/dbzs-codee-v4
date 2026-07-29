@@ -199,7 +199,8 @@ export async function executeOnDemandRuntimeAction(input: {
       };
       if (
         fallbackOutcome.finalRoute.slotId &&
-        fallbackOutcome.finalRoute.slotId !== "orchestrator_cpu"
+        fallbackOutcome.finalRoute.slotId !== "orchestrator_cpu" &&
+        fallbackOutcome.finalRoute.slotId !== "vision_gpu"
       ) {
         contextSlotId = fallbackOutcome.finalRoute.slotId;
         slotId = fallbackOutcome.finalRoute.slotId;

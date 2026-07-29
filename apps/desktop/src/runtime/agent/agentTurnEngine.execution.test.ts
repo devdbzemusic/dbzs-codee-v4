@@ -105,4 +105,54 @@ describe("runAgentTurnEngine execution no-action", () => {
     expect(result.toolCallsExecuted).toBeGreaterThan(0);
     expect(result.terminalReason).not.toBe("execution_no_action");
   });
+
+  it("does not leak the raw tool-call envelope as finalContent when the loop ends right after a tool call", async () => {
+    const requestAssistant = vi.fn().mockResolvedValueOnce(
+      mockResponse(
+        '<CODEE_TOOL_CALL>{"name":"list_files","arguments":{"path":"/models","recursive":true}}</CODEE_TOOL_CALL>'
+      )
+    );
+
+    const runTool = vi.fn().mockResolvedValue({
+      toolName: "list_files",
+      requestId: "r1",
+      startedAt: new Date().toISOString(),
+      finishedAt: new Date().toISOString(),
+      status: "ok",
+      output: []
+    });
+
+    const result = await runAgentTurnEngine({
+      runId: "run-3",
+      goal: "Zähle alle GGUF Modelle im Workspace.",
+      targetAgent: "coder",
+      profile: "agent",
+      workspaceRoot: "C:\\tmp\\ws",
+      toolAvailabilityContext: {
+        workspaceRoot: "C:\\tmp\\ws",
+        hasTerminalBridge: true,
+        hasTestCommands: true,
+        hasGitRepo: true
+      },
+      baseMessages: [{ id: "u1", role: "user", content: "Zähle alle GGUF Modelle im Workspace." }],
+      // maxToolCalls: 1 ends the loop right after the single tool call executes,
+      // with no further interpreting turn — the exact scenario from the audit doc.
+      policy: { maxRuntimeMs: 60_000, maxSteps: 5, maxToolCalls: 1, maxRetriesPerStep: 1, requiresApprovalForPatch: true },
+      requireToolAction: false,
+      requestAssistant: async () => requestAssistant(),
+      runTool,
+      queuePatches: vi.fn(),
+      applyPatches: vi.fn(),
+      callbacks: {
+        onTurnStart: vi.fn(),
+        onAssistantDelta: vi.fn(),
+        onToolCall: vi.fn()
+      }
+    });
+
+    expect(runTool).toHaveBeenCalledTimes(1);
+    expect(result.terminalReason).toBe("tool_calls_executed");
+    expect(result.finalContent).toBe("");
+    expect(result.finalContent).not.toContain("CODEE_TOOL_CALL");
+  });
 });

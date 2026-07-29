@@ -5,9 +5,38 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { DEFAULT_SETTINGS } from "@dbzs/shared";
-import { runtimeSlotManager, type RuntimeSlotStatus } from "./runtimeSlotManager";
+import { DEFAULT_SETTINGS, type IndexedModel } from "@dbzs/shared";
+import { runtimeSlotManager, scoreModelForSlot, type RuntimeSlotStatus } from "./runtimeSlotManager";
 import { useSettingsStore } from "@/stores/settingsStore";
+
+function makeIndexedModel(overrides: Partial<IndexedModel> = {}): IndexedModel {
+  return {
+    id: "model-a",
+    name: "model-a",
+    path: "D:/Models/model-a.gguf",
+    format: "gguf",
+    artifact_type: "model",
+    size_bytes: 1_000_000,
+    size_gb: 1,
+    quantization: "Q4_K_M",
+    backend: "llama.cpp",
+    runtime_launcher: "llama-server",
+    capabilities: [],
+    modality: ["text"],
+    role: null,
+    recommended_use: "coding_candidate",
+    compatibility: "llama_server_ready",
+    runtime: {
+      ctx: null,
+      gpu_layers: null,
+      server_enabled: true,
+      preferred_port: null,
+      health_status: "unknown",
+      provider: "llama.cpp"
+    },
+    ...overrides
+  };
+}
 
 // Mock fetch
 global.fetch = vi.fn();
@@ -149,7 +178,7 @@ describe("runtimeSlotManager", () => {
   });
 
   describe("getAllSlotsStatus", () => {
-    it("sollte alle vier Slots inklusive orchestrator_cpu abfragen", async () => {
+    it("sollte alle fünf Slots inklusive orchestrator_cpu und vision_gpu abfragen", async () => {
       (fetch as any).mockResolvedValue({
         ok: true,
         json: async () => ({ state: "stopped" })
@@ -157,9 +186,13 @@ describe("runtimeSlotManager", () => {
 
       await runtimeSlotManager.getAllSlotsStatus();
 
-      expect(fetch).toHaveBeenCalledTimes(4);
+      expect(fetch).toHaveBeenCalledTimes(5);
       expect(fetch).toHaveBeenCalledWith(
         expect.stringContaining("/runtime/slots/orchestrator_cpu/status"),
+        expect.objectContaining({ method: "GET" })
+      );
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/runtime/slots/vision_gpu/status"),
         expect.objectContaining({ method: "GET" })
       );
     });
@@ -262,6 +295,18 @@ describe("runtimeSlotManager", () => {
       expect(runtimeSlotManager.getDefaultModelForSlot("quality_cpu")).toContain("Llama");
       expect(runtimeSlotManager.getDefaultModelForSlot("utility")).toContain("embedding");
       expect(runtimeSlotManager.getDefaultModelForSlot("orchestrator_cpu")).toContain("functiongemma");
+      expect(runtimeSlotManager.getDefaultModelForSlot("vision_gpu")).toContain("VL");
+    });
+
+    it("sollte gespeichertes Vision-Modell aus den Settings verwenden", () => {
+      useSettingsStore.setState({
+        settings: {
+          ...DEFAULT_SETTINGS,
+          defaultVisionModelId: "vision-model-id"
+        }
+      });
+
+      expect(runtimeSlotManager.getDefaultModelForSlot("vision_gpu")).toBe("vision-model-id");
     });
 
     it("sollte gespeicherte Settings-Modelle für Chat- und Quality-Slots verwenden", () => {
@@ -300,6 +345,32 @@ describe("runtimeSlotManager", () => {
       });
 
       expect(runtimeSlotManager.getDefaultModelForSlot("utility")).toBe("utility-model-id");
+    });
+  });
+
+  describe("scoreModelForSlot for vision_gpu", () => {
+    it("bevorzugt ein Vision-Modell für vision_gpu", () => {
+      const visionModel = makeIndexedModel({
+        id: "Qwen2.5-VL-3B-Instruct.Q4_K_M",
+        name: "Qwen2.5-VL-3B-Instruct.Q4_K_M",
+        recommended_use: "vision_candidate",
+        capabilities: ["vision"]
+      });
+      const codingModel = makeIndexedModel({
+        id: "qwen2.5-coder-3b-instruct-q8_0",
+        name: "qwen2.5-coder-3b-instruct-q8_0",
+        recommended_use: "primary_coding",
+        capabilities: ["code"]
+      });
+
+      expect(scoreModelForSlot(visionModel, "vision_gpu")).toBeGreaterThan(
+        scoreModelForSlot(codingModel, "vision_gpu")
+      );
+    });
+
+    it("bestraft ein Nicht-Vision-Modell stark für vision_gpu", () => {
+      const codingModel = makeIndexedModel({ recommended_use: "primary_coding", capabilities: ["code"] });
+      expect(scoreModelForSlot(codingModel, "vision_gpu")).toBeLessThan(0);
     });
   });
 

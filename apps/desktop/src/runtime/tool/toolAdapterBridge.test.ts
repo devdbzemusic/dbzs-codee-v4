@@ -76,4 +76,24 @@ describe("DesktopToolAdapterBridge workspace policy", () => {
     await expect(adapter.readFile(".env")).rejects.toThrow("excluded");
     expect(window.dbzs.readProjectFile).not.toHaveBeenCalled();
   });
+
+  it("behandelt einen fuehrenden Slash in list_files als workspace-root-verankert statt absolut", async () => {
+    const adapter = new DesktopToolAdapterBridge();
+    await expect(adapter.listFiles("/src", true)).resolves.toEqual(["src/App.tsx"]);
+  });
+
+  it("lehnt einen absoluten Windows-Pfad in list_files ab", async () => {
+    const adapter = new DesktopToolAdapterBridge();
+    await expect(adapter.listFiles("D:/models", true)).rejects.toThrow("relative to the workspace root");
+  });
+
+  it("lehnt '..'-Segmente in list_files ab", async () => {
+    const adapter = new DesktopToolAdapterBridge();
+    await expect(adapter.listFiles("../../etc", true)).rejects.toThrow("..");
+  });
+
+  it("belaesst normale relative Pfade in list_files unveraendert", async () => {
+    const adapter = new DesktopToolAdapterBridge();
+    await expect(adapter.listFiles("src", true)).resolves.toEqual(["src/App.tsx"]);
+  });
 });

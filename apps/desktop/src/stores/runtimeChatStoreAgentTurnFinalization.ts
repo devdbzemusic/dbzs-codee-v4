@@ -224,7 +224,7 @@ export async function finalizeAgentTurnResult(input: {
       firstTokenReceived: Boolean(input.firstTokenAt),
       modelOutputReceived: Boolean((gatedFinalAnswer ?? "").trim() || lastResponse?.safe_fallback),
       outputParsed: providerErrorPresent ? false : !agentRelevanceFailed && !executionRejected,
-      agentLoopCompleted: true,
+      agentLoopCompleted: terminalReason !== "budget_exceeded" && terminalReason !== "cancelled",
       finalAnswerDelivered: false
     },
     contextWindowTokens: input.tokenBudget?.runtimeContextLimit ?? null,
