@@ -8,15 +8,15 @@ Lokaler Ordnername und einige historische Dokumente verwenden noch `dbzs-codee-p
 
 Stand: 2026-07-29
 
+- [PR #6](https://github.com/devdbzemusic/dbzs-codee-v4/pull/6) (Vision-Slot-Grundlage Phase 1, Workflow-Audit-P0-Fixes, `RuntimeModelsTab`-Refactor) ist gemergt (Merge-Commit `f909fd9`): eine additive `vision_gpu`-Runtime-Slot-Grundlage (`Pläne/07 CODEE_MODELL_ROLLEN_MATRIX.md`) und mehrere P0-Fixes aus dem Workflow-Audit `Pläne/08 CODEE_V4_WORKFLOW_AUDIT.md` (Tool-Only-Antworten werden nicht mehr als Erfolg gewertet, ehrliches Completion-Gate, Pfad-Normalisierung fuer Workspace-Tools, System-/Tool-Result-Nachrichten werden im Hauptchat eingeklappt). Details in [HANDOVER.md](HANDOVER.md)/[TODO.md](TODO.md).
 - [PR #5](https://github.com/devdbzemusic/dbzs-codee-v4/pull/5) (Runtime-Chat-Overhaul-Folgearbeit: Dateianhaenge, Model Control Center, generische Chat-Folgeaktionen) ist gemergt (Merge-Commit `210f0ff`).
-- Im aktuellen Arbeitsverzeichnis (Branch `feature/runtime-chat-ux-overhaul`) sind zwei weitere Slices umgesetzt und getestet, aber **noch nicht committet**: eine additive `vision_gpu`-Runtime-Slot-Grundlage (Phase 1 aus `Pläne/07 CODEE_MODELL_ROLLEN_MATRIX.md`) und mehrere P0-Fixes aus dem Workflow-Audit `Pläne/08 CODEE_V4_WORKFLOW_AUDIT.md` (Tool-Only-Antworten werden nicht mehr als Erfolg gewertet, ehrliches Completion-Gate, Pfad-Normalisierung fuer Workspace-Tools, System-/Tool-Result-Nachrichten werden im Hauptchat eingeklappt). Details in [HANDOVER.md](HANDOVER.md)/[TODO.md](TODO.md).
 - [PR #4](https://github.com/devdbzemusic/dbzs-codee-v4/pull/4) (Runtime-Chat-Overhaul + Personal Production Stabilization) ist gemergt.
 - Direkt danach wurden auf `main` mehrere kleine Restpunkte abgearbeitet (Typfehler, Vite-Warnungen, Review-Fehlerklassifikation) sowie ein echter interaktiver Golden-Path-Durchlauf mit einem echten lokalen Modell gefahren.
 - Der echte Durchlauf hat zwei reale Bugs aufgedeckt und behoben, die keine gemockten Tests haetten finden koennen (veralteter Modell-Katalog-Eintrag; eine Regression aus dem eigenen `dbzs:fs:*`-IPC-Sicherheits-Fix von PR #4) — Details in [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md](docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md) (`UI_VERIFIED`, teilweise).
 - Ergaenzend dazu ist die sichere Aenderungskette (Diff/Approval/Apply/Tests/Rollback) sowie Backup/Restore und Crash-Recovery auf Service-Ebene vollstaendig verifiziert — siehe [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md](docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-service-level.md) (`SERVICE_VERIFIED`).
 - `npm run typecheck` (apps/desktop) ist seitdem erstmals vollstaendig fehlerfrei.
 - GitHub-CI ist weiterhin nicht automatisch an `push` oder `pull_request` gebunden (bewusst zurueckgestellt, siehe `Pläne/DBZS_CODEE_PERSONAL_PRODUCTION_PLAN.md`).
-- `origin/main` zeigt auf `210f0ff` (Merge von PR #5).
+- `origin/main` zeigt auf `f909fd9` (Merge von PR #6).
 - Offene Pull Requests im Repo `devdbzemusic/dbzs-codee-v4`: keine.
 - Branch Protection fuer `main`: aktuell nicht aktiv.
 
