@@ -70,10 +70,24 @@ routet heute real auf `vision_gpu`:
 Basis: `Pläne/08 CODEE_V4_WORKFLOW_AUDIT.md`. Die P0-Fixes A–C/E sind umgesetzt, automatisiert getestet und
 per [PR #6](https://github.com/devdbzemusic/dbzs-codee-v4/pull/6) (Merge-Commit `f909fd9`) in `main`; der
 eigentliche Bug (Visionmodell bei Dateianfrage, roher Tool-Call-Envelope als Antwort sichtbar) braucht eine
-echte Modell-Inferenz zur Bestaetigung:
+echte Modell-Inferenz zur Bestaetigung.
 
-- [ ] manuellen Smoke-Test fahren: "Zähle alle GGUF Modelle im Workspace" (oder aehnliche Dateianfrage) gegen
-      ein kleines lokales Modell, das bei Tool-Result-Folgeturns bekanntermassen degradiert
+**Wichtig — in der Agent-Sandbox nicht durchfuehrbar:** zwei Versuche (2026-07-29), die Desktop-App per
+Playwright/`_electron.launch()` gegen ein echtes lokales Modell (`gemma-3-1b-it-qat-q4-0`, isoliertes
+`DBZS_APP_DATA_DIR`/`DBZS_DEV_USER_DATA_DIR`, Kopie von `test-fixtures/runtime-chat-tuning-lab` als Workspace)
+zu treiben, scheiterten beide **nicht** an der App, sondern daran, dass diese Sandbox selbst gestartete
+Hintergrundprozesse (Backend + Electron) nach ca. 2-3 Minuten Laufzeit beendet — unabhaengig von Startmethode
+(Bash-Hintergrundprozess, PowerShell `Start-Process` detached) und unabhaengig davon, ob das Modell vorher
+schon warmgeladen war (zweiter Versuch startete das Modell direkt ueber `/runtime/slots/quality_cpu/start`
+*vor* dem Electron-Start — trotzdem verschwanden beide Prozesse nach aehnlicher Zeitspanne). Bestaetigt hat
+sich dabei immerhin: App-Boot, Modell-Routing-Konfiguration, Settings-Persistenz (inkl. neuem
+`defaultVisionModelId`-Feld) und der Runtime-Slot-Start ueber die API funktionieren alle korrekt. Der
+eigentliche Chat-Smoke-Test braucht eine echte interaktive Session ausserhalb dieser Sandbox (z. B. per
+`start-dev.ps1`), keine erneuten Agent-Versuche mit denselben Mitteln.
+
+- [ ] manuellen Smoke-Test fahren (echte interaktive Session, nicht per Agent-Sandbox): "Zähle alle GGUF
+      Modelle im Workspace" (oder aehnliche Dateianfrage) gegen ein kleines lokales Modell, das bei
+      Tool-Result-Folgeturns bekanntermassen degradiert
 - [ ] bestaetigen: kein roher `<CODEE_TOOL_CALL>`-Text erscheint je als sichtbare Antwort
 - [ ] bestaetigen: der Lauf wird bei fehlender Endantwort als `empty_final_answer`/`agent_loop_incomplete`
       gemeldet, nicht mehr still als `success`

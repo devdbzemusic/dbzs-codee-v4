@@ -399,3 +399,11 @@ Konsistent mit der Personal-Production-Plan-Philosophie ("vorerst nicht noetig",
 - Im Worktree liegen generierte Artefakte unter `.cache/backend-build/`; diese gehoeren nicht automatisch in den naechsten Commit.
 - `.gitignore` hatte einen blinden Fleck bei Verzeichnissen namens `models/` egal wo im Baum — vor weiteren pauschalen Ignore-Regeln kurz mit `git status --ignored` gegenpruefen, ob echter Source darunter faellt.
 - **Diese Sandbox kann einen echten Electron-GUI-Start**, wenn `ELECTRON_RUN_AS_NODE` fuer den Kindprozess entfernt wird (`env -u ELECTRON_RUN_AS_NODE ...`). Backend/Renderer-Dev-Server muessen dafuer manuell vorgestartet werden, da `uv` in dieser Shell fehlt (venv-Python direkt nutzen: `backend/.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8876`).
+- **Aber: selbst gestartete Hintergrundprozesse (Backend, Electron) werden von dieser Sandbox nach ca. 2-3
+  Minuten Laufzeit beendet** — bestaetigt am 2026-07-29 mit zwei unabhaengigen Versuchen (Bash-Hintergrundprozess
+  und PowerShell `Start-Process` detached, mit und ohne vorgewärmtem Modell). Ein echter, interaktiver
+  Chat-Smoke-Test gegen ein lokales Modell (Modell-Ladezeit + Antwortzeit ueberschreitet dieses Fenster fast
+  immer) ist in dieser Agent-Sandbox daher **nicht zuverlaessig moeglich** — dafuer braucht es eine echte
+  interaktive Session (z. B. `start-dev.ps1`), keinen erneuten Agent-Versuch mit denselben Mitteln. App-Boot,
+  Modell-Routing-Konfiguration, Settings-Persistenz und Runtime-Slot-Start ueber die API funktionieren dagegen
+  auch in der Sandbox nachweislich korrekt (innerhalb des Zeitfensters bestaetigt).
