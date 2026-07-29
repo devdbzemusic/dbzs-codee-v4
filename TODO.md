@@ -2,6 +2,17 @@
 
 Stand: 2026-07-29
 
+## Jetzt direkt: uncommittete Session-Arbeit sichern
+
+Im Arbeitsverzeichnis (Branch `feature/runtime-chat-ux-overhaul`) liegen zwei getestete, aber noch nicht
+committete Slices — siehe HANDOVER.md fuer Details:
+
+- [ ] Vision-Slot-Grundlage Phase 1 (`Pläne/07 CODEE_MODELL_ROLLEN_MATRIX.md`) committen
+- [ ] Workflow-Audit-P0-Fixes (`Pläne/08 CODEE_V4_WORKFLOW_AUDIT.md`) committen
+- [ ] dabei vorbestehende, unabhaengige lose Aenderungen im selben Arbeitsverzeichnis nicht versehentlich
+      mit einsammeln (`RuntimeModelsTab.sections.tsx`/`.rows.tsx`, verschobene PDF, neue Pläne-Dokumente) —
+      gezielt nach Datei committen, nicht `git add -A`
+
 ## Jetzt direkt
 
 Statusvokabular (projektweit): `SERVICE_VERIFIED` → `UI_VERIFIED` → `INSTALLER_VERIFIED` → `PERSONAL_STABLE`.
@@ -48,6 +59,38 @@ Basis: `Pläne/06 DBZS_CODEE_CHAT_FOLLOW_UP_ACTIONS_DIAGNOSE_PLAN.md`, umgesetzt
       Run-Kontext, Modellwechsel-Angebot nach Fehlschlag, Fehlererkennung aus Freitext statt nur ueber
       `toolCalls[].status`, persistierte Folgeaktionen
 
+## Neu offen: Vision-Slot-Grundlage Phase 1 — Folgeschritte
+
+Basis: `Pläne/07 CODEE_MODELL_ROLLEN_MATRIX.md`. Phase 1 ist umgesetzt und automatisiert getestet (siehe
+HANDOVER.md), aber uncommittet; nichts routet heute real auf `vision_gpu`:
+
+- [ ] optionaler manueller Sanity-Check: `previewResourcePlan()` gegen ein echtes Qwen2.5-VL-GGUF auf
+      `vision_gpu` aufrufen und bestaetigen, dass der Resource-Planner die 5. Slot-ID ohne Sonderfall akzeptiert
+- [ ] Phase 2 (GPU-Exklusivitaet `fast_gpu` ⟷ `vision_gpu`, serverseitig in `RuntimeService.start_model()`)
+      einordnen/priorisieren — echte Hardware-Verhaltensaenderung, braucht eigene Entscheidung zu
+      In-Flight-Request-Handling (Warten vs. Hard-Kill)
+- [ ] Phase 3 (Broker-Routing fuer Bildeingaben auf `vision_gpu`, `defaultVisionModelId`/`autoStartVisionRuntime`
+      von `orphaned` auf `user_tunable` umschalten) einordnen/priorisieren
+- [ ] separat bleiben lassen: FunctionGemma-Routing-Integration, Yi-Coder-9B-„Advisor“-Rolle,
+      `defaultTesterModelId`/`defaultDocsModelId`, TS/Python-Settings-Schema-Drift (alle bewusst nicht Teil
+      dieses Slices)
+
+## Neu offen: Workflow-Audit-P0-Fixes manuell verifizieren
+
+Basis: `Pläne/08 CODEE_V4_WORKFLOW_AUDIT.md`. Die P0-Fixes A–C/E sind umgesetzt und automatisiert getestet
+(siehe HANDOVER.md), aber uncommittet; der eigentliche Bug (Visionmodell bei Dateianfrage, roher
+Tool-Call-Envelope als Antwort sichtbar) braucht eine echte Modell-Inferenz zur Bestaetigung:
+
+- [ ] manuellen Smoke-Test fahren: "Zähle alle GGUF Modelle im Workspace" (oder aehnliche Dateianfrage) gegen
+      ein kleines lokales Modell, das bei Tool-Result-Folgeturns bekanntermassen degradiert
+- [ ] bestaetigen: kein roher `<CODEE_TOOL_CALL>`-Text erscheint je als sichtbare Antwort
+- [ ] bestaetigen: der Lauf wird bei fehlender Endantwort als `empty_final_answer`/`agent_loop_incomplete`
+      gemeldet, nicht mehr still als `success`
+- [ ] bestaetigen: Tool-Result-Systemnachrichten erscheinen im Hauptchat eingeklappt, nicht als roher JSON-Dump
+- [ ] bestaetigen: bestehende Patch-Approval- und Repository-Review-Flows optisch unveraendert
+- [ ] Punkt D (deterministische `search_workspace_files`/`count_workspace_files`-Tools) und Punkt F
+      (aufgabenabhaengiges Routing weg von Visionmodellen) als separate Folgearbeit einordnen/priorisieren
+
 ## Neu offen: Runtime-Chat-Dateianhaenge
 
 - [ ] manuellen Desktop-Durchlauf fuer generische Dateianhaenge fahren:
@@ -57,7 +100,51 @@ Basis: `Pläne/06 DBZS_CODEE_CHAT_FOLLOW_UP_ACTIONS_DIAGNOSE_PLAN.md`, umgesetzt
 - [ ] optionalen Folge-Slice entscheiden:
       Drag-and-Drop bewusst spaeter oder als naechsten UX-Ausbau aufnehmen
 
+## Erledigt (uncommittet): Vision-Slot-Grundlage Phase 1 (2026-07-29)
+
+Basis: `Pläne/07 CODEE_MODELL_ROLLEN_MATRIX.md`. **Noch nicht committet** — siehe "Jetzt direkt" oben.
+
+- [x] neuer `RuntimeSlotId`-Wert `vision_gpu` (Port 8085) plus vier neue `RuntimeTaskType`-Werte
+      (`image_analysis`, `ui_analysis`, `visual_debugging`, `document_vision`) in `runtimeSlots.ts`,
+      erzwungen durch die `satisfies Record<RuntimeSlotId, RuntimeSlotDefinition>`-Constraint
+- [x] Slot-ID-Duplikation an vier Stellen synchron aktualisiert: `runtime-slots.json`, `schemas.py`,
+      `slot_contract.py`, `runtimeSlotManager.ts` (`ALL_SLOTS`, Scoring, Default-Modell-Aufloesung)
+- [x] `residency.py`: `vision_gpu` → `IDLE_EVICT`; `lazyRuntimePolicy.ts`: `vision_gpu` in die
+      Idle-Eviction-Watch-Liste aufgenommen
+- [x] neues, bewusst `orphaned`/`readonly` Setting `defaultVisionModelId` (TS + Backend-Pendant)
+- [x] Nebenfund behoben: `runtimeChatStoreOnDemandExecution.ts`s Resident-Fallback-Typ schloss `vision_gpu`
+      noch nicht aus (nur `orchestrator_cpu`)
+- [x] Verifikation: beide TS-Projekte fehlerfrei; voller Desktop-Vitest-Lauf 1226 Tests gruen; Backend-Pytest
+      fuer die betroffenen Suiten plus breitere `runtime`/`slot`/`residency`-Filterauswahl (153 Tests) gruen;
+      ein isolierter, vorbestehender Windows-Datei-Lock-Flake in `test_task_manifest.py` bestaetigt (unrelated)
+- [ ] Phase 2 (GPU-Exklusivitaet)/Phase 3 (Broker-Routing) bewusst nicht Teil dieses Slices — siehe "Neu offen" oben
+
+## Erledigt (uncommittet): Workflow-Audit P0-Fixes (2026-07-29)
+
+Basis: `Pläne/08 CODEE_V4_WORKFLOW_AUDIT.md`. **Noch nicht committet** — siehe "Jetzt direkt" oben.
+
+- [x] Ursachenfix: `finalContent = stripToolCallBlocks(rawContent) || rawContent` in `agentTurnEngine.ts` holte
+      den rohen Tool-Call-Envelope zurueck, sobald ein Turn nur Protokoll-Markup enthielt — `|| rawContent`
+      entfernt; ein reiner Tool-Call-Turn liefert jetzt `""`, was ueber die bereits vorhandene
+      `inferFailureOutcome()`-Logik korrekt zu `empty_final_answer` fuehrt
+- [x] neue `isToolOnlyAnswer()` in `runtimeRunFinalization.ts`, in `isValidFinalAnswer()` verdrahtet —
+      Sicherheitsnetz fuer beide Finalisierungspfade (Agent-Turn-Loop und Streaming)
+- [x] `runtimeChatStoreAgentTurnFinalization.ts`: `agentLoopCompleted` wird aus `terminalReason` abgeleitet
+      (`false` nur bei `budget_exceeded`/`cancelled`) statt hart `true`; `tool_calls_executed` bewusst
+      ausgenommen (kumulativer Zaehler, normaler Abschluss fuer erfolgreiche Tool-Nutzung)
+- [x] neue `normalizeWorkspaceToolPath()` in `toolAdapterBridge.ts`: fuehrender Slash gilt als
+      workspace-root-verankert, absolute Windows-Pfade/`..`-Segmente werden mit klarer Fehlermeldung abgelehnt
+      statt still `[]` zurueckzugeben
+- [x] `RuntimeChatMessageCard.tsx`: `isCollapsedSystem`-Einklappen war an die nie gesetzte `compact`-Prop
+      gebunden — Bedingung entfernt, Tool-Result-Systemnachrichten klappen jetzt im Hauptchat ein
+- [x] Verifikation: beide TS-Projekte fehlerfrei; voller Desktop-Vitest-Lauf 1237 Tests gruen (11 neue Faelle),
+      keine Regressionen im bestehenden Tool-Call-/Patch-Pfad
+- [ ] manueller Smoke-Test mit echter Modell-Inferenz steht noch aus — siehe "Neu offen" oben
+- [ ] Punkt D/F aus dem Audit bewusst nicht Teil dieses Slices
+
 ## Erledigt: generische Post-Response-Folgeaktionen im Chat, Phase 1 (2026-07-29)
+
+Committet und per [PR #5](https://github.com/devdbzemusic/dbzs-codee-v4/pull/5) (Merge-Commit `210f0ff`) in `main` gemergt.
 
 - [x] `apps/desktop/src/services/runtimeChatFollowUpActions.ts` neu: deterministischer
       `buildFollowUpActions()`/`attachFollowUpActionsToMessages()`-Builder, max. 3 Vorschlaege pro Antwort

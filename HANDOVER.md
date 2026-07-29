@@ -13,9 +13,23 @@ Stand: 2026-07-29
 
 - aktiver GitHub-Remote: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
 - lokaler Ordnername bleibt aktuell `dbzs-codee-project`
-- `origin/main` zeigt auf `d6c56c4` (Folgearbeit nach PR #4 + echter Golden-Path-Durchlauf, direkt auf `main` committet)
+- `origin/main` zeigt auf `210f0ff` (Merge-Commit von [PR #5](https://github.com/devdbzemusic/dbzs-codee-v4/pull/5))
 - offene Pull Requests im Live-Repo: keine
 - Branch Protection fuer `main`: aktuell nicht aktiv
+- im aktuellen Arbeitsverzeichnis (Branch `feature/runtime-chat-ux-overhaul`) liegen zwei weitere, getestete
+  Slices **uncommittet**: Vision-Slot-Grundlage (Phase 1) und Workflow-Audit-P0-Fixes — siehe eigene Abschnitte
+  unten. Ausserdem liegen dort vorbestehende, mit dieser Session nicht zusammenhaengende Aenderungen
+  (`RuntimeModelsTab.sections.tsx`/`RuntimeModelsTab.rows.tsx`, verschobene PDF, neue Pläne-Dokumente `07`/`08`)
+
+## PR #5 gemergt (2026-07-29)
+
+[PR #5](https://github.com/devdbzemusic/dbzs-codee-v4/pull/5) ("Runtime Chat overhaul: attachments, model control center,
+follow-up actions") wurde per Merge-Commit `210f0ff` in `main` gemergt — 42 Commits, Themen: generische
+Runtime-Chat-Dateianhaenge, Model Control Center/MMProj-Pairing, sowie die generischen Post-Response-Folgeaktionen
+im Chat (Phase 1, siehe `Pläne/06 DBZS_CODEE_CHAT_FOLLOW_UP_ACTIONS_DIAGNOSE_PLAN.md`). Vor dem Merge war die PR
+`MERGEABLE`/`CLEAN` und es gab keine automatischen CI-Checks (weiterhin `workflow_dispatch`-only, siehe unten).
+Der Feature-Branch `feature/runtime-chat-ux-overhaul` wurde bewusst **nicht** geloescht, weil zum Merge-Zeitpunkt
+bereits weitere, unabhaengige lokale Aenderungen darauf lagen (siehe "Repo-Wahrheit" oben).
 
 ## PR #4 gemergt + Folgearbeit direkt auf `main`
 
@@ -252,6 +266,86 @@ Frisch verifiziert fuer diesen Slice:
 - `npm run test -- src/components/notebook/RuntimeModelsTab.test.ts src/services/modelSelectionBroker.test.ts`
   - 87 Tests gruen
 - `npm run typecheck` in `apps/desktop`
+
+## Neu im Arbeitsverzeichnis (uncommittet): Vision-Slot-Grundlage Phase 1
+
+Basis: `Pläne/07 CODEE_MODELL_ROLLEN_MATRIX.md`. Umgesetzt ist ausschliesslich die additive, risikoarme
+Phase 1 — ein neuer `vision_gpu`-Slot existiert typisiert und contract-valide, aber **nichts routet heute echte
+Anfragen dorthin**. Kein bestehender Anfragepfad aendert Verhalten.
+
+- neuer `RuntimeSlotId`-Wert `vision_gpu` (Port 8085) plus vier neue `RuntimeTaskType`-Werte
+  (`image_analysis`, `ui_analysis`, `visual_debugging`, `document_vision`) in
+  [packages/shared/src/runtime/runtimeSlots.ts](C:/Users/ralle/source/repos/dbzs-codee-project/packages/shared/src/runtime/runtimeSlots.ts) —
+  die `satisfies Record<RuntimeSlotId, RuntimeSlotDefinition>`-Constraint erzwingt Vollstaendigkeit
+- Slot-ID war in vier Stellen dupliziert, alle synchron aktualisiert: `packages/shared/runtime-slots.json`,
+  `backend/app/runtime/schemas.py`, `backend/app/runtime/slot_contract.py` (Contract-Validierung),
+  `apps/desktop/src/services/runtimeSlotManager.ts` (`ALL_SLOTS`, Scoring, Default-Modell-Aufloesung)
+- `backend/app/runtime/residency.py`: `vision_gpu` bekommt `IDLE_EVICT` (nie resident halten, wenn keine
+  Bildanalyse laeuft); `lazyRuntimePolicy.ts`: `vision_gpu` ist jetzt Teil der Idle-Eviction-Watch-Liste
+- neues, bewusst noch `orphaned`/`readonly` Setting `defaultVisionModelId` (Schema in `appContracts.ts`,
+  Registry-Eintrag in `settingsRegistry.ts`, Backend-Pendant in `backend/app/settings/models.py`) — wird erst
+  in Phase 3 (Broker-Routing) auf `user_tunable` umgeschaltet
+- ein echter, vom Compiler gefundener Nebenfund behoben: `runtimeChatStoreOnDemandExecution.ts`s
+  Resident-Fallback-Logik schloss bisher nur `orchestrator_cpu` von ihrem engen Slot-Typ aus, jetzt auch
+  `vision_gpu`
+- **bewusst zurueckgestellt** (siehe Plandokument): GPU-Exklusivitaet zwischen `fast_gpu`/`vision_gpu` (Phase 2,
+  echte Hardware-Verhaltensaenderung, gehoert serverseitig in `RuntimeService.start_model()`), Broker-Routing
+  fuer Bildeingaben (Phase 3), FunctionGemma-Routing-Integration und Yi-Coder-9B-„Advisor“-Rolle (beide separat)
+
+Frisch verifiziert fuer diesen Slice:
+
+- `packages/shared`- und `apps/desktop`-Typecheck (beide TS-Projekte) fehlerfrei
+- voller Desktop-Vitest-Lauf: 1226 Tests gruen (neue Faelle fuer `scoreModelForSlot`/`configuredModelForSlot`
+  auf `vision_gpu` sowie die Settings-Registry-Erweiterung eingeschlossen)
+- Backend-Pytest fuer die betroffenen Suiten (`test_runtime_slot_contract`, `test_residency_cache`,
+  `test_settings`, `test_context_rc_acceptance_fixtures`) sowie eine breitere `runtime`/`slot`/`residency`/
+  `process_cleanup`-Filterauswahl (153 Tests) gruen; ein voller Backend-Lauf zeigte einen einzelnen,
+  unabhaengigen Windows-Datei-Lock-Flake in `test_task_manifest.py` (bestaetigt als vorbestehend, isoliert
+  reproduzierbar gruen)
+- **noch offen**: nichts in Phase 1 startet `vision_gpu` real, daher kein Hardware-Nachweis noetig — einzige
+  sinnvolle manuelle Stichprobe waere ein `previewResourcePlan()`-Aufruf gegen ein echtes Qwen2.5-VL-GGUF auf
+  `vision_gpu`, um zu bestaetigen, dass der Resource-Planner eine 5. Slot-ID ohne Sonderbehandlung akzeptiert
+
+## Neu im Arbeitsverzeichnis (uncommittet): Workflow-Audit P0-Fixes
+
+Basis: `Pläne/08 CODEE_V4_WORKFLOW_AUDIT.md` — ein real reproduzierter Bug: bei "Zähle alle GGUF Modelle im
+Workspace" routet Codee auf ein Visionmodell, das Modell erzeugt einen rohen `<CODEE_TOOL_CALL>`-Envelope mit
+falschem Pfad (`/models` statt Workspace-relativ), das Tool liefert `[]`, keine natuerlichsprachliche Endantwort
+entsteht, der Lauf gilt trotzdem als erfolgreich abgeschlossen. Alle 6 technischen Einzelbehauptungen des Audits
+wurden gegen den echten Code verifiziert (5 vollstaendig bestaetigt, 1 mit Nuance). Umgesetzt sind die P0-Fixes
+fuer genau diesen Bug:
+
+- **Ursache genauer als im Dokument**: nicht "kein weiterer Turn interpretiert das Ergebnis" (der Agent-Turn-Loop
+  fragt durchaus erneut nach), sondern `finalContent = stripToolCallBlocks(rawContent) || rawContent` in
+  [agentTurnEngine.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/runtime/agent/agentTurnEngine.ts)
+  holt den rohen Envelope zurueck, sobald ein Turn nur Tool-Call-Markup enthaelt und das Strippen leer laesst.
+  Der `|| rawContent`-Fallback ist entfernt; ein reiner Tool-Call-Turn liefert jetzt `""`, was ueber die bereits
+  vorhandene, korrekte `inferFailureOutcome()`-Logik zu `empty_final_answer` fuehrt — kein neuer Outcome-Typ noetig
+- neue, exportierte `isToolOnlyAnswer()` in `runtimeRunFinalization.ts`, in `isValidFinalAnswer()` verdrahtet —
+  zusaetzliches Sicherheitsnetz fuer beide Finalisierungspfade (Agent-Turn-Loop und Streaming)
+- `runtimeChatStoreAgentTurnFinalization.ts`: `agentLoopCompleted` wird jetzt aus `terminalReason` abgeleitet
+  (`false` nur bei `budget_exceeded`/`cancelled`) statt hart `true` — bewusst nicht auf `tool_calls_executed`
+  angewendet, da das der normale, gesunde Abschluss fuer den ueberwiegenden Teil erfolgreicher Tool-Nutzung ist
+  (der Zaehler ist kumulativ ueber den ganzen Lauf); der Streaming-Pfad bleibt unangetastet, da er echt
+  einstufig ist und kein `terminalReason`-Konzept hat
+- neue `normalizeWorkspaceToolPath()` in `toolAdapterBridge.ts`: ein fuehrender Slash (`/models`) gilt jetzt als
+  workspace-root-verankert statt als absoluter Pfad; echte absolute Windows-Pfade und `..`-Segmente werden mit
+  klarer Tool-Fehlermeldung abgelehnt statt still `[]` zurueckzugeben
+- `RuntimeChatMessageCard.tsx`: das lange-System-Nachrichten-Einklappen (`isCollapsedSystem`) war an die
+  `compact`-Prop gebunden, die an keiner echten Aufrufstelle von `RuntimeChatTab` je gesetzt wird — Bedingung
+  entfernt, Tool-Result-Systemnachrichten klappen jetzt tatsaechlich im Hauptchat ein
+- **bewusst zurueckgestellt**: neue deterministische `search_workspace_files`/`count_workspace_files`-Tools
+  (Punkt D im Audit) und aufgabenabhaengiges Routing weg von Visionmodellen fuer reine Text-/Dateianfragen
+  (Punkt F, ueberschneidet sich mit der bereits zurueckgestellten FunctionGemma-Routing-Untersuchung)
+
+Frisch verifiziert fuer diesen Slice:
+
+- beide TS-Projekte (`packages/shared`, `apps/desktop` web+node) fehlerfrei
+- voller Desktop-Vitest-Lauf: 1237 Tests gruen (11 neue Faelle in `agentTurnEngine.execution.test.ts`,
+  `runtimeRunFinalization.test.ts`, `toolAdapterBridge.test.ts`, `RuntimeChatMessageCard.test.tsx`), keine
+  Regressionen im bestehenden erfolgreichen Tool-Call-/Patch-Pfad
+- **noch offen**: manueller Smoke-Test in einer echten Desktop-Session gegen ein echtes, gelegentlich
+  degradierendes lokales Modell — automatisiert nicht nachstellbar ohne echte Modell-Inferenz
 
 ## Aktive offene Aufgaben
 
