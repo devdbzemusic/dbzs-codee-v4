@@ -369,6 +369,16 @@ reproduziert und bestaetigt, dass das `.codee/reviews/rev-*`-Artefakt jetzt korr
 separater Blocker fuer 7/9/10/11:** das kleine lokale Modell (`gemma-3-1b-it-qat-q4-0`, auch getestet mit
 `qwen2.5-coder-7b-instruct`) liefert bei strukturierter Review-/Coding-Analyse keine parsbare Ausgabe
 (`no_json_array`). Details: [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md).
+**Ursache gefunden und behoben (2026-07-29):** kein Modell-Faehigkeitsproblem — trat identisch bei einem 1B-
+*und* einem 7B-Modell auf (beide ~70 Zeichen Antwort). Der Review-System-Prompt in
+[llmBatchAnalyzer.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/repositoryReview/llmBatchAnalyzer.ts)
+sagte nie, was bei *keinen* Findings zurueckzugeben ist — ein Modell ohne Befund auf einem kleinen/sauberen
+Batch antwortet dann nachvollziehbar mit einem kurzen Prosa-Satz statt `[]`. System- und Repair-Prompt
+verlangen jetzt explizit `[]` bei keinen Findings; zusaetzlich wird die redigierte Rohantwort bei
+Parser-Fehlschlag jetzt persistiert (`rawResponsePreview` in `ReviewBatchAnalyzerDiagnostics`, vorher gab es
+nur die Zeichenlaenge). Typecheck fehlerfrei, voller Vitest-Lauf 1239 Tests gruen. **Noch offen:** echte
+End-to-End-Bestaetigung mit laufendem lokalem Modell — in dieser Agent-Sandbox nicht verifizierbar (siehe
+Prozess-Lebenszeit-Limit weiter unten), braucht eine echte interaktive Session.
 
 **Wichtige Korrektur:** Bei der Code-Vertiefung stellte sich heraus, dass der Service-Level-Bericht fuer 2.6
 (Tests) und 2.7 (Rollback) auf nicht-kompilierbarem, nirgendwo verdrahtetem Code beruhte (`patchValidationService.ts`/

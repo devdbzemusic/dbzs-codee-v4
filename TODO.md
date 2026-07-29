@@ -13,11 +13,20 @@ inzwischen entfernt — siehe Korrekturhinweis im Dokument und `GOLDEN_PATH_VERI
 gelten wieder als offen. Der echte interaktive UI-Durchlauf in `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md`
 hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht noch aus):
 
-- [ ] **Neuer Blocker fuer 7/9/10/11 (Diff/Apply/Test/Rollback):** Review-Routing-Fix ist real verifiziert
-      (`.codee/reviews/rev-*`-Artefakt wird jetzt korrekt erzeugt), aber das kleine lokale Modell
-      (`gemma-3-1b-it-qat-q4-0`) liefert bei strukturierter Review-/Coding-Analyse keine parsbare Ausgabe
-      (`no_json_array`, nur ~70 Zeichen Antwort; `qwen2.5-coder-7b-instruct` als Alternative getestet, gleiches
-      Ergebnis). Ursache noch offen — siehe `docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md` ("Fortsetzungslauf 2")
+- [x] **Ursache fuer den `no_json_array`-Blocker (7/9/10/11) gefunden und behoben (2026-07-29):** war kein
+      Modell-Faehigkeitsproblem — trat identisch bei `gemma-3-1b-it-qat-q4-0` *und* dem deutlich groesseren
+      `qwen2.5-coder-7b-instruct` auf, jeweils mit ~70 Zeichen Antwortlaenge. Ursache: der Review-System-Prompt
+      sagte "Return ONLY a JSON array", aber nie, was bei *keinen* Findings zurueckzugeben ist — ein Modell,
+      das bei einem kleinen/sauberen Batch nichts zu bemaengeln findet, antwortet dann nachvollziehbar mit
+      einem kurzen Prosa-Satz statt `[]`, was der Parser korrekt als "kein Array gefunden" ablehnt.
+      `llmBatchAnalyzer.ts`s System- und Repair-Prompt sagen jetzt explizit "gib bei keinen Findings `[]`
+      zurueck". Zusaetzlich wird die tatsaechliche (redigierte) Modellantwort jetzt in den Diagnostics
+      persistiert (`rawResponsePreview`) statt nur ihre Laenge — vorher war ein erneuter Fehlschlag ohne
+      Re-Run nicht diagnostizierbar. Verifikation: `apps/desktop`- und `packages/shared`-Typecheck fehlerfrei,
+      voller Desktop-Vitest-Lauf 1239 Tests gruen (2 neue Faelle in `reviewQuality.test.ts`).
+      **Noch offen:** echte End-to-End-Bestaetigung mit einem laufenden lokalen Modell, dass ein Review jetzt
+      wieder echte LLM-Findings statt `degraded_heuristic_only` liefert — nicht in dieser Session verifizierbar
+      (siehe Sandbox-Limitierung unten), braucht eine echte interaktive Session.
 - [ ] unerklaerter App-/Backend-Absturz kurz nach Modellwechsel auf `qwen2.5-coder-7b-instruct` root-causen
       (Logs: `golden-path-run-2/user-data/logs/crash.log`, zeitliche Korrelation nicht abschliessend belegt)
 - [ ] 2.6 (Tests)/2.7 (Rollback) gegen den echten, verdrahteten Pfad neu verifizieren:
