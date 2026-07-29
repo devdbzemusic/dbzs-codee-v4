@@ -25,7 +25,7 @@ RUNTIME_PROCESS_NAMES = {
     "pythonw.exe",
 }
 
-SLOT_MARKERS = ("quality_cpu", "fast_gpu", "utility", "orchestrator_cpu")
+SLOT_MARKERS = ("quality_cpu", "fast_gpu", "utility", "orchestrator_cpu", "vision_gpu")
 BACKEND_MARKERS = ("app.main:app", "dbzs-backend", "backend\\app\\main.py", "backend/app/main.py")
 
 

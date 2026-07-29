@@ -16,7 +16,7 @@ def load_slot_contract() -> dict[str, Any]:
     if data.get("schemaVersion") != 1 or not isinstance(data.get("slots"), list):
         raise RuntimeError("[RUNTIME_SLOT_CONTRACT_INVALID] Ungueltiger Slotvertrag.")
     ids = {entry.get("id") for entry in data["slots"]}
-    if ids != {"quality_cpu", "fast_gpu", "utility", "orchestrator_cpu"}:
+    if ids != {"quality_cpu", "fast_gpu", "utility", "orchestrator_cpu", "vision_gpu"}:
         raise RuntimeError("[RUNTIME_SLOT_CONTRACT_INVALID] Pflichtslots fehlen.")
     return data
 

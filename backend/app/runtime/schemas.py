@@ -12,7 +12,7 @@ RuntimeFallbackPolicy = Literal[
     "allow_cloud_fallback",
     "allow_any_fallback",
 ]
-RuntimeSlotId = Literal["fast_gpu", "quality_cpu", "utility", "orchestrator_cpu"]
+RuntimeSlotId = Literal["fast_gpu", "quality_cpu", "utility", "orchestrator_cpu", "vision_gpu"]
 
 # P2 Phase 5: Runtime Tool Registry schemas
 ToolName = Literal["llama-server", "llama-cli", "llama-bench", "llama-tokenize"]

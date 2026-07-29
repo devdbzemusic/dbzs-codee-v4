@@ -43,7 +43,7 @@ const RUNTIME_PROCESS_NAMES = new Set([
   "pythonw.exe"
 ]);
 
-const SLOT_MARKERS = ["quality_cpu", "fast_gpu", "utility", "orchestrator_cpu"];
+const SLOT_MARKERS = ["quality_cpu", "fast_gpu", "utility", "orchestrator_cpu", "vision_gpu"];
 const BACKEND_MARKERS = ["app.main:app", "dbzs-backend", "backend\\app\\main.py", "backend/app/main.py"];
 const DEV_TRANSIENT_SUBDIRECTORIES = [
   "cache",

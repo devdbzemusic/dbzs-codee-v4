@@ -11,7 +11,7 @@ import type { RuntimeSlotId, RuntimeSlotStatus, RuntimeStatus } from "@dbzs/shar
 import { runtimeSlotManager } from "@/services/runtimeSlotManager";
 import { useSettingsStore } from "@/stores/settingsStore";
 
-const WORK_SLOTS: RuntimeSlotId[] = ["fast_gpu", "quality_cpu", "utility"];
+const WORK_SLOTS: RuntimeSlotId[] = ["fast_gpu", "quality_cpu", "utility", "vision_gpu"];
 
 let lastWorkModelActivityAt = Date.now();
 let idleWatcherStarted = false;

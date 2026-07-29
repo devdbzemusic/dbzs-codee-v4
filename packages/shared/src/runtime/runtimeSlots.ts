@@ -1,4 +1,4 @@
-export type RuntimeSlotId = "quality_cpu" | "fast_gpu" | "utility" | "orchestrator_cpu";
+export type RuntimeSlotId = "quality_cpu" | "fast_gpu" | "utility" | "orchestrator_cpu" | "vision_gpu";
 export type RuntimeTaskType =
   | "casual_chat"
   | "normal_chat"
@@ -16,14 +16,23 @@ export type RuntimeTaskType =
   | "intent_routing"
   | "workflow_routing"
   | "function_calling"
-  | "clarification_detection";
+  | "clarification_detection"
+  | "image_analysis"
+  | "ui_analysis"
+  | "visual_debugging"
+  | "document_vision";
 
-export type RuntimeSlotRole = "chat" | "coding" | "embedding_reranking" | "routing_function_calling";
+export type RuntimeSlotRole =
+  | "chat"
+  | "coding"
+  | "embedding_reranking"
+  | "routing_function_calling"
+  | "vision";
 export type RuntimeHardwareClass = "cpu" | "gpu" | "hybrid";
 
 export interface RuntimeSlotDefinition {
   id: RuntimeSlotId;
-  purpose: "chat" | "coding" | "utility" | "orchestrator";
+  purpose: "chat" | "coding" | "utility" | "orchestrator" | "vision";
   hardwareClass: RuntimeHardwareClass;
   port: number;
   supportedTasks: readonly RuntimeTaskType[];
@@ -74,6 +83,19 @@ export const RUNTIME_SLOT_DEFINITIONS = {
       "workflow_routing",
       "function_calling",
       "clarification_detection"
+    ],
+    allowImplicitFallback: false
+  },
+  vision_gpu: {
+    id: "vision_gpu",
+    purpose: "vision",
+    hardwareClass: "gpu",
+    port: 8085,
+    supportedTasks: [
+      "image_analysis",
+      "ui_analysis",
+      "visual_debugging",
+      "document_vision"
     ],
     allowImplicitFallback: false
   }

@@ -179,6 +179,7 @@ def test_default_slot_policies_match_spec() -> None:
     assert DEFAULT_SLOT_POLICY["quality_cpu"] == ResidencyPolicy.KEEP_RESIDENT
     assert DEFAULT_SLOT_POLICY["fast_gpu"] == ResidencyPolicy.KEEP_RESIDENT
     assert DEFAULT_SLOT_POLICY["utility"] == ResidencyPolicy.IDLE_EVICT
+    assert DEFAULT_SLOT_POLICY["vision_gpu"] == ResidencyPolicy.IDLE_EVICT
 
 
 def test_compatible_runtime_reused_no_duplicate_process(tmp_path: Path) -> None:

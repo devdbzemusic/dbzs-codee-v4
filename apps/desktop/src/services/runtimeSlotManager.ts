@@ -101,7 +101,7 @@ export interface SlotRecommendation {
 /**
  * Alle verfügbaren Slots.
  */
-export const ALL_SLOTS: RuntimeSlotId[] = ["fast_gpu", "quality_cpu", "utility", "orchestrator_cpu"];
+export const ALL_SLOTS: RuntimeSlotId[] = ["fast_gpu", "quality_cpu", "utility", "orchestrator_cpu", "vision_gpu"];
 
 function normalizeModelKey(value: string): string {
   return value
@@ -155,6 +155,11 @@ function sizeHintScore(model: IndexedModel, slotId: RuntimeSlotId): number {
     if (key.includes("270m") || key.includes("function")) return 50;
   }
 
+  if (slotId === "vision_gpu") {
+    if (key.includes("vl") && (key.includes("3b") || key.includes("2b"))) return 90;
+    if (key.includes("vl")) return 60;
+  }
+
   return 0;
 }
 
@@ -196,6 +201,10 @@ export function scoreModelForSlot(
     score -= 1000;
   }
 
+  if (slotId === "vision_gpu" && !isVisionIndexedModel(model)) {
+    score -= 1000;
+  }
+
   return score;
 }
 
@@ -230,6 +239,8 @@ function configuredModelForSlot(slotId: RuntimeSlotId): string {
       return settings.defaultUtilityModelId || "";
     case "orchestrator_cpu":
       return settings.defaultOrchestratorModelId || "";
+    case "vision_gpu":
+      return settings.defaultVisionModelId || "";
     default:
       return settings.defaultModelId || "";
   }
@@ -515,6 +526,8 @@ export const runtimeSlotManager = {
         return "qwen3-embedding-0.6b-q8-0";
       case "orchestrator_cpu":
         return "functiongemma-270m-it.Q8_0";
+      case "vision_gpu":
+        return "Qwen2.5-VL-3B-Instruct.Q4_K_M";
       default:
         return "Meta-Llama-3.1-8B-Instruct-Q4_K_M";
     }

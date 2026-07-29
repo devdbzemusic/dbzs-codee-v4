@@ -27,6 +27,7 @@ DEFAULT_SLOT_POLICY: dict[str, ResidencyPolicy] = {
     "fast_gpu": ResidencyPolicy.KEEP_RESIDENT,  # Coding GPU
     "utility": ResidencyPolicy.IDLE_EVICT,
     "orchestrator_cpu": ResidencyPolicy.KEEP_RESIDENT,  # Router CPU
+    "vision_gpu": ResidencyPolicy.IDLE_EVICT,  # Vision GPU, only resident while analyzing an image
 }
 
 

@@ -248,6 +248,17 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
     consumerDescription: "runtimeSlotManager / utility slot",
   }),
   def({
+    key: "defaultVisionModelId",
+    category: "models",
+    label: "Vision-Modell",
+    description: "Basismodell für den vision_gpu-Slot (Bild-/UI-Analyse).",
+    classification: "orphaned",
+    defaultValue: d.defaultVisionModelId ?? "",
+    control: "readonly",
+    restartRequirement: "none",
+    consumerDescription: "runtimeSlotManager.configuredModelForSlot liest das Feld, aber kein Aufrufer startet vision_gpu (Phase 3: getRecommendedSlot/autoStartSlots)",
+  }),
+  def({
     key: "defaultOrchestratorModelId",
     category: "models",
     label: "Orchestrator-Modell",
