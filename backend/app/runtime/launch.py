@@ -168,6 +168,7 @@ def validate_model_for_launch(
     runtime_dir: Path | None,
     ollama_executable: Path,
     models_dir: Path | None = None,
+    config_override: dict[str, object] | None = None,
 ) -> str | None:
     if is_ollama_launcher(model.runtime_launcher):
         if model.format != "ollama":
@@ -184,6 +185,10 @@ def validate_model_for_launch(
         return "llama-server requires a GGUF model."
     if not Path(model.path).exists():
         return f"Model file does not exist: {model.path}"
+    override = config_override or {}
+    mmproj_path = override.get("mmproj_path")
+    if isinstance(mmproj_path, str) and mmproj_path.strip() and not Path(mmproj_path.strip()).exists():
+        return f"MMProj file does not exist: {mmproj_path}"
     if runtime_dir is None:
         return "Runtime directory not found."
     if models_dir is None:
@@ -353,6 +358,9 @@ def build_runtime_command(
     ]
     if isinstance(threads, int):
         command.extend(["--threads", str(threads)])
+    mmproj_path = override.get("mmproj_path")
+    if isinstance(mmproj_path, str) and mmproj_path.strip():
+        command.extend(["--mmproj", mmproj_path.strip()])
 
     # Only emit flags the discovered llama-server binary actually supports —
     # never blindly set a flag when capabilities are unknown (capabilities=None).
@@ -469,6 +477,7 @@ def build_launch_plan(
         runtime_dir=runtime_dir,
         ollama_executable=ollama_executable,
         models_dir=models_dir,
+        config_override=config_override,
     )
     if validation_error:
         blockers.append(validation_error)

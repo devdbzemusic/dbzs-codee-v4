@@ -657,7 +657,7 @@ function AppShell() {
             </div>
             <div>
               <h1 className="text-base font-semibold tracking-normal">DBZS Code Assistant</h1>
-              <p className="text-xs text-dbzs-muted">Lokale AI-Desktop-Foundation Â· Phase 1</p>
+              <p className="text-xs text-dbzs-muted">Lokale AI-Desktop-Foundation - Phase 1</p>
             </div>
           </div>
 
@@ -665,7 +665,7 @@ function AppShell() {
             <button
               className="flex items-center gap-1.5 rounded border border-dbzs-border bg-dbzs-panelSoft px-2.5 py-1 text-xs text-dbzs-muted hover:bg-dbzs-cyan/10 hover:text-dbzs-cyan hover:border-dbzs-cyan/30 transition-all mr-2"
               onClick={() => window.dbzs?.openSettingsWindow?.()}
-              title="Einstellungen Ã¶ffnen (Ctrl+,)"
+              title="Einstellungen oeffnen (Ctrl+,)"
               type="button"
             >
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -832,7 +832,7 @@ function AppShell() {
               <Suspense
                 fallback={
                   <div className="flex h-full items-center justify-center p-8 text-sm text-dbzs-muted">
-                    Editor wird geladen â€¦
+                    Editor wird geladen ...
                   </div>
                 }
               >

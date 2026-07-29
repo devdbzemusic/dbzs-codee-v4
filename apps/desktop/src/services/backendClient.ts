@@ -26,7 +26,9 @@ import type {
   SettingsPatchResponse,
   BackendHealth,
   GpuInfo,
+  ManualMultimodalPairingRequest,
   ModelIndex,
+  MultimodalPair,
   JobArtifact,
   JobArtifactCreateRequest,
   JobClaimRequest,
@@ -91,6 +93,7 @@ export interface BackendBridge {
   onRuntimeChatWindowState?: (listener: (state: import("@/types/runtimeChatWindow").RuntimeChatWindowState) => void) => () => void;
   onRuntimeChatContext?: (listener: (context: RuntimeChatContextSnapshot | null) => void) => () => void;
   getModelIndex: () => Promise<ModelIndex>;
+  saveManualMultimodalPairing?: (request: ManualMultimodalPairingRequest) => Promise<MultimodalPair>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   startRuntimeModel: (modelId: string) => Promise<RuntimeStatus>;
   stopRuntimeModel: () => Promise<RuntimeStatus>;
@@ -306,6 +309,13 @@ export const backendClient = {
     return method();
   },
   getModelIndex: () => bridge().getModelIndex(),
+  saveManualMultimodalPairing: (request: ManualMultimodalPairingRequest) => {
+    const method = bridge().saveManualMultimodalPairing;
+    if (!method) {
+      return Promise.reject(new Error("saveManualMultimodalPairing is unavailable."));
+    }
+    return method(request);
+  },
   getRuntimeStatus: () => bridge().getRuntimeStatus(),
   startRuntimeModel: (modelId: string) => bridge().startRuntimeModel(modelId),
   stopRuntimeModel: () => bridge().stopRuntimeModel(),

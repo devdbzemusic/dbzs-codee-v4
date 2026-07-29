@@ -1,6 +1,7 @@
 import type {
   ModelTargetAgent,
   ReasoningTraceEvent,
+  RuntimeChatAttachment,
   RuntimeChatMessage,
   RuntimeChatRun,
   RuntimeChatTurn,
@@ -86,6 +87,7 @@ export function initializeSendRun(args: {
   set: Setter;
   get: Getter;
   trimmedContent: string;
+  attachments?: RuntimeChatAttachment[];
   effectiveAgent: ModelTargetAgent;
   taskType: string;
   includeWorkspaceContext: boolean;
@@ -116,7 +118,8 @@ export function initializeSendRun(args: {
   const userMessage: RuntimeChatMessage = {
     id: `msg-${Date.now().toString(36)}-user`,
     role: "user",
-    content: args.trimmedContent
+    content: args.trimmedContent,
+    attachments: args.attachments?.length ? args.attachments : undefined
   };
   const nextMessages = [...args.get().messages, userMessage];
 

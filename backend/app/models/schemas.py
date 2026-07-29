@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 RecommendedUse = Literal[
@@ -46,6 +46,23 @@ class IndexedModel(BaseModel):
     runtime: ModelRuntimeHints
 
 
+class MultimodalPair(BaseModel):
+    id: str
+    base_model_id: str | None = None
+    projector_artifact_id: str
+    modalities: list[str] = Field(default_factory=list)
+    source: str
+    confidence: float
+    status: str
+    routing_allowed: bool = False
+    candidate_base_model_ids: list[str] = Field(default_factory=list)
+
+
+class ManualMultimodalPairingRequest(BaseModel):
+    base_model_id: str
+    projector_artifact_id: str
+
+
 class ModelIndexSummary(BaseModel):
     models_dir: str
     runtime_dir: str | None = None
@@ -59,6 +76,7 @@ class ModelIndexSummary(BaseModel):
     coding_candidates: int
     vision_candidates: int
     adapters: int
+    support_artifact_count: int = 0
     unsupported: int
 
 
@@ -66,3 +84,5 @@ class ModelIndex(BaseModel):
     generated_from: str
     summary: ModelIndexSummary
     models: list[IndexedModel]
+    support_artifacts: list[IndexedModel] = Field(default_factory=list)
+    multimodal_pairs: list[MultimodalPair] = Field(default_factory=list)

@@ -31,7 +31,9 @@ import type {
   BackendHealth,
   BackendStartupStatus,
   BootState,
+  ManualMultimodalPairingRequest,
   ModelIndex,
+  MultimodalPair,
   ProjectMemoryEntry,
   ProjectMemoryUpsertRequest,
   ProjectCreationResult,
@@ -94,6 +96,20 @@ const api = {
       import("@dbzs/shared").SettingsDiagnostics
     >,
   openFileDialog: () => ipcRenderer.invoke("dbzs:file:open-dialog") as Promise<WorkspaceFile | null>,
+  openImageFileDialog: () =>
+    ipcRenderer.invoke("dbzs:file:open-image-dialog") as Promise<
+      import("@dbzs/shared").RuntimeChatImageAttachment | null
+    >,
+  openChatAttachmentDialog: () =>
+    ipcRenderer.invoke("dbzs:file:open-chat-attachment-dialog") as Promise<
+      import("@dbzs/shared").RuntimeChatAttachment[]
+    >,
+  prepareClipboardChatAttachments: (
+    items: Array<{ name: string; mimeType: string; sizeBytes?: number; dataUrl: string }>
+  ) =>
+    ipcRenderer.invoke("dbzs:file:prepare-clipboard-chat-attachments", items) as Promise<
+      import("@dbzs/shared").RuntimeChatAttachment[]
+    >,
   saveFile: (request: SaveFileRequest) =>
     ipcRenderer.invoke("dbzs:file:save", request) as Promise<WorkspaceFile>,
   saveFileAsDialog: (request: SaveFileAsRequest) =>
@@ -405,6 +421,8 @@ const api = {
     };
   },
   getModelIndex: () => ipcRenderer.invoke("dbzs:models:index") as Promise<ModelIndex>,
+  saveManualMultimodalPairing: (request: ManualMultimodalPairingRequest) =>
+    ipcRenderer.invoke("dbzs:models:multimodal-pairings:manual", request) as Promise<MultimodalPair>,
   getRuntimeStatus: () => ipcRenderer.invoke("dbzs:runtime:status") as Promise<RuntimeStatus>,
   startRuntimeModel: (modelId: string) =>
     ipcRenderer.invoke("dbzs:runtime:start", modelId) as Promise<RuntimeStatus>,

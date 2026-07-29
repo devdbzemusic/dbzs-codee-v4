@@ -33,6 +33,8 @@ export type AssistantAnswerPreflight = {
   workspaceRoot: string | null;
   workflow: string;
   taskType?: RuntimeTaskType;
+  hasImageInput?: boolean;
+  requiresVision?: boolean;
 };
 
 export type RehydratedPendingQuestionState = {
@@ -65,6 +67,13 @@ type SendMessageFn = (
 
 export function summarizeAssistantAnswer(answer: AssistantAnswer) {
   return answer.freeText ?? answer.optionIds?.join(", ") ?? (answer.skipped ? "(keine Antwort)" : "");
+}
+
+function applyPreflightVisionOptions(preflight: AssistantAnswerPreflight) {
+  return {
+    hasImageInput: preflight.hasImageInput === true,
+    requiresVision: preflight.requiresVision === true
+  };
 }
 
 export async function clearSkippedPreflightAssistantAnswer(workspaceRoot: string | null) {
@@ -143,7 +152,8 @@ export async function handleReviewRemediationAssistantAnswerFlow(input: {
       workspaceRoot: input.preflight.workspaceRoot,
       stickyTaskType: "planning",
       preferPlannerFirst: true,
-      forceContinueActiveWorkflow: true
+      forceContinueActiveWorkflow: true,
+      ...applyPreflightVisionOptions(input.preflight)
     });
     return true;
   }
@@ -168,7 +178,8 @@ export async function handleReviewRemediationAssistantAnswerFlow(input: {
     await input.sendMessage(input.preflight.originalMessage, "planner", {
       workspaceRoot: input.preflight.workspaceRoot,
       stickyTaskType: "planning",
-      forceContinueActiveWorkflow: true
+      forceContinueActiveWorkflow: true,
+      ...applyPreflightVisionOptions(input.preflight)
     });
     return true;
   }
@@ -205,8 +216,7 @@ export async function handleWorkflowScopeAssistantAnswerFlow(input: {
     workspaceRoot: input.preflight.workspaceRoot,
     stickyTaskType: optionId === "continue_active_task" ? input.preflight.taskType : undefined,
     preferPlannerFirst: true,
-    hasImageInput: false,
-    requiresVision: false,
+    ...applyPreflightVisionOptions(input.preflight),
     forceContinueActiveWorkflow: optionId === "continue_active_task",
     forceNewTask: optionId === "start_new_task"
   });
@@ -243,7 +253,8 @@ export async function handleResourceRiskAssistantAnswerFlow(input: {
       stickyTaskType: input.preflight.taskType,
       preferPlannerFirst: true,
       forceUseResidentModel: true,
-      acceptResourceRisk: true
+      acceptResourceRisk: true,
+      ...applyPreflightVisionOptions(input.preflight)
     });
     return true;
   }
@@ -258,7 +269,8 @@ export async function handleResourceRiskAssistantAnswerFlow(input: {
       stickyTaskType: input.preflight.taskType,
       preferPlannerFirst: true,
       acceptResourceRisk: true,
-      runtimeProfileOverride: optionId === "smaller_profile" ? "hybrid" : "cpu_safe"
+      runtimeProfileOverride: optionId === "smaller_profile" ? "hybrid" : "cpu_safe",
+      ...applyPreflightVisionOptions(input.preflight)
     });
     return true;
   }
@@ -325,11 +337,11 @@ export async function handleClarificationAssistantAnswerFlow(input: {
     workspaceRoot: input.preflight.workspaceRoot,
     stickyTaskType: input.preflight.taskType,
     preferPlannerFirst: true,
-    hasImageInput: false,
-    requiresVision: false
+    ...applyPreflightVisionOptions(input.preflight)
   });
   return true;
 }
 
 export { workflowScopeDecisionLabel };
+export { applyPreflightVisionOptions };
 export type { WorkflowScopeOptionId };

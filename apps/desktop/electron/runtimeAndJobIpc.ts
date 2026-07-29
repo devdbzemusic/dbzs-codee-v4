@@ -119,6 +119,14 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
   }
 
   ipcMain.handle("dbzs:models:index", () => requestBackend("/models/index"));
+  ipcMain.handle(
+    "dbzs:models:multimodal-pairings:manual",
+    (_event, request: { base_model_id: string; projector_artifact_id: string }) =>
+      requestBackend("/models/multimodal-pairings/manual", {
+        method: "POST",
+        body: JSON.stringify(request),
+      })
+  );
   ipcMain.handle("dbzs:runtime:status", () => requestBackend("/runtime/status"));
   ipcMain.handle("dbzs:runtime:start", (_event, modelId: string) =>
     requestBackend("/runtime/start", {

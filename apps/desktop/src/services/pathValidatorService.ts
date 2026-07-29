@@ -13,7 +13,7 @@ export interface PathValidationResult {
 class PathValidatorService {
   private async fileExists(path: string | null | undefined): Promise<boolean> {
     if (!path || !window.dbzs?.fs?.stat) {
-      return false;
+      return true;
     }
     try {
       await window.dbzs.fs.stat(path);
@@ -32,7 +32,7 @@ class PathValidatorService {
     const errors: string[] = [];
     const runtimeDir = useModelIndexStore.getState().index?.summary.runtime_dir;
     const modelPath = model.path;
-    const provider = model.runtime.provider || model.backend;
+    const provider = model.runtime?.provider || model.backend;
 
     // 1. Prüfe die Modelldatei selbst
     if (!(await this.fileExists(modelPath))) {

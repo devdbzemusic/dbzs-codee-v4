@@ -1,10 +1,10 @@
 # Handover
 
-Stand: 2026-07-28
+Stand: 2026-07-29
 
 ## Aktueller Arbeitsbranch
 
-- aktiver Arbeitsbranch: `main` (Feature-Branch `codex/runtime-chat-overhaul-conversation-first` ist gemergt und geloescht)
+- aktiver Arbeitsbranch: `feature/runtime-chat-ux-overhaul` (lokaler Arbeitsstand dieser Session; die `main`-Zusammenfassung unten bleibt als historischer Kontext bestehen)
 - Sicherheits-Backup-Branch: `codex/backup-runtime-chat-overhaul-2026-07-27`
 - physischer Snapshot:
   `C:\Users\ralle\source\repos\_backups\dbzs-codee-project-backup-2026-07-27-runtime-chat-overhaul`
@@ -34,6 +34,72 @@ Stand: 2026-07-28
 - **Diff/Snapshot/Rollback**: Freigabepflicht im `"full"`-Profil, `dbzs:fs:*`-IPC-Handler abgesichert, Crash-Flush-Hooks ergaenzt.
 - **Automatisches Backup**: `backupService.ts` (Settings, Codee-DBs ohne `rag.sqlite3`, Workspace-`.codee` ohne Restore-Points, Modellprofile), Diagnostics-Tab-UI.
 - **`.gitignore`-Bugfix**: `backend/app/models/` war versehentlich komplett ignoriert (8 Dateien nie versioniert), per Negation gefixt.
+
+## Neu uebernommen: Konsolidierter MMProj-/Model-Control-Plan
+
+Quelle: `Pläne/03 04 05 DBZS_CODEE_CONSOLIDATED_MODEL_CONTROL_MM_PAIRING_PLAN.md`
+plus `Pläne/03 04 05 DBZS_CODEE_ADAPTED_MODEL_CONTROL_MM_PLAN_CURRENT_REPO.md`
+
+Die Planbasis ist gelesen und fuer die naechste Umsetzungssession in eine klare Reihenfolge verdichtet. Kerngedanke:
+`mmproj-*.gguf` ist **kein** startbares Modell, sondern ein Support-Artefakt, das erst zusammen mit einem kompatiblen
+Basismodell und nach erfolgreicher Runtime-Probe als routbares multimodales Paar gelten darf. Der bestehende Integrationspunkt
+`runtime={<RuntimeModelsTab />}` bleibt unveraendert; die Erweiterung ist additiv.
+
+Stand im aktuellen Branch nach dem naechsten sicheren Slice:
+
+- additive Vertragsfelder `multimodal_pairs` (Backend + Shared + Store) sind vorhanden
+- erste Same-Folder-Heuristik erzeugt rein diagnostische Pair-Zustaende `candidate`, `ambiguous` und `missing_base`
+- Kataloghinweise haben jetzt Vorrang: explizite Zuordnungen aus `models.catalog.json` koennen MMProj-Paare stabil als `source="catalog"` binden
+- persistierbare manuelle Zuordnung ist vorhanden: `POST /models/multimodal-pairings/manual` schreibt `pairing.source = "manual"` in den Katalog und wird vom Index bevorzugt wieder eingelesen
+- kontrollierte MMProj-Probe ist vorhanden: `probeRuntimeModel` akzeptiert `projector_artifact_id`, startet das Basismodell
+  bei erfolgreichem Pairing mit `--mmproj`, persistiert erfolgreiche Proben als `routing_allowed = true` im Katalog
+  und der `RuntimeModelsTab` aktualisiert den Index danach sofort auf `verified`
+- die Probe haertet den Nachweis jetzt weiter: Basis-Endpoint und `/v1/models` muessen erfolgreich antworten, bevor
+  ein Paar als verifiziert markiert wird; fehlende Endpoint-Nachweise blockieren die Freigabe weiterhin
+- fuer MMProj-Paare gibt es jetzt zusaetzlich einen kleinen echten Bildtest ueber `/v1/chat/completions`; auch dieser
+  muss erfolgreich sein, bevor `routingAllowed` gesetzt wird. Fehlerursachen aus dem Vision-Test werden als Probe-Evidenz
+  bis in den `RuntimeModelsTab` durchgereicht
+- `RuntimeModelsTab` zeigt fuer MMProj-/Hilfsartefakte jetzt explizite Statushinweise statt nur generischem `support_artifact`
+- `RuntimeModelsTab` arbeitet jetzt als eigenes MM-Pairing-Control-Center: separate Paarliste, Risiko-Sortierung,
+  Status-Summary, direkte Probe und manuelle Neu-Zuordnung; gekoppelte MMProj-Artefakte tauchen nicht mehr doppelt
+  in den generischen Hilfsartefakten auf
+- im aktuellen Branch ist der `RuntimeModelsTab` jetzt zusaetzlich als kompaktes Runtime-Model-Control-Dashboard verdichtet:
+  Startmodelle werden nach Laufstatus und Routing-Nutzen priorisiert sortiert; fuer startbare Modelle, multimodale Paare
+  und sichtbare Hilfsartefakte gibt es jetzt getrennte Rollen-, Routing-, Aktions- und Status-Summaries direkt ueber den
+  Tabellen. Die Detailtabellen bleiben erhalten, sind aber schneller scanbar und auf direkte Steuerung ausgelegt
+- `runtimeChatStoreRoutingPhase` reicht `multimodal_pairs` jetzt in den `modelSelectionBroker` durch; projector-pflichtige
+  Visionmodelle werden ohne verifiziertes `routing_allowed = true` sauber blockiert statt blind gestartet
+- fuer Screenshot-Coding/-Review mit Bildinput gilt jetzt zusaetzlich ein Capability-Gate:
+  das gewaehlte Visionmodell muss im Modellindex explizit `code` tragen; vision-only/chat-only Visionmodelle werden
+  fuer diese Pfade mit klarer Broker-Diagnose blockiert
+- MMProj bleibt strikt nicht startbar; nur verifizierte Paare werden jetzt als `routingAllowed = true` sichtbar
+- Nebenfund behoben: Dateinamen-Heuristiken bewerten jetzt den Dateinamen statt des ganzen Pfads, damit Ordnernamen wie `...mmproj...` keine Fehlklassifikation ausloesen
+
+### Naechste Umsetzungsreihenfolge
+
+- **1. Index-Haertung zuerst**: `index.models` nur fuer runnable Modelle; neue additive Sammlungen fuer
+  `supportArtifacts` und spaeter `multimodalPairs`. MMProj muss sichtbar bleiben, aber nie startbar/routbar sein.
+- **2. Paarungslogik danach**: Katalog-/manuelle Zuordnung, Same-Folder-Heuristik, Namensnormalisierung und
+  Metadatenvergleich; uneindeutige Faelle bewusst als `ambiguous`/`missing_base`/`missing_projector`/`orphan`
+  stehen lassen statt aggressiv zu auto-koppeln.
+- **3. Runtime-Probe als Gate weiterhaerten**: `--model` + `--mmproj` und persistente Verifikation sind vorhanden; offen
+  bleibt vor allem ein weiter verfeinerter Ergebnisverlauf fuer fehlgeschlagene versus erfolgreiche Proben.
+  Endpoint-, `/v1/models`- und kleiner Bildtest-Nachweis sind jetzt Teil des Gates. Erst `verified`-Paare duerfen
+  Routing freigeben.
+- **4. Dann UI/Control Center**: dieser Block ist jetzt weit fortgeschritten; offen bleiben vor allem weitere
+  Routing-/Capability-Ansichten und Ergebnis-Feinschliff.
+- **5. Routing zuletzt anschliessen**: erstes Broker-Gate fuer projector-pflichtige Visionmodelle ist aktiv.
+  Das erste Screenshot-Coding/Review-Capability-Gate (`vision + code`) ist ebenfalls aktiv.
+  Offen bleiben die produktive Screenshot-Coding/Review-Kette und weitere Routing-/Capability-Regeln.
+- **6. Capability-Zertifizierung getrennt**: direkte Vision-Coding-/Review-Ausfuehrung erst nach expliziter
+  Zertifizierung von `code_generation`, `code_review`, `structured_output`, `instruction_following`, `tool_calling`.
+
+### Wichtig fuer die naechste Session
+
+- zuerst Datenvertrag/Index aendern, **nicht** mit UI oder Broker anfangen
+- keine automatische Freigabe mehrdeutiger MMProj-Paare
+- keine Modellgewichte beim App-Start laden; Probing nur kontrolliert und temporaer
+- Regressionen von Anfang an mitsichern: MMProj nie startbar, nie `primaryCodingModel`, nie Text-Chat-Default
 
 ### Verifikation (kumulativ)
 
@@ -92,6 +158,101 @@ sind genau diese Punkte inzwischen verifiziert — siehe
 - [apps/desktop/src/services/workflowContinuation.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/workflowContinuation.ts)
   - `weiter` wird als natuerliche Fortsetzung eines aktiven Workflows behandelt
 
+## Neu im Arbeitsbranch: generische Runtime-Chat-Dateianhaenge
+
+Stand im Branch `feature/runtime-chat-ux-overhaul` nach Commit `71d3706`:
+
+- der bisherige bildspezifische Attachment-Pfad ist zu einer generischen Datei-Attachment-Pipeline erweitert
+  (`image`, `document`, `archive`, `text`, `code`)
+- der Composer akzeptiert jetzt Bilder weiterhin, zusaetzlich aber auch `pdf`, `zip`, `md`, `json`, `js`,
+  `ts`, `tsx`, `py`, `txt`
+- Einfuegen funktioniert ueber den gemeinsamen Anhaengen-Button mit Mehrfachauswahl und ueber `Strg+V`
+  fuer Clipboard-Datei-Items
+- die Turn-UI rendert dateitypspezifische Vorschauen fuer Bilder, Text/Code, PDF und ZIP
+- Text-/Code-Dateien werden vor dem Request als strukturierte Attachment-Bloecke in den User-Turn eingebracht
+- PDF wird lokal ueber den Backend-Pfad zu Text extrahiert
+- ZIP wird lokal ausserhalb des Workspace temporaer entpackt, rekursiv inventarisiert und nur fuer erlaubte
+  Text-/Code-Dateien inline in den Turn uebernommen
+- nicht-bildliche Dateianhaenge setzen weder automatisch Vision-Flags noch `requiresVision`; bestehende
+  Vision-Gates bleiben auf echte Bildpayloads begrenzt
+- neue Backend-Dependency: `pypdf`
+
+Frisch verifiziert fuer diesen Slice:
+
+- `npm run typecheck` in `apps/desktop`
+- fokussierter Desktop-Vitest-Lauf: 58 Tests gruen
+- Backend-Pytest fuer Runtime-API plus Attachment-Aufbereitung: 14 Tests gruen
+
+## Neu im Arbeitsbranch: generische Post-Response-Folgeaktionen im Chat (Phase 1)
+
+Basis: `Pläne/06 DBZS_CODEE_CHAT_FOLLOW_UP_ACTIONS_DIAGNOSE_PLAN.md` — Diagnose war: normale, erfolgreich
+abgeschlossene Chat-/Planungs-/Debug-Antworten bekamen `actions: []`, weil die vorhandene Action-Infrastruktur
+nur Patch-Approval/Rollback/Tests/Terminal-/Web-Freigaben und Review-Findings abdeckt; `confirm_continue` war
+zu eng auf "Tests starten nach Patch-Apply" verdrahtet. Der Chat wirkte deshalb subjektiv, als wuerde er nach
+jeder normalen Antwort "einfach enden".
+
+Phase-1-Umsetzung (kein Phase-2-Umbau):
+
+- neuer deterministischer (nicht LLM-gesteuerter) Builder
+  [apps/desktop/src/services/runtimeChatFollowUpActions.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/services/runtimeChatFollowUpActions.ts):
+  `buildFollowUpActions()`/`attachFollowUpActionsToMessages()`, max. 3 Vorschlaege pro Antwort
+- sechs additive `ChatActionKind`-Werte in `packages/shared/src/index.ts`
+  (`continue_task`, `implement_plan`, `show_next_steps`, `retry_run`, `inspect_result`, `new_task`);
+  `confirm_continue` bleibt unveraendert dem echten Patch-Approval-Flow vorbehalten
+- Gating: `needs_user_input`/`cancelled`/`repositoryReview`/offene Plan- oder Patch-Proposal unterdruecken
+  Vorschlaege komplett (Review-Findings-Aktionen in `CodeeRunLiveBlock` bleiben der einzige Weg fuer Reviews);
+  echter Fehlschlag → `Erneut versuchen`/`Ergebnis pruefen`; Tool-Call mit `status: "error"` → `Fehler beheben`
+  (selbes `continue_task`-Kind wie `Vertiefen`, nur anderer Titel/Prompt); `taskType` `planning`/`architecture`
+  → `Plan umsetzen`; Standardfall → `Vertiefen`/`Naechste Schritte`/`Neue Aufgabe`
+- Verdrahtung an beiden Stellen, die eine Assistentenantwort tatsaechlich abschliessen, in
+  `apps/desktop/src/stores/runtimeChatStore.ts` (Agent-Turn-Loop-Pfad und Streaming-Pfad)
+- Klick dispatcht ueber die bestehende Pipeline (`handleChatAction` → `handleChatActionAction` in
+  `runtimeChatStoreInteractionActions.ts`) und sendet einen festen Prompt ueber die vorhandene `sendMessage()` —
+  keine neue Sonder-Pipeline
+- `RuntimeChatMessageCard.tsx` zeigt jetzt zwei getrennte Bloecke: bestehende Pflicht-Freigaben unveraendert,
+  neuer "Vorgeschlagene Folgeaktionen"-Block ohne Risiko-Styling, waehrend `isSending` deaktiviert
+- "nur die letzte Assistentenantwort zeigt aktive Vorschlaege" ist reine Renderzeit-Logik
+  (`isLatestAssistantMessage` aus `findLastAssistantMessageIndex()` in `RuntimeChatConversationFeed.tsx`) —
+  keine neue Invalidierungslogik noetig, weil jede neue Turn-Runde ohnehin eine frische Platzhalter-Nachricht
+  anlegt; Workspace-Wechsel (`clear()`) entfernt stale Folgeaktionen automatisch mit, weil sie Teil von
+  `message.actions` sind
+
+Bewusst zurueckgestellt (Phase 2, siehe Diagnoseplan): echtes Retry mit demselben Run-Kontext,
+Modellwechsel-Angebot nach Fehlschlag, Fehlererkennung aus Freitext (aktuell nur ueber
+`toolCalls[].status === "error"`), persistierte Folgeaktionen ueber Sessions hinweg.
+
+Verifikation:
+
+- `npx tsc --noEmit -p tsconfig.web.json` und `-p tsconfig.node.json` (apps/desktop) — beide fehlerfrei
+- voller Desktop-Vitest-Lauf: 194 Testdateien / 1223 Tests gruen, keine Regressionen
+- vier neue/erweiterte Testdateien: `runtimeChatFollowUpActions.test.ts` (neu), `runtimeChatActionSelectors.test.ts`
+  (erweitert), `RuntimeChatMessageCard.test.tsx` (neu, `createRoot`/`act`-Harness), `chatActions.test.ts`
+  (Dispatch- und Workspace-Clear-Regression ergaenzt)
+- **noch offen:** manueller Durchklick in einer echten Desktop-Session (Vorschlaege erscheinen nur unter der
+  letzten Antwort, Klick sendet richtigen Prompt, Buttons werden waehrend Senden inaktiv) — siehe TODO.md
+
+## Neu im Arbeitsbranch: vertieftes Runtime Model Control Center
+
+Stand im Branch `feature/runtime-chat-ux-overhaul` nach Commit `1865dc3`:
+
+- [apps/desktop/src/components/notebook/RuntimeModelsTab.tsx](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/components/notebook/RuntimeModelsTab.tsx)
+  - `Startbare Modelle` zeigen jetzt zusaetzlich Rollen-, Routing- und Aktions-Summaries (`Laufend`, `Ladbar`, `Blockiert`)
+  - die Modellliste wird nach aktivem Laufstatus und Routing-Nutzen sortiert, damit `Vision + Code`- und `Text + Code`-
+    Kandidaten vor rein informativen Eintraegen landen
+  - `Multimodale Paare` haben jetzt getrennte Source- und Action-Summaries (`Probe bereit`, `Zuordnung noetig`,
+    `Erledigt`, `Blockiert`)
+  - `Hilfsartefakte` zeigen jetzt Typ-, Aktions- und Status-Summaries (`MMProj`, `Adapter/LoRA`, `Verifiziert`,
+    `Candidate`, `Orphan`, `Nur Hinweis`) und werden handlungsorientiert sortiert
+- [apps/desktop/src/components/notebook/RuntimeModelsTab.test.ts](C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop/src/components/notebook/RuntimeModelsTab.test.ts)
+  - gezielte Regressionsabdeckung fuer die neuen Dashboard-Helfer: Startmodell-Sortierung, Modell-Aktionssummary,
+    MM-Pair-Aktionssummary sowie Support-Artefakt-Typ-, Status- und Aktionssummaries
+
+Frisch verifiziert fuer diesen Slice:
+
+- `npm run test -- src/components/notebook/RuntimeModelsTab.test.ts src/services/modelSelectionBroker.test.ts`
+  - 87 Tests gruen
+- `npm run typecheck` in `apps/desktop`
+
 ## Aktive offene Aufgaben
 
 ### P0
@@ -119,6 +280,8 @@ separater Blocker fuer 7/9/10/11:** das kleine lokale Modell (`gemma-3-1b-it-qat
 - Rest des Golden-Path (Diff/Apply/Rollback/Tests, harter Abbruch + Neustart) bis `UI_VERIFIED` abschliessen,
   jetzt wo der Routing-Blocker behoben ist; 2.6/2.7 dabei gegen den echten Pfad
   (`patchPipelineService.ts`/`restorePointService.ts`) neu pruefen — siehe [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28.md) und [docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md](C:/Users/ralle/source/repos/dbzs-codee-project/docs/audits/GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md)
+- generische Datei-Anhaenge in einer echten Desktop-Session manuell gegen die neuen Dateitypen durchklicken:
+  Mehrfachauswahl, `Strg+V`, Senden ohne manuell geschriebenen Prompt, PDF-/ZIP-Hinweise und Turn-Payload
 - gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren (`INSTALLER_VERIFIED`; bisher nur Dev-Pfad `%TEMP%\dbzs-codee-dev-user-data` bestaetigt)
 - Modell-Katalog auf dieser Maschine neu scannen/regenerieren (`models.catalog.json`s `runtime_dir` war veraltet — auch wenn der Code das jetzt abfaengt, lohnt sich ein frischer Scan)
 

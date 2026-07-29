@@ -39,6 +39,7 @@ describe("modelIndexCacheService", () => {
       coding_candidates: 1,
       vision_candidates: 0,
       adapters: 0,
+      support_artifact_count: 0,
       unsupported: 0
     },
     models: [{
@@ -65,7 +66,8 @@ describe("modelIndexCacheService", () => {
         health_status: "ok",
         provider: "llama.cpp"
       }
-    }]
+    }],
+    support_artifacts: []
   };
 
   it("sollte null zurückgeben, wenn die Cache-Datei nicht existiert", async () => {

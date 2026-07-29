@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  findLastAssistantMessageIndex,
+  getFollowUpChatActions,
+  getRequiredChatActions,
   getRuntimeAgentActionsForMessage,
   getTransportActionTone,
   getTransportChatActions,
@@ -99,5 +102,62 @@ describe("runtimeChatActionSelectors", () => {
     });
 
     expect(tone.statusBadgeClass).toBe("text-dbzs-red");
+  });
+
+  it("partitions required vs follow-up actions from a mixed actions array", () => {
+    const message = {
+      id: "msg-3",
+      role: "assistant" as const,
+      content: "patch proposed with a suggested follow-up",
+      actions: [
+        {
+          id: "act-approve-patch",
+          runId: "run-1",
+          messageId: "msg-3",
+          workspaceRoot: "C:/work/a",
+          workspaceId: "c:/work/a",
+          kind: "approve_patch" as const,
+          title: "Uebernehmen",
+          state: "pending" as const,
+          payload: { proposalId: "patch-1" },
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: "act-continue-task",
+          runId: "run-1",
+          messageId: "msg-3",
+          workspaceRoot: "C:/work/a",
+          workspaceId: "c:/work/a",
+          kind: "continue_task" as const,
+          title: "Vertiefen",
+          state: "pending" as const,
+          payload: { prompt: "Vertiefe deine letzte Antwort mit mehr Details." },
+          createdAt: new Date().toISOString()
+        }
+      ]
+    };
+
+    const required = getRequiredChatActions(message);
+    const followUps = getFollowUpChatActions(message);
+
+    expect(required).toHaveLength(1);
+    expect(required[0]!.kind).toBe("approve_patch");
+    expect(followUps).toHaveLength(1);
+    expect(followUps[0]!.kind).toBe("continue_task");
+  });
+
+  it("finds the last assistant message even when trailing system messages follow it", () => {
+    const messages = [
+      { id: "m1", role: "user" as const, content: "hi" },
+      { id: "m2", role: "assistant" as const, content: "hello" },
+      { id: "m3", role: "system" as const, content: "[Analyse-Protokoll] ..." }
+    ];
+
+    expect(findLastAssistantMessageIndex(messages)).toBe(1);
+  });
+
+  it("returns -1 when there is no assistant message", () => {
+    const messages = [{ id: "m1", role: "user" as const, content: "hi" }];
+    expect(findLastAssistantMessageIndex(messages)).toBe(-1);
   });
 });

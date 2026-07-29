@@ -17,10 +17,15 @@ class _FakeIndexService:
                 runtime_dir="D:/Models/llama.cpp-win-runtime",
                 total=3,
                 gguf_total=3,
+                ollama_dir=None,
+                ollama_models_dir=None,
+                ollama_total=0,
                 llama_server_ready=3,
+                ollama_ready=0,
                 coding_candidates=2,
                 vision_candidates=0,
                 adapters=0,
+                support_artifact_count=1,
                 unsupported=0,
             ),
             models=[
@@ -78,6 +83,26 @@ class _FakeIndexService:
                     compatibility="llama_server_ready",
                     runtime=ModelRuntimeHints(ctx=2048, gpu_layers=20, server_enabled=True, preferred_port=8103),
                 ),
+            ],
+            support_artifacts=[
+                IndexedModel(
+                    id="mmproj-qwen",
+                    name="mmproj-qwen-f16",
+                    path="D:/Models/mmproj-qwen-f16.gguf",
+                    format="gguf",
+                    artifact_type="mmproj",
+                    size_bytes=1 * 1024**3,
+                    size_gb=1.0,
+                    quantization="F16",
+                    backend="llama.cpp",
+                    runtime_launcher="llama-server",
+                    capabilities=["vision"],
+                    modality=["image"],
+                    role=None,
+                    recommended_use="vision_candidate",
+                    compatibility="support_artifact",
+                    runtime=ModelRuntimeHints(ctx=2048, gpu_layers=0, server_enabled=False, preferred_port=8104),
+                )
             ],
         )
 

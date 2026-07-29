@@ -1,6 +1,6 @@
 # TODO
 
-Stand: 2026-07-28
+Stand: 2026-07-29
 
 ## Jetzt direkt
 
@@ -29,6 +29,141 @@ hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht no
       hartem `"Rollenmodell in Settings fehlt"`-Fehler beim ersten Coding-Task-Versuch (in `GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md` gefunden)
 - [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen) —
       Rescan-Button selbst bereits `UI_VERIFIED` (364 Modelle, keine Regression)
+
+## Neu offen: Chat-Folgeaktionen (Phase 1) manuell verifizieren
+
+Basis: `Pläne/06 DBZS_CODEE_CHAT_FOLLOW_UP_ACTIONS_DIAGNOSE_PLAN.md`, umgesetzt und automatisiert getestet
+(siehe HANDOVER.md), aber noch nicht manuell in einer echten Desktop-Session durchgeklickt:
+
+- [ ] normale Chat-Antwort senden und pruefen, dass genau die letzte Assistentenantwort einen
+      "Vorgeschlagene Folgeaktionen"-Block mit `Vertiefen`/`Naechste Schritte`/`Neue Aufgabe` zeigt
+- [ ] Klick auf `Naechste Schritte` sendet den erwarteten festen Prompt; Buttons auf der aelteren Antwort
+      bleiben danach inaktiv, weil nur noch die neue letzte Antwort aktive Vorschlaege zeigt
+- [ ] Planungsantwort ausloesen → `Plan umsetzen` erscheint; echten Fehlschlag ausloesen →
+      `Erneut versuchen`/`Ergebnis pruefen` statt der Standardvorschlaege
+- [ ] waehrend eine Antwort noch gesendet wird sind die Folgeaktionen-Buttons sichtbar deaktiviert
+- [ ] Patch-Approval- und Repository-Review-Flows optisch unveraendert gegenpruefen (keine Vermischung
+      mit den neuen Folgeaktionen)
+- [ ] Phase 2 einordnen/priorisieren, sobald Phase 1 im echten Gebrauch bestaetigt ist: echtes Retry mit
+      Run-Kontext, Modellwechsel-Angebot nach Fehlschlag, Fehlererkennung aus Freitext statt nur ueber
+      `toolCalls[].status`, persistierte Folgeaktionen
+
+## Neu offen: Runtime-Chat-Dateianhaenge
+
+- [ ] manuellen Desktop-Durchlauf fuer generische Dateianhaenge fahren:
+      Bild + `md/json/js/ts/tsx/py/txt/pdf/zip`, Mehrfachauswahl, Entfernen vor Send, Senden ohne Textprompt
+- [ ] ZIP-/PDF-Edgecases manuell pruefen:
+      leere/gesperrte PDFs, grosse ZIPs, abgeschnittene Inhalte, klare UI-Hinweise bei Limits
+- [ ] optionalen Folge-Slice entscheiden:
+      Drag-and-Drop bewusst spaeter oder als naechsten UX-Ausbau aufnehmen
+
+## Erledigt: generische Post-Response-Folgeaktionen im Chat, Phase 1 (2026-07-29)
+
+- [x] `apps/desktop/src/services/runtimeChatFollowUpActions.ts` neu: deterministischer
+      `buildFollowUpActions()`/`attachFollowUpActionsToMessages()`-Builder, max. 3 Vorschlaege pro Antwort
+- [x] sechs additive `ChatActionKind`-Werte in `packages/shared/src/index.ts`
+      (`continue_task`, `implement_plan`, `show_next_steps`, `retry_run`, `inspect_result`, `new_task`);
+      `confirm_continue` bleibt unveraendert dem Patch-Approval-Flow vorbehalten
+- [x] Gating fuer needs_user_input/cancelled/repositoryReview/offene Plan- oder Patch-Proposal
+      (unterdruecken Vorschlaege komplett), echten Fehlschlag (Retry/Ergebnis pruefen), Tool-Call-Fehler
+      (Fehler beheben) und Planungsantworten (Plan umsetzen) implementiert
+- [x] in beiden Finalisierungspfaden verdrahtet (Agent-Turn-Loop und Streaming) in `runtimeChatStore.ts`
+- [x] Klick-Dispatch ueber bestehende `handleChatAction`/`sendMessage`-Pipeline, keine neue Sonder-Pipeline
+- [x] `RuntimeChatMessageCard.tsx`/`RuntimeChatConversationFeed.tsx`: getrennter "Vorgeschlagene
+      Folgeaktionen"-Block, nur auf der jeweils letzten Assistentennachricht aktiv, waehrend `isSending`
+      deaktiviert; Workspace-Wechsel entfernt stale Folgeaktionen automatisch mit
+- [x] Verifikation: `npx tsc --noEmit` (web + node) fehlerfrei; voller Desktop-Vitest-Lauf
+      194 Testdateien/1223 Tests gruen, keine Regressionen; vier neue/erweiterte Testdateien
+      (`runtimeChatFollowUpActions.test.ts`, `runtimeChatActionSelectors.test.ts`,
+      `RuntimeChatMessageCard.test.tsx`, `chatActions.test.ts`)
+- [ ] manueller Durchklick in echter Desktop-Session steht noch aus — siehe "Neu offen" oben
+
+## Erledigt: generische Runtime-Chat-Dateianhaenge (2026-07-28)
+
+- [x] bildspezifischen Attachment-Pfad auf generische `RuntimeChatAttachment`s erweitert
+      (`image`, `document`, `archive`, `text`, `code`)
+- [x] gemeinsamen Attachment-Dialog mit Mehrfachauswahl statt reiner Bildauswahl eingebaut
+- [x] `Strg+V` verarbeitet jetzt Clipboard-Datei-Items auch fuer Bilder, Text-/Code-Dateien, PDF und ZIP
+- [x] Composer und Turn-Karten rendern dateitypspezifische Vorschauen statt nur Bild-Thumbnails
+- [x] Text-/Code-Dateien werden als strukturierte Attachment-Bloecke in den User-Turn eingebracht
+- [x] PDF-Aufbereitung lokal ueber neue Backend-Route `prepare-chat-attachments` umgesetzt
+- [x] ZIP-Aufbereitung mit temporaerer Entpackung ausserhalb des Workspace, rekursiver Inventarisierung
+      und Inline-Uebernahme nur fuer erlaubte Text-/Code-Dateien umgesetzt
+- [x] nicht-bildliche Dateianhaenge lassen Vision-Gates unberuehrt; nur echte Bildpayloads markieren Vision-Bedarf
+- [x] Backend-Dependency `pypdf` aufgenommen
+- [x] Verifikation:
+      `npm run typecheck` in `apps/desktop`,
+      fokussierter Vitest-Lauf (58 Tests),
+      `pytest backend/tests/test_runtime_api.py backend/tests/test_runtime_chat_attachments.py -q` (14 Tests)
+
+## Neu eingeplant: Model Control Center + MMProj/MM-Pairing
+
+Kurzstatus 2026-07-28h:
+- `RuntimeModelsTab` arbeitet jetzt als eigenes MM-Pairing-Control-Center mit separater Paarliste, Risiko-Sortierung,
+  Probe und manueller Neu-Zuordnung.
+- `runtimeChatStoreRoutingPhase` reicht `multimodal_pairs` jetzt in den `modelSelectionBroker` durch; projector-pflichtige
+  Visionmodelle werden ohne verifiziertes `routing_allowed = true` sauber blockiert.
+- Screenshot-Coding/-Review mit Bildinput wird jetzt zusaetzlich nur noch fuer Visionmodelle mit expliziter `code`-Capability
+  freigegeben; vision-only/chat-only Modelle werden im Broker mit Diagnose gestoppt.
+ 
+- [x] **Zwischenschritt 2026-07-28:** `multimodal_pairs` additiv eingefuehrt; erste Same-Folder-Heuristik erzeugt
+      `candidate`/`ambiguous`/`missing_base`; `RuntimeModelsTab` zeigt MMProj-/Hilfsartefakt-Status jetzt explizit an.
+      Routing bleibt dabei gesperrt (`routingAllowed = false`), also weiterhin nur Diagnose- und Vertragsstufe.
+- [x] **Zwischenschritt 2026-07-28b:** Kataloghinweise haben jetzt Vorrang vor der Heuristik:
+      Basismodell- und projector-seitige Zuordnungen in `models.catalog.json` erzeugen stabile `catalog`-Pairs,
+      selbst wenn Same-Folder ohne diese Hinweise mehrdeutig waere. Weiterhin keine Runtime-Probe und keine Routing-Freigabe.
+- [x] **Zwischenschritt 2026-07-28c:** persistierbare manuelle Zuordnung vorhanden:
+      `POST /models/multimodal-pairings/manual` schreibt `pairing.source = "manual"` in `models.catalog.json`;
+      der Index liest das als `source = "manual"` wieder ein und die Runtime-UI kennzeichnet den Status entsprechend.
+- [x] **Zwischenschritt 2026-07-28d:** kontrollierte MMProj-Runtime-Probe vorhanden:
+      `probeRuntimeModel` akzeptiert optional `projector_artifact_id`, startet bei erfolgreichem Pairing mit `--mmproj`,
+      persistiert `routing_allowed = true` fuer verifizierte Paare im Katalog und der `RuntimeModelsTab` zeigt den Status
+      sofort nach der Probe als `verified` an.
+- [x] **Zwischenschritt 2026-07-28e:** Runtime-Probe prueft den gestarteten Endpoint jetzt explizit nach:
+      Basis-Endpoint und `/v1/models` muessen antworten, bevor ein multimodales Paar als verifiziert gespeichert wird.
+      Fehlende Endpoint-Nachweise blockieren die Freigabe weiterhin.
+- [x] **Zwischenschritt 2026-07-28f:** multimodale Probe prueft jetzt auch einen echten Bild-Chat:
+      MMProj-Paare gelten erst dann als verifiziert, wenn neben Start, Basis-Endpoint und `/v1/models` auch ein kleiner
+      Vision-Request erfolgreich beantwortet wird. Fehlerursachen aus dem Bildtest werden als Probe-Evidenz mitgegeben.
+
+Basis: `Pläne/03 04 05 DBZS_CODEE_CONSOLIDATED_MODEL_CONTROL_MM_PAIRING_PLAN.md` plus
+`Pläne/03 04 05 DBZS_CODEE_ADAPTED_MODEL_CONTROL_MM_PLAN_CURRENT_REPO.md`
+
+- [ ] **Phase 1 - Index-Haertung und Vertragsklarheit:** `mmproj-*.gguf` nie mehr als startbares Modell behandeln; `index.models`
+      auf eigenstaendig startbare Modelle begrenzen und additiv `supportArtifacts` sowie spaeter `multimodalPairs` einfuehren.
+      Pflicht-Regressionskern: MMProj sichtbar, aber nie startbar/routbar/primary coding model.
+- [ ] **Phase 2 - Paarungslogik aufbauen:** Katalog-/manuelle Zuordnung, Same-Folder-Heuristik, Namensnormalisierung und
+      Metadatenvergleich fuer `MultimodalPair`; mehrdeutige oder unvollstaendige Faelle muessen explizit als
+      `ambiguous`/`missing_base`/`missing_projector`/`orphan` sichtbar bleiben und duerfen kein Routing freigeben.
+- [ ] **Phase 3 - Runtime-Probe einfuehren:** interner `RuntimeLaunchProfile` mit optionalem `mmprojPath`, temporaerer Probe-Start
+      (`--model` + `--mmproj`), persistente Verifikation, Endpoint-/`/v1/models`-Nachweis und kleiner echter Bildtest
+      sind jetzt vorhanden; offen bleibt vor allem die weitere Verfeinerung des Ergebnisverlaufs, weiterhin ohne automatische
+      Modellstarts beim App-Start.
+- [ ] **Phase 4 â€” `RuntimeModelsTab` zum Model Control Center ausbauen:** Bereiche fuer Modelle, multimodale Paare,
+      Hilfsartefakte, Capabilities, Rollen/Routing und Diagnose; manuelle Zuordnung erst hier an die UI bringen,
+      nicht verdeckt im Broker.
+- [ ] **Phase 5 â€” Routing sauber anbinden:** Textanfragen bleiben unveraendert text-only; Bildinput darf nur auf verifizierte
+      multimodale Paare gehen. Erste Produktionsstufe fuer Screenshot-Coding/Review: Vision analysiert, zertifiziertes
+      Coding-/Review-Modell setzt um bzw. bewertet.
+- [ ] **Phase 6 â€” Capability-Zertifizierung getrennt nachziehen:** direkte Vision-Coding-/Review-Faehigkeit nur nach expliziter
+      Zertifizierung (`code_generation`, `code_review`, `structured_output`, `instruction_following`, `tool_calling`);
+      Audio bewusst spaeter separat.
+- [ ] **Integrationsregel beibehalten:** externer Vertrag bleibt `runtime={<RuntimeModelsTab />}` â€” keine neue Parallel-Ansicht
+      und kein spontaner Integrationsbruch, sondern additive Erweiterung des bestehenden Tabs.
+
+## Erledigt: Runtime Model Control Center weiter verdichtet (2026-07-28)
+
+- [x] `RuntimeModelsTab` zeigt jetzt fuer Startmodelle Rollen-, Routing- und Aktions-Summaries
+      (`Laufend`, `Ladbar`, `Blockiert`) und priorisiert die Tabelle nach aktivem Laufstatus sowie Routing-Nutzen
+- [x] `Multimodale Paare` sind ueber Source- und Action-Summaries (`Probe bereit`, `Zuordnung noetig`,
+      `Erledigt`, `Blockiert`) direkt scanbar
+- [x] sichtbare Hilfsartefakte zeigen jetzt Typ-, Aktions- und Status-Summaries
+      (`MMProj`, `Adapter/LoRA`, `Verifiziert`, `Candidate`, `Orphan`, `Nur Hinweis`) und werden
+      handlungsorientiert sortiert
+- [x] Verifikation:
+      `npm run test -- src/components/notebook/RuntimeModelsTab.test.ts src/services/modelSelectionBroker.test.ts`
+      (87 Tests gruen),
+      `npm run typecheck` in `apps/desktop`
 
 ## Erledigt: Routing-Fix real durch die UI verifiziert (2026-07-28)
 

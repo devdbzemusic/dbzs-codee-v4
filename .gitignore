@@ -53,7 +53,10 @@ models/
 
 # Local workspace / dev data
 apps/desktop/electron-data/
+apps/desktop/playwright-report/
+apps/desktop/test-results/
 codee-run-run-*.json
+debug/*.png
 
 # Root workspace runtime data is intentionally versioned for Skill Runtime V1.
 !/.codee/

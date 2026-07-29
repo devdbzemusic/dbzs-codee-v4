@@ -355,7 +355,9 @@ export async function resolveWorkflowPreludeAction(input: {
             targetAgent: workflowAssignment.effectiveAgent,
             workspaceRoot: workspaceRootForClarification,
             workflow: clarificationWorkflow,
-            taskType
+            taskType,
+            hasImageInput: sendOptions?.hasImageInput === true,
+            requiresVision: sendOptions?.requiresVision === true
           }
         },
         state: "pending",

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import socket
 from pathlib import Path
 from typing import Any, Literal
+from urllib import error, request
 
 from pydantic import BaseModel, Field
 
@@ -16,6 +18,16 @@ from app.runtime.service import RuntimeService
 
 
 CheckStatus = Literal["ok", "warn", "error"]
+RuntimeProbeFailureCode = Literal[
+    "allow_start_disabled",
+    "model_id_missing",
+    "pair_missing",
+    "projector_missing",
+    "runtime_start",
+    "endpoint",
+    "models_endpoint",
+    "vision_chat",
+]
 
 
 class RuntimeCheck(BaseModel):
@@ -70,6 +82,7 @@ class RuntimeDryRunResponse(BaseModel):
 class RuntimeProbeRequest(BaseModel):
     allow_start: bool = False
     model_id: str | None = None
+    projector_artifact_id: str | None = None
 
 
 class RuntimeProbeResponse(BaseModel):
@@ -77,6 +90,14 @@ class RuntimeProbeResponse(BaseModel):
     message: str
     stderr_tail: str = ""
     stdout_tail: str = ""
+    projector_artifact_id: str | None = None
+    mmproj_path: str | None = None
+    endpoint_verified: bool = False
+    models_endpoint_verified: bool = False
+    advertised_models: list[str] = Field(default_factory=list)
+    vision_chat_verified: bool = False
+    vision_response_preview: str | None = None
+    verification_failures: list[RuntimeProbeFailureCode] = Field(default_factory=list)
 
 
 HARDWARE_PRESETS: list[SuggestedProfile] = [
@@ -125,6 +146,98 @@ def _path_check(check_id: str, path: Path, required: bool = False) -> RuntimeChe
         message=f"Missing: {path}",
         recommendation="Set env override or install runtime assets.",
     )
+
+
+def _probe_runtime_endpoint(endpoint: str) -> tuple[bool, bool, list[str]]:
+    base = endpoint.rstrip("/")
+    endpoint_verified = False
+    models_endpoint_verified = False
+    advertised_models: list[str] = []
+
+    for candidate in (f"{base}/health", f"{base}/"):
+        try:
+            with request.urlopen(candidate, timeout=2) as response:
+                if 200 <= response.status < 300:
+                    endpoint_verified = True
+                    break
+        except (OSError, TimeoutError, error.URLError):
+            continue
+
+    try:
+        with request.urlopen(f"{base}/v1/models", timeout=2) as response:
+            if 200 <= response.status < 300:
+                models_endpoint_verified = True
+                payload = json.loads(response.read().decode("utf-8"))
+                if isinstance(payload, dict):
+                    data = payload.get("data")
+                    if isinstance(data, list):
+                        for item in data:
+                            if not isinstance(item, dict):
+                                continue
+                            model_id = item.get("id")
+                            if isinstance(model_id, str) and model_id:
+                                advertised_models.append(model_id)
+    except (OSError, TimeoutError, error.URLError, UnicodeDecodeError, json.JSONDecodeError):
+        pass
+
+    return endpoint_verified, models_endpoint_verified, advertised_models
+
+
+def _probe_verification_failure_message(endpoint_verified: bool, models_endpoint_verified: bool) -> str:
+    missing_checks: list[str] = []
+    if not endpoint_verified:
+        missing_checks.append("Basis-Endpoint")
+    if not models_endpoint_verified:
+        missing_checks.append("/v1/models")
+    if not missing_checks:
+        return "Controlled probe started, but runtime endpoint verification did not complete successfully."
+    return "Controlled probe started, but verification failed for: " + ", ".join(missing_checks) + "."
+
+
+def _collect_probe_failure_codes(
+    *,
+    endpoint_verified: bool,
+    models_endpoint_verified: bool,
+    vision_required: bool,
+    vision_chat_verified: bool,
+) -> list[RuntimeProbeFailureCode]:
+    failures: list[RuntimeProbeFailureCode] = []
+    if not endpoint_verified:
+        failures.append("endpoint")
+    if not models_endpoint_verified:
+        failures.append("models_endpoint")
+    if vision_required and not vision_chat_verified:
+        failures.append("vision_chat")
+    return failures
+
+
+def _build_probe_image_data_url() -> str:
+    # 1x1 PNG keeps the multimodal probe tiny while still exercising image input.
+    return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9sotkZYAAAAASUVORK5CYII="
+
+
+def _verify_multimodal_chat(runtime: RuntimeService, endpoint: str, model_id: str) -> tuple[bool, str | None]:
+    payload = {
+        "model": model_id,
+        "max_tokens": 16,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Antworte nur mit dem Wort ok."},
+                    {"type": "image_url", "image_url": {"url": _build_probe_image_data_url()}},
+                ],
+            }
+        ],
+    }
+    response = runtime.chat_client.complete(endpoint.rstrip("/"), payload)
+    preview = response.strip()
+    return bool(preview), preview[:120] if preview else None
+
+
+def _multimodal_probe_exception_preview(exc: BaseException) -> str:
+    message = str(exc).strip() or exc.__class__.__name__
+    return message[:160]
 
 
 def _estimate_role(name: str, artifact_type: str) -> str:
@@ -305,18 +418,56 @@ def probe_runtime(
     models_dir: Path | None = None,
     ollama_dir: Path | None = None,
     ollama_models_dir: Path | None = None,
+    endpoint_verifier: Any | None = None,
+    multimodal_verifier: Any | None = None,
 ) -> RuntimeProbeResponse:
     if not request.allow_start:
         return RuntimeProbeResponse(
             allowed=False,
             message="Probe disabled. Set allow_start=true to permit controlled probe.",
+            verification_failures=["allow_start_disabled"],
         )
 
     if not request.model_id:
         return RuntimeProbeResponse(
             allowed=False,
             message="model_id is required for controlled probe.",
+            verification_failures=["model_id_missing"],
         )
+
+    mmproj_path: str | None = None
+    projector_artifact_id = request.projector_artifact_id
+    if projector_artifact_id:
+        index_service = ModelIndexService(
+            models_dir=models_dir or get_models_dir(),
+            ollama_dir=ollama_dir or get_ollama_dir(),
+            ollama_models_dir=ollama_models_dir or get_ollama_models_dir(),
+            discovery_mode=get_model_discovery_mode(),
+        )
+        index = index_service.build_index()
+        pair = next(
+            (
+                item for item in index.multimodal_pairs
+                if item.base_model_id == request.model_id and item.projector_artifact_id == projector_artifact_id
+            ),
+            None,
+        )
+        if pair is None:
+            return RuntimeProbeResponse(
+                allowed=False,
+                message=f"Kein multimodales Paar fuer Modell '{request.model_id}' und Projector '{projector_artifact_id}' gefunden.",
+                projector_artifact_id=projector_artifact_id,
+                verification_failures=["pair_missing"],
+            )
+        projector = next((item for item in index.support_artifacts if item.id == projector_artifact_id), None)
+        if projector is None:
+            return RuntimeProbeResponse(
+                allowed=False,
+                message=f"Projector-Artefakt '{projector_artifact_id}' ist im Index nicht verfuegbar.",
+                projector_artifact_id=projector_artifact_id,
+                verification_failures=["projector_missing"],
+            )
+        mmproj_path = projector.path
 
     runtime = service or RuntimeService(
         model_index_service=ModelIndexService(
@@ -331,7 +482,8 @@ def probe_runtime(
         warmup_interval_seconds=0.25,
     )
 
-    status = runtime.start_model(request.model_id)
+    start_config = {"mmproj_path": mmproj_path} if mmproj_path else None
+    status = runtime.start_model(request.model_id, config=start_config)
     if status.state != "running":
         logs = runtime.get_logs()
         return RuntimeProbeResponse(
@@ -339,10 +491,64 @@ def probe_runtime(
             message=status.message or "Controlled probe failed to start runtime.",
             stderr_tail=status.stderr_tail or logs.stderr_tail,
             stdout_tail=status.stdout_tail or logs.stdout_tail,
+            projector_artifact_id=projector_artifact_id,
+            mmproj_path=mmproj_path,
+            verification_failures=["runtime_start"],
         )
 
+    endpoint_verified = False
+    models_endpoint_verified = False
+    advertised_models: list[str] = []
+    vision_chat_verified = False
+    vision_response_preview: str | None = None
+    if status.endpoint:
+        verify_endpoint = endpoint_verifier or _probe_runtime_endpoint
+        endpoint_verified, models_endpoint_verified, advertised_models = verify_endpoint(status.endpoint)
+        if mmproj_path:
+            verify_multimodal = multimodal_verifier or _verify_multimodal_chat
+            try:
+                vision_chat_verified, vision_response_preview = verify_multimodal(runtime, status.endpoint, request.model_id)
+            except Exception as exc:
+                vision_chat_verified = False
+                vision_response_preview = _multimodal_probe_exception_preview(exc)
+
     runtime.stop_model()
+    if not endpoint_verified or not models_endpoint_verified or (mmproj_path is not None and not vision_chat_verified):
+        verification_failures = _collect_probe_failure_codes(
+            endpoint_verified=endpoint_verified,
+            models_endpoint_verified=models_endpoint_verified,
+            vision_required=mmproj_path is not None,
+            vision_chat_verified=vision_chat_verified,
+        )
+        failure_message = _probe_verification_failure_message(endpoint_verified, models_endpoint_verified)
+        if mmproj_path is not None and vision_chat_verified is False:
+            failure_message = (
+                f"{failure_message} Bildtest fehlgeschlagen."
+                if not vision_response_preview
+                else f"{failure_message} Bildtest fehlgeschlagen: {vision_response_preview}."
+            )
+        return RuntimeProbeResponse(
+            allowed=False,
+            message=failure_message,
+            projector_artifact_id=projector_artifact_id,
+            mmproj_path=mmproj_path,
+            endpoint_verified=endpoint_verified,
+            models_endpoint_verified=models_endpoint_verified,
+            advertised_models=advertised_models,
+            vision_chat_verified=vision_chat_verified,
+            vision_response_preview=vision_response_preview,
+            verification_failures=verification_failures,
+        )
+    if projector_artifact_id and mmproj_path:
+        index_service.mark_multimodal_pair_verified(request.model_id, projector_artifact_id)
     return RuntimeProbeResponse(
         allowed=True,
         message=f"Controlled probe succeeded for {request.model_id} on port {status.port}.",
+        projector_artifact_id=projector_artifact_id,
+        mmproj_path=mmproj_path,
+        endpoint_verified=endpoint_verified,
+        models_endpoint_verified=models_endpoint_verified,
+        advertised_models=advertised_models,
+        vision_chat_verified=vision_chat_verified,
+        vision_response_preview=vision_response_preview,
     )

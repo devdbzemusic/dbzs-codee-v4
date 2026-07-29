@@ -1,4 +1,8 @@
 import { useRuntimeChatStore } from "@/stores/runtimeChatStore";
+import { DiffChangeView } from "@/components/runtime-chat/DiffChangeView";
+import { Button } from "@/components/ui/Button";
+import { StatusPill } from "@/components/ui/PanelComponents";
+import { resolveStatusVocabulary } from "@/utils/statusVocabulary";
 
 export function RuntimeChatPatchPanel() {
   const {
@@ -21,6 +25,7 @@ export function RuntimeChatPatchPanel() {
   const busy = patchState === "APPLYING" || patchState === "VALIDATING";
   const canApply = patchState === "WAITING_FOR_APPROVAL" || patchState === "APPROVED" || patchState === "PREVIEW_READY";
   const canRollback = Boolean(patchApplyResult?.restorePointId) && patchState !== "ROLLED_BACK";
+  const statusVocabulary = resolveStatusVocabulary(patchState ?? "proposed");
 
   return (
     <section className="border-b border-dbzs-cyan/30 bg-dbzs-cyan/5 px-3 py-2 text-[11px] text-dbzs-text">
@@ -30,30 +35,36 @@ export function RuntimeChatPatchPanel() {
           <h3 className="truncate text-sm font-semibold">{activePatchProposal.title}</h3>
           <p className="mt-0.5 text-dbzs-muted">{activePatchProposal.summary}</p>
         </div>
-        <span className="border border-dbzs-border px-2 py-1 text-[10px] text-dbzs-muted">{patchState ?? "PROPOSED"}</span>
+        <StatusPill label="Status" tone={statusVocabulary.tone} value={patchState ?? "PROPOSED"} />
       </div>
 
-      <div className="mb-2 grid gap-1">
-        {activePatchProposal.changes.map((change) => (
-          <div className="border border-dbzs-border/70 bg-dbzs-bg/60 px-2 py-1" key={change.id}>
-            <div className="flex flex-wrap items-center gap-2">
-              <strong>{change.filePath}</strong>
-              <span className="text-dbzs-muted">{change.changeType}</span>
-              <span className="text-dbzs-muted">Risiko: {change.riskLevel}</span>
-            </div>
-            <p className="mt-1 text-dbzs-muted">{change.reason}</p>
-          </div>
-        ))}
+      <div className="mb-2 space-y-2">
+        {(activePatchPreview?.previews ?? []).map((preview) => {
+          const change = activePatchProposal.changes.find((entry) => entry.id === preview.changeId);
+          return (
+            <DiffChangeView
+              key={preview.changeId}
+              fileLabel={preview.filePath}
+              diff={preview.diff}
+              source={change?.changeType}
+              reason={change?.reason}
+              risk={change?.riskLevel}
+            />
+          );
+        })}
+        {!activePatchPreview?.previews.length
+          ? activePatchProposal.changes.map((change) => (
+              <div className="rounded border border-dbzs-border/70 bg-dbzs-bg/60 px-2 py-1" key={change.id}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <strong className="font-mono text-xs">{change.filePath}</strong>
+                  <span className="text-dbzs-muted">{change.changeType}</span>
+                  <span className="text-dbzs-muted">Risiko: {change.riskLevel}</span>
+                </div>
+                <p className="mt-1 text-dbzs-muted">{change.reason}</p>
+              </div>
+            ))
+          : null}
       </div>
-
-      {activePatchPreview?.previews.map((preview) => (
-        <details className="mb-2 border border-dbzs-border bg-dbzs-bg/70" key={preview.changeId} open>
-          <summary className="cursor-pointer px-2 py-1 text-dbzs-cyan">{preview.filePath}</summary>
-          <pre className="max-h-72 overflow-auto border-t border-dbzs-border p-2 text-[10px] leading-4 text-dbzs-text">
-            {preview.diff}
-          </pre>
-        </details>
-      ))}
 
       {activePatchProposal.validationCommands?.length ? (
         <div className="mb-2 text-dbzs-muted">
@@ -62,7 +73,7 @@ export function RuntimeChatPatchPanel() {
       ) : null}
 
       {patchValidationResult ? (
-        <div className="mb-2 border border-dbzs-border bg-dbzs-bg/60 px-2 py-1">
+        <div className="mb-2 rounded border border-dbzs-border bg-dbzs-bg/60 px-2 py-1">
           <div className={patchValidationResult.success ? "text-dbzs-green" : "text-dbzs-red"}>
             Validierung {patchValidationResult.success ? "erfolgreich" : "fehlgeschlagen"}
           </div>
@@ -77,38 +88,21 @@ export function RuntimeChatPatchPanel() {
       {patchError ? <div className="mb-2 text-dbzs-red">{patchError}</div> : null}
 
       <div className="flex flex-wrap gap-2">
-        <button
-          className="border border-dbzs-cyan/50 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
-          disabled={!canApply || busy}
-          onClick={() => void applyPatch()}
-          type="button"
-        >
+        <Button variant="primary" disabled={!canApply || busy} onClick={() => void applyPatch()}>
           Übernehmen
-        </button>
-        <button
-          className="border border-dbzs-border px-2 py-1 text-[10px] text-dbzs-muted disabled:opacity-40"
+        </Button>
+        <Button
           disabled={busy || patchState === "REJECTED" || patchState === "APPLIED" || patchState === "PASSED"}
           onClick={() => void rejectPatch()}
-          type="button"
         >
           Ablehnen
-        </button>
-        <button
-          className="border border-dbzs-border px-2 py-1 text-[10px] text-dbzs-muted disabled:opacity-40"
-          disabled={busy || !patchApplyResult?.applied}
-          onClick={() => void validatePatch()}
-          type="button"
-        >
+        </Button>
+        <Button disabled={busy || !patchApplyResult?.applied} onClick={() => void validatePatch()}>
           Tests starten
-        </button>
-        <button
-          className="border border-dbzs-red/50 bg-dbzs-red/10 px-2 py-1 text-[10px] text-dbzs-red disabled:opacity-40"
-          disabled={busy || !canRollback}
-          onClick={() => void rollbackPatch()}
-          type="button"
-        >
-          Rollback
-        </button>
+        </Button>
+        <Button variant="danger" disabled={busy || !canRollback} onClick={() => void rollbackPatch()}>
+          Zurücksetzen
+        </Button>
       </div>
     </section>
   );

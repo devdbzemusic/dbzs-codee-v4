@@ -111,7 +111,13 @@ export type ChatActionKind =
   | "confirm_continue"
   | "cancel_run"
   | "open_file"
-  | "answer_question";
+  | "answer_question"
+  | "continue_task"
+  | "implement_plan"
+  | "show_next_steps"
+  | "retry_run"
+  | "inspect_result"
+  | "new_task";
 
 export interface ChatActionRequest {
   id: string;
@@ -130,10 +136,45 @@ export interface ChatActionRequest {
   createdAt: string;
 }
 
+export type RuntimeChatAttachmentKind =
+  | "image"
+  | "document"
+  | "archive"
+  | "text"
+  | "code";
+
+export interface RuntimeChatAttachmentArchiveEntry {
+  path: string;
+  kind: RuntimeChatAttachmentKind | "binary";
+  sizeBytes?: number;
+  includedInline?: boolean;
+  truncated?: boolean;
+}
+
+export interface RuntimeChatAttachment {
+  id: string;
+  name: string;
+  kind: RuntimeChatAttachmentKind;
+  extension: string;
+  mimeType: string;
+  dataUrl: string;
+  source: "clipboard" | "file_dialog";
+  sizeBytes?: number;
+  path?: string;
+  textContent?: string;
+  derivedSummary?: string;
+  archiveEntries?: RuntimeChatAttachmentArchiveEntry[];
+  truncated?: boolean;
+  error?: string;
+}
+
+export type RuntimeChatImageAttachment = RuntimeChatAttachment;
+
 export interface RuntimeChatMessage {
   id: string;
   role: ChatRole;
   content: string;
+  attachments?: RuntimeChatAttachment[];
   rawContent?: string;
   visibleContent?: string;
   toolCalls?: RuntimeChatToolCallRecord[];
@@ -1279,13 +1320,33 @@ export interface ModelIndexSummary {
   coding_candidates: number;
   vision_candidates: number;
   adapters: number;
+  support_artifact_count: number;
   unsupported: number;
+}
+
+export interface MultimodalPair {
+  id: string;
+  base_model_id: string | null;
+  projector_artifact_id: string;
+  modalities: string[];
+  source: string;
+  confidence: number;
+  status: string;
+  routing_allowed: boolean;
+  candidate_base_model_ids: string[];
+}
+
+export interface ManualMultimodalPairingRequest {
+  base_model_id: string;
+  projector_artifact_id: string;
 }
 
 export interface ModelIndex {
   generated_from: string;
   summary: ModelIndexSummary;
   models: IndexedModel[];
+  support_artifacts?: IndexedModel[];
+  multimodal_pairs?: MultimodalPair[];
 }
 
 export * from "./runtime/runtimeSlots";

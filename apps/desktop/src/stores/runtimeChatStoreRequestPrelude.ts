@@ -36,6 +36,7 @@ export function buildProviderRequestPrelude(input: {
   toolEstimate: ProviderToolBudgetEstimate;
   finalBudgetRuntimeContextLimit: number;
   taskType: RuntimeTaskType;
+  hasImageInput?: boolean;
   currentPhase?: string | null;
   providerId?: string | null;
   endpoint: string;
@@ -85,6 +86,7 @@ export function buildProviderRequestPrelude(input: {
     runtimeContextLimit: input.finalBudgetRuntimeContextLimit,
     requestBodyBytes: providerRequestDiagnostics.requestBodyBytes,
     taskType: input.taskType,
+    hasImageInput: input.hasImageInput,
     currentPhase: input.currentPhase,
     providerId: input.providerId
   });

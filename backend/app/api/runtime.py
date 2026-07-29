@@ -12,7 +12,10 @@ from app.runtime.doctor import (
     build_runtime_doctor,
     probe_runtime,
 )
+from app.runtime.chat_attachments import prepare_chat_attachments
 from app.runtime.schemas import (
+    PrepareChatAttachmentsRequest,
+    PrepareChatAttachmentsResponse,
     HardwareFingerprint,
     LlamaRuntimeCapabilities,
     ResourcePlanPreviewRequest,
@@ -330,6 +333,18 @@ def stop_runtime_model(
 @router.get("/providers")
 def list_runtime_providers() -> list[str]:
     return ["llama.cpp", "ollama", "antigravity"]
+
+
+@router.post("/prepare-chat-attachments", response_model=PrepareChatAttachmentsResponse)
+def prepare_runtime_chat_attachments(
+    request: PrepareChatAttachmentsRequest,
+) -> PrepareChatAttachmentsResponse:
+    try:
+        return PrepareChatAttachmentsResponse(
+            attachments=prepare_chat_attachments(request.attachments)
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/chat")

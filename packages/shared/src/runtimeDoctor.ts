@@ -52,13 +52,32 @@ export interface RuntimeDryRunResponse {
 export interface RuntimeProbeRequest {
   allow_start: boolean;
   model_id?: string | null;
+  projector_artifact_id?: string | null;
 }
+
+export type RuntimeProbeFailureCode =
+  | "allow_start_disabled"
+  | "model_id_missing"
+  | "pair_missing"
+  | "projector_missing"
+  | "runtime_start"
+  | "endpoint"
+  | "models_endpoint"
+  | "vision_chat";
 
 export interface RuntimeProbeResponse {
   allowed: boolean;
   message: string;
   stderr_tail: string;
   stdout_tail: string;
+  projector_artifact_id?: string | null;
+  mmproj_path?: string | null;
+  endpoint_verified?: boolean;
+  models_endpoint_verified?: boolean;
+  advertised_models?: string[];
+  vision_chat_verified?: boolean;
+  vision_response_preview?: string | null;
+  verification_failures?: RuntimeProbeFailureCode[];
 }
 
 export interface RuntimeLogsResponse {

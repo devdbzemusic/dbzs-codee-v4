@@ -11,6 +11,7 @@ export type ChatErrorClass =
   | "http_400_tools"   // HTTP 400 with tools (fallback to no tools)
   | "tool_protocol_incompatible"
   | "provider_context_rejected"
+  | "vision_transport_unavailable"
   | "provider_request_rejected"
   | "http_4xx"         // Other HTTP 4xx (not retryable)
   | "http_5xx"         // HTTP 5xx (might be retryable, but circuit break instead)
@@ -96,6 +97,16 @@ export function classifyRuntimeChatError(error: unknown): ClassifiedError {
     return classifiedError(
       "provider_context_rejected",
       "Runtime hat den Request wegen Kontext-/Toolbudget abgelehnt.",
+      false,
+      0,
+      { httpStatus: 400 }
+    );
+  }
+
+  if (errorMessage.includes("vision_transport_unavailable")) {
+    return classifiedError(
+      "vision_transport_unavailable",
+      "Der aktuelle Runtime-Chat-Transport kann Bildpayloads fuer diesen Turn noch nicht senden.",
       false,
       0,
       { httpStatus: 400 }

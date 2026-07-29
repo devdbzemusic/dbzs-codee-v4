@@ -88,7 +88,7 @@ export function AppShellFooter({
       />
       <section className="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-dbzs-border">
         <PanelHeader
-          description={terminalCollapsed ? "" : "AusfÃ¼hrung wird erst mit SicherheitsprÃ¼fung aktiviert."}
+          description={terminalCollapsed ? "" : "Ausfuehrung wird erst mit Sicherheitspruefung aktiviert."}
           onCollapse={onToggleTerminal}
           title="Terminal / Logs / Git"
         />

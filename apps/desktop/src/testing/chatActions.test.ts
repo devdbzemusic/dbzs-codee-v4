@@ -587,6 +587,73 @@ Here is the visible response.
     expect(state.messages[0]?.actions?.some((action) => action.kind === "rollback_patch")).toBe(true);
   });
 
+  it("dispatches a follow-up chat action by sending its fixed prompt through sendMessage", async () => {
+    useRuntimeChatStore.setState({
+      messages: [{
+        id: "msg-followup",
+        role: "assistant",
+        content: "Hier ist meine Antwort.",
+        actions: [{
+          id: "followup-msg-followup-continue_task",
+          runId: "run-followup",
+          messageId: "msg-followup",
+          workspaceRoot: "C:/work/a",
+          workspaceId: "c:/work/a",
+          kind: "continue_task",
+          title: "Vertiefen",
+          state: "pending",
+          riskLevel: "low",
+          payload: { prompt: "Vertiefe deine letzte Antwort mit mehr Details." },
+          createdAt: new Date().toISOString()
+        }]
+      }]
+    });
+
+    const sendMessage = vi.fn().mockResolvedValue(true);
+    useRuntimeChatStore.setState({ sendMessage } as never);
+
+    await useRuntimeChatStore.getState().handleChatAction(
+      "followup-msg-followup-continue_task",
+      "msg-followup",
+      true,
+      "c:/work/a"
+    );
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe("Vertiefe deine letzte Antwort mit mehr Details.");
+    expect(sendMessage.mock.calls[0]?.[5]).toBe("runtime_chat");
+
+    const state = useRuntimeChatStore.getState();
+    expect(state.messages[0]?.actions?.[0]?.state).toBe("completed");
+  });
+
+  it("removes stale follow-up actions on workspace clear", () => {
+    useRuntimeChatStore.setState({
+      messages: [{
+        id: "msg-stale",
+        role: "assistant",
+        content: "Alte Antwort.",
+        actions: [{
+          id: "followup-msg-stale-show_next_steps",
+          runId: "run-stale",
+          messageId: "msg-stale",
+          workspaceRoot: "C:/work/a",
+          workspaceId: "c:/work/a",
+          kind: "show_next_steps",
+          title: "Nächste Schritte",
+          state: "pending",
+          riskLevel: "low",
+          payload: { prompt: "Gib die naechsten 3 priorisierten Schritte inklusive kurzer Begruendung an." },
+          createdAt: new Date().toISOString()
+        }]
+      }]
+    });
+
+    useRuntimeChatStore.getState().clear();
+
+    expect(useRuntimeChatStore.getState().messages).toEqual([]);
+  });
+
   it("runs the structured approval lifecycle from plan to patch to command", async () => {
     const planProposal: AgentPlanProposal = {
       type: "agent_plan_proposal",

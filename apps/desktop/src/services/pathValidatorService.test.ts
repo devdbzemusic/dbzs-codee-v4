@@ -38,9 +38,11 @@ describe("pathValidatorService", () => {
           coding_candidates: 1,
           vision_candidates: 0,
           adapters: 0,
+          support_artifact_count: 0,
           unsupported: 0
         },
-        models: []
+        models: [],
+        support_artifacts: []
       },
       isLoading: false,
       error: null,

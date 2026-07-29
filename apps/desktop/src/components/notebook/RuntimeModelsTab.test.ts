@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { IndexedModel, RuntimeStatus } from "@dbzs/shared";
-import { modelRowActionState } from "./RuntimeModelsTab";
+import { describeModelRowStatus, modelRowActionState } from "./RuntimeModelsTab.helpers";
 
 const baseModel: IndexedModel = {
   id: "m1",
   name: "test.gguf",
   path: "/models/test.gguf",
   format: "gguf",
-  artifact_type: "weights",
+  artifact_type: "model",
   size_bytes: 1024,
   size_gb: 0.001,
   quantization: "Q4_K_M",
@@ -86,5 +86,33 @@ describe("modelRowActionState", () => {
     const state = modelRowActionState(baseModel, running, true);
     expect(state.canStart).toBe(false);
     expect(state.canStop).toBe(false);
+  });
+});
+
+describe("describeModelRowStatus", () => {
+  it("describes running, loadable and blocked model rows from action state", () => {
+    const running: RuntimeStatus = {
+      state: "running",
+      model_id: "m1",
+      model_name: "test.gguf",
+      provider: "llama.cpp",
+      port: 8080,
+      pid: 1234,
+      endpoint: "http://127.0.0.1:8080",
+      message: "running"
+    };
+
+    expect(describeModelRowStatus(baseModel, running, false)).toEqual({
+      label: "laeuft",
+      tone: "ok"
+    });
+    expect(describeModelRowStatus(baseModel, { state: "stopped" } as RuntimeStatus, false)).toEqual({
+      label: "ladbar",
+      tone: "info"
+    });
+    expect(describeModelRowStatus({ ...baseModel, id: "m2", name: "other.gguf" }, running, true)).toEqual({
+      label: "blockiert",
+      tone: "error"
+    });
   });
 });

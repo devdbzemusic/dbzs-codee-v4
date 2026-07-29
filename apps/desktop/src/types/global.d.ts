@@ -39,6 +39,8 @@ import type {
   ProjectMemoryUpsertRequest,
   ProjectCreationResult,
   RuntimeChatRequest,
+  RuntimeChatAttachment,
+  RuntimeChatImageAttachment,
   RuntimeChatResponse,
   RuntimeStatus,
   GitCommitSuggestion,
@@ -92,6 +94,11 @@ declare global {
       patchSettings?: (request: SettingsPatchRequest) => Promise<SettingsPatchResponse>;
       getSettingsDiagnostics?: () => Promise<SettingsDiagnostics>;
       openFileDialog: () => Promise<WorkspaceFile | null>;
+      openImageFileDialog?: () => Promise<RuntimeChatImageAttachment | null>;
+      openChatAttachmentDialog?: () => Promise<RuntimeChatAttachment[]>;
+      prepareClipboardChatAttachments?: (
+        items: Array<{ name: string; mimeType: string; sizeBytes?: number; dataUrl: string }>
+      ) => Promise<RuntimeChatAttachment[]>;
       saveFile: (request: SaveFileRequest) => Promise<WorkspaceFile>;
       saveFileAsDialog?: (request: import("@dbzs/shared").SaveFileAsRequest) => Promise<WorkspaceFile | null>;
       selectProjectDirectory?: () => Promise<{ projectPath: string; projectName: string } | null>;
@@ -250,6 +257,9 @@ declare global {
       onRuntimeChatWindowState?: (listener: (state: import("@/types/runtimeChatWindow").RuntimeChatWindowState) => void) => () => void;
       onRuntimeChatContext?: (listener: (context: import("@/types/runtimeChatWindow").RuntimeChatContextSnapshot | null) => void) => () => void;
       getModelIndex: () => Promise<ModelIndex>;
+      saveManualMultimodalPairing?: (
+        request: import("@dbzs/shared").ManualMultimodalPairingRequest
+      ) => Promise<import("@dbzs/shared").MultimodalPair>;
       getRuntimeStatus: () => Promise<RuntimeStatus>;
       startRuntimeModel: (modelId: string) => Promise<RuntimeStatus>;
       stopRuntimeModel: () => Promise<RuntimeStatus>;

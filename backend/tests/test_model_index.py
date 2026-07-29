@@ -210,6 +210,254 @@ def test_model_index_classifies_functiongemma_as_orchestrator(tmp_path: Path) ->
     assert "intent_routing" in index.models[0].capabilities
 
 
+def test_model_index_projects_mmproj_into_support_artifacts_without_breaking_models(tmp_path: Path) -> None:
+    base_model = tmp_path / "gemma-vision-q4.gguf"
+    projector = tmp_path / "mmproj-gemma-vision-f16.gguf"
+    base_model.write_bytes(b"GGUF")
+    projector.write_bytes(b"GGUF")
+
+    index = ModelIndexService(models_dir=tmp_path, ollama_models_dir=tmp_path / "empty-ollama").build_index()
+
+    assert any(model.path == str(projector) for model in index.models)
+    assert any(model.path == str(projector) for model in index.support_artifacts)
+    mmproj = next(model for model in index.support_artifacts if model.path == str(projector))
+    assert mmproj.artifact_type == "mmproj"
+    assert mmproj.compatibility == "support_artifact"
+    assert index.summary.support_artifact_count >= 1
+    assert len(index.multimodal_pairs) == 1
+    assert index.multimodal_pairs[0].projector_artifact_id == mmproj.id
+    assert index.multimodal_pairs[0].base_model_id == index.models[0].id
+    assert index.multimodal_pairs[0].status == "candidate"
+    assert index.multimodal_pairs[0].routing_allowed is False
+
+
+def test_model_index_marks_mmproj_without_base_as_missing_base(tmp_path: Path) -> None:
+    projector = tmp_path / "mmproj-gemma-vision-f16.gguf"
+    projector.write_bytes(b"GGUF")
+
+    index = ModelIndexService(models_dir=tmp_path, ollama_models_dir=tmp_path / "empty-ollama").build_index()
+
+    assert len(index.multimodal_pairs) == 1
+    assert index.multimodal_pairs[0].status == "missing_base"
+    assert index.multimodal_pairs[0].base_model_id is None
+    assert index.multimodal_pairs[0].candidate_base_model_ids == []
+
+
+def test_model_index_marks_multiple_same_folder_candidates_as_ambiguous(tmp_path: Path) -> None:
+    (tmp_path / "gemma-vision-q4.gguf").write_bytes(b"GGUF")
+    (tmp_path / "gemma-vision-q6.gguf").write_bytes(b"GGUF")
+    (tmp_path / "mmproj-gemma-vision-f16.gguf").write_bytes(b"GGUF")
+
+    index = ModelIndexService(models_dir=tmp_path, ollama_models_dir=tmp_path / "empty-ollama").build_index()
+
+    assert len(index.multimodal_pairs) == 1
+    assert index.multimodal_pairs[0].status == "ambiguous"
+    assert index.multimodal_pairs[0].base_model_id is None
+    assert len(index.multimodal_pairs[0].candidate_base_model_ids) == 2
+
+
+def test_model_index_prefers_catalog_mmproj_mapping_over_ambiguous_same_folder_candidates(tmp_path: Path) -> None:
+    base_a = tmp_path / "vision-alpha-q4.gguf"
+    base_b = tmp_path / "vision-beta-q4.gguf"
+    projector = tmp_path / "special-projector-f16.gguf"
+    base_a.write_bytes(b"GGUF")
+    base_b.write_bytes(b"GGUF")
+    projector.write_bytes(b"GGUF")
+
+    catalog = {
+        "models": [
+            {
+                "id": "base-a",
+                "name": "Vision Alpha",
+                "artifact_type": "model",
+                "file_path": str(base_a),
+                "size_bytes": 4,
+                "backend": "llama.cpp",
+                "loader": {
+                    "launcher": "llama-server",
+                    "requires_mmproj": True,
+                    "mmproj_model_id": "proj-1",
+                },
+            },
+            {
+                "id": "base-b",
+                "name": "Vision Beta",
+                "artifact_type": "model",
+                "file_path": str(base_b),
+                "size_bytes": 4,
+                "backend": "llama.cpp",
+                "loader": {"launcher": "llama-server"},
+            },
+            {
+                "id": "proj-1",
+                "name": "special-projector-f16",
+                "artifact_type": "mmproj",
+                "file_path": str(projector),
+                "size_bytes": 4,
+                "backend": "llama.cpp",
+            },
+        ]
+    }
+    (tmp_path / "models.catalog.json").write_text(json.dumps(catalog), encoding="utf-8")
+
+    index = ModelIndexService(models_dir=tmp_path, ollama_models_dir=tmp_path / "empty-ollama").build_index()
+
+    assert len(index.multimodal_pairs) == 1
+    pair = index.multimodal_pairs[0]
+    assert pair.source == "catalog"
+    assert pair.base_model_id == "base-a"
+    assert pair.projector_artifact_id == "proj-1"
+    assert pair.status == "candidate"
+    assert pair.candidate_base_model_ids == ["base-a"]
+
+
+def test_model_index_accepts_projector_side_catalog_mapping_to_base_model(tmp_path: Path) -> None:
+    base_model = tmp_path / "vision-chat-q4.gguf"
+    projector = tmp_path / "odd-projector-name.gguf"
+    base_model.write_bytes(b"GGUF")
+    projector.write_bytes(b"GGUF")
+
+    catalog = {
+        "models": [
+            {
+                "id": "base-model",
+                "name": "Vision Chat",
+                "artifact_type": "model",
+                "file_path": str(base_model),
+                "size_bytes": 4,
+                "backend": "llama.cpp",
+                "loader": {"launcher": "llama-server"},
+            },
+            {
+                "id": "proj-odd",
+                "name": "odd-projector-name",
+                "artifact_type": "mmproj",
+                "file_path": str(projector),
+                "size_bytes": 4,
+                "backend": "llama.cpp",
+                "base_model_id": "base-model",
+            },
+        ]
+    }
+    (tmp_path / "models.catalog.json").write_text(json.dumps(catalog), encoding="utf-8")
+
+    index = ModelIndexService(models_dir=tmp_path, ollama_models_dir=tmp_path / "empty-ollama").build_index()
+
+    assert len(index.multimodal_pairs) == 1
+    pair = index.multimodal_pairs[0]
+    assert pair.source == "catalog"
+    assert pair.base_model_id == "base-model"
+    assert pair.projector_artifact_id == "proj-odd"
+    assert pair.status == "candidate"
+
+
+def test_save_manual_multimodal_pairing_persists_manual_source_and_overrides_previous_mapping(tmp_path: Path) -> None:
+    base_a = tmp_path / "vision-alpha-q4.gguf"
+    base_b = tmp_path / "vision-beta-q4.gguf"
+    projector = tmp_path / "custom-projector-f16.gguf"
+    base_a.write_bytes(b"GGUF")
+    base_b.write_bytes(b"GGUF")
+    projector.write_bytes(b"GGUF")
+
+    catalog = {
+        "models": [
+            {
+                "id": "base-a",
+                "name": "Vision Alpha",
+                "artifact_type": "model",
+                "file_path": str(base_a),
+                "size_bytes": 4,
+                "backend": "llama.cpp",
+                "loader": {"launcher": "llama-server"},
+            },
+            {
+                "id": "base-b",
+                "name": "Vision Beta",
+                "artifact_type": "model",
+                "file_path": str(base_b),
+                "size_bytes": 4,
+                "backend": "llama.cpp",
+                "loader": {"launcher": "llama-server"},
+            },
+            {
+                "id": "proj-1",
+                "name": "custom-projector-f16",
+                "artifact_type": "mmproj",
+                "file_path": str(projector),
+                "size_bytes": 4,
+                "backend": "llama.cpp",
+                "pairing": {"source": "manual", "base_model_id": "base-a"},
+            },
+        ]
+    }
+    (tmp_path / "models.catalog.json").write_text(json.dumps(catalog), encoding="utf-8")
+
+    service = ModelIndexService(models_dir=tmp_path, ollama_models_dir=tmp_path / "empty-ollama")
+    pair = service.save_manual_multimodal_pairing("base-b", "proj-1")
+
+    assert pair.source == "manual"
+    assert pair.base_model_id == "base-b"
+    assert pair.projector_artifact_id == "proj-1"
+    assert pair.status == "candidate"
+
+    persisted = json.loads((tmp_path / "models.catalog.json").read_text(encoding="utf-8"))
+    projector_entry = next(entry for entry in persisted["models"] if entry["id"] == "proj-1")
+    base_entry = next(entry for entry in persisted["models"] if entry["id"] == "base-b")
+    old_base_entry = next(entry for entry in persisted["models"] if entry["id"] == "base-a")
+
+    assert projector_entry["pairing"]["source"] == "manual"
+    assert projector_entry["pairing"]["base_model_id"] == "base-b"
+    assert base_entry["pairing"]["source"] == "manual"
+    assert base_entry["pairing"]["projector_model_id"] == "proj-1"
+    assert "pairing" not in old_base_entry
+
+
+def test_mark_multimodal_pair_verified_persists_routing_allowed(tmp_path: Path) -> None:
+    base_model = tmp_path / "vision-chat-q4.gguf"
+    projector = tmp_path / "odd-projector-name.gguf"
+    base_model.write_bytes(b"GGUF")
+    projector.write_bytes(b"GGUF")
+
+    catalog = {
+        "models": [
+            {
+                "id": "base-model",
+                "name": "Vision Chat",
+                "artifact_type": "model",
+                "file_path": str(base_model),
+                "size_bytes": 4,
+                "backend": "llama.cpp",
+                "loader": {"launcher": "llama-server"},
+                "pairing": {"source": "catalog", "projector_model_id": "proj-odd"},
+            },
+            {
+                "id": "proj-odd",
+                "name": "odd-projector-name",
+                "artifact_type": "mmproj",
+                "file_path": str(projector),
+                "size_bytes": 4,
+                "backend": "llama.cpp",
+                "pairing": {"source": "catalog", "base_model_id": "base-model"},
+            },
+        ]
+    }
+    (tmp_path / "models.catalog.json").write_text(json.dumps(catalog), encoding="utf-8")
+
+    service = ModelIndexService(models_dir=tmp_path, ollama_models_dir=tmp_path / "empty-ollama")
+    pair = service.mark_multimodal_pair_verified("base-model", "proj-odd")
+
+    assert pair.base_model_id == "base-model"
+    assert pair.projector_artifact_id == "proj-odd"
+    assert pair.routing_allowed is True
+
+    persisted = json.loads((tmp_path / "models.catalog.json").read_text(encoding="utf-8"))
+    base_entry = next(entry for entry in persisted["models"] if entry["id"] == "base-model")
+    projector_entry = next(entry for entry in persisted["models"] if entry["id"] == "proj-odd")
+
+    assert base_entry["pairing"]["routing_allowed"] is True
+    assert projector_entry["pairing"]["routing_allowed"] is True
+
+
 def test_register_catalog_model_profile_is_idempotent(tmp_path: Path) -> None:
     from app.models.index_service import FUNCTIONGEMMA_DEFAULT_PROFILE
 

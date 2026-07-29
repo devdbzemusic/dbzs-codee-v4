@@ -23,6 +23,14 @@ Die Modulgrenzen verhindern, dass UI, State, Runtime, Shared und Backend wieder 
 - `backend/app/api/*`: HTTP-Adapter und Fehlerabbildung.
 - `backend/app/core/*`: prozessweite Kernzustände und Basiskomponenten.
 
+## Dateianhaenge im Runtime Chat
+
+- React-Komponenten rendern nur Auswahlzustand, Vorschau und Entfernen.
+- Electron/Main kapselt Datei-Dialog, Clipboard-Datei-Items und lokales Lesen leichter Anhangstypen.
+- PDF- und ZIP-Aufbereitung lebt im Python-Backend, nicht in React-Komponenten und nicht als neue
+  parserlastige Electron-Frontend-Landschaft.
+- `packages/shared` enthaelt nur die neutralen Attachment-Vertraege, keine Datei- oder Parserlogik.
+
 ## Verbotene Richtungen
 
 - Komponenten importieren keine Backend- oder Dateisystemlogik.

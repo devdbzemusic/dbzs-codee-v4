@@ -120,6 +120,7 @@ export async function runRoutingPhaseAction(input: {
       useModelIndexStore.getState().index?.models.map((model) => ({
         id: model.id,
         name: model.name,
+        artifact_type: model.artifact_type,
         capabilities: model.capabilities,
         recommended_use: model.recommended_use,
         supportsVision: model.capabilities?.includes("vision"),
@@ -128,6 +129,7 @@ export async function runRoutingPhaseAction(input: {
             ? true
             : undefined
       })) ?? undefined;
+    const multimodalPairs = useModelIndexStore.getState().index?.multimodal_pairs;
     const settingsState = useSettingsStore.getState();
 
     callbacks.appendStepDetail(
@@ -152,6 +154,7 @@ export async function runRoutingPhaseAction(input: {
         requiresVision: requestCapabilities.requiresVision,
         preferPlannerFirst,
         catalog,
+        multimodalPairs,
         settingsRevision: settingsState.settingsRevision,
         userMessage: trimmedContent,
         workflowAssignment

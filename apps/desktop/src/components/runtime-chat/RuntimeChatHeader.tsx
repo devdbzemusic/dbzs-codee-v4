@@ -1,4 +1,5 @@
 import React from "react";
+import { Button } from "@/components/ui/Button";
 
 export function RuntimeChatHeader({
   title,
@@ -7,12 +8,14 @@ export function RuntimeChatHeader({
   selectedProvider,
   availableProviders,
   pendingApprovalCount,
+  traceCount,
   showPanels,
   showSlotPanel,
   showDiagnostics,
   compact,
   detached,
   onProviderChange,
+  onOpenCapabilities,
   onTogglePanels,
   onToggleSlots,
   onToggleDiagnostics,
@@ -32,12 +35,14 @@ export function RuntimeChatHeader({
   selectedProvider: string;
   availableProviders: string[];
   pendingApprovalCount: number;
+  traceCount: number;
   showPanels: boolean;
   showSlotPanel: boolean;
   showDiagnostics: boolean;
   compact: boolean;
   detached: boolean;
   onProviderChange: (provider: string) => void;
+  onOpenCapabilities: () => void;
   onTogglePanels: () => void;
   onToggleSlots: () => void;
   onToggleDiagnostics: () => void;
@@ -64,12 +69,12 @@ export function RuntimeChatHeader({
             </div>
           ) : null}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
           <select
             className="rounded border border-dbzs-border bg-dbzs-panelSoft px-1.5 py-0.5 text-[10px] text-dbzs-text"
             onChange={(event) => onProviderChange(event.target.value)}
-            value={selectedProvider}
             title="Provider für die Chat-Anfrage"
+            value={selectedProvider}
           >
             {availableProviders.map((provider) => (
               <option key={provider} value={provider}>
@@ -82,73 +87,58 @@ export function RuntimeChatHeader({
               {pendingApprovalCount}
             </span>
           ) : null}
-          <button
-            className={`rounded border px-1.5 py-0.5 text-[10px] ${
-              showPanels ? "border-dbzs-cyan/50 text-dbzs-cyan" : "border-dbzs-border text-dbzs-muted"
-            }`}
-            onClick={onTogglePanels}
-            type="button"
+          <Button
+            onClick={onOpenCapabilities}
+            title="Preset-Erklärungen, Skills und Modus-Hilfen an einer Stelle"
           >
-            Panels
-          </button>
-          <button
-            className={`rounded border px-1.5 py-0.5 text-[10px] ${
-              showSlotPanel
-                ? "border-dbzs-cyan/50 text-dbzs-cyan"
-                : "border-dbzs-border text-dbzs-muted"
-            }`}
+            Was kann ich hier tun?
+          </Button>
+          <Button
+            active={showPanels}
+            onClick={onTogglePanels}
+            title="Werkzeuge, Aktivität, Freigaben, Patch-Vorschau und Recherche"
+          >
+            Werkzeuge &amp; Freigaben
+          </Button>
+          <Button
+            active={showSlotPanel}
             onClick={onToggleSlots}
-            type="button"
-            title="Runtime Slots verwalten"
+            title="Modell-Slots verwalten"
           >
             Slots
-          </button>
+          </Button>
           {!compact ? (
-            <button
-              className={`rounded border px-1.5 py-0.5 text-[10px] ${
-                showDiagnostics
-                  ? "border-dbzs-cyan/50 text-dbzs-cyan"
-                  : "border-dbzs-border text-dbzs-muted"
-              }`}
+            <Button
+              active={showDiagnostics}
               onClick={onToggleDiagnostics}
-              type="button"
+              title="Technische Routing-/Token-/Modell-Diagnose und Session-Traces — betrifft nicht den eigentlichen Workflow"
             >
-              Diagnose
-            </button>
+              Diagnose{traceCount > 0 ? ` · ${traceCount}` : ""}
+            </Button>
           ) : null}
           {detached ? (
-            <button
-              className="rounded border border-dbzs-border px-1.5 py-0.5 text-[10px] text-dbzs-muted"
-              onClick={onClose}
-              type="button"
-            >
-              ✕
-            </button>
+            <Button onClick={onClose} title="Abgedocktes Fenster schließen">
+              ×
+            </Button>
           ) : (
-            <button
-              className="rounded border border-dbzs-cyan/40 bg-dbzs-cyan/10 px-1.5 py-0.5 text-[10px] text-dbzs-cyan"
-              onClick={onDetach}
-              type="button"
-            >
+            <Button variant="primary" onClick={onDetach} title="In eigenem Fenster öffnen">
               ↗
-            </button>
+            </Button>
           )}
-          <button
-            className="rounded border border-dbzs-border px-1.5 py-0.5 text-[10px] text-dbzs-muted disabled:opacity-40"
+          <Button
             disabled={!canCompactConversation}
             onClick={onCompactConversation}
-            type="button"
+            title="Ältere Nachrichten platzsparend zusammenfassen"
           >
             Kompakt
-          </button>
-          <button
-            className="rounded border border-dbzs-border px-1.5 py-0.5 text-[10px] text-dbzs-muted disabled:opacity-40"
+          </Button>
+          <Button
             disabled={!canClearConversation}
             onClick={onClearConversation}
-            type="button"
+            title="Unterhaltung leeren"
           >
             Leeren
-          </button>
+          </Button>
         </div>
       </div>
 

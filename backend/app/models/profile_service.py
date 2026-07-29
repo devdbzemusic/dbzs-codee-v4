@@ -205,7 +205,7 @@ class ProfileService:
         runnable = [
             model
             for model in index.models
-            if model.compatibility in {"llama_server_ready", "ollama_ready"}
+            if model.artifact_type == "model" and model.compatibility in {"llama_server_ready", "ollama_ready"}
         ]
         if not runnable:
             raise ValueError("Keine startbaren Modelle im lokalen Index gefunden.")

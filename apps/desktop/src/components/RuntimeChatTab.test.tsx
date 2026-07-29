@@ -7,7 +7,7 @@ Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
   configurable: true,
   value: vi.fn()
 });
-import type { WorkspaceFile, WorkspaceProjectFile } from "@dbzs/shared";
+import type { RuntimeChatAttachment, WorkspaceFile, WorkspaceProjectFile } from "@dbzs/shared";
 import { RuntimeChatTab, stripPrivateReasoning } from "@/components/RuntimeChatTab";
 import { mergeAssistantMessageState, useRuntimeChatStore } from "@/stores/runtimeChatStore";
 import { buildWorkspaceContext, buildWorkspaceContextSystemMessage } from "@/services/runtimeChatContext";
@@ -46,6 +46,11 @@ function projectFile(path: string, relativePath: string, language: string): Work
 
 describe("RuntimeChatTab patch card", () => {
   beforeEach(() => {
+    window.dbzs = {
+      ...window.dbzs,
+      openChatAttachmentDialog: vi.fn(),
+      prepareClipboardChatAttachments: vi.fn()
+    };
     useRuntimeChatStore.setState({
       messages: [{
         id: "msg-1",
@@ -310,6 +315,433 @@ describe("RuntimeChatTab patch card", () => {
   });
 });
 
+describe("RuntimeChatTab file attachments", () => {
+  beforeEach(() => {
+    useRuntimeChatStore.setState({
+      messages: [],
+      patchProposalsById: {},
+      patchPreviewsById: {},
+      agentActionsById: {},
+      activePatchProposal: null,
+      activePatchPreview: null,
+      patchState: null,
+      patchError: null,
+      patchApplyResult: null,
+      patchValidationResult: null,
+      isSending: false,
+      isStreaming: false,
+      error: null
+    });
+  });
+
+  it("allows sending files selected from the file dialog", async () => {
+    const sendMessageMock = vi.fn().mockResolvedValue(true);
+    const attachment: RuntimeChatAttachment = {
+      id: "img-1",
+      name: "notes.md",
+      kind: "text",
+      extension: "md",
+      mimeType: "text/markdown",
+      dataUrl: "",
+      textContent: "# Notes",
+      derivedSummary: "7 Zeichen eingebunden",
+      source: "file_dialog",
+      sizeBytes: 4096
+    };
+    window.dbzs = {
+      ...window.dbzs,
+      openChatAttachmentDialog: vi.fn().mockResolvedValue([attachment]),
+      prepareClipboardChatAttachments: vi.fn()
+    };
+    useRuntimeChatStore.setState({
+      sendMessage: sendMessageMock
+    });
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <RuntimeChatTab
+          activeFile={null}
+          status={{ state: "running", provider: "ollama", model_id: "phi", model_name: "phi", port: 1234, pid: 1, endpoint: "http://localhost:1234", message: "Runtime aktiv" }}
+          workspaceRoot="D:/repo"
+          workspaceName="dbzs-codee"
+          workspaceFiles={[]}
+        />
+      );
+    });
+
+    const imageButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Anhaengen")
+    );
+    expect(imageButton).toBeTruthy();
+
+    await act(async () => {
+      imageButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("notes.md");
+
+    const sendButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Senden")
+    ) as HTMLButtonElement | undefined;
+    expect(sendButton?.disabled).toBe(false);
+
+    await act(async () => {
+      sendButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(sendMessageMock).toHaveBeenCalledOnce();
+    expect(sendMessageMock).toHaveBeenCalledWith(
+      "Bitte analysiere die angehaengten Dateien.",
+      expect.anything(),
+      null,
+      null,
+      null,
+      "runtime_chat",
+      expect.objectContaining({
+        hasImageInput: false,
+        requiresVision: false,
+        attachments: [attachment]
+      })
+    );
+
+    root.unmount();
+    container.remove();
+  });
+
+  it("restores the draft when sending fails", async () => {
+    const sendMessageMock = vi.fn().mockResolvedValue(false);
+    useRuntimeChatStore.setState({
+      sendMessage: sendMessageMock
+    });
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <RuntimeChatTab
+          activeFile={null}
+          status={{ state: "running", provider: "ollama", model_id: "phi", model_name: "phi", port: 1234, pid: 1, endpoint: "http://localhost:1234", message: "Runtime aktiv" }}
+          workspaceRoot="D:/repo"
+          workspaceName="dbzs-codee"
+          workspaceFiles={[]}
+        />
+      );
+    });
+
+    const textarea = container.querySelector("textarea") as HTMLTextAreaElement | null;
+    expect(textarea).toBeTruthy();
+
+    await act(async () => {
+      if (textarea) {
+        const setValue = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          "value"
+        )?.set;
+        setValue?.call(textarea, "Bitte pruefe den Fehler.");
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
+        textarea.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+
+    const sendButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Senden")
+    );
+
+    await act(async () => {
+      sendButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(sendMessageMock).toHaveBeenCalledOnce();
+    expect((container.querySelector("textarea") as HTMLTextAreaElement | null)?.value).toBe("Bitte pruefe den Fehler.");
+    expect(container.textContent).toContain("Anfrage konnte nicht gesendet werden.");
+
+    root.unmount();
+    container.remove();
+  });
+
+  it("accepts pasted clipboard files and shows a preview", async () => {
+    class FileReaderMock {
+      result: string | ArrayBuffer | null = null;
+      onerror: null | (() => void) = null;
+      onload: null | (() => void) = null;
+
+      readAsDataURL(file: File) {
+        this.result = `data:${file.type};base64,BBBB`;
+        this.onload?.();
+      }
+    }
+
+    vi.stubGlobal("FileReader", FileReaderMock);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <RuntimeChatTab
+          activeFile={null}
+          status={{ state: "running", provider: "ollama", model_id: "phi", model_name: "phi", port: 1234, pid: 1, endpoint: "http://localhost:1234", message: "Runtime aktiv" }}
+          workspaceRoot="D:/repo"
+          workspaceName="dbzs-codee"
+          workspaceFiles={[]}
+        />
+      );
+    });
+
+    const textarea = container.querySelector("textarea");
+    expect(textarea).toBeTruthy();
+
+    const file = new File(["hello"], "clip.txt", { type: "text/plain" });
+    const preparedAttachment: RuntimeChatAttachment = {
+      id: "clip-1",
+      name: "clip.txt",
+      kind: "text",
+      extension: "txt",
+      mimeType: "text/plain",
+      dataUrl: "",
+      textContent: "hello",
+      source: "clipboard",
+      sizeBytes: 5
+    };
+    window.dbzs.prepareClipboardChatAttachments = vi.fn().mockResolvedValue([preparedAttachment]);
+    const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, "clipboardData", {
+      configurable: true,
+      value: {
+        items: [{
+          kind: "file",
+          type: "text/plain",
+          getAsFile: () => file
+        }]
+      }
+    });
+
+    await act(async () => {
+      textarea?.dispatchEvent(pasteEvent);
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("clip.txt");
+    expect(container.textContent).toContain("Zwischenablage");
+
+    root.unmount();
+    container.remove();
+    vi.unstubAllGlobals();
+  });
+
+  it("skips duplicate attachments and reports that in the context note", async () => {
+    const duplicate: RuntimeChatAttachment = {
+      id: "dup-1",
+      name: "notes.md",
+      kind: "text",
+      extension: "md",
+      mimeType: "text/markdown",
+      dataUrl: "",
+      textContent: "# Notes",
+      source: "file_dialog",
+      path: "D:/repo/notes.md",
+      sizeBytes: 7
+    };
+    window.dbzs = {
+      ...window.dbzs,
+      openChatAttachmentDialog: vi
+        .fn()
+        .mockResolvedValueOnce([duplicate])
+        .mockResolvedValueOnce([{ ...duplicate, id: "dup-2" }]),
+      prepareClipboardChatAttachments: vi.fn()
+    };
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <RuntimeChatTab
+          activeFile={null}
+          status={{ state: "running", provider: "ollama", model_id: "phi", model_name: "phi", port: 1234, pid: 1, endpoint: "http://localhost:1234", message: "Runtime aktiv" }}
+          workspaceRoot="D:/repo"
+          workspaceName="dbzs-codee"
+          workspaceFiles={[]}
+        />
+      );
+    });
+
+    const attachButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Anhaengen")
+    );
+
+    await act(async () => {
+      attachButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await act(async () => {
+      attachButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("1 Duplikat uebersprungen");
+    expect(container.textContent?.match(/notes\.md/g)?.length).toBe(1);
+
+    root.unmount();
+    container.remove();
+  });
+
+  it("reports error attachments in the context note after import", async () => {
+    const attachment: RuntimeChatAttachment = {
+      id: "err-1",
+      name: "broken.pdf",
+      kind: "document",
+      extension: "pdf",
+      mimeType: "application/pdf",
+      dataUrl: "",
+      source: "file_dialog",
+      sizeBytes: 12,
+      error: "PDF defekt",
+      derivedSummary: "Datei konnte nicht aufbereitet werden"
+    };
+    window.dbzs = {
+      ...window.dbzs,
+      openChatAttachmentDialog: vi.fn().mockResolvedValue([attachment]),
+      prepareClipboardChatAttachments: vi.fn()
+    };
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <RuntimeChatTab
+          activeFile={null}
+          status={{ state: "running", provider: "ollama", model_id: "phi", model_name: "phi", port: 1234, pid: 1, endpoint: "http://localhost:1234", message: "Runtime aktiv" }}
+          workspaceRoot="D:/repo"
+          workspaceName="dbzs-codee"
+          workspaceFiles={[]}
+        />
+      );
+    });
+
+    const attachButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Anhaengen")
+    );
+
+    await act(async () => {
+      attachButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("1 mit Fehlerhinweis");
+
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows a readable note when attachment dialog preparation fails", async () => {
+    window.dbzs = {
+      ...window.dbzs,
+      openChatAttachmentDialog: vi.fn().mockRejectedValue(new Error("PDF-Aufbereitung fehlgeschlagen.")),
+      prepareClipboardChatAttachments: vi.fn()
+    };
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <RuntimeChatTab
+          activeFile={null}
+          status={{ state: "running", provider: "ollama", model_id: "phi", model_name: "phi", port: 1234, pid: 1, endpoint: "http://localhost:1234", message: "Runtime aktiv" }}
+          workspaceRoot="D:/repo"
+          workspaceName="dbzs-codee"
+          workspaceFiles={[]}
+        />
+      );
+    });
+
+    const attachButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Anhaengen")
+    );
+
+    await act(async () => {
+      attachButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("PDF-Aufbereitung fehlgeschlagen.");
+
+    root.unmount();
+    container.remove();
+  });
+
+  it("renders truncation and archive diagnostics in the composer preview", async () => {
+    const attachment: RuntimeChatAttachment = {
+      id: "zip-1",
+      name: "bundle.zip",
+      kind: "archive",
+      extension: "zip",
+      mimeType: "application/zip",
+      dataUrl: "",
+      source: "file_dialog",
+      sizeBytes: 1024 * 1024,
+      textContent: "A".repeat(480),
+      derivedSummary: "ZIP mit 4 Eintraegen (gekuerzt)",
+      truncated: true,
+      error: "Eine Datei im Archiv war nicht als UTF-8 lesbar.",
+      archiveEntries: [
+        { path: "src/a.ts", kind: "code", includedInline: true },
+        { path: "src/b.ts", kind: "code", includedInline: true, truncated: true },
+        { path: "README.md", kind: "text" },
+        { path: "logo.png", kind: "binary" }
+      ]
+    };
+    window.dbzs = {
+      ...window.dbzs,
+      openChatAttachmentDialog: vi.fn().mockResolvedValue([attachment]),
+      prepareClipboardChatAttachments: vi.fn()
+    };
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <RuntimeChatTab
+          activeFile={null}
+          status={{ state: "running", provider: "ollama", model_id: "phi", model_name: "phi", port: 1234, pid: 1, endpoint: "http://localhost:1234", message: "Runtime aktiv" }}
+          workspaceRoot="D:/repo"
+          workspaceName="dbzs-codee"
+          workspaceFiles={[]}
+        />
+      );
+    });
+
+    const attachButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Anhaengen")
+    );
+
+    await act(async () => {
+      attachButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("Gekuerzt");
+    expect(container.textContent).toContain("Fehler");
+    expect(container.textContent).toContain("4 Eintraege");
+    expect(container.textContent).toContain("2 inline");
+    expect(container.textContent).toContain("1 binaer");
+    expect(container.textContent).toContain("Eine Datei im Archiv war nicht als UTF-8 lesbar.");
+    expect(container.textContent).toContain("Vorschau gekuerzt fuer die Kartenansicht.");
+
+    root.unmount();
+    container.remove();
+  });
+});
+
 describe("buildWorkspaceContext", () => {
   beforeEach(() => {
     window.dbzs = {
@@ -318,6 +750,9 @@ describe("buildWorkspaceContext", () => {
       getSettings: vi.fn(),
       updateSettings: vi.fn(),
       openFileDialog: vi.fn(),
+      openImageFileDialog: vi.fn(),
+      openChatAttachmentDialog: vi.fn(),
+      prepareClipboardChatAttachments: vi.fn(),
       saveFile: vi.fn(),
       getModelIndex: vi.fn(),
       getRuntimeStatus: vi.fn(),

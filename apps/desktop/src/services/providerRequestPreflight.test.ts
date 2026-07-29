@@ -120,4 +120,34 @@ describe("providerRequestPreflight", () => {
     expect(result.compatible).toBe(false);
     expect(result.rejectionReasons).toContain("context_budget_exceeded");
   });
+
+  it("blocks screenshot turns while the runtime request transport has no image payload support", () => {
+    const prepared = freezePreparedRuntimeRequest(makePreparedRequestInput({
+      runId: "run-image-turn",
+      workflowKind: "review",
+      phase: "implementation",
+      targetAgent: "reviewer",
+      modelRole: "review",
+      toolProfile: "reviewer",
+      messages: [{ id: "u1", role: "user", content: "Review this screenshot." }],
+      promptTokens: 700,
+      toolPayloadTokens: 0,
+      outputReserveTokens: 512,
+      safetyMarginTokens: 0
+    }));
+
+    const result = evaluateProviderRequestPreflight({
+      preparedRequest: prepared,
+      toolEstimate: makeToolEstimate({ toolTokens: 0, toolBodyBytes: 0, toolCount: 0 }),
+      runtimeContextLimit: 8192,
+      requestBodyBytes: 4000,
+      taskType: "review",
+      currentPhase: "implementation",
+      providerId: "llama-cpp",
+      hasImageInput: true
+    });
+
+    expect(result.compatible).toBe(false);
+    expect(result.rejectionReasons).toContain("vision_transport_unavailable");
+  });
 });
