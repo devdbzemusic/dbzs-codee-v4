@@ -174,9 +174,11 @@ function buildPrompt(input: BatchAnalysisInput): { system: string; user: string 
     .join("\n\n");
   return {
     system:
-      "You are Codee repository reviewer. Return ONLY a JSON array. Every finding requires " +
+      "You are Codee repository reviewer. Return ONLY a JSON array, with no prose before or after it. Every finding requires " +
       "severity (P0-P3), category, path, title, evidence, impact and recommendation. " +
-      "Never invent paths or claim coverage you did not perform.",
+      "Never invent paths or claim coverage you did not perform. " +
+      "If you reviewed the files and found no issues worth reporting, return an empty array: [] — " +
+      "do not describe the absence of findings in a sentence.",
     user: [
       `Batch: ${input.batch.title}`,
       `Purpose: ${input.batch.purpose}`,
@@ -200,7 +202,9 @@ export function createLlmBatchAnalyzer(chat: LlmBatchChatFn): BatchAnalyzer {
         repairAttempted = true;
         const repaired = await chat({
           system:
-            "Repair the supplied repository-review response. Return ONLY a valid JSON array using the required finding schema.",
+            "Repair the supplied repository-review response. Return ONLY a valid JSON array using the required " +
+            "finding schema, with no prose before or after it. If the response below says or implies that no " +
+            "issues were found, that means the correct repair is an empty array: [].",
           user: [
             `Parser error: ${parsed.errorCode}: ${parsed.errorMessage}`,
             "Response to repair:",
@@ -224,6 +228,7 @@ export function createLlmBatchAnalyzer(chat: LlmBatchChatFn): BatchAnalyzer {
             parserSucceeded: false,
             parserError: `${parsed.errorCode}: ${parsed.errorMessage}`,
             rawResponseLength: parsed.rawLength,
+            rawResponsePreview: parsed.redactedPreview,
             repairAttempted,
             mode: "failed"
           }
