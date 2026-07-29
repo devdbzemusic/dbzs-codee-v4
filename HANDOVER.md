@@ -13,13 +13,20 @@ Stand: 2026-07-29
 
 - aktiver GitHub-Remote: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
 - lokaler Ordnername bleibt aktuell `dbzs-codee-project`
-- `origin/main` zeigt auf `210f0ff` (Merge-Commit von [PR #5](https://github.com/devdbzemusic/dbzs-codee-v4/pull/5))
+- `origin/main` zeigt auf `f909fd9` (Merge-Commit von [PR #6](https://github.com/devdbzemusic/dbzs-codee-v4/pull/6))
 - offene Pull Requests im Live-Repo: keine
 - Branch Protection fuer `main`: aktuell nicht aktiv
-- im aktuellen Arbeitsverzeichnis (Branch `feature/runtime-chat-ux-overhaul`) liegen zwei weitere, getestete
-  Slices **uncommittet**: Vision-Slot-Grundlage (Phase 1) und Workflow-Audit-P0-Fixes — siehe eigene Abschnitte
-  unten. Ausserdem liegen dort vorbestehende, mit dieser Session nicht zusammenhaengende Aenderungen
-  (`RuntimeModelsTab.sections.tsx`/`RuntimeModelsTab.rows.tsx`, verschobene PDF, neue Pläne-Dokumente `07`/`08`)
+- der Feature-Branch `feature/runtime-chat-ux-overhaul` ist nach dem PR-#6-Merge sauber (keine losen
+  Aenderungen mehr); er wurde bewusst nicht geloescht, falls dort weitergearbeitet wird
+
+## PR #6 gemergt (2026-07-29)
+
+[PR #6](https://github.com/devdbzemusic/dbzs-codee-v4/pull/6) ("Vision slot foundation, workflow-audit fixes,
+runtime-ui module split") wurde per Merge-Commit `f909fd9` in `main` gemergt — 4 Commits: Vision-Slot-Grundlage
+Phase 1, Workflow-Audit-P0-Fixes, die zugehoerigen Doku-Updates sowie ein vorbestehender, unabhaengiger
+`RuntimeModelsTab`-Refactor (Zeilenkomponenten in ein eigenes Modul ausgelagert) plus eine PDF-Verschiebung nach
+`Pläne/`. Vor dem Merge war die PR `MERGEABLE`/`CLEAN`, keine automatischen CI-Checks (weiterhin
+`workflow_dispatch`-only, siehe unten).
 
 ## PR #5 gemergt (2026-07-29)
 
@@ -28,8 +35,6 @@ follow-up actions") wurde per Merge-Commit `210f0ff` in `main` gemergt — 42 Co
 Runtime-Chat-Dateianhaenge, Model Control Center/MMProj-Pairing, sowie die generischen Post-Response-Folgeaktionen
 im Chat (Phase 1, siehe `Pläne/06 DBZS_CODEE_CHAT_FOLLOW_UP_ACTIONS_DIAGNOSE_PLAN.md`). Vor dem Merge war die PR
 `MERGEABLE`/`CLEAN` und es gab keine automatischen CI-Checks (weiterhin `workflow_dispatch`-only, siehe unten).
-Der Feature-Branch `feature/runtime-chat-ux-overhaul` wurde bewusst **nicht** geloescht, weil zum Merge-Zeitpunkt
-bereits weitere, unabhaengige lokale Aenderungen darauf lagen (siehe "Repo-Wahrheit" oben).
 
 ## PR #4 gemergt + Folgearbeit direkt auf `main`
 
@@ -267,7 +272,7 @@ Frisch verifiziert fuer diesen Slice:
   - 87 Tests gruen
 - `npm run typecheck` in `apps/desktop`
 
-## Neu im Arbeitsverzeichnis (uncommittet): Vision-Slot-Grundlage Phase 1
+## Vision-Slot-Grundlage Phase 1 (Teil von PR #6)
 
 Basis: `Pläne/07 CODEE_MODELL_ROLLEN_MATRIX.md`. Umgesetzt ist ausschliesslich die additive, risikoarme
 Phase 1 — ein neuer `vision_gpu`-Slot existiert typisiert und contract-valide, aber **nichts routet heute echte
@@ -306,7 +311,7 @@ Frisch verifiziert fuer diesen Slice:
   sinnvolle manuelle Stichprobe waere ein `previewResourcePlan()`-Aufruf gegen ein echtes Qwen2.5-VL-GGUF auf
   `vision_gpu`, um zu bestaetigen, dass der Resource-Planner eine 5. Slot-ID ohne Sonderbehandlung akzeptiert
 
-## Neu im Arbeitsverzeichnis (uncommittet): Workflow-Audit P0-Fixes
+## Workflow-Audit P0-Fixes (Teil von PR #6)
 
 Basis: `Pläne/08 CODEE_V4_WORKFLOW_AUDIT.md` — ein real reproduzierter Bug: bei "Zähle alle GGUF Modelle im
 Workspace" routet Codee auf ein Visionmodell, das Modell erzeugt einen rohen `<CODEE_TOOL_CALL>`-Envelope mit
