@@ -2025,6 +2025,16 @@ app.whenReady().then(async () => {
 
   orchestrator = new BootOrchestrator(BOOT_PHASE_DEFINITIONS, runners);
   orchestrator.patchHud({ backendPort: BACKEND_PORT });
+  startup.onDiagnostic((event) => {
+    orchestrator?.ingestExternalLog({
+      level: event.level,
+      source: "desktop",
+      phaseId: "backend-spawn",
+      event: event.event,
+      message: event.message,
+      metadata: event.metadata
+    });
+  });
 
   startBootLogPersistence({
     orchestrator,

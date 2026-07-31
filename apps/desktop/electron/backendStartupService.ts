@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
-import type { BackendProcessOwnership, BackendStartupState, BackendStartupStatus } from "@dbzs/shared";
+import type { BackendProcessOwnership, BackendStartupState, BackendStartupStatus, BootLogLevel } from "@dbzs/shared";
 
 export type { BackendProcessOwnership, BackendStartupState, BackendStartupStatus };
 
@@ -30,6 +30,13 @@ export interface DevBackendLaunchSpec {
   executable: string;
   args: string[];
   shell: boolean;
+}
+
+export interface BackendStartupDiagnosticEvent {
+  level: BootLogLevel;
+  event: string;
+  message: string;
+  metadata?: Record<string, unknown>;
 }
 
 function pathExists(filePath: string): boolean {
@@ -238,6 +245,7 @@ export class BackendStartupService {
   private readonly bootNonce = randomUUID();
   private safeMode = false;
   private readonly listeners = new Set<(status: BackendStartupStatus) => void>();
+  private readonly diagnosticListeners = new Set<(event: BackendStartupDiagnosticEvent) => void>();
   private readonly healthCheck: (backendUrl: string) => Promise<boolean>;
   private readonly identityProbe: (backendUrl: string) => Promise<BackendIdentityProbeResult | null>;
   private readonly spawnFn: typeof spawn;
@@ -276,6 +284,19 @@ export class BackendStartupService {
     };
   }
 
+  onDiagnostic(listener: (event: BackendStartupDiagnosticEvent) => void): () => void {
+    this.diagnosticListeners.add(listener);
+    return () => {
+      this.diagnosticListeners.delete(listener);
+    };
+  }
+
+  private emitDiagnostic(event: BackendStartupDiagnosticEvent): void {
+    for (const listener of this.diagnosticListeners) {
+      listener(event);
+    }
+  }
+
   private publishStatus(state: BackendStartupState, message: string | null = this.status.message): void {
     this.status = { state, message, port: this.config.port, ownership: this.ownership, instanceId: this.status.instanceId };
     const snapshot = this.getStatus();
@@ -288,6 +309,13 @@ export class BackendStartupService {
     const waitUntilReady = options?.waitUntilReady ?? false;
     const timeoutMs = options?.timeoutMs ?? 30_000;
 
+    this.emitDiagnostic({
+      level: "info",
+      event: "backend-port-check",
+      message: `Pruefe Backend-Port ${this.config.port}.`,
+      metadata: { backendUrl: this.backendUrl, waitUntilReady, timeoutMs }
+    });
+
     if (await this.healthCheck(this.backendUrl)) {
       // Something already answers on this port. Determine (or reconfirm)
       // ownership via the richer identity probe before declaring "ready" --
@@ -295,6 +323,19 @@ export class BackendStartupService {
       // didn't spawn ourselves.
       const identity = await this.identityProbe(this.backendUrl);
       if (identity) {
+        this.emitDiagnostic({
+          level: "info",
+          event: "backend-identity-detected",
+          message: identity.pid != null
+            ? `Backend antwortet bereits (PID ${identity.pid}).`
+            : "Backend antwortet bereits.",
+          metadata: {
+            pid: identity.pid,
+            instanceId: identity.instanceId,
+            appName: identity.appName,
+            ownership: this.ownership
+          }
+        });
         if (this.ownership === "spawned-by-desktop" && identity.bootNonce !== null && identity.bootNonce !== this.bootNonce) {
           // Something else is now listening on our port instead of the
           // process we spawned -- never assume it's safe to treat as ready.
@@ -316,21 +357,41 @@ export class BackendStartupService {
         }
         this.status.instanceId = identity.instanceId;
       }
+      this.emitDiagnostic({
+        level: "info",
+        event: "backend-ready-existing",
+        message: "Backend ist bereits erreichbar.",
+        metadata: { ownership: this.ownership, instanceId: this.status.instanceId }
+      });
       this.publishStatus("ready", null);
       return this.getStatus();
     }
 
     if (this.status.state === "starting") {
+      this.emitDiagnostic({
+        level: "debug",
+        event: "backend-start-already-running",
+        message: "Backend-Start laeuft bereits; warte auf bestehende Startsequenz.",
+        metadata: { waitUntilReady, timeoutMs }
+      });
       return waitUntilReady ? this.waitUntilReady(timeoutMs) : this.getStatus();
     }
 
     this.spawnError = null;
     this.earlyExitMessage = null;
     this.ownership = "spawned-by-desktop";
-    this.publishStatus("starting", null);
+    this.publishStatus("starting", "Backend-Prozess wird gestartet.");
 
     try {
       this.process = this.spawnBackendProcess();
+      this.emitDiagnostic({
+        level: "info",
+        event: "backend-process-spawned",
+        message: this.process.pid != null
+          ? `Backend-Prozess gespawnt (PID ${this.process.pid}).`
+          : "Backend-Prozess gespawnt; PID noch nicht verfuegbar.",
+        metadata: { pid: this.process.pid ?? null, ownership: this.ownership }
+      });
       this.attachProcessHandlers(this.process);
     } catch (error) {
       const message = formatBackendStartupError(error);
@@ -363,6 +424,14 @@ export class BackendStartupService {
   private async waitUntilReady(timeoutMs: number): Promise<BackendStartupStatus> {
     const startedAt = Date.now();
     const intervalMs = this.config.waitIntervalMs ?? 350;
+    let lastWaitLogAt = 0;
+
+    this.emitDiagnostic({
+      level: "info",
+      event: "backend-health-wait-start",
+      message: "Warte auf Backend-Health-Check.",
+      metadata: { backendUrl: this.backendUrl, timeoutMs, intervalMs }
+    });
 
     while (Date.now() - startedAt < timeoutMs) {
       if (this.spawnError) {
@@ -387,8 +456,29 @@ export class BackendStartupService {
           }
           if (identity) this.status.instanceId = identity.instanceId;
         }
+        this.emitDiagnostic({
+          level: "info",
+          event: "backend-health-ready",
+          message: "Backend-Health-Check erfolgreich.",
+          metadata: {
+            durationMs: Date.now() - startedAt,
+            ownership: this.ownership,
+            instanceId: this.status.instanceId
+          }
+        });
         this.publishStatus("ready", null);
         return this.getStatus();
+      }
+
+      const elapsedMs = Date.now() - startedAt;
+      if (elapsedMs - lastWaitLogAt >= 2_000) {
+        lastWaitLogAt = elapsedMs;
+        this.emitDiagnostic({
+          level: "debug",
+          event: "backend-health-wait",
+          message: `Backend noch nicht erreichbar (${Math.round(elapsedMs / 1000)}s).`,
+          metadata: { elapsedMs, timeoutMs }
+        });
       }
 
       await sleep(intervalMs);
@@ -398,6 +488,12 @@ export class BackendStartupService {
       ? formatBackendStartupError(this.spawnError)
       : "FastAPI backend did not become ready in time.";
     this.publishStatus("failed", message);
+    this.emitDiagnostic({
+      level: "error",
+      event: "backend-health-timeout",
+      message,
+      metadata: { timeoutMs }
+    });
     return this.getStatus();
   }
 
@@ -408,6 +504,12 @@ export class BackendStartupService {
         process.platform === "win32"
           ? path.join(bundleDir, "dbzs-backend.exe")
           : path.join(bundleDir, "dbzs-backend");
+      this.emitDiagnostic({
+        level: "info",
+        event: "backend-launch-resolved",
+        message: "Backend-Launch auf Paket-Binary aufgeloest.",
+        metadata: { executable: exe, cwd: bundleDir, packaged: true }
+      });
       return this.spawnFn(exe, [], {
         cwd: bundleDir,
         env: {
@@ -422,6 +524,19 @@ export class BackendStartupService {
     }
 
     const launch = resolveDevBackendLaunch(this.config.devBackendCwd, this.config.port);
+
+    this.emitDiagnostic({
+      level: "info",
+      event: "backend-launch-resolved",
+      message: "Backend-Launch fuer Entwicklungsmodus aufgeloest.",
+      metadata: {
+        executable: launch.executable,
+        args: launch.args,
+        cwd: this.config.devBackendCwd,
+        shell: launch.shell,
+        packaged: false
+      }
+    });
 
     return this.spawnFn(launch.executable, launch.args, {
       cwd: this.config.devBackendCwd,
@@ -438,13 +553,24 @@ export class BackendStartupService {
 
   private attachProcessHandlers(process: ChildProcessWithoutNullStreams): void {
     process.stderr?.on("data", (chunk: Buffer) => {
-      this.log(`[backend] ${chunk.toString().trim()}`);
+      const message = chunk.toString().trim();
+      this.log(`[backend] ${message}`);
+      this.emitDiagnostic({
+        level: "debug",
+        event: "backend-stderr",
+        message
+      });
     });
 
     process.on("error", (error: NodeJS.ErrnoException) => {
       this.spawnError = error;
       const message = formatBackendStartupError(error);
       this.log(`[backend] spawn error: ${message}`);
+      this.emitDiagnostic({
+        level: "error",
+        event: "backend-spawn-error",
+        message
+      });
       this.publishStatus("failed", message);
       this.process = null;
     });
@@ -453,6 +579,13 @@ export class BackendStartupService {
       if (code !== 0 && code !== null) {
         this.log(`[backend] exited with code ${code}`);
       }
+
+      this.emitDiagnostic({
+        level: code === 0 || code === null ? "info" : "error",
+        event: "backend-process-exit",
+        message: code === null ? "Backend-Prozess beendet." : `Backend-Prozess beendet (Code ${code}).`,
+        metadata: { exitCode: code }
+      });
 
       const wasReady = this.status.state === "ready";
       this.process = null;

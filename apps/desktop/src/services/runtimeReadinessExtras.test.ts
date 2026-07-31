@@ -28,11 +28,13 @@ describe("runtimeResourceRisk", () => {
     const question = buildResourceRiskQuestion({
       roleLabel: "Review",
       modelName: "Llama-3.1-8B",
+      slotId: "fast_gpu",
       risk: result.risk,
       reasons: result.reasons,
       residentModelName: "Seed-Coder-8B"
     });
     expect(question.questionType).toBe("single_choice");
+    expect(question.prompt).toContain("Slot fast_gpu");
     expect(question.options?.map((o) => o.id)).toContain("continue_with_resident");
     expect(question.options?.map((o) => o.id)).toContain("smaller_profile");
     expect(question.options?.map((o) => o.id)).toContain("cpu_safe_profile");

@@ -212,6 +212,7 @@ export async function prepareOnDemandRuntimeAction(input: {
     const question = buildResourceRiskQuestion({
       roleLabel,
       modelName: routing.modelName || modelToStart,
+      slotId,
       risk: resourceAssessment.risk,
       reasons: resourceAssessment.reasons,
       residentModelName: residentReady

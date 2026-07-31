@@ -117,46 +117,66 @@ export function assessResourcePlanRisk(plan: ResourcePlanPreviewLike | null | un
 export function buildResourceRiskQuestion(input: {
   roleLabel: string;
   modelName: string;
+  slotId: string;
   risk: ResourceRiskLevel;
   reasons: string[];
   residentModelName?: string | null;
 }): import("@dbzs/shared").AssistantQuestion {
   const reasonText = input.reasons.length ? ` (${input.reasons.slice(0, 3).join(", ")})` : "";
+  const alternativeModelLabel = input.residentModelName
+    ? `bereits geladenes Modell nutzen (${input.residentModelName})`
+    : `anderes Rollenmodell fuer Slot ${input.slotId} auswaehlen`;
   const options: import("@dbzs/shared").AssistantQuestionOption[] = [
     {
       id: "smaller_profile",
       label: "A – Hybrid CPU/GPU (weniger GPU-Layers)",
+      description: `Startet ${input.modelName} im Slot ${input.slotId} mit weniger GPU-Last.`,
       recommended: !input.residentModelName
     },
-    { id: "cpu_safe_profile", label: "B – reines CPU-Profil (cpu_safe)" },
-    { id: "choose_other_model", label: "C – anderes Rollenmodell auswählen" },
+    {
+      id: "cpu_safe_profile",
+      label: "B – reines CPU-Profil (cpu_safe)",
+      description: `Startet ${input.modelName} im Slot ${input.slotId} ohne GPU-Layers. Langsamer, aber stabiler.`
+    },
+    {
+      id: "choose_other_model",
+      label: `C – ${alternativeModelLabel}`,
+      description: input.residentModelName
+        ? `Empfehlung: Statt ${input.modelName} das bereits laufende Modell im Slot ${input.slotId} nutzen.`
+        : `Oeffnet die Rollenmodell-Auswahl fuer Slot ${input.slotId}; kein stiller Modellwechsel.`
+    },
     { id: "abort_start", label: "D – abbrechen" }
   ];
   if (input.residentModelName) {
     options.unshift({
       id: "continue_with_resident",
-      label: `A – mit geladenem Modell fortfahren (${input.residentModelName})`,
-      recommended: true
+      label: `A – anderes Modell nutzen: ${input.residentModelName}`,
+      description: `Verwendet das bereits geladene Modell im Slot ${input.slotId} statt ${input.modelName}.`,
+      recommended: true,
+      value: `Mit bereits geladenem Modell im Slot ${input.slotId} fortfahren: ${input.residentModelName}.`
     });
     options[1] = {
       id: "smaller_profile",
-      label: "B – Hybrid CPU/GPU (weniger GPU-Layers)"
+      label: "B – Hybrid CPU/GPU (weniger GPU-Layers)",
+      description: `Startet ${input.modelName} im Slot ${input.slotId} mit weniger GPU-Last.`
     };
     options[2] = {
       id: "cpu_safe_profile",
-      label: "C – reines CPU-Profil (cpu_safe)"
+      label: "C – reines CPU-Profil (cpu_safe)",
+      description: `Startet ${input.modelName} im Slot ${input.slotId} ohne GPU-Layers. Langsamer, aber stabiler.`
     };
     options[3] = {
       id: "choose_other_model",
-      label: "D – anderes Rollenmodell auswählen"
+      label: `D – anderes Rollenmodell fuer Slot ${input.slotId} auswaehlen`,
+      description: "Kein stiller Wechsel; du entscheidest explizit in den Settings."
     };
     options[4] = { id: "abort_start", label: "E – abbrechen" };
   }
   return {
     id: `q-resource-risk-${Date.now().toString(36)}`,
     questionType: "single_choice",
-    prompt: `Das konfigurierte ${input.roleLabel}-Modell ist für den aktuellen Slot grenzwertig.`,
-    context: `${input.modelName} · Risiko: ${input.risk}${reasonText}. Kein automatischer Modellwechsel.`,
+    prompt: `Das konfigurierte ${input.roleLabel}-Modell ist fuer Slot ${input.slotId} grenzwertig.`,
+    context: `${input.modelName} · Slot: ${input.slotId} · Risiko: ${input.risk}${reasonText}. Empfehlung: ${alternativeModelLabel}. Kein automatischer Modellwechsel.`,
     options,
     defaultOptionId: input.residentModelName ? "continue_with_resident" : "smaller_profile",
     riskLevel: input.risk === "unsupported" ? "high" : "medium",

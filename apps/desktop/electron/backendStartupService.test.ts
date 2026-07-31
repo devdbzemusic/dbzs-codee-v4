@@ -11,6 +11,7 @@ import {
 } from "./backendStartupService.js";
 
 class FakeChildProcess extends EventEmitter {
+  pid = 1234;
   stderr = new EventEmitter();
   killed = false;
 
@@ -169,6 +170,33 @@ describe("BackendStartupService", () => {
 
     expect(listener).toHaveBeenCalled();
     expect(listener.mock.calls.at(-1)?.[0]?.state).toBe("ready");
+  });
+
+  it("emits diagnostics for the early backend startup path", async () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "dbzs-backend-"));
+    const scripts = path.join(root, ".venv", "Scripts");
+    mkdirSync(scripts, { recursive: true });
+    writeFileSync(path.join(scripts, "uvicorn.exe"), "");
+    const healthCheck = vi.fn().mockResolvedValue(false);
+    const fakeProcess = new FakeChildProcess();
+    const spawnFn = vi.fn(() => fakeProcess as never);
+    const service = new BackendStartupService({
+      port: 8876,
+      isPackaged: false,
+      resourcesPath: "/resources",
+      devBackendCwd: root,
+      healthCheck,
+      spawnFn,
+      waitIntervalMs: 10
+    });
+    const diagnostics: string[] = [];
+    service.onDiagnostic((event) => diagnostics.push(event.event));
+
+    await service.ensureStarted({ waitUntilReady: false });
+
+    expect(diagnostics).toContain("backend-port-check");
+    expect(diagnostics).toContain("backend-launch-resolved");
+    expect(diagnostics).toContain("backend-process-spawned");
   });
 
   describe("process ownership + boot nonce", () => {

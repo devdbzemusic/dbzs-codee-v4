@@ -252,8 +252,9 @@ export async function handleResourceRiskAssistantAnswerFlow(input: {
   }
 
   if (optionId === "choose_other_model") {
+    const slotHint = input.lastRoutingSlotId ?? "unbekannt";
     input.appendSystemMessage(
-      "Bitte wähle im Settings-/Runtime-Panel ein anderes Rollenmodell und sende die Anfrage erneut. Es erfolgt kein stiller Modellwechsel."
+      `Bitte waehle im Settings-/Runtime-Panel fuer Slot ${slotHint} ein anderes Rollenmodell und sende die Anfrage erneut. Es erfolgt kein stiller Modellwechsel.`
     );
     return true;
   }

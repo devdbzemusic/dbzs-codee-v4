@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   applyPreflightVisionOptions,
   handleClarificationAssistantAnswerFlow,
+  handleResourceRiskAssistantAnswerFlow,
   handleWorkflowScopeAssistantAnswerFlow,
   summarizeAssistantAnswer,
   type AssistantAnswerPreflight
@@ -124,5 +125,19 @@ describe("runtimeChatStoreAssistantAnswerFlows", () => {
       stickyTaskType: "review",
       forceContinueActiveWorkflow: true
     });
+  });
+
+  it("names the affected slot when asking the user to choose another role model", async () => {
+    const appendSystemMessage = vi.fn();
+
+    await handleResourceRiskAssistantAnswerFlow({
+      preflight: basePreflight,
+      rawOptionId: "choose_other_model",
+      lastRoutingSlotId: "fast_gpu",
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+      appendSystemMessage
+    });
+
+    expect(appendSystemMessage).toHaveBeenCalledWith(expect.stringContaining("Slot fast_gpu"));
   });
 });
