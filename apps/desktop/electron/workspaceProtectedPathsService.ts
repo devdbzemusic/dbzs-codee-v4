@@ -19,8 +19,8 @@ const CONFIG_RELATIVE_PATH = ".codee/protected-paths.json";
 
 function normalizeProtectedPath(rawPath: string): { path: string; scopeFromSyntax: WorkspaceProtectedPathScope } {
   const trimmed = rawPath.trim().replace(/\\/g, "/");
-  const scopeFromSyntax = trimmed.endsWith("/") ? "tree" : "file";
-  const normalized = trimmed.replace(/^\/+/, "").replace(/\/+$/, "");
+  const scopeFromSyntax = trimmed.endsWith("/") || trimmed.endsWith("/**") ? "tree" : "file";
+  const normalized = trimmed.replace(/^\/+/, "").replace(/\/(?:\*\*)?$/, "");
   if (!normalized || normalized.includes("\0") || normalized.split("/").includes("..") || path.isAbsolute(normalized)) {
     throw new Error(`[WORKSPACE_PROTECTED_PATH_INVALID] Ungueltiger geschuetzter Pfad: ${rawPath}`);
   }

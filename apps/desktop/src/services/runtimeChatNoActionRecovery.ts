@@ -14,6 +14,7 @@ const FENCED_BLOCK_PATTERN = /```([a-zA-Z0-9_.+-]*)\s*\n([\s\S]*?)```/g;
 const DIFF_LINE_PATTERN = /^(diff --git|---\s+\S+|\+\+\+\s+\S+|@@\s+-\d+)/m;
 const COMMAND_LINE_PATTERN = /^\s*(?:pnpm|npm|yarn|bun|python|pytest|uv|git|node|npx)\s+[^\n]{2,}$/m;
 const FILE_HINT_PATTERN = /(?:^|\n)\s*(?:Datei|File|Pfad|Path)\s*:\s*`?([A-Za-z0-9_./\\-]+\.[A-Za-z0-9_-]+)`?/i;
+const FILE_LABEL_LINE_PATTERN = /^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?`?([A-Za-z0-9_./\\-]+\.[A-Za-z0-9_-]+)`?\s*:?\s*$/;
 
 function trimPreview(value: string, maxLength = 180): string {
   const compact = value.replace(/\s+/g, " ").trim();
@@ -32,6 +33,14 @@ function uniqueSignals(signals: NoActionRecoverySignal[]): NoActionRecoverySigna
   return result.slice(0, 5);
 }
 
+function extractFileHintBeforeBlock(text: string, blockStartIndex: number): string | null {
+  const prefix = text.slice(0, blockStartIndex);
+  const lines = prefix.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const lastLine = lines.at(-1);
+  const match = lastLine?.match(FILE_LABEL_LINE_PATTERN);
+  return match?.[1]?.replace(/\\/g, "/") ?? null;
+}
+
 export function analyzeNoActionRecoveryOutput(content: string | null | undefined): NoActionRecoveryAnalysis {
   const text = content?.trim() ?? "";
   if (!text) {
@@ -43,6 +52,10 @@ export function analyzeNoActionRecoveryOutput(content: string | null | undefined
     const language = (match[1] ?? "").toLowerCase();
     const block = match[2] ?? "";
     if (!block.trim()) continue;
+    const inferredPath = extractFileHintBeforeBlock(text, match.index ?? 0);
+    if (inferredPath) {
+      signals.push({ kind: "file_hint", label: "Dateihinweis", preview: inferredPath });
+    }
     if (language === "diff" || language === "patch" || DIFF_LINE_PATTERN.test(block)) {
       signals.push({ kind: "diff", label: "Diff/Patch-Block", preview: trimPreview(block) });
       continue;

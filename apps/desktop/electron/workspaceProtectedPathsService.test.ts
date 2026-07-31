@@ -53,4 +53,18 @@ describe("WorkspaceProtectedPathsService", () => {
     const service = new WorkspaceProtectedPathsService();
     await expect(service.loadProtectedPaths(workspaceRoot)).rejects.toThrow("[WORKSPACE_PROTECTED_PATH_INVALID]");
   });
+
+  it("interpretiert glob-artige /** Eintraege als Ordnerbaum-Sperre", async () => {
+    const workspaceRoot = await createWorkspace();
+    await fs.writeFile(
+      path.join(workspaceRoot, ".codee", "protected-paths.json"),
+      JSON.stringify(["docs/**"]),
+      "utf-8"
+    );
+
+    const service = new WorkspaceProtectedPathsService();
+    await expect(service.findProtectedPathMatch(workspaceRoot, "docs/notes/todo.md")).resolves.toMatchObject({
+      entry: { path: "docs", scope: "tree" }
+    });
+  });
 });

@@ -427,6 +427,8 @@ Status nach erster Umsetzung:
 - Phase 2 wurde als kleiner CODEE-eigener Fallback umgesetzt:
   `runtimeChatNoActionRecovery` erkennt Diff-, Code-, Command- und
   Dateihinweise in nicht ausgefuehrten Modellantworten.
+- Der Fallback erkennt inzwischen auch typische LLM-Ausgaben, bei denen ein
+  Dateipfad als Markdown-Ueberschrift direkt vor einem Codeblock steht.
 - `execution_no_action` zeigt nun Auswahloptionen statt nur einer harten
   Fehlermeldung: Aktion vorbereiten, mit Tools erneut starten oder nur
   analysieren.
@@ -441,6 +443,9 @@ Status nach erster Umsetzung:
 - Die `Modell-Auswahl oeffnen`-Aktion setzt nun einen Runtime-Slot-Fokus im
   Notebook. Der Runtime-Tab zeigt dadurch sichtbar an, fuer welchen Slot ein
   alternatives Rollenmodell gewaehlt werden soll.
+- Neue CODEE-Projekte bekommen beim Scaffold nun eine
+  `.codee/protected-paths.json` mit sicheren Defaults und Beispielen fuer
+  Datei-/Ordner-Sperren.
 
 Unterstuetztes Lock-Format:
 
@@ -456,7 +461,7 @@ Unterstuetztes Lock-Format:
 Regeln:
 
 - Ein Dateipfad ohne Slash am Ende sperrt exakt diese Datei.
-- Ein Pfad mit Slash am Ende sperrt den gesamten Ordnerbaum.
+- Ein Pfad mit Slash am Ende oder `/**` sperrt den gesamten Ordnerbaum.
 - Absolute Pfade und `..` werden abgelehnt.
 - Die Sperre verhindert Patch-Preview und Patch-Apply, fuehrt aber keine
   automatische Nutzerfreigabe ein.

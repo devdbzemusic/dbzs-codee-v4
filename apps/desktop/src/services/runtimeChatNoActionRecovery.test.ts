@@ -29,6 +29,24 @@ describe("runtimeChatNoActionRecovery", () => {
     expect(analysis.signals[0]).toMatchObject({ kind: "command", label: "Terminal-Befehl" });
   });
 
+  it("erkennt Dateinamen direkt vor Codebloecken", () => {
+    const analysis = analyzeNoActionRecoveryOutput([
+      "### src/App.tsx",
+      "```tsx",
+      "export function App() {",
+      "  return <main>OK</main>;",
+      "}",
+      "```"
+    ].join("\n"));
+
+    expect(analysis.signals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "file_hint", preview: "src/App.tsx" }),
+        expect.objectContaining({ kind: "code", label: "Code-Block (tsx)" })
+      ])
+    );
+  });
+
   it("baut einen Recovery-Prompt mit Originalauftrag und Evidenz", () => {
     const analysis = analyzeNoActionRecoveryOutput("```ts\nexport const ok = true;\n```");
     const prompt = buildNoActionRecoveryPrompt({

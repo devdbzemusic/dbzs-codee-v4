@@ -215,7 +215,14 @@ describe("workspaceService", () => {
     await expect(fs.readFile(path.join(result.projectPath, "README.md"), "utf-8")).resolves.toContain("Mein DBZS Projekt");
     await expect(fs.readFile(path.join(result.projectPath, "package.json"), "utf-8")).resolves.toContain("\"build\"");
     await expect(fs.readFile(path.join(result.projectPath, ".codee", "project.json"), "utf-8")).resolves.toContain("dbzs-typescript");
+    const protectedPaths = JSON.parse(
+      await fs.readFile(path.join(result.projectPath, ".codee", "protected-paths.json"), "utf-8")
+    ) as { protectedPaths?: Array<{ path?: string }>; examples?: Array<{ path?: string }> };
+    expect(protectedPaths.protectedPaths?.map((entry) => entry.path)).toContain(".codee/restore-points/");
+    expect(protectedPaths.examples?.map((entry) => entry.path)).toContain("docs/ARCHITECTURE.md");
+    expect(protectedPaths.examples?.map((entry) => entry.path)).toContain("Plaene/**");
     expect(result.createdFiles).toContain("src/index.ts");
+    expect(result.createdFiles).toContain(".codee/protected-paths.json");
   });
 
   it("creates a Python runtime workflow scaffold", async () => {
