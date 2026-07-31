@@ -26,6 +26,7 @@ export interface SpoolerLaneItem {
   source?: string;
   symbol?: string;
   dedupeContent?: string;
+  pinned?: boolean;
 }
 
 export interface LaneBudgetPlan {
@@ -169,16 +170,32 @@ export class ContextSpooler {
   }
 
   private trimLane(lane: ContextLane, items: SpoolerLaneItem[], maxTokens: number): SpoolerLaneResult {
-    const included = trimByTokenBudget(items, maxTokens);
+    const included = this.trimLaneRespectingPinned(items, maxTokens);
     return this.toLaneResult(lane, items, included);
   }
 
   /** Trims from the oldest end — reverses, fits newest-first, restores chronological order. */
   private trimLaneKeepingNewest(lane: ContextLane, items: SpoolerLaneItem[], maxTokens: number): SpoolerLaneResult {
-    const includedReversed = trimByTokenBudget([...items].reverse(), maxTokens);
+    const includedReversed = this.trimLaneRespectingPinned([...items].reverse(), maxTokens);
     const includedIds = new Set(includedReversed.map((item) => item.id));
     const included = items.filter((item) => includedIds.has(item.id));
     return this.toLaneResult(lane, items, included);
+  }
+
+  private trimLaneRespectingPinned(items: SpoolerLaneItem[], maxTokens: number): SpoolerLaneItem[] {
+    const pinned = items.filter((item) => item.pinned);
+    const pinnedIds = new Set(pinned.map((item) => item.id));
+    const unpinned = items.filter((item) => !pinnedIds.has(item.id));
+    const remainingBudget = Math.max(
+      0,
+      maxTokens - pinned.reduce((sum, item) => sum + item.estimatedTokens, 0)
+    );
+    const trimmedUnpinned = trimByTokenBudget(unpinned, remainingBudget);
+    const includedIds = new Set([
+      ...pinned.map((item) => item.id),
+      ...trimmedUnpinned.map((item) => item.id)
+    ]);
+    return items.filter((item) => includedIds.has(item.id));
   }
 
   private toLaneResult(lane: ContextLane, all: SpoolerLaneItem[], included: SpoolerLaneItem[]): SpoolerLaneResult {

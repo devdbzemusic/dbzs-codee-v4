@@ -183,6 +183,27 @@ describe("ContextSpooler.assemble", () => {
     expect(result.manifest.duplicateContextRemoved).toBe(1);
   });
 
+  it("keeps pinned active-task items even when the active-task lane is otherwise over budget", () => {
+    const spooler = new ContextSpooler(buildTokenBudget(4096));
+    const result = spooler.assemble({
+      requestId: "pinned-active-task",
+      modelId: "model-1",
+      role: "coding",
+      mandatory: [item("system", 600)],
+      activeTask: [
+        item("workspace-file", 400, { pinned: true, source: "docs/spec.md" }),
+        item("workspace-summary", 80)
+      ],
+      relevantCode: [],
+      recentConversation: [],
+      projectMemory: []
+    });
+
+    const activeTask = result.lanes.find((entry) => entry.lane === "active_task");
+    expect(activeTask?.included.map((entry) => entry.id)).toContain("workspace-file");
+    expect(activeTask?.droppedIds).not.toContain("workspace-file");
+  });
+
   it("does not drop anything when everything fits comfortably", () => {
     const budget = buildTokenBudget(200_000); // large window, small content
     const spooler = new ContextSpooler(budget);

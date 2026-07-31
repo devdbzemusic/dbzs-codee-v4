@@ -1,0 +1,23 @@
+﻿=== git status ===
+On branch feature/runtime-chat-ux-overhaul
+Your branch is up to date with 'origin/feature/runtime-chat-ux-overhaul'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	.codee/diag-protokolle/codee-run-run-ms9aioqv-379i.json
+	.codee/diag-protokolle/codee-run-run-ms9dpkj2-pvnq.json
+	"Pl\303\244ne/lies-plane-implementierung-zany-toast-agent-a6e07c0e1a70f4956.md"
+	"Pl\303\244ne/lies-plane-implementierung-zany-toast-agent-aa46637a6e8302a34.md"
+	"Pl\303\244ne/umsetzen-cozy-meteor.md"
+	"Pl\303\244ne/umsetzen-moonlit-shamir.md"
+	"Pl\303\244ne/zippy-churning-teapot.md"
+	docs/audits/runs/2026-07-31_22-23_ui-installer-ps-attempt/
+
+nothing added to commit but untracked files present (use "git add" to track)
+
+=== git rev-parse HEAD ===
+3ff6244e5def9e59b9d1a0058ba4e273f0d0208c
+
+=== git branch --show-current ===
+feature/runtime-chat-ux-overhaul
+

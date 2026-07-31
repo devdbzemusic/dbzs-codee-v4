@@ -1,0 +1,7 @@
+﻿Run: 2026-07-31_22-23_ui-installer-ps-attempt
+Erstellt: 2026-07-31T22:23:19.7887590+02:00
+OS: Microsoft Windows NT 10.0.26200.0
+Node: v26.3.0
+pnpm: nicht verfuegbar
+Python (uv): nicht verfuegbar
+uv: nicht verfuegbar

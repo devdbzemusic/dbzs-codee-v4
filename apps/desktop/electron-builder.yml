@@ -1,6 +1,5 @@
 appId: de.dbzs.codee
 productName: DBZS Code Assistant
-appVersion: 0.4.0-rc.1
 copyright: Copyright © 2026 DBZS
 
 directories:
@@ -34,15 +33,15 @@ win:
     - target: portable
       arch:
         - x64
-  icon: build/icon.ico
+  icon: assets/icons/dbzs.ico
   signAndEditExecutable: false
 
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
-  installerIcon: build/icon.ico
-  uninstallerIcon: build/icon.ico
-  installerHeaderIcon: build/icon.ico
+  installerIcon: assets/icons/dbzs.ico
+  uninstallerIcon: assets/icons/dbzs.ico
+  installerHeaderIcon: assets/icons/dbzs.ico
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: DBZS Code Assistant
