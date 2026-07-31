@@ -2,6 +2,36 @@
 
 Stand: 2026-07-31
 
+## Produktionsreife-Revision Phase 3 vorbereitet (2026-07-31) — Release-Gates
+
+Basis: `Pläne/09 DBZS_CODEE_V4_REPOSITORY_URTEIL_2026-07-31.md`, Umsetzungsplan Phase 3 ("Release-Gates").
+Diese Phase ist **code-/dokuseitig vollständig vorbereitet**, aber bewusst nicht selbst ausgeführt — beide
+Punkte sind eure Entscheidung (Kategorie B: externe Konto-/Repo-Einstellung, kein Code-Problem):
+
+- **CI-Reaktivierung**: `.github/workflows/ci.yml` bleibt `workflow_dispatch`-only (GitHub-Billing-Sperre
+  seit 2026-07-23, siehe Kommentar im File). Eine fertige, auskommentierte `on: push/pull_request`-Sektion
+  liegt direkt über der aktiven `on:`-Zeile. **Reaktivierungs-Checkliste, sobald das Billing gelöst ist:**
+  1. Auskommentierten Block einkommentieren, `workflow_dispatch:`-Zeile darunter entfernen (oder als
+     zusätzlichen Trigger behalten, falls manuelles Auslösen weiter gewünscht ist).
+  2. Einen Push machen und **bestätigen, dass tatsächlich ein Run startet** — eine Billing-Sperre kann
+     Trigger stillschweigend ignorieren statt einen Fehler zu zeigen.
+  3. Nach einem grünen Lauf: Required-Status-Checks (siehe unten) aktivieren.
+- **Branch Protection für `main`**: aktuell keine aktiv. Dokumentierter, **nicht ausgeführter** Befehl für
+  Required-Status-Checks (erst nach einem grünen CI-Lauf sinnvoll, sonst blockiert er jeden Merge):
+
+  ```bash
+  gh api -X PUT repos/devdbzemusic/dbzs-codee-v4/branches/main/protection \
+    -f required_status_checks.strict=true \
+    -f 'required_status_checks.checks[][context]=Required gates (ubuntu-latest)' \
+    -f 'required_status_checks.checks[][context]=Required gates (windows-latest)' \
+    -f enforce_admins=true \
+    -f 'required_pull_request_reviews.required_approving_review_count=0' \
+    -f restrictions=null
+  ```
+
+  Das ändert Push-Rechte auf `main` — bewusst nicht ohne expliziten Auftrag ausgeführt. Nach Aktivierung:
+  direkte Pushes auf `main` sind nicht mehr möglich, nur noch über PR mit grünem CI-Lauf.
+
 ## Produktionsreife-Revision Phase 2 umgesetzt (2026-07-31)
 
 Basis: `Pläne/09 DBZS_CODEE_V4_REPOSITORY_URTEIL_2026-07-31.md`, Umsetzungsplan Phase 2 ("Runtime-Härtung").

@@ -1,6 +1,17 @@
 # Required gates mirror: scripts/ci-local.sh / scripts/ci-local.ps1 (`pnpm ci:local`).
 # Auto-triggers disabled: GitHub account billing lock (2026-07-23). Re-enable push/PR
 # under `on:` after billing is resolved. Until then, run CI locally before merge.
+#
+# To reactivate once billing is resolved: uncomment the block below, remove the
+# `workflow_dispatch:`-only line, and confirm a run actually triggers on the next push
+# (a billing lock can silently no-op triggers instead of erroring). See HANDOVER.md
+# "Release-Gates" for the full checklist (branch protection, required status checks).
+#
+# on:
+#   push:
+#     branches: [main]
+#   pull_request:
+#     branches: [main]
 name: CI
 
 on:
