@@ -8,9 +8,11 @@ import type {
 } from "@dbzs/shared";
 import {
   appendContractFieldAnswer,
+  formatActiveTaskContractBlock,
   pauseActiveTaskContract,
   readActiveTaskContract,
-  upsertActiveTaskContract
+  upsertActiveTaskContract,
+  type ActiveTaskContract
 } from "@/services/activeTaskContract";
 import { recordProjectDecision } from "@/services/decisionMemoryService";
 import { clearPendingQuestion } from "@/services/pendingQuestionPersistence";
@@ -78,6 +80,27 @@ export function summarizeAssistantAnswer(answer: AssistantAnswer, question?: Ass
     .join(", ");
 
   return optionSummary ?? (answer.skipped ? "(keine Antwort)" : "");
+}
+
+const RETRY_ONLY_PROMPT_PATTERN = /^(retry|erneut\s+versuchen|nochmal|weiter|fortsetzen)$/i;
+
+export function buildClarificationContinuationContent(input: {
+  preflight: AssistantAnswerPreflight;
+  question: AssistantQuestion;
+  answerSummary: string;
+  contract: ActiveTaskContract | null;
+}): string {
+  const originalMessage = input.preflight.originalMessage.trim();
+  const shouldUseContract =
+    Boolean(input.contract) &&
+    (RETRY_ONLY_PROMPT_PATTERN.test(originalMessage) ||
+      (input.contract?.originalRequest.trim() ?? "") !== originalMessage);
+
+  if (!shouldUseContract || !input.contract) {
+    return `${originalMessage}\n\n${input.answerSummary}`.trim();
+  }
+
+  return `${formatActiveTaskContractBlock(input.contract)}\n\nAktuelle Rueckfrage:\n${input.question.prompt}\nAntwort:\n${input.answerSummary}`.trim();
 }
 
 function applyPreflightVisionOptions(preflight: AssistantAnswerPreflight) {
@@ -344,7 +367,15 @@ export async function handleClarificationAssistantAnswerFlow(input: {
   }
 
   const answerSummary = summarizeAssistantAnswer(input.answer, input.question);
-  const continuationContent = `${input.preflight.originalMessage}\n\n${answerSummary}`.trim();
+  const continuationContract = input.preflight.workspaceRoot
+    ? readActiveTaskContract(input.preflight.workspaceRoot)
+    : null;
+  const continuationContent = buildClarificationContinuationContent({
+    preflight: input.preflight,
+    question: input.question,
+    answerSummary,
+    contract: continuationContract
+  });
   await input.sendMessage(continuationContent, input.preflight.targetAgent, {
     workspaceRoot: input.preflight.workspaceRoot,
     stickyTaskType: input.preflight.taskType,
