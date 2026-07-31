@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   applyPreflightVisionOptions,
+  buildClarificationContinuationContent,
   handleClarificationAssistantAnswerFlow,
+  handleResourceRiskAssistantAnswerFlow,
   handleWorkflowScopeAssistantAnswerFlow,
+  summarizeAssistantAnswer,
   type AssistantAnswerPreflight
 } from "@/stores/runtimeChatStoreAssistantAnswerFlows";
 
@@ -21,6 +24,7 @@ vi.mock("@/services/pendingWorkflowScopeDecision", () => ({
 
 vi.mock("@/services/activeTaskContract", () => ({
   appendContractFieldAnswer: vi.fn(),
+  formatActiveTaskContractBlock: vi.fn((contract) => `Ziel:\n${contract.confirmedGoal || contract.originalRequest}`),
   pauseActiveTaskContract: vi.fn(),
   readActiveTaskContract: vi.fn(() => null),
   upsertActiveTaskContract: vi.fn()
@@ -52,6 +56,70 @@ describe("runtimeChatStoreAssistantAnswerFlows", () => {
       hasImageInput: false,
       requiresVision: false
     });
+  });
+
+  it("summarizes selected assistant answer options as user-readable values", () => {
+    expect(
+      summarizeAssistantAnswer(
+        {
+          questionId: "q-acceptance",
+          answeredAt: "2026-07-31T10:00:00.000Z",
+          optionIds: ["tests_green"]
+        },
+        {
+          id: "q-acceptance",
+          questionType: "single_choice",
+          prompt: "Woran erkennst du, dass die Änderung korrekt ist?",
+          options: [
+            {
+              id: "tests_green",
+              label: "Tests/Checks sind grün",
+              value: "Passende Tests, Typecheck oder Build laufen grün."
+            }
+          ],
+          toolCallId: "missing-information-policy"
+        }
+      )
+    ).toBe("Passende Tests, Typecheck oder Build laufen grün.");
+  });
+
+  it("continues clarification from the active task contract instead of a bare retry prompt", () => {
+    const content = buildClarificationContinuationContent({
+      preflight: {
+        ...basePreflight,
+        originalMessage: "retry",
+        taskType: "small_code_change"
+      },
+      question: {
+        id: "q-acceptance",
+        questionType: "single_choice",
+        prompt: "Woran erkennst du, dass die Änderung korrekt ist?",
+        requiredField: "acceptance_criteria",
+        toolCallId: "missing-information-policy"
+      },
+      answerSummary: "Passende Tests, Typecheck oder Build laufen grün.",
+      contract: {
+        workspaceId: "repo",
+        workspaceRoot: "C:/repo",
+        workflowId: "wf-1",
+        runId: "run-1",
+        workflowKind: "planning",
+        originalRequest: "Implementiere die Bugfix-Analyse-Automatisierung.",
+        confirmedGoal: "Implementiere die Bugfix-Analyse-Automatisierung.",
+        acceptanceCriteria: ["Passende Tests, Typecheck oder Build laufen grün."],
+        currentPhase: "clarification",
+        assignedAgent: "planner",
+        taskType: "small_code_change",
+        answeredQuestions: [],
+        answeredFields: {},
+        createdAt: "2026-07-31T18:42:00.000Z",
+        updatedAt: "2026-07-31T18:43:00.000Z"
+      }
+    });
+
+    expect(content).toContain("Implementiere die Bugfix-Analyse-Automatisierung.");
+    expect(content).toContain("Aktuelle Rueckfrage");
+    expect(content).not.toMatch(/^retry\s*$/);
   });
 
   it("preserves vision flags when continuing after clarification", async () => {
@@ -98,5 +166,19 @@ describe("runtimeChatStoreAssistantAnswerFlows", () => {
       stickyTaskType: "review",
       forceContinueActiveWorkflow: true
     });
+  });
+
+  it("names the affected slot when asking the user to choose another role model", async () => {
+    const appendSystemMessage = vi.fn();
+
+    await handleResourceRiskAssistantAnswerFlow({
+      preflight: basePreflight,
+      rawOptionId: "choose_other_model",
+      lastRoutingSlotId: "fast_gpu",
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+      appendSystemMessage
+    });
+
+    expect(appendSystemMessage).toHaveBeenCalledWith(expect.stringContaining("Slot fast_gpu"));
   });
 });

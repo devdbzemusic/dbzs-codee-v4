@@ -18,6 +18,7 @@ import type { RuntimeSlotId } from "@/services/modelSelectionBroker";
 import { runtimeSlotManager, getRecentRoutingEvents, type RuntimeSlotStatus } from "@/services/runtimeSlotManager";
 import { getSlotHealthState } from "@/services/runtimeProcessSupervisor";
 import { modelContextCacheClient } from "@/services/modelContextCacheClient";
+import { backendClient } from "@/services/backendClient";
 import { openPlatformDiagnosticsWindow } from "@/utils/platformDiagnosticsWindow";
 
 const RUNTIME_PROFILES = ["fast", "balanced", "hybrid", "large_context", "cpu_safe"] as const;
@@ -45,6 +46,7 @@ export const RuntimeSlotPanel: React.FC<RuntimeSlotPanelProps> = ({
   const [previewBySlot, setPreviewBySlot] = useState<Record<string, string>>({});
   const [isPreviewing, setIsPreviewing] = useState<Record<string, boolean>>({});
   const [cacheClearStatus, setCacheClearStatus] = useState<string | null>(null);
+  const [diagnosticsExportStatus, setDiagnosticsExportStatus] = useState<string | null>(null);
   const [routingEvents, setRoutingEvents] = useState(getRecentRoutingEvents(5));
   const [eventFilter, setEventFilter] = useState<"all" | "info" | "warn">("all");
 
@@ -185,6 +187,19 @@ export const RuntimeSlotPanel: React.FC<RuntimeSlotPanelProps> = ({
     setCacheClearStatus(success ? "Kontext-Cache geleert." : "Kontext-Cache leeren fehlgeschlagen.");
   };
 
+  // Buendelt crash.log, redigierte Settings und den Modellindex in ein ZIP fuer Support-Zwecke.
+  const handleExportFullDiagnostics = async () => {
+    setDiagnosticsExportStatus("Exportiere...");
+    try {
+      const targetPath = await backendClient.exportFullDiagnosticsZip();
+      setDiagnosticsExportStatus(targetPath ? `Exportiert: ${targetPath}` : "Export abgebrochen.");
+    } catch (error) {
+      setDiagnosticsExportStatus(
+        error instanceof Error ? `Export fehlgeschlagen: ${error.message}` : "Export fehlgeschlagen."
+      );
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="p-4 bg-gray-900 rounded-lg border border-gray-700">
@@ -218,8 +233,18 @@ export const RuntimeSlotPanel: React.FC<RuntimeSlotPanelProps> = ({
           >
             🔍 Diagnostics
           </button>
+          <button
+            onClick={handleExportFullDiagnostics}
+            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
+            title="crash.log, Settings (redigiert) und Modellindex als ZIP exportieren"
+          >
+            📦 Vollpaket exportieren
+          </button>
         </div>
       </div>
+      {diagnosticsExportStatus && (
+        <p className="text-xs text-gray-400 break-all">{diagnosticsExportStatus}</p>
+      )}
 
       {/* Slot Cards */}
       <div className="space-y-3">

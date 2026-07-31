@@ -95,6 +95,7 @@ const api = {
     ipcRenderer.invoke("dbzs:settings:diagnostics") as Promise<
       import("@dbzs/shared").SettingsDiagnostics
     >,
+  exportFullDiagnosticsZip: () => ipcRenderer.invoke("dbzs:diagnostics:export-full-zip") as Promise<string>,
   openFileDialog: () => ipcRenderer.invoke("dbzs:file:open-dialog") as Promise<WorkspaceFile | null>,
   openImageFileDialog: () =>
     ipcRenderer.invoke("dbzs:file:open-image-dialog") as Promise<
@@ -352,6 +353,11 @@ const api = {
     ipcRenderer.invoke("dbzs:restore-points:delete", workspaceRoot, restorePointId) as Promise<{ deleted: boolean }>,
   cleanupRestorePoints: (workspaceRoot: string) =>
     ipcRenderer.invoke("dbzs:restore-points:cleanup", workspaceRoot) as Promise<{ removed: string[] }>,
+  repairRestorePointIndex: (workspaceRoot: string) =>
+    ipcRenderer.invoke("dbzs:restore-points:repair-index", workspaceRoot) as Promise<{
+      recovered: number;
+      corrupted: string[];
+    }>,
   listBackups: () => ipcRenderer.invoke("dbzs:backups:list") as Promise<BackupSummary[]>,
   createBackup: () => ipcRenderer.invoke("dbzs:backups:create") as Promise<BackupSummary>,
   restoreBackup: (backupId: string) => ipcRenderer.invoke("dbzs:backups:restore", backupId) as Promise<RestoreSummary>,

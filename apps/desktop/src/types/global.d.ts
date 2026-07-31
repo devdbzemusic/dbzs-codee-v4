@@ -93,6 +93,7 @@ declare global {
       updateSettings: (settings: AppSettings) => Promise<AppSettings>;
       patchSettings?: (request: SettingsPatchRequest) => Promise<SettingsPatchResponse>;
       getSettingsDiagnostics?: () => Promise<SettingsDiagnostics>;
+      exportFullDiagnosticsZip?: () => Promise<string>;
       openFileDialog: () => Promise<WorkspaceFile | null>;
       openImageFileDialog?: () => Promise<RuntimeChatImageAttachment | null>;
       openChatAttachmentDialog?: () => Promise<RuntimeChatAttachment[]>;
@@ -205,6 +206,7 @@ declare global {
       restorePoint?: (workspaceRoot: string, restorePointId: string) => Promise<RestoreResult>;
       deleteRestorePoint?: (workspaceRoot: string, restorePointId: string) => Promise<{ deleted: boolean }>;
       cleanupRestorePoints?: (workspaceRoot: string) => Promise<{ removed: string[] }>;
+      repairRestorePointIndex?: (workspaceRoot: string) => Promise<{ recovered: number; corrupted: string[] }>;
       listBackups?: () => Promise<BackupSummary[]>;
       createBackup?: () => Promise<BackupSummary>;
       restoreBackup?: (backupId: string) => Promise<RestoreSummary>;

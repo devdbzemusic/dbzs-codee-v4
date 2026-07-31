@@ -372,4 +372,50 @@ export class RestorePointService {
     await this.writeIndex(safeWorkspace, kept);
     return { removed };
   }
+
+  /**
+   * Repair action: rebuilds index.json from the individual `<id>.json` point
+   * files actually on disk, ignoring whatever the (possibly corrupted) index
+   * currently says. A corrupted index.json today silently makes every
+   * existing restore point invisible even though the point files themselves
+   * are untouched — this recovers them without the user losing history.
+   */
+  async rebuildIndexFromDisk(workspaceRoot: string): Promise<{ recovered: number; corrupted: string[] }> {
+    const safeWorkspace = this.resolveWorkspace(workspaceRoot);
+    const storageDir = this.resolveStorageDir(safeWorkspace);
+    await fs.mkdir(storageDir, { recursive: true });
+
+    let fileNames: string[];
+    try {
+      fileNames = await fs.readdir(storageDir);
+    } catch {
+      fileNames = [];
+    }
+
+    const pointFileNames = fileNames.filter((name) => name.endsWith(".json") && name !== "index.json");
+    const recoveredEntries: RestorePointIndexEntry[] = [];
+    const corrupted: string[] = [];
+
+    for (const fileName of pointFileNames) {
+      const rawPoint = await tryReadFile(path.join(storageDir, fileName));
+      if (!rawPoint) {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(rawPoint) as RestorePoint;
+        if (!parsed?.id || !parsed.createdAt) {
+          corrupted.push(fileName);
+          continue;
+        }
+        recoveredEntries.push(this.toIndexEntry(parsed));
+      } catch {
+        corrupted.push(fileName);
+      }
+    }
+
+    recoveredEntries.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    await this.writeIndex(safeWorkspace, recoveredEntries);
+
+    return { recovered: recoveredEntries.length, corrupted };
+  }
 }

@@ -6,6 +6,7 @@ import json
 import os
 
 from app.core.config import get_app_data_dir, get_models_dir, get_win_runtimes_dir
+from app.settings.migrations import migrate as migrate_settings_dict
 from app.settings.models import AppSettings, SettingsRevisionConflict
 
 SECRET_KEYS = ("openaiApiKey", "anthropicApiKey")
@@ -70,10 +71,13 @@ class SettingsService:
             self._loaded_at = datetime.now(timezone.utc).isoformat()
             return saved
 
-        migrated = False
-        if "schemaVersion" not in raw:
-            raw = {**raw, "schemaVersion": 1}
-            migrated = True
+        from_version = raw.get("schemaVersion", 1) if isinstance(raw.get("schemaVersion"), int) else 1
+        raw, migrated = migrate_settings_dict(raw)
+        to_version = raw.get("schemaVersion", from_version)
+        if migrated and to_version != from_version:
+            # Only back up when an actual migration ran (schema content changed),
+            # not for the trivial "schemaVersion field was entirely missing" case.
+            self._backup_before_migration(from_version, to_version)
 
         try:
             settings = AppSettings.model_validate(raw)
@@ -222,6 +226,21 @@ class SettingsService:
                 backup.write_bytes(self.settings_path.read_bytes())
             except OSError:
                 pass
+
+    def _backup_before_migration(self, from_version: int, to_version: int) -> None:
+        """Copies the pre-migration settings.json aside — best-effort, must
+        never block loading (a missing backup is much less bad than a user
+        stuck unable to start the app because a migration backup failed)."""
+        if not self.settings_path.exists():
+            return
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        backup = self.settings_path.with_name(
+            f"settings.json.pre-migration-v{from_version}-to-v{to_version}.{stamp}"
+        )
+        try:
+            backup.write_bytes(self.settings_path.read_bytes())
+        except OSError:
+            pass
 
 
 def get_settings_service() -> SettingsService:

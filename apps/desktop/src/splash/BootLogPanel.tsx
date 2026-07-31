@@ -15,7 +15,7 @@ function formatTime(timestamp: number): string {
 }
 
 export function BootLogPanel({ state }: { state: BootState }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [sourceFilter, setSourceFilter] = useState<string>("all");
 
   const entries = useMemo(() => {

@@ -147,4 +147,58 @@ describe("RestorePointService", () => {
     expect(point.gitBranch).toBe("main");
     expect(point.gitHead).toBe("abc123def456");
   });
+
+  describe("rebuildIndexFromDisk", () => {
+    it("recovers restore points after index.json is corrupted", async () => {
+      const workspace = createWorkspace();
+      const filePath = path.join(workspace, "README.md");
+      await fs.writeFile(filePath, "before\n", "utf-8");
+
+      const service = new RestorePointService();
+      const first = await service.createRestorePoint(workspace, [filePath], "manual", "first");
+      const second = await service.createRestorePoint(workspace, [filePath], "manual", "second");
+
+      const indexPath = path.join(workspace, ".codee", "restore-points", "index.json");
+      await fs.writeFile(indexPath, "{not valid json", "utf-8");
+      expect(await service.listRestorePoints(workspace)).toEqual([]);
+
+      const result = await service.rebuildIndexFromDisk(workspace);
+
+      expect(result.recovered).toBe(2);
+      expect(result.corrupted).toEqual([]);
+      const recoveredPoints = await service.listRestorePoints(workspace);
+      const recoveredIds = recoveredPoints.map((point) => point.id);
+      expect(recoveredIds).toContain(first.id);
+      expect(recoveredIds).toContain(second.id);
+    });
+
+    it("skips corrupted point files and reports them", async () => {
+      const workspace = createWorkspace();
+      const filePath = path.join(workspace, "README.md");
+      await fs.writeFile(filePath, "before\n", "utf-8");
+
+      const service = new RestorePointService();
+      const good = await service.createRestorePoint(workspace, [filePath], "manual", "good");
+
+      const storageDir = path.join(workspace, ".codee", "restore-points");
+      await fs.writeFile(path.join(storageDir, "broken-point.json"), "{not valid json", "utf-8");
+
+      const result = await service.rebuildIndexFromDisk(workspace);
+
+      expect(result.recovered).toBe(1);
+      expect(result.corrupted).toEqual(["broken-point.json"]);
+      const recoveredIds = (await service.listRestorePoints(workspace)).map((point) => point.id);
+      expect(recoveredIds).toEqual([good.id]);
+    });
+
+    it("produces an empty index when no point files exist", async () => {
+      const workspace = createWorkspace();
+      const service = new RestorePointService();
+
+      const result = await service.rebuildIndexFromDisk(workspace);
+
+      expect(result).toEqual({ recovered: 0, corrupted: [] });
+      expect(await service.listRestorePoints(workspace)).toEqual([]);
+    });
+  });
 });

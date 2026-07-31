@@ -20,6 +20,12 @@ extraResources:
 # Verhindert automatische Updates aus externen Quellen
 asar: true
 
+# Code-signing: no certificate exists yet, so builds are deliberately unsigned.
+# electron-builder auto-detects CSC_LINK/CSC_KEY_PASSWORD env vars once a real
+# certificate is available -- no config change needed here to activate it,
+# only `signAndEditExecutable: false` below and `forceCodeSigning` (unset,
+# defaults to false) need revisiting. See HANDOVER.md "Code-Signing" for the
+# checklist to run through once a certificate is purchased.
 win:
   target:
     - target: nsis
@@ -42,6 +48,11 @@ nsis:
   shortcutName: DBZS Code Assistant
   license: null
 
+# Same as win: unsigned/un-notarized until an Apple Developer ID certificate
+# exists. electron-builder reads CSC_LINK/CSC_KEY_PASSWORD (signing) and
+# APPLE_ID/APPLE_APP_SPECIFIC_PASSWORD/APPLE_TEAM_ID (notarization via
+# @electron/notarize, auto-invoked when those are set) from the environment —
+# no yml change needed to activate once a certificate is available.
 mac:
   target:
     - target: dmg

@@ -1,0 +1,334 @@
+{
+  "id": "run-ms969vgs-6q79",
+  "userMessageId": "msg-ms969vgs-user",
+  "status": "failed",
+  "startedAt": "2026-07-31T16:44:09.484Z",
+  "mode": "agent",
+  "profile": "ask",
+  "contextEnabled": true,
+  "workspaceRoot": "C:\\Users\\ralle\\source\\repos\\bolt.diy\\bolt",
+  "activeFile": "C:\\Users\\ralle\\source\\repos\\bolt.diy\\bolt\\docs\\ARCHITECTURE.md",
+  "events": [
+    {
+      "id": "ev-ms969vgs-49y",
+      "type": "chat.accepted",
+      "timestamp": "2026-07-31T16:44:09.484Z",
+      "message": "Nachricht angenommen",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms969vgs-lki",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-31T16:44:09.484Z",
+      "message": "Runtime-Status pruefen",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms969vjy-l4o",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-31T16:44:09.598Z",
+      "message": "Backend online · Residenter Slotstatus: Qwen2.5-Coder-7B-Instruct-Q4-K-M-GGUF",
+      "durationMs": 114
+    },
+    {
+      "id": "ev-ms969vjy-3m0",
+      "type": "routing.started",
+      "timestamp": "2026-07-31T16:44:09.598Z",
+      "message": "Modell-Routing",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms969vjz-epc",
+      "type": "routing.completed",
+      "timestamp": "2026-07-31T16:44:09.599Z",
+      "message": "Modell gewählt: Qwen2.5-Coder-7B-Instruct-Q4-K-M-GGUF",
+      "meta": {
+        "rolloutStage": "canary-100",
+        "routingPath": "broker",
+        "canaryPercent": 100,
+        "shadowMode": false,
+        "shadowMatch": null,
+        "stopOnShadowMismatch": false
+      },
+      "durationMs": 1
+    },
+    {
+      "id": "ev-ms969vmt-14r",
+      "type": "context.started",
+      "timestamp": "2026-07-31T16:44:09.701Z",
+      "message": "Runtime-Kontext vorbereiten (Stufe 1)",
+      "durationMs": 102
+    },
+    {
+      "id": "ev-ms969vmt-xwf",
+      "type": "context.completed",
+      "timestamp": "2026-07-31T16:44:09.701Z",
+      "message": "Stufe 1 aktiv — keine pauschalen Workspace-Signale",
+      "durationMs": 0
+    },
+    {
+      "id": "ev-ms969vr7-eav",
+      "type": "runtime.check.started",
+      "timestamp": "2026-07-31T16:44:09.859Z",
+      "message": "resource_risk=low:resident_skip_ask",
+      "meta": {
+        "risk": "low",
+        "reasons": [],
+        "profile": "balanced",
+        "slotNeedsStart": false
+      },
+      "durationMs": 158
+    },
+    {
+      "id": "ev-ms969w3g-apw",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-31T16:44:10.300Z",
+      "message": "runtime_inference_ready",
+      "meta": {
+        "slotId": "fast_gpu",
+        "preview": "OK",
+        "readinessStage": "inference_ready",
+        "tokenVerified": true
+      },
+      "durationMs": 441
+    },
+    {
+      "id": "ev-ms969w4s-a3s",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-31T16:44:10.348Z",
+      "message": "On-Demand bereit: Qwen2.5-Coder-7B-Instruct-Q4-K-M-GGUF",
+      "meta": {
+        "startTrigger": "post_budget_ondemand",
+        "slotId": "fast_gpu",
+        "modelId": "fd4a19084cdec278",
+        "reasons": [
+          "task_type:large_code_change",
+          "target_agent:planner",
+          "workflow_kind:code_change",
+          "workflow_phase:planning",
+          "model_role:planner",
+          "tool_profile:ask",
+          "slot:fast_gpu",
+          "model_selection:large_code_change",
+          "vision_gate:text_only",
+          "role_setting:fd4a19084cdec278",
+          "selection_source:role_setting"
+        ]
+      },
+      "durationMs": 48
+    },
+    {
+      "id": "ev-ms969w6z-y5z",
+      "type": "runtime.check.completed",
+      "timestamp": "2026-07-31T16:44:10.427Z",
+      "message": "slot_execution_ready",
+      "meta": {
+        "slotId": "fast_gpu",
+        "processRunning": true,
+        "endpointReachable": true,
+        "modelLoaded": true,
+        "slotBusy": false,
+        "activeRunId": "run-ms969vgs-6q79",
+        "modelId": "fd4a19084cdec278",
+        "gpuLayers": 8,
+        "cpuOffloadLayers": 24
+      },
+      "durationMs": 79
+    },
+    {
+      "id": "ev-ms969w75-wx3",
+      "type": "model.request.started",
+      "timestamp": "2026-07-31T16:44:10.433Z",
+      "message": "Agent-Turn Loop gestartet",
+      "durationMs": 6
+    },
+    {
+      "id": "ev-ms96a9ue-hjx",
+      "type": "model.first_token",
+      "timestamp": "2026-07-31T16:44:28.118Z",
+      "message": "Erstes Token empfangen",
+      "durationMs": 17685
+    },
+    {
+      "id": "ev-ms96bc0s-sx9",
+      "type": "chat.failed",
+      "timestamp": "2026-07-31T16:45:17.596Z",
+      "message": "Im Ausführungsmodus wurden keine Tools, Patches oder Commands ausgeführt.",
+      "durationMs": 49478
+    }
+  ],
+  "turns": [
+    {
+      "id": "turn-run-ms969vgs-6q79-2",
+      "turnNumber": 2,
+      "prompt": "[Agent Mode]\nInstalliere",
+      "response": "Es scheint, dass der Review abgeschlossen wurde und keine weiteren Aktionen erforderlich sind. Wenn Sie weitere Fragen haben oder etwas anderes benötigen, zögern Sie nicht, mich zu fragen.",
+      "startedAt": "2026-07-31T16:44:09.484Z",
+      "finishedAt": "2026-07-31T16:45:17.595Z",
+      "durationMs": 68111
+    }
+  ],
+  "toolCalls": [],
+  "fileChanges": [],
+  "commands": [],
+  "provider": "llama-cpp",
+  "modelId": "fd4a19084cdec278",
+  "modelName": "Qwen2.5-Coder-7B-Instruct-Q4-K-M-GGUF",
+  "slotId": "fast_gpu",
+  "configuredModelId": "fd4a19084cdec278",
+  "selectionSource": "role_setting",
+  "settingsRevision": 188,
+  "warmupStatus": "ready",
+  "workflowLabel": "[Agent Mode]\nInstalliere",
+  "phaseLabel": "planning",
+  "targetAgentLabel": "planner",
+  "contextStage": 1,
+  "tokenBudget": {
+    "runtimeContextLimit": 4096,
+    "systemTokens": 816,
+    "toolTokens": 458,
+    "chatTokens": 1247,
+    "interviewTokens": 1,
+    "memoryTokens": 1,
+    "fileContextTokens": 1,
+    "ragTokens": 1,
+    "outputReserveTokens": 512,
+    "totalInputTokens": 2525,
+    "totalRequiredTokens": 3037,
+    "overflowTokens": 0
+  },
+  "droppedSources": [
+    "active-task-workspace-file-3",
+    "active-task-workspace-file-4"
+  ],
+  "contextFallbackApplied": false,
+  "promptBindingDiagnostics": {
+    "preFallbackPromptTokens": 2067,
+    "postFallbackPromptTokens": 2067,
+    "sentPromptTokens": 2067,
+    "preFallbackPromptHash": "27bcb4d6",
+    "postFallbackPromptHash": "27bcb4d6",
+    "sentPromptHash": "27bcb4d6",
+    "messageCountBefore": 22,
+    "messageCountAfter": 22,
+    "messageCountSent": 22
+  },
+  "resourceRisk": "low",
+  "resourceRiskReasons": [],
+  "readinessStage": "inference_ready",
+  "warmupDiagnostics": {
+    "endpoint": "http://127.0.0.1:8082/v1/chat/completions",
+    "apiMode": "chat",
+    "requestMethod": "POST",
+    "requestBody": "{\"messages\": [{\"role\": \"system\", \"content\": \"Antworte minimal.\"}, {\"role\": \"user\", \"content\": \"Antworte nur mit OK.\"}], \"max_tokens\": 8, \"temperature\": 0, \"stream\": true, \"stream_options\": {\"include_usage\": true}}",
+    "httpStatus": 200,
+    "contentType": "text/event-stream",
+    "responseHeaders": {
+      "Transfer-Encoding": "chunked",
+      "Server": "llama.cpp",
+      "Access-Control-Allow-Origin": "",
+      "Content-Type": "text/event-stream",
+      "Connection": "close"
+    },
+    "streamEvents": [
+      "sse.data",
+      "sse.data",
+      "delta.content_or_reasoning",
+      "sse.data",
+      "finish:stop",
+      "sse.data",
+      "sse.data",
+      "finish:stop"
+    ],
+    "parserDecision": "stream_sse",
+    "maxTokens": 8,
+    "processStartMs": 0,
+    "endpointReadyMs": 0,
+    "modelLoadMs": 0,
+    "promptEvalMs": 405,
+    "firstTokenMs": 405,
+    "totalWarmupMs": 405,
+    "tokenCount": 1,
+    "finishReason": "stop",
+    "streamMode": true,
+    "toolCallDetected": false,
+    "readinessStage": "inference_ready"
+  },
+  "providerRequestDiagnostics": {
+    "endpoint": "http://127.0.0.1:8876",
+    "provider": "llama-cpp",
+    "modelId": "fd4a19084cdec278",
+    "slotId": "fast_gpu",
+    "sentMessageCount": 22,
+    "sentToolCount": 5,
+    "sentPromptTokens": 2067,
+    "sentToolTokens": 458,
+    "totalEstimatedInputTokens": 2525,
+    "totalRequiredTokens": 3037,
+    "outputReserveTokens": 512,
+    "promptHash": "27bcb4d6",
+    "toolsHash": "2e09f528",
+    "requestBodyBytes": 10156,
+    "toolBodyBytes": 1837,
+    "protocolMode": "prompt",
+    "stream": true,
+    "preflight": {
+      "compatible": true,
+      "promptTokens": 2067,
+      "toolTokens": 458,
+      "outputReserveTokens": 512,
+      "totalRequiredTokens": 3037,
+      "requestBodyBytes": 10156,
+      "toolBodyBytes": 1837,
+      "modelSupportsProtocol": true,
+      "templateSupportsProtocol": true,
+      "rejectionReasons": []
+    },
+    "bindingDiagnostics": {
+      "decisionId": "decision-ms969vjy-ypek5m",
+      "workflowKind": "code_change",
+      "phase": "planning",
+      "targetAgent": "planner",
+      "configuredModelId": "fd4a19084cdec278",
+      "resolvedModelId": "fd4a19084cdec278",
+      "slotId": "fast_gpu",
+      "preparedRequestModelId": "fd4a19084cdec278",
+      "slotModelId": "fd4a19084cdec278",
+      "providerModelId": "fd4a19084cdec278",
+      "consistent": true,
+      "mismatches": []
+    }
+  },
+  "slotExecutionState": {
+    "slotId": "fast_gpu",
+    "processRunning": true,
+    "endpointReachable": true,
+    "modelLoaded": true,
+    "slotBusy": false,
+    "activeRunId": "run-ms969vgs-6q79",
+    "modelId": "fd4a19084cdec278",
+    "gpuLayers": 8,
+    "cpuOffloadLayers": 24
+  },
+  "firstTokenAt": "2026-07-31T16:44:28.118Z",
+  "finishedAt": "2026-07-31T16:45:17.596Z",
+  "outcome": "execution_no_action",
+  "finalAnswerDiagnostics": {
+    "correlationId": "run-ms969vgs-6q79",
+    "runId": "run-ms969vgs-6q79",
+    "modelId": "fd4a19084cdec278",
+    "modelName": "Qwen2.5-Coder-7B-Instruct-Q4-K-M-GGUF",
+    "slotId": "fast_gpu",
+    "finishReason": "stop",
+    "rawContentLength": 188,
+    "rawContentPreview": "Es scheint, dass der Review abgeschlossen wurde und keine weiteren Aktionen erforderlich sind. Wenn Sie weitere Fragen haben oder etwas anderes benötigen, zögern Sie nicht, mich zu fragen.",
+    "parserSucceeded": false,
+    "agentTurnCount": 2,
+    "pendingToolCalls": 0,
+    "completedToolCalls": 0,
+    "finalAnswerLength": 73,
+    "finalAnswerDelivered": false,
+    "finalOutcome": "execution_no_action",
+    "contextSafetyMarginTokens": 1059
+  }
+}
