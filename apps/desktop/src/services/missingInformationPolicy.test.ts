@@ -51,6 +51,21 @@ describe("checkMissingInformation — coding", () => {
     expect(acceptance?.present).toBe(false);
   });
 
+  it("offers selectable acceptance criteria with an optional custom answer", () => {
+    const checks = checkMissingInformation("coding", "small_code_change", "fix it", false);
+    const acceptance = checks.find((c) => c.field === "acceptance_criteria")?.askIfMissing;
+
+    expect(acceptance?.questionType).toBe("single_choice");
+    expect(acceptance?.defaultOptionId).toBe("tests_green");
+    expect(acceptance?.allowFreeText).toBe(true);
+    expect(acceptance?.options?.map((option) => option.id)).toEqual([
+      "tests_green",
+      "ui_behavior_visible",
+      "bug_not_reproducible",
+      "preserve_existing_behavior"
+    ]);
+  });
+
   it("treats target as present when a file path is mentioned", () => {
     const checks = checkMissingInformation(
       "coding",

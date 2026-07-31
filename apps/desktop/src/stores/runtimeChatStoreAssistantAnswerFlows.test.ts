@@ -3,6 +3,7 @@ import {
   applyPreflightVisionOptions,
   handleClarificationAssistantAnswerFlow,
   handleWorkflowScopeAssistantAnswerFlow,
+  summarizeAssistantAnswer,
   type AssistantAnswerPreflight
 } from "@/stores/runtimeChatStoreAssistantAnswerFlows";
 
@@ -52,6 +53,31 @@ describe("runtimeChatStoreAssistantAnswerFlows", () => {
       hasImageInput: false,
       requiresVision: false
     });
+  });
+
+  it("summarizes selected assistant answer options as user-readable values", () => {
+    expect(
+      summarizeAssistantAnswer(
+        {
+          questionId: "q-acceptance",
+          answeredAt: "2026-07-31T10:00:00.000Z",
+          optionIds: ["tests_green"]
+        },
+        {
+          id: "q-acceptance",
+          questionType: "single_choice",
+          prompt: "Woran erkennst du, dass die Änderung korrekt ist?",
+          options: [
+            {
+              id: "tests_green",
+              label: "Tests/Checks sind grün",
+              value: "Passende Tests, Typecheck oder Build laufen grün."
+            }
+          ],
+          toolCallId: "missing-information-policy"
+        }
+      )
+    ).toBe("Passende Tests, Typecheck oder Build laufen grün.");
   });
 
   it("preserves vision flags when continuing after clarification", async () => {

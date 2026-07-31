@@ -133,10 +133,39 @@ function checkCoding(
     present: hasAcceptance || !shouldAskAcceptance,
     askIfMissing: withFieldMeta("coding", "acceptance_criteria", {
       id: questionId("q-acceptance"),
-      questionType: "free_text",
+      questionType: "single_choice",
       prompt: "Woran erkennst du, dass die Änderung korrekt ist?",
       context: "Ein klares Abnahmekriterium verhindert, dass ich das falsche Verhalten baue.",
-      freeTextPlaceholder: "z.B. Test X sollte danach grün sein / Button Y soll sichtbar sein",
+      options: [
+        {
+          id: "tests_green",
+          label: "Tests/Checks sind grün",
+          description: "Ich verifiziere die Änderung über passende Tests, Typecheck oder Build.",
+          recommended: true,
+          value: "Passende Tests, Typecheck oder Build laufen grün."
+        },
+        {
+          id: "ui_behavior_visible",
+          label: "Verhalten sichtbar korrekt",
+          description: "Ich prüfe in UI, Ausgabe oder Flow, dass das gewünschte Verhalten sichtbar eintritt.",
+          value: "Das gewünschte Verhalten ist in UI, Ausgabe oder Flow sichtbar korrekt."
+        },
+        {
+          id: "bug_not_reproducible",
+          label: "Bug nicht reproduzierbar",
+          description: "Ich prüfe den konkreten Fehlerpfad und stelle sicher, dass er nicht mehr auftritt.",
+          value: "Der beschriebene Fehler ist nach der Änderung nicht mehr reproduzierbar."
+        },
+        {
+          id: "preserve_existing_behavior",
+          label: "Bestehendes bleibt stabil",
+          description: "Ich ändere nur den genannten Bereich und achte gezielt auf Regressionen.",
+          value: "Bestehendes Verhalten bleibt stabil; nur der genannte Bereich ändert sich."
+        }
+      ],
+      defaultOptionId: "tests_green",
+      allowFreeText: true,
+      freeTextPlaceholder: "Eigenes Kriterium, z.B. Button Y ist sichtbar oder Flow Z bleibt grün",
       riskLevel: "low",
       toolCallId: "missing-information-policy"
     })

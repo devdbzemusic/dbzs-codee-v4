@@ -65,8 +65,19 @@ type SendMessageFn = (
   }
 ) => Promise<void>;
 
-export function summarizeAssistantAnswer(answer: AssistantAnswer) {
-  return answer.freeText ?? answer.optionIds?.join(", ") ?? (answer.skipped ? "(keine Antwort)" : "");
+export function summarizeAssistantAnswer(answer: AssistantAnswer, question?: AssistantQuestion) {
+  if (answer.freeText) {
+    return answer.freeText;
+  }
+
+  const optionSummary = answer.optionIds
+    ?.map((optionId) => {
+      const option = question?.options?.find((candidate) => candidate.id === optionId);
+      return option?.value ?? option?.label ?? optionId;
+    })
+    .join(", ");
+
+  return optionSummary ?? (answer.skipped ? "(keine Antwort)" : "");
 }
 
 function applyPreflightVisionOptions(preflight: AssistantAnswerPreflight) {
@@ -96,7 +107,7 @@ export async function handleRehydratedAssistantAnswerFlow(input: {
 
   await clearPendingQuestion(input.rehydrated.workspaceRoot).catch(() => {});
 
-  const answerSummary = summarizeAssistantAnswer(input.answer);
+  const answerSummary = summarizeAssistantAnswer(input.answer, input.question);
   if (!input.answer.skipped && input.question) {
     appendContractFieldAnswer(
       input.rehydrated.workspaceRoot,
@@ -304,7 +315,7 @@ export async function handleClarificationAssistantAnswerFlow(input: {
       input.answer
     ).catch(() => {});
 
-    const answerSummary = summarizeAssistantAnswer(input.answer);
+    const answerSummary = summarizeAssistantAnswer(input.answer, input.question);
     appendContractFieldAnswer(
       input.preflight.workspaceRoot,
       input.question.requiredField,
@@ -331,7 +342,7 @@ export async function handleClarificationAssistantAnswerFlow(input: {
     }
   }
 
-  const answerSummary = summarizeAssistantAnswer(input.answer);
+  const answerSummary = summarizeAssistantAnswer(input.answer, input.question);
   const continuationContent = `${input.preflight.originalMessage}\n\n${answerSummary}`.trim();
   await input.sendMessage(continuationContent, input.preflight.targetAgent, {
     workspaceRoot: input.preflight.workspaceRoot,

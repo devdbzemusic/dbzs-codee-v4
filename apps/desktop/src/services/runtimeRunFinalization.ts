@@ -125,7 +125,7 @@ export function isGenericRuntimeErrorSentinel(content: string | null | undefined
 
 const RESIDUAL_TOOL_CALL_PATTERN = /<CODEE_TOOL_CALL>[\s\S]*?<\/CODEE_TOOL_CALL>/;
 
-/** True when the content is only unexecuted tool-call protocol markup, not a real answer. */
+/** True when the content contains unexecuted tool-call protocol markup, not a clean final answer. */
 export function isToolOnlyAnswer(content: string | null | undefined): boolean {
   const text = (content ?? "").trim();
   if (!text) return false;
@@ -247,6 +247,9 @@ function inferFailureOutcome(input: FinalizeRuntimeRunInput, answer: string): Ru
   if (!answer.trim()) {
     return "empty_final_answer";
   }
+  if (isToolOnlyAnswer(answer)) {
+    return "invalid_protocol";
+  }
   if (input.pendingToolCalls && input.pendingToolCalls > 0) {
     return "tool_loop_failed";
   }
@@ -357,7 +360,7 @@ export function finalizeRuntimeRun(input: FinalizeRuntimeRunInput): FinalizeRunt
       error = {
         kind: "run_error",
         outcome: outcome as Exclude<RuntimeRunOutcome, "success" | "needs_user_input">,
-        stage: outcome === "agent_output_invalid" || outcome === "answer_relevance_failed"
+        stage: outcome === "agent_output_invalid" || outcome === "answer_relevance_failed" || outcome === "invalid_protocol"
           ? "output_parse"
           : outcome === "tool_loop_failed"
             ? "tool_execution"

@@ -73,6 +73,24 @@ describe("runtimeRunFinalization", () => {
     expect(result.suppressAssistantSuccess).toBe(true);
   });
 
+  it("klassifiziert gemischten Antworttext mit rohem Tool-Call als invalid_protocol", () => {
+    const result = finalizeRuntimeRun({
+      runId: "run-residual-tool-call",
+      outcome: "success",
+      finalAnswer:
+        'Hier sind die naechsten Schritte.\n<CODEE_TOOL_CALL>{"name":"read_file","arguments":{"path":"package.json"}}</CODEE_TOOL_CALL>\nDanach teste ich.',
+      agentTurnCount: 1,
+      pipeline: { modelOutputReceived: true, agentLoopCompleted: true, outputParsed: true },
+      finishReason: "stop"
+    });
+    expect(result.outcome).toBe("invalid_protocol");
+    expect(result.error?.stage).toBe("output_parse");
+    expect(result.userMessage).toContain("strukturierte Agent-Ausgabe");
+    expect(result.userMessage).not.toContain("unterwegs abgebrochen");
+    expect(result.finalAnswerDelivered).toBe(false);
+    expect(result.suppressAssistantSuccess).toBe(true);
+  });
+
   it("markiert Safe-Fallback nicht als success", () => {
     const result = finalizeRuntimeRun({
       runId: "run-1",
