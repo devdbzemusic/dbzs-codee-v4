@@ -35,6 +35,33 @@ const ICON_SIZES = [
 
 const ICO_SIZES = [16, 32, 48, 64, 128, 256];
 
+function buildIcoFromPngBuffers(buffers, sizes) {
+  const count = buffers.length;
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0); // reserved
+  header.writeUInt16LE(1, 2); // type = icon
+  header.writeUInt16LE(count, 4);
+
+  const directory = Buffer.alloc(count * 16);
+  let offset = header.length + directory.length;
+
+  buffers.forEach((buffer, index) => {
+    const size = sizes[index];
+    const entryOffset = index * 16;
+    directory.writeUInt8(size >= 256 ? 0 : size, entryOffset + 0);
+    directory.writeUInt8(size >= 256 ? 0 : size, entryOffset + 1);
+    directory.writeUInt8(0, entryOffset + 2); // palette colors
+    directory.writeUInt8(0, entryOffset + 3); // reserved
+    directory.writeUInt16LE(1, entryOffset + 4); // color planes
+    directory.writeUInt16LE(32, entryOffset + 6); // bits per pixel
+    directory.writeUInt32LE(buffer.length, entryOffset + 8);
+    directory.writeUInt32LE(offset, entryOffset + 12);
+    offset += buffer.length;
+  });
+
+  return Buffer.concat([header, directory, ...buffers]);
+}
+
 async function parseArgs() {
   const args = process.argv.slice(2);
   
@@ -93,29 +120,24 @@ async function generateICO(inputPath, outputDir) {
   console.log("\n🪟 Generiere Windows .ico...");
   
   try {
-    // Lade Basis-Image
-    let input = sharp(inputPath).resize(256, 256, {
-      fit: "contain",
-      background: { r: 7, g: 11, b: 16, alpha: 0 }
-    });
-
     // Generiere mehrere Größen für ICO
     const buffers = [];
     for (const size of ICO_SIZES) {
       const buffer = await sharp(inputPath)
-        .resize(size, size, { fit: "contain" })
+        .resize(size, size, {
+          fit: "contain",
+          background: { r: 7, g: 11, b: 16, alpha: 0 }
+        })
         .png()
         .toBuffer();
       buffers.push(buffer);
     }
 
-    // Speichere PNG-Größe (256x256) als .ico Fallback
     const icoPath = path.join(outputDir, "dbzs.ico");
-    await sharp(inputPath)
-      .resize(256, 256, { fit: "contain" })
-      .toFile(icoPath);
+    const icoBuffer = buildIcoFromPngBuffers(buffers, ICO_SIZES);
+    await fs.writeFile(icoPath, icoBuffer);
     
-    console.log(`  ✓ dbzs.ico (256x256 ICO format)`);
+    console.log(`  ✓ dbzs.ico (${ICO_SIZES.join(", ")} embedded PNG sizes)`);
   } catch (error) {
     console.error(`  ✗ Fehler bei ICO-Generierung: ${error.message}`);
   }
