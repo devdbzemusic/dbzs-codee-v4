@@ -109,4 +109,26 @@ describe("buildFullDiagnosticsZip", () => {
     const crashLogEntry = entries.find((e) => e.name === "crash.log");
     expect(crashLogEntry?.content.toString("utf-8")).toContain("existiert noch nicht");
   });
+
+  it("includes slot-health.json when slotHealthStates is provided", () => {
+    const zip = buildFullDiagnosticsZip({
+      crashLog: null,
+      settings: {},
+      modelIndex: {},
+      slotHealthStates: [{ slotId: "fast_gpu", restartAttempts: 1, budgetExhausted: false }]
+    });
+
+    const entries = readStoredZipEntries(zip);
+    const byName = Object.fromEntries(entries.map((e) => [e.name, e.content.toString("utf-8")]));
+    expect(Object.keys(byName)).toContain("slot-health.json");
+    expect(JSON.parse(byName["slot-health.json"]!)).toEqual([
+      { slotId: "fast_gpu", restartAttempts: 1, budgetExhausted: false }
+    ]);
+  });
+
+  it("omits slot-health.json when slotHealthStates is not provided", () => {
+    const zip = buildFullDiagnosticsZip({ crashLog: null, settings: {}, modelIndex: {} });
+    const entries = readStoredZipEntries(zip);
+    expect(entries.map((e) => e.name)).not.toContain("slot-health.json");
+  });
 });

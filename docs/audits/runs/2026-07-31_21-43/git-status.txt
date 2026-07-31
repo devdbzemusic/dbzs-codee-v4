@@ -1,0 +1,28 @@
+﻿=== git status ===
+On branch feature/runtime-chat-ux-overhaul
+Your branch is up to date with 'origin/feature/runtime-chat-ux-overhaul'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   apps/desktop/electron/workspaceService.test.ts
+	modified:   apps/desktop/electron/workspaceService.ts
+	modified:   apps/desktop/src/services/runtimeChatNoActionRecovery.test.ts
+	modified:   apps/desktop/src/services/runtimeChatNoActionRecovery.ts
+	modified:   docs/audits/BOLT_DIY_REUSE_SCAN_2026-07-31.md
+	modified:   package.json
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	.codee/diag-protokolle/codee-run-run-ms9aioqv-379i.json
+	docs/audits/runs/
+	scripts/new-acceptance-run.ps1
+
+no changes added to commit (use "git add" and/or "git commit -a")
+
+=== git rev-parse HEAD ===
+8ca34ca2ec732fb2ce14a9476a51a64932cef226
+
+=== git branch --show-current ===
+feature/runtime-chat-ux-overhaul
+

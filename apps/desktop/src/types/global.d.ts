@@ -93,7 +93,7 @@ declare global {
       updateSettings: (settings: AppSettings) => Promise<AppSettings>;
       patchSettings?: (request: SettingsPatchRequest) => Promise<SettingsPatchResponse>;
       getSettingsDiagnostics?: () => Promise<SettingsDiagnostics>;
-      exportFullDiagnosticsZip?: () => Promise<string>;
+      exportFullDiagnosticsZip?: (slotHealthStates?: unknown) => Promise<string>;
       openFileDialog: () => Promise<WorkspaceFile | null>;
       openImageFileDialog?: () => Promise<RuntimeChatImageAttachment | null>;
       openChatAttachmentDialog?: () => Promise<RuntimeChatAttachment[]>;

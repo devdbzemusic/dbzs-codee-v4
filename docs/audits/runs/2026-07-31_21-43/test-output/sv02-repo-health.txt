@@ -1,0 +1,112 @@
+Repo health warnings:
+- [lines] apps/desktop/src/App.tsx: 1089
+- [lines] apps/desktop/src/components/JobMonitorPanel.tsx: 1073
+- [top-level-functions] apps/desktop/src/components/JobMonitorPanel.tsx: 14
+- [lines] apps/desktop/src/components/notebook/RuntimeModelsTab.helpers.actions.test.ts: 778
+- [lines] apps/desktop/src/components/notebook/RuntimeModelsTab.helpers.support-pairs.test.ts: 1047
+- [lines] apps/desktop/src/components/notebook/RuntimeModelsTab.helpers.ts: 1074
+- [top-level-functions] apps/desktop/src/components/notebook/RuntimeModelsTab.helpers.ts: 64
+- [exports] apps/desktop/src/components/notebook/RuntimeModelsTab.helpers.ts: 62
+- [lines] apps/desktop/src/components/RuntimeChatTab.test.tsx: 960
+- [lines] apps/desktop/src/components/RuntimeChatTab.tsx: 709
+- [lines] apps/desktop/src/components/WorkspaceExplorer.tsx: 1324
+- [top-level-functions] apps/desktop/src/components/WorkspaceExplorer.tsx: 16
+- [lines] apps/desktop/src/hooks/useAppShellLifecycle.ts: 613
+- [top-level-functions] apps/desktop/src/services/activeTaskContract.ts: 18
+- [lines] apps/desktop/src/services/autonomousSessionService.ts: 788
+- [lines] apps/desktop/src/services/backendClient.ts: 786
+- [top-level-functions] apps/desktop/src/services/codeIndexService.ts: 16
+- [top-level-functions] apps/desktop/src/services/debugAnalysisParser.ts: 12
+- [top-level-functions] apps/desktop/src/services/lazyRuntimePolicy.ts: 12
+- [lines] apps/desktop/src/services/modelSelectionBroker.test.ts: 711
+- [lines] apps/desktop/src/services/modelSelectionBroker.ts: 1085
+- [top-level-functions] apps/desktop/src/services/modelSelectionBroker.ts: 30
+- [top-level-functions] apps/desktop/src/services/plannerAgentService.ts: 16
+- [lines] apps/desktop/src/services/repositoryReview/repositoryReviewOrchestrator.ts: 679
+- [top-level-functions] apps/desktop/src/services/repositoryReview/reviewPersistence.ts: 23
+- [top-level-functions] apps/desktop/src/services/reviewAgentService.ts: 13
+- [lines] apps/desktop/src/services/runtimeChatAgentRunner.ts: 778
+- [top-level-functions] apps/desktop/src/services/runtimeKernelService.ts: 12
+- [lines] apps/desktop/src/services/runtimeSlotManager.ts: 798
+- [top-level-functions] apps/desktop/src/services/workflowContinuation.ts: 13
+- [lines] apps/desktop/src/settings/settingsRegistry.ts: 936
+- [lines] apps/desktop/src/skills/.system/imagegen/scripts/image_gen.py: 996
+- [lines] apps/desktop/src/skills/sora/scripts/sora.py: 1275
+- [lines] apps/desktop/src/stores/editorStore.ts: 850
+- [lines] apps/desktop/src/stores/runtimeAgentStore.ts: 640
+- [lines] apps/desktop/src/stores/runtimeChatStore.test.ts: 840
+- [lines] apps/desktop/src/stores/runtimeChatStore.ts: 3008
+- [top-level-functions] apps/desktop/src/stores/runtimeChatStoreRuntimeHelpers.ts: 23
+- [lines] apps/desktop/src/testing/chatActions.test.ts: 979
+- [top-level-functions] apps/desktop/src/testing/codingAssistant/catalogCapabilityScenarios.ts: 14
+- [top-level-functions] apps/desktop/src/testing/codingAssistant/fixtureWorkspace.ts: 13
+- [lines] apps/desktop/electron/backendStartupService.ts: 604
+- [lines] apps/desktop/electron/boot/bootOrchestrator.ts: 634
+- [top-level-functions] apps/desktop/electron/chatAttachmentService.ts: 12
+- [lines] apps/desktop/electron/commandExecutionService.ts: 795
+- [lines] apps/desktop/electron/main.ts: 2153
+- [top-level-functions] apps/desktop/electron/main.ts: 41
+- [top-level-functions] apps/desktop/electron/workspaceService.ts: 23
+- [lines] backend/app/agents/service.py: 699
+- [lines] backend/app/agent_workbench/repository.py: 1024
+- [lines] backend/app/agent_workbench/service.py: 715
+- [lines] backend/app/context_pack/context_cache.py: 629
+- [lines] backend/app/job_spooler/service.py: 671
+- [lines] backend/app/models/index_service.py: 1457
+- [lines] backend/app/runtime/launch.py: 631
+- [lines] backend/app/runtime/service.py: 1941
+- [lines] packages/shared/src/index.ts: 2014
+- [exports] packages/shared/src/index.ts: 226
+Repo health hard failures:
+- [hard-limit] apps/desktop/src/components/notebook/RuntimeModelsTab.helpers.support-pairs.test.ts: 1047 lines
+- [hard-limit] apps/desktop/src/components/notebook/RuntimeModelsTab.helpers.ts: 1074 lines
+- [hard-limit] apps/desktop/src/components/RuntimeChatTab.test.tsx: 960 lines
+- [hard-limit] apps/desktop/src/services/modelSelectionBroker.ts: 1085 lines
+- [hard-limit] apps/desktop/src/testing/chatActions.test.ts: 979 lines
+exit: 1
+Import boundary warnings:
+- apps/desktop/src/components/agent-workbench/AgentStatusBar.tsx -> @/services/agentHostExecutor :: component uses service directly
+- apps/desktop/src/components/appShellPanels.tsx -> @/services/backendClient :: component uses service directly
+- apps/desktop/src/components/AutonomousSessionPanel.tsx -> @/services/plannerAgentService :: component uses service directly
+- apps/desktop/src/components/AutonomousSessionPanel.tsx -> @/services/reviewAgentService :: component uses service directly
+- apps/desktop/src/components/AutonomousSessionPanel.tsx -> @/services/autonomousSessionService :: component uses service directly
+- apps/desktop/src/components/AutonomousSessionPanel.tsx -> @/services/agentRunService :: component uses service directly
+- apps/desktop/src/components/chat/CodeeRunLiveBlock.test.tsx -> @/services/repositoryReview/__fixtures__/run-mrx99prx-4i17.redacted.json :: component uses service directly
+- apps/desktop/src/components/chat/CodeeRunLiveBlock.tsx -> @/services/modelSelectionBroker :: component uses service directly
+- apps/desktop/src/components/chat/CodeeRunLiveBlock.tsx -> @/services/agentTurnBudget :: component uses service directly
+- apps/desktop/src/components/JobMonitorPanel.tsx -> @/services/sseClient :: component uses service directly
+- apps/desktop/src/components/ModelDownloadWizard.tsx -> @/services/backendClient :: component uses service directly
+- apps/desktop/src/components/notebook/RuntimeModelsTab.controller.test.tsx -> @/services/backendClient :: component uses service directly
+- apps/desktop/src/components/notebook/RuntimeModelsTab.controller.ts -> @/services/backendClient :: component uses service directly
+- apps/desktop/src/components/notebook/RuntimeModelsTab.helpers.ts -> @/services/modelSelectionBroker :: component uses service directly
+- apps/desktop/src/components/PlannerAgentPanel.tsx -> @/services/plannerAgentService :: component uses service directly
+- apps/desktop/src/components/ReviewAgentPanel.tsx -> @/services/reviewAgentService :: component uses service directly
+- apps/desktop/src/components/ReviewGatePanel.tsx -> @/services/jobReviewGateService :: component uses service directly
+- apps/desktop/src/components/runtime-chat/RuntimeChatApprovalCards.tsx -> @/services/approvalHub :: component uses service directly
+- apps/desktop/src/components/runtime-chat/RuntimeChatCapabilitiesOverlay.tsx -> @/services/runtimeChatSkills :: component uses service directly
+- apps/desktop/src/components/runtime-chat/RuntimeChatConversationFeed.tsx -> @/services/runtimeChatActionSelectors :: component uses service directly
+- apps/desktop/src/components/runtime-chat/RuntimeChatMessageCard.tsx -> @/services/runtimeChatActionSelectors :: component uses service directly
+- apps/desktop/src/components/RuntimeChatActivityPanel.tsx -> @/services/runtimeChatActivityHelpers :: component uses service directly
+- apps/desktop/src/components/RuntimeChatApprovals.tsx -> @/services/agentOutputParser :: component uses service directly
+- apps/desktop/src/components/RuntimeChatApprovals.tsx -> @/services/approvalHub :: component uses service directly
+- apps/desktop/src/components/RuntimeChatApprovals.tsx -> @/services/reviewGateService :: component uses service directly
+- apps/desktop/src/components/RuntimeChatTab.test.tsx -> @/services/runtimeChatContext :: component uses service directly
+- apps/desktop/src/components/RuntimeChatTab.tsx -> @/services/runtimeChatActivityHelpers :: component uses service directly
+- apps/desktop/src/components/RuntimeChatTab.tsx -> @/services/runtimeChatContext :: component uses service directly
+- apps/desktop/src/components/RuntimeChatTab.tsx -> @/services/runtimeChatContextMentions :: component uses service directly
+- apps/desktop/src/components/RuntimeChatTab.tsx -> @/services/runtimeChatSkills :: component uses service directly
+- apps/desktop/src/components/RuntimeChatTab.tsx -> @/services/codeIndexService :: component uses service directly
+- apps/desktop/src/components/RuntimeChatToolsBar.tsx -> @/services/runtimeChatSkills :: component uses service directly
+- apps/desktop/src/components/RuntimeModelTestPanel.tsx -> @/services/runtimeModelTestService :: component uses service directly
+- apps/desktop/src/components/RuntimeSlotPanel.tsx -> @/services/modelSelectionBroker :: component uses service directly
+- apps/desktop/src/components/RuntimeSlotPanel.tsx -> @/services/runtimeSlotManager :: component uses service directly
+- apps/desktop/src/components/RuntimeSlotPanel.tsx -> @/services/runtimeProcessSupervisor :: component uses service directly
+- apps/desktop/src/components/RuntimeSlotPanel.tsx -> @/services/modelContextCacheClient :: component uses service directly
+- apps/desktop/src/components/RuntimeSlotPanel.tsx -> @/services/backendClient :: component uses service directly
+- apps/desktop/src/components/TaskOrchestratorPanel.tsx -> @/services/reviewAgentService :: component uses service directly
+- apps/desktop/src/components/TaskOrchestratorPanel.tsx -> @/services/taskOrchestratorService :: component uses service directly
+- apps/desktop/src/components/TerminalPanel.tsx -> @/services/structuredCommandParser :: component uses service directly
+- apps/desktop/src/components/TrajectoryMiniPanel.test.tsx -> @/services/trajectoryService :: component uses service directly
+- apps/desktop/src/components/TrajectoryMiniPanel.tsx -> @/services/trajectoryService :: component uses service directly
+Import boundary check passed.
+exit: 0

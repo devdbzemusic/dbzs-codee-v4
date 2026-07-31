@@ -75,7 +75,7 @@ export interface BackendBridge {
   updateSettings: (settings: AppSettings) => Promise<AppSettings>;
   patchSettings?: (request: SettingsPatchRequest) => Promise<SettingsPatchResponse>;
   getSettingsDiagnostics?: () => Promise<SettingsDiagnostics>;
-  exportFullDiagnosticsZip?: () => Promise<string>;
+  exportFullDiagnosticsZip?: (slotHealthStates?: unknown) => Promise<string>;
   selectProjectDirectory?: () => Promise<{ projectPath: string; projectName: string } | null>;
   createNewProject?: () => Promise<ProjectCreationResult | null>;
   scanProjectFiles?: (projectPath: string) => Promise<WorkspaceProjectFile[]>;
@@ -205,12 +205,12 @@ export const backendClient = {
     }
     return load();
   },
-  exportFullDiagnosticsZip: () => {
+  exportFullDiagnosticsZip: (slotHealthStates?: unknown) => {
     const method = bridge().exportFullDiagnosticsZip;
     if (!method) {
       return Promise.reject(new Error("exportFullDiagnosticsZip is unavailable."));
     }
-    return method();
+    return method(slotHealthStates);
   },
   selectProjectDirectory: () => {
     const method = bridge().selectProjectDirectory;

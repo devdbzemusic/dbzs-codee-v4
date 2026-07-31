@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { FileChangeService } from "./fileChangeService.js";
+
+function sha256Hex(content: string): string {
+  return createHash("sha256").update(content, "utf-8").digest("hex");
+}
 
 describe("FileChangeService", () => {
   const tempDirectories: string[] = [];
@@ -36,6 +41,9 @@ describe("FileChangeService", () => {
     expect(diff.diff).toContain("+++ after");
     expect(diff.diff).toContain("-const value = 1;");
     expect(diff.diff).toContain("+const value = 2;");
+    expect(diff.beforeHash).toBe(sha256Hex("const value = 1;\n"));
+    expect(diff.afterHash).toBe(sha256Hex("const value = 2;\n"));
+    expect(diff.beforeHash).not.toBe(diff.afterHash);
   });
 
   it("applies a patch to file content", async () => {
@@ -51,6 +59,9 @@ describe("FileChangeService", () => {
     expect(result.file.content).toBe("after");
     expect(result.diff).toContain("-before");
     expect(result.diff).toContain("+after");
+    expect(result.beforeHash).toBe(sha256Hex("before"));
+    expect(result.afterHash).toBe(sha256Hex("after"));
+    expect(result.afterHash).toBe(sha256Hex(await fs.readFile(filePath, "utf-8")));
   });
 
   it("creates restore point before applying patch", async () => {

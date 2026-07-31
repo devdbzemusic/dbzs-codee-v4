@@ -1,0 +1,40 @@
+=== git status ===
+On branch feature/runtime-chat-ux-overhaul
+Your branch is up to date with 'origin/feature/runtime-chat-ux-overhaul'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   apps/desktop/electron/diagnosticsZipExport.test.ts
+	modified:   apps/desktop/electron/diagnosticsZipExport.ts
+	modified:   apps/desktop/electron/fileChangeService.test.ts
+	modified:   apps/desktop/electron/fileChangeService.ts
+	modified:   apps/desktop/electron/main.ts
+	modified:   apps/desktop/electron/patchPipelineService.ts
+	modified:   apps/desktop/electron/preload.ts
+	modified:   apps/desktop/electron/restorePointService.test.ts
+	modified:   apps/desktop/electron/restorePointService.ts
+	modified:   apps/desktop/src/components/RuntimeSlotPanel.tsx
+	modified:   apps/desktop/src/services/backendClient.ts
+	modified:   apps/desktop/src/types/global.d.ts
+	modified:   package.json
+	modified:   packages/shared/src/index.ts
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	.codee/diag-protokolle/codee-run-run-ms9aioqv-379i.json
+	"Pl\303\244ne/lies-plane-implementierung-zany-toast-agent-a6e07c0e1a70f4956.md"
+	"Pl\303\244ne/lies-plane-implementierung-zany-toast-agent-aa46637a6e8302a34.md"
+	"Pl\303\244ne/umsetzen-cozy-meteor.md"
+	"Pl\303\244ne/umsetzen-moonlit-shamir.md"
+	"Pl\303\244ne/zippy-churning-teapot.md"
+	docs/audits/runs/
+	scripts/check-docs-drift.mjs
+	scripts/generate-verification-run-json.mjs
+	scripts/new-acceptance-run.ps1
+
+no changes added to commit (use "git add" and/or "git commit -a")
+=== git rev-parse HEAD ===
+789f6516fd182f261ac471dd141bc76a0f3ec4ee
+=== git branch --show-current ===
+feature/runtime-chat-ux-overhaul

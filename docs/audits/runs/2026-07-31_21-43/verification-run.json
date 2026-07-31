@@ -1,0 +1,253 @@
+{
+  "runId": "2026-07-31_21-43",
+  "generatedAt": "2026-07-31T20:05:31.013Z",
+  "commit": "789f6516fd182f261ac471dd141bc76a0f3ec4ee",
+  "branch": "feature/runtime-chat-ux-overhaul",
+  "statusCounts": {
+    "PASS": 8,
+    "BLOCKED": 1,
+    "NOT_RUN": 39
+  },
+  "tests": [
+    {
+      "id": "SV-01",
+      "title": "Repository- und Abhaengigkeitszustand",
+      "status": "PASS"
+    },
+    {
+      "id": "SV-02",
+      "title": "Vollstaendiges lokales CI-Gate",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "SV-03",
+      "title": "TypeScript-Typecheck",
+      "status": "PASS"
+    },
+    {
+      "id": "SV-04",
+      "title": "Backend-Testlauf",
+      "status": "PASS"
+    },
+    {
+      "id": "SV-05",
+      "title": "Capability-Abnahme",
+      "status": "PASS"
+    },
+    {
+      "id": "SV-06",
+      "title": "Contract-Paritaet",
+      "status": "PASS"
+    },
+    {
+      "id": "SV-07",
+      "title": "Security Regression",
+      "status": "PASS"
+    },
+    {
+      "id": "SV-08",
+      "title": "Packaging Smoke",
+      "status": "PASS"
+    },
+    {
+      "id": "SV-09",
+      "title": "Backend Smoke und Doctor",
+      "status": "PASS"
+    },
+    {
+      "id": "UI-01",
+      "title": "App-Start und Grundzustand",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-02",
+      "title": "Workspace oeffnen",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-03",
+      "title": "Modellkatalog-Rescan",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-04",
+      "title": "Modellstart und Modellstopp",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-05",
+      "title": "Modellwechsel-Stabilitaet",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-06",
+      "title": "Einfacher Chat",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-07",
+      "title": "Fortsetzungsverstaendnis",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-08",
+      "title": "Statusfrage",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-09",
+      "title": "Tool-Call-Finalisierung",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-10",
+      "title": "Unvollstaendiger Agentenlauf",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-11",
+      "title": "Folgeaktionen",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-12",
+      "title": "Text- und Code-Dateianhang",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-13",
+      "title": "PDF-Anhang",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-14",
+      "title": "ZIP-Anhang",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-15",
+      "title": "Bildanhang und Vision-Gating",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-16",
+      "title": "Rollenmodell-Aufloesung",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-17",
+      "title": "Repository Review ohne Findings",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-18",
+      "title": "Repository Review mit echten Findings",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-19",
+      "title": "Diff-Erzeugung",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-20",
+      "title": "Approval Gate",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-21",
+      "title": "Patch Apply",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-22",
+      "title": "Tests nach Patch",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-23",
+      "title": "Fehlgeschlagener Test",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-24",
+      "title": "Rollback",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-25",
+      "title": "Backup und Restore",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-26",
+      "title": "Crash-Recovery",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-27",
+      "title": "Runtime-Prozessverlust",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "UI-28",
+      "title": "Backend-Prozessverlust",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "IN-01",
+      "title": "Release-Build",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "IN-02",
+      "title": "Neuinstallation",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "IN-03",
+      "title": "UserData- und AppData-Pfade",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "IN-04",
+      "title": "Installer Golden Path",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "IN-05",
+      "title": "Portable Build",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "IN-06",
+      "title": "Update ueber bestehende Installation",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "IN-07",
+      "title": "Deinstallation",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "PS-01",
+      "title": "Drei vollstaendige Laeufe",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "PS-02",
+      "title": "Pflichtumfang je Lauf",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "PS-03",
+      "title": "Alltagsnutzung",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "PS-04",
+      "title": "Freigabekriterien",
+      "status": "NOT_RUN"
+    }
+  ]
+}

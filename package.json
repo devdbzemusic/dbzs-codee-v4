@@ -34,6 +34,8 @@
     "doctor:all": "pnpm doctor:backend && pnpm doctor",
     "acceptance:live": "powershell -ExecutionPolicy Bypass -File scripts/acceptance-live.ps1",
     "acceptance:live:start": "powershell -ExecutionPolicy Bypass -File scripts/acceptance-live.ps1 -StartBackend",
+    "acceptance:new-run": "powershell -ExecutionPolicy Bypass -File scripts/new-acceptance-run.ps1",
+    "docs:check-drift": "node scripts/check-docs-drift.mjs",
     "smoke-test": "powershell -ExecutionPolicy Bypass -File scripts/smoke-test.ps1",
     "e2e": "pnpm --filter @dbzs/desktop e2e",
     "check:version": "node scripts/sync-version.mjs --check",
