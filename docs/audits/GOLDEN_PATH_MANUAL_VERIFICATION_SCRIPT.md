@@ -71,6 +71,50 @@ mit wählbarem Installationsverzeichnis + Portable-Target).
 7. Ergebnis in `GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md` nachtragen,
    Statusstufe für diesen Punkt auf `INSTALLER_VERIFIED` heben.
 
+## D) Sandbox-Automatisierungsversuche (2026-07-31) — Ergebnis: nicht möglich
+
+Im Rahmen der Produktionsreife-Revision (`Pläne/09 DBZS_CODEE_V4_REPOSITORY_URTEIL_2026-07-31.md`) wurde erneut
+versucht, die Punkte A/B sowie die drei neuen Fälle unten (Rollenmodell-Fallback, Crash-Correlation,
+GPU-Exklusivität) in der Agent-Sandbox statt manuell zu verifizieren. Zwei technisch unterschiedliche Ansätze
+wurden getestet:
+
+1. **Bash-Hintergrundprozess / PowerShell `Start-Process` (detached)** — bereits in einer früheren Session
+   zweimal gescheitert: Backend (uvicorn) und Electron werden nach ca. 2–3 Minuten Laufzeit beendet, unabhängig
+   von Startmethode und unabhängig davon, ob das Modell vorher warmgeladen wurde.
+2. **Windows Task Scheduler (`schtasks /create /sc once` + `/run`)** — neuer Versuch, um den Prozessbaum-Elternteil
+   auf den Task-Scheduler-Dienst statt die Agent-Shell zu verlagern. Ergebnis: der gestartete Prozess wurde bereits
+   nach ca. 25–30 Sekunden beendet — **schneller** als bei Methode 1 — und zeigte trotz Start über `schtasks` weiterhin
+   `claude.exe` (die CLI-Harness selbst) als `ParentProcessId`. Das spricht dagegen, dass es sich um klassisches
+   Job-Object-Reaping über die Prozess-Elternschaft handelt; vermutlich überwacht die Sandbox neu erzeugte Prozesse
+   unabhängig vom tatsächlichen Elternprozess und beendet sie nach einem festen Zeitfenster.
+
+Beide Techniken sind damit als nicht geeignet bestätigt. Weitere Exotik (z. B. ein echter Windows-Dienst über
+`sc.exe create`) wäre der dritte Versuch und steht in keinem vernünftigen Aufwand-/Nutzen-Verhältnis mehr — die
+folgenden Punkte bleiben daher manuelle Verifikation für eine reale Session mit geladenem Modell.
+
+### D.1 Rollenmodell-Fallback-Kette
+
+1. In den Settings ein Rollenmodell (z. B. `defaultCoderModelId`) leeren, aber ein anderes Modell in einem Slot
+   laufen lassen.
+2. Eine Coding-Anfrage senden — erwartet: Antwort kommt trotzdem, `selectionSource: "explicit_fallback"` sichtbar
+   im Diagnose-Panel, keine harte Fehlermeldung „Rollenmodell in Settings fehlt“ mehr.
+3. Anschließend auch ganz ohne laufendes Modell testen (nur installiert) — erwartet: Fallback auf installiertes
+   Modell, ggf. mit kurzem Start-Delay.
+4. Zuletzt: keine kompatiblen Modelle vorhanden — erwartet: klarer `role_model_missing_no_fallback`-Fehler.
+
+### D.2 Crash-Correlation-ID
+
+1. Eine Chat-Anfrage senden, während sie läuft den Electron-Prozess hart beenden (`Stop-Process -Force`).
+2. `crash.log` (`userData/logs/crash.log`) prüfen: enthält die Zeile `activeRuns=<run-id>` mit der ID, die im
+   Backend-Log (`chat()`/`chat_stream()`-Eintrittszeile) und im Frontend als „Diagnose-ID“ angezeigten Wert
+   übereinstimmt.
+
+### D.3 Vision-GPU-Exklusivität
+
+1. `fast_gpu` mit einem Textmodell starten, dann eine Bildanfrage senden, die `vision_gpu` startet.
+2. Prüfen: `fast_gpu` wird sauber gestoppt, kein gleichzeitiger GPU-Betrieb beider Slots, keine In-Flight-Anfrage
+   geht dabei verloren (wird zu Ende gebracht, bevor der jeweils andere Slot gestoppt wird).
+
 ## C) Wiederholung an zwei weiteren Tagen
 
 Ziel: Freigabekriterium für `PERSONAL_STABLE` laut

@@ -26,6 +26,7 @@ import type {
   RuntimeChatRequest
 } from "@dbzs/shared";
 import { streamRuntimeChatViaBackend } from "./runtimeChatStream.js";
+import { markRunActive, markRunInactive } from "./activeRunTracker.js";
 import { classifyRuntimeStreamError, shouldAttemptNonStreamFallback } from "./runtimeChatFallbackPolicy.js";
 import {
   buildToolFreeRuntimeChatFallbackRequest,
@@ -148,6 +149,7 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
         : `runtime-chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const abortController = new AbortController();
     activeRuntimeChatAbortControllers.set(normalizedRequestId, abortController);
+    markRunActive(chatRequest.run_id);
     try {
       return await requestBackend("/runtime/chat", {
         method: "POST",
@@ -199,6 +201,7 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
       }
     } finally {
       activeRuntimeChatAbortControllers.delete(normalizedRequestId);
+      markRunInactive(chatRequest.run_id);
     }
   });
 
@@ -238,6 +241,7 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
       }
     };
 
+    markRunActive(chatRequest.run_id);
     try {
       try {
         const result = await streamRuntimeChatViaBackend(backendUrl, chatRequest, (chunk) => {
@@ -317,6 +321,7 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
       if (activeChatStreamAbortController?.signal === streamSignal) {
         activeChatStreamAbortController = null;
       }
+      markRunInactive(chatRequest.run_id);
     }
   });
 

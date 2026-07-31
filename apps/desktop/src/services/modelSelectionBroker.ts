@@ -324,6 +324,12 @@ export interface BrokerModelCatalogEntry {
   supportsVision?: boolean;
 }
 
+/** A model actually resident in a runtime slot right now — used for role-model fallback. */
+export interface RunningModelSnapshot {
+  slotId: RuntimeSlotId;
+  modelId: string;
+}
+
 export interface BrokerDecisionOptions {
   hasImageInput?: boolean;
   requiresVision?: boolean;
@@ -341,6 +347,12 @@ export interface BrokerDecisionOptions {
     CanonicalWorkflowAssignment,
     "workflowKind" | "phase" | "effectiveAgent" | "modelRole" | "toolProfile"
   >;
+  /**
+   * Models currently resident in a runtime slot. Only consulted when no role model is
+   * configured for the resolved target — used to fall back onto an already-running model
+   * instead of hard-failing the turn. See resolveModelIdWithVisionGate().
+   */
+  runningModels?: RunningModelSnapshot[];
 }
 
 function isNonRunnableSupportArtifact(entry?: BrokerModelCatalogEntry | null): boolean {
@@ -525,6 +537,51 @@ export function formatModelDisplayLabel(
   return fallback;
 }
 
+/**
+ * Whether a candidate model may stand in for a missing role model on this turn.
+ * Vision-safety is a hard filter here, never a score penalty: a text turn must never
+ * fall back onto a vision-only model and vice versa (mirrors the role-setting gate above).
+ */
+function isFallbackCandidateEligible(
+  modelId: string,
+  allowVision: boolean,
+  catalog: BrokerModelCatalogEntry[] | undefined,
+  multimodalPairs: MultimodalPair[] | undefined,
+): boolean {
+  const entry = findCatalogEntry(modelId, catalog);
+  if (isNonRunnableSupportArtifact(entry)) return false;
+  if (!isVisionModelRef(modelId, catalog)) {
+    return true;
+  }
+  if (!allowVision) return false;
+  if (modelSupportsTextOnly(modelId, catalog)) return true;
+  return Boolean(findVerifiedMultimodalPair(modelId, multimodalPairs));
+}
+
+/** Ranks eligible fallback candidates by fitness for the task at hand. */
+function scoreFallbackCandidate(modelId: string, taskType: TaskType, catalog?: BrokerModelCatalogEntry[]): number {
+  const entry = findCatalogEntry(modelId, catalog);
+  if (!entry) return 0;
+  let score = 0;
+  const requiresCoding = taskRequiresCodingCapability(taskType);
+  if (requiresCoding && entry.capabilities?.includes("code")) score += 100;
+  if (requiresCoding && entry.recommended_use === "primary_coding") score += 50;
+  if (requiresCoding && entry.recommended_use === "coding_candidate") score += 25;
+  if (!requiresCoding && entry.capabilities?.includes("chat")) score += 30;
+  if (!requiresCoding && entry.recommended_use === "chat_candidate") score += 20;
+  return score;
+}
+
+function bestFallbackCandidate(
+  candidateModelIds: string[],
+  taskType: TaskType,
+  catalog: BrokerModelCatalogEntry[] | undefined,
+): string | undefined {
+  return candidateModelIds
+    .slice()
+    .sort((a, b) => scoreFallbackCandidate(b, taskType, catalog) - scoreFallbackCandidate(a, taskType, catalog))[0];
+}
+
 function resolveModelIdWithVisionGate(
   preferred: string | undefined,
   settings: {
@@ -540,7 +597,14 @@ function resolveModelIdWithVisionGate(
   multimodalPairs: MultimodalPair[] | undefined,
   reasons: string[],
   manualModelId?: string,
-): { modelId: string; selectionSource: BindingSelectionSource; fallbackReason?: string } {
+  taskType?: TaskType,
+  runningModels?: RunningModelSnapshot[],
+): {
+  modelId: string;
+  selectionSource: BindingSelectionSource;
+  fallbackReason?: string;
+  fallbackSlotId?: RuntimeSlotId;
+} {
   if (manualModelId?.trim()) {
     const verifiedManualPair = findVerifiedMultimodalPair(manualModelId, multimodalPairs);
     if (allowVision && verifiedManualPair) {
@@ -565,10 +629,46 @@ function resolveModelIdWithVisionGate(
   }
 
   if (!preferred?.trim()) {
+    reasons.push("role_fallback:role_model_missing");
+
+    // Tier 2: an already-running model that is safe for this turn — reuse it and
+    // relocate the decision onto its slot instead of hard-failing.
+    const runningCandidateIds = (runningModels ?? [])
+      .map((snapshot) => snapshot.modelId)
+      .filter((modelId) => isFallbackCandidateEligible(modelId, allowVision, catalog, multimodalPairs));
+    const bestRunning = bestFallbackCandidate(runningCandidateIds, taskType ?? "normal_chat", catalog);
+    if (bestRunning) {
+      const slotId = runningModels?.find((snapshot) => snapshot.modelId === bestRunning)?.slotId;
+      reasons.push(`role_fallback:running_model:${bestRunning}`);
+      if (slotId) reasons.push(`role_fallback:slot_reassigned:${slotId}`);
+      return {
+        modelId: bestRunning,
+        selectionSource: "explicit_fallback",
+        fallbackReason: "role_model_missing_used_running",
+        fallbackSlotId: slotId,
+      };
+    }
+
+    // Tier 3: best installed, catalog-known model that is safe for this turn.
+    const installedCandidateIds = (catalog ?? [])
+      .map((entry) => entry.id)
+      .filter((modelId) => isFallbackCandidateEligible(modelId, allowVision, catalog, multimodalPairs));
+    const bestInstalled = bestFallbackCandidate(installedCandidateIds, taskType ?? "normal_chat", catalog);
+    if (bestInstalled) {
+      reasons.push(`role_fallback:installed_model:${bestInstalled}`);
+      return {
+        modelId: bestInstalled,
+        selectionSource: "explicit_fallback",
+        fallbackReason: "role_model_missing_used_installed",
+      };
+    }
+
+    reasons.push("role_fallback:no_candidate_found");
     throw new BindingModelError(
-      "Rollenmodell in Settings fehlt. Bitte default*ModelId für die Zielrolle setzen.",
-      "role_model_missing",
-      ["Rollenmodell in Settings wählen", "Abbrechen"]
+      "Rollenmodell in Settings fehlt, und es ist weder ein laufendes noch ein installiertes kompatibles Modell " +
+        "als Fallback verfügbar. Bitte default*ModelId für die Zielrolle setzen oder ein Modell installieren.",
+      "role_model_missing_no_fallback",
+      ["Rollenmodell in Settings wählen", "Modell installieren", "Abbrechen"]
     );
   }
 
@@ -628,6 +728,37 @@ function resolveModelIdWithVisionGate(
 }
 
 /**
+ * Cheap pre-check for callers deciding whether it's worth fetching a running-slots
+ * snapshot before calling brokerDecision(). Mirrors the same target/role resolution
+ * brokerDecision() performs internally, so it can never diverge from what actually
+ * triggers the fallback chain in resolveModelIdWithVisionGate().
+ */
+export function hasConfiguredRoleModelForTask(
+  taskType: TaskType,
+  settings: {
+    defaultModelId: string;
+    defaultChatModelId?: string;
+    defaultPlannerModelId?: string;
+    defaultCoderModelId?: string;
+    defaultReviewerModelId?: string;
+    defaultDebugModelId?: string;
+  },
+  options?: {
+    preferPlannerFirst?: boolean;
+    workflowAssignment?: Pick<CanonicalWorkflowAssignment, "effectiveAgent" | "modelRole">;
+  },
+): boolean {
+  const assignment = options?.workflowAssignment;
+  const targetAgent = assignment
+    ? mapWorkflowAgentToModelTarget(assignment.effectiveAgent)
+    : mapTaskTypeToAgent(taskType, options?.preferPlannerFirst !== false);
+  const configuredModelId = assignment
+    ? selectModelForRole(assignment.modelRole, settings, targetAgent)
+    : selectModelForTask(taskType, settings, targetAgent);
+  return Boolean(configuredModelId?.trim());
+}
+
+/**
  * Make a BINDING routing decision.
  * This decision is final. Backend does NOT re-route.
  */
@@ -683,7 +814,13 @@ export function brokerDecision(
     options?.multimodalPairs,
     reasons,
     options?.manualModelId,
+    taskType,
+    options?.runningModels,
   );
+  const effectiveSlotId = resolved.fallbackSlotId ?? slotId;
+  if (resolved.fallbackSlotId && resolved.fallbackSlotId !== slotId) {
+    reasons.push(`slot:reassigned_from:${slotId}`);
+  }
   const catalogEntry = findCatalogEntry(resolved.modelId, catalog);
   const resolvedModelId = catalogEntry?.id ?? resolved.modelId;
   const resolvedModelName = catalogEntry?.name?.trim()
@@ -707,7 +844,7 @@ export function brokerDecision(
   const decision: ModelSelectionDecision = {
     taskType,
     targetAgent,
-    slotId,
+    slotId: effectiveSlotId,
     modelId: resolvedModelId,
     modelName: resolvedModelName,
     configuredModelId: configuredModelId || resolvedModelId,

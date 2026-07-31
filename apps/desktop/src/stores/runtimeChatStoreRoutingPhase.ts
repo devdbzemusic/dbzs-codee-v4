@@ -11,9 +11,15 @@ import type { RuntimeChatActivityRun } from "@/types/runtimeChatActivity";
 import type { CanonicalWorkflowAssignment } from "@/runtime/workflow/workflowContracts";
 import type { ActiveTaskContract } from "@/services/activeTaskContract";
 import type { RuntimeBindingDecision } from "@/services/runtimeBinding";
-import type { ModelSelectionDecision } from "@/services/modelSelectionBroker";
-import { brokerDecision, BindingModelError, formatModelDisplayLabel } from "@/services/modelSelectionBroker";
+import type { ModelSelectionDecision, RunningModelSnapshot } from "@/services/modelSelectionBroker";
+import {
+  brokerDecision,
+  BindingModelError,
+  formatModelDisplayLabel,
+  hasConfiguredRoleModelForTask
+} from "@/services/modelSelectionBroker";
 import { createRuntimeBindingDecision } from "@/services/runtimeBinding";
+import { runtimeSlotManager } from "@/services/runtimeSlotManager";
 import { assertValidPhaseAgentPair } from "@/services/phaseAgentInvariant";
 import { resolveToolProtocolMode } from "@/runtime/agent/toolProtocolAdapter";
 import { WORKFLOW_POLICY_VERSION } from "@/runtime/workflow/workflowPolicyRegistry";
@@ -137,6 +143,27 @@ export async function runRoutingPhaseAction(input: {
       `binding_broker=yes rollout_stage=${canaryStage} workflow=${continuation.reason}`
     );
 
+    // Slot-status is only worth fetching when no role model is configured for this
+    // target — otherwise the role setting always wins and the fallback chain never runs.
+    // Restricted to the three slot ids the downstream context-window pipeline (see
+    // contextSlotId below) understands today; vision_gpu/orchestrator_cpu fallback
+    // is deferred to the Vision-Broker-Routing phase, which already has to widen that
+    // pipeline for its own slot-relocation needs.
+    let runningModels: RunningModelSnapshot[] | undefined;
+    if (
+      !hasConfiguredRoleModelForTask(taskType, settings, { preferPlannerFirst, workflowAssignment })
+    ) {
+      const slotStatuses = await runtimeSlotManager.getAllSlotsStatus();
+      runningModels = slotStatuses
+        .filter(
+          (status) =>
+            status.state === "running" &&
+            status.model_id &&
+            (status.slot_id === "quality_cpu" || status.slot_id === "fast_gpu" || status.slot_id === "utility")
+        )
+        .map((status) => ({ slotId: status.slot_id, modelId: status.model_id as string }));
+    }
+
     const decision = brokerDecision(
       taskType,
       {
@@ -157,7 +184,8 @@ export async function runRoutingPhaseAction(input: {
         multimodalPairs,
         settingsRevision: settingsState.settingsRevision,
         userMessage: trimmedContent,
-        workflowAssignment
+        workflowAssignment,
+        runningModels
       }
     );
     brokerDecisionFull = decision;

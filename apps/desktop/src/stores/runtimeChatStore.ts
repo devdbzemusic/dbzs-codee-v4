@@ -570,6 +570,7 @@ async function applyPlanningRelevanceGate(input: {
           model_id: input.routing.modelId,
           slot_id: input.slotId ?? null,
           decision_id: input.decisionId,
+          run_id: input.runId,
           max_tokens: 800,
           temperature: 0.2
         },
@@ -1070,6 +1071,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
                 model_id: routing.modelId ?? brokerDecisionFull?.resolvedModelId ?? null,
                 slot_id: (contextSlotId as RuntimeSlotId | null) ?? null,
                 decision_id: brokerDecisionFull?.decisionId ?? null,
+                run_id: initialRun.id,
                 routing_reason: "repository_review_batch",
                 max_tokens: 1024,
                 temperature: 0.1
@@ -2545,7 +2547,8 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
           routing_reason:
             brokerDecisionFull?.reason.join("; ") ??
             `slot:${contextSlotId};provider:${routing.providerId ?? "runtime"}`,
-          decision_id: bindingDecision?.decisionId ?? brokerDecisionFull?.decisionId ?? initialRun.id
+          decision_id: bindingDecision?.decisionId ?? brokerDecisionFull?.decisionId ?? initialRun.id,
+          run_id: initialRun.id
         },
         streamingCallbacks.onDelta,
         runAbortController.signal

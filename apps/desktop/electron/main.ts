@@ -93,6 +93,7 @@ import { exportBootDiagnosticsToFile } from "./boot/bootDiagnosticExport.js";
 import { startBootLogPersistence } from "./boot/bootLogPersistence.js";
 import { writeFileAtomic } from "./atomicFileWrite.js";
 import { registerRuntimeAndJobIpcHandlers } from "./runtimeAndJobIpc.js";
+import { getActiveRunIdsSnapshot } from "./activeRunTracker.js";
 import {
   clipboardSourceFromDataUrl,
   prepareChatAttachments,
@@ -151,7 +152,9 @@ function flushPendingState(reason: string, detail: string): void {
   try {
     const logDir = path.join(app.getPath("userData"), "logs");
     mkdirSync(logDir, { recursive: true });
-    const line = `${new Date().toISOString()} [${reason}] ${redactSecrets(detail)}\n`;
+    const activeRuns = getActiveRunIdsSnapshot();
+    const activeRunsLabel = activeRuns.length > 0 ? activeRuns.join(",") : "none";
+    const line = `${new Date().toISOString()} [${reason}] activeRuns=${activeRunsLabel} ${redactSecrets(detail)}\n`;
     appendFileSync(path.join(logDir, "crash.log"), line, "utf8");
   } catch {
     // Never let the crash logger itself crash the app.

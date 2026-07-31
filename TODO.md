@@ -28,14 +28,22 @@ hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht no
       wieder echte LLM-Findings statt `degraded_heuristic_only` liefert — nicht in dieser Session verifizierbar
       (siehe Sandbox-Limitierung unten), braucht eine echte interaktive Session.
 - [ ] unerklaerter App-/Backend-Absturz kurz nach Modellwechsel auf `qwen2.5-coder-7b-instruct` root-causen
-      (Logs: `golden-path-run-2/user-data/logs/crash.log`, zeitliche Korrelation nicht abschliessend belegt)
+      (Logs: `golden-path-run-2/user-data/logs/crash.log`, zeitliche Korrelation nicht abschliessend belegt).
+      **Neu (2026-07-31):** `crash.log` enthaelt jetzt `activeRuns=<run-ids>` und das Backend loggt `run_id` bei
+      `chat()`/`chat_stream()`-Eintritt — ein erneuter Absturz waere jetzt tatsaechlich korrelierbar. Root-Cause
+      selbst noch offen (braucht eine echte Reproduktion, siehe Sandbox-Limitierung unten).
 - [ ] 2.6 (Tests)/2.7 (Rollback) gegen den echten, verdrahteten Pfad neu verifizieren:
       `apps/desktop/electron/patchPipelineService.ts`/`restorePointService.ts` ueber `runtimeChatStorePatchActions.ts`
       (nicht die entfernten `repositoryReview/patchValidationService.ts`/`patchRollbackService.ts`)
 - [ ] gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren
       (`INSTALLER_VERIFIED`) — Ablauf in `docs/audits/GOLDEN_PATH_MANUAL_VERIFICATION_SCRIPT.md`
-- [ ] rollenspezifische Modell-IDs (`defaultCoderModelId`/`defaultReviewerModelId`/...) sinnvoll defaulten statt
-      hartem `"Rollenmodell in Settings fehlt"`-Fehler beim ersten Coding-Task-Versuch (in `GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md` gefunden)
+- [x] **rollenspezifische Modell-IDs sinnvoll defaulten (2026-07-31):** `modelSelectionBroker.ts` faellt jetzt,
+      wenn kein `default*ModelId` konfiguriert ist, zuerst auf ein passendes laufendes und dann auf das beste
+      installierte Modell zurueck (`selectionSource: "explicit_fallback"`), statt hart mit
+      `"Rollenmodell in Settings fehlt"` abzubrechen — Vision-Sicherheit bleibt dabei ein harter Filter. Nur
+      wenn wirklich kein kompatibles Modell existiert, gibt es weiterhin einen klaren Fehler
+      (`role_model_missing_no_fallback`). **Noch offen:** manuelle Bestaetigung in einer echten Session (siehe
+      `docs/audits/GOLDEN_PATH_MANUAL_VERIFICATION_SCRIPT.md`, Abschnitt D.1).
 - [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen) —
       Rescan-Button selbst bereits `UI_VERIFIED` (364 Modelle, keine Regression)
 

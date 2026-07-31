@@ -565,6 +565,8 @@ export interface RuntimeChatRequest {
   fallback_policy?: RuntimeFallbackPolicy;
   routing_reason?: string | null;
   decision_id?: string | null;
+  /** RuntimeChatRun.id for this turn — threaded to the backend so a crash mid-run can be correlated across logs. */
+  run_id?: string | null;
 }
 
 export interface RuntimeChatResponse {

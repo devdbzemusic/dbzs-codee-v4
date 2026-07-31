@@ -575,6 +575,49 @@ def test_runtime_service_sends_chat_to_running_llama_server(tmp_path: Path) -> N
     assert chat_client.payload["frequency_penalty"] == 0.25
 
 
+def test_runtime_service_chat_logs_run_id_for_crash_correlation(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    write_catalog(tmp_path)
+    runner = FakeProcessRunner()
+    chat_client = FakeChatClient()
+    service = RuntimeService(
+        model_index_service=ModelIndexService(models_dir=tmp_path),
+        process_runner=runner,
+        chat_client=chat_client,
+        endpoint_checker=lambda _url: True,
+    )
+    service.start_model("coder")
+
+    with caplog.at_level("INFO"):
+        service.chat(
+            RuntimeChatRequest(
+                messages=[RuntimeChatMessage(role="user", content="Hallo")],
+                run_id="run-correlation-test",
+            )
+        )
+
+    assert "run_id=run-correlation-test" in caplog.text
+
+
+def test_runtime_service_chat_logs_without_run_id(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """A missing run_id (e.g. legacy caller) must not break logging or the chat call."""
+    write_catalog(tmp_path)
+    runner = FakeProcessRunner()
+    chat_client = FakeChatClient()
+    service = RuntimeService(
+        model_index_service=ModelIndexService(models_dir=tmp_path),
+        process_runner=runner,
+        chat_client=chat_client,
+        endpoint_checker=lambda _url: True,
+    )
+    service.start_model("coder")
+
+    with caplog.at_level("INFO"):
+        response = service.chat(RuntimeChatRequest(messages=[RuntimeChatMessage(role="user", content="Hallo")]))
+
+    assert response.message.role == "assistant"
+    assert "run_id=None" in caplog.text
+
+
 def test_runtime_service_chat_stream_captures_usage(tmp_path: Path) -> None:
     """Acceptance test 17: usage stats from llama-server surface via get_last_chat_usage()."""
     write_catalog(tmp_path)

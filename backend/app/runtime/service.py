@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import re
 import threading
@@ -16,6 +17,8 @@ except ModuleNotFoundError:
     psutil = None  # type: ignore[assignment]
 
 _SIMULATION_MODE = os.getenv("DBZS_RUNTIME_SIMULATION", "0").strip() == "1"
+
+logger = logging.getLogger(__name__)
 
 from app.antigravity.service import AntigravityAgentService
 from app.core.config import get_ollama_dir, get_ollama_models_dir
@@ -1220,6 +1223,7 @@ class RuntimeService:
         )
 
     def chat(self, chat_request: RuntimeChatRequest) -> RuntimeChatResponse:
+        logger.info("runtime.chat.start run_id=%s model_id=%s", chat_request.run_id, chat_request.model_id)
         antigravity_response = self._try_antigravity_chat(chat_request)
         if antigravity_response is not None:
             return antigravity_response
@@ -1305,6 +1309,7 @@ class RuntimeService:
             self.residency.end_request(slot_id)
 
     def chat_stream(self, chat_request: RuntimeChatRequest) -> Iterator[str]:
+        logger.info("runtime.chat_stream.start run_id=%s model_id=%s", chat_request.run_id, chat_request.model_id)
         antigravity_response = self._try_antigravity_chat(chat_request)
         if antigravity_response is not None:
             for token in antigravity_response.message.content.split():
