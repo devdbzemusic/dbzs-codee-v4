@@ -53,9 +53,29 @@ Basis: `Pläne/06 DBZS_CODEE_CHAT_FOLLOW_UP_ACTIONS_DIAGNOSE_PLAN.md`, umgesetzt
 - [ ] waehrend eine Antwort noch gesendet wird sind die Folgeaktionen-Buttons sichtbar deaktiviert
 - [ ] Patch-Approval- und Repository-Review-Flows optisch unveraendert gegenpruefen (keine Vermischung
       mit den neuen Folgeaktionen)
-- [ ] Phase 2 einordnen/priorisieren, sobald Phase 1 im echten Gebrauch bestaetigt ist: echtes Retry mit
-      Run-Kontext, Modellwechsel-Angebot nach Fehlschlag, Fehlererkennung aus Freitext statt nur ueber
-      `toolCalls[].status`, persistierte Folgeaktionen
+- [x] **Phase 2 umgesetzt und automatisiert getestet (2026-07-31):** alle vier vorher offenen Punkte
+      bearbeitet, siehe `apps/desktop/src/services/runtimeChatFollowUpActions.ts`:
+      - **echtes Retry mit Run-Kontext**: `retry_run` sendet jetzt den woertlichen urspruenglichen
+        Nutzerprompt (ueber `run.userMessageId` in `messages` nachgeschlagen) statt einer festen
+        Platzhalterformulierung, und reicht `taskType`/`provider`/`agentMode`/`forceUseResidentModel`
+        als `sendOptions` durch `runtimeChatStoreInteractionActions.ts` an `sendMessage()` weiter
+        (kein hartes Modell-/Slot-Pinning — dafuer fehlt in `RuntimeChatSendOptions` ein
+        `forcedModelId`-Feld, das die Model-Selection-Broker-Logik veraendern wuerde; bewusst nicht
+        in dieser Session angefasst).
+      - **Modellwechsel-Angebot nach Fehlschlag**: neuer Action-Kind `switch_model`, erscheint
+        zusaetzlich zu `retry_run`, wenn `run.resourceRisk` `"high"`/`"unsupported"` ist oder
+        `run.fallbackRejection` gesetzt ist. Klick navigiert per `useNotebookStore.setActiveTab("runtime")`
+        zum Model Control Center (`RuntimeModelsTab`), statt ein Modell blind zu erraten.
+      - **Fehlererkennung aus Freitext**: `hasErrors` prueft jetzt zusaetzlich zu `toolCalls[].status`
+        den Antworttext auf starke Fehlerindikatoren (Stacktrace-Muster, `isGenericRuntimeErrorSentinel`
+        aus `runtimeRunFinalization.ts`), bewusst ohne generisches `/fehler/i`-Matching, um keine
+        Fehlalarme bei Antworten auszuloesen, die frueher behobene Fehler nur erwaehnen.
+      - **persistierte Folgeaktionen**: bereits durch die bestehende, generische `messages`-Synchronisierung
+        in `apps/desktop/src/services/runtimeChatSync.ts` (localStorage, verlustfreier Roundtrip inkl.
+        `message.actions`) abgedeckt — kein zusaetzlicher Code noetig, da Folgeaktionen als normale
+        `ChatActionRequest`-Eintraege in `message.actions` liegen.
+      Noch offen: manuelle Bestaetigung in einer echten Desktop-Session (siehe Punkte oben, gilt jetzt
+      auch fuer die Phase-2-Ergaenzungen: `switch_model`-Navigation, echter Retry-Prompt-Inhalt).
 
 ## Neu offen: Vision-Slot-Grundlage Phase 1 — Folgeschritte
 

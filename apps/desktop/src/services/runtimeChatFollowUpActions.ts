@@ -8,6 +8,7 @@ import type {
 } from "@dbzs/shared";
 import { workspaceScopeId } from "@dbzs/shared";
 import { PRESET_MESSAGES } from "@/stores/runtimeChatStoreRuntimeHelpers";
+import { isGenericRuntimeErrorSentinel } from "@/services/runtimeRunFinalization";
 
 export type FollowUpActionKind =
   | "continue_task"
@@ -15,7 +16,8 @@ export type FollowUpActionKind =
   | "show_next_steps"
   | "retry_run"
   | "inspect_result"
-  | "new_task";
+  | "new_task"
+  | "switch_model";
 
 export const FOLLOW_UP_ACTION_KINDS: ReadonlySet<ChatActionKind> = new Set<ChatActionKind>([
   "continue_task",
@@ -23,8 +25,31 @@ export const FOLLOW_UP_ACTION_KINDS: ReadonlySet<ChatActionKind> = new Set<ChatA
   "show_next_steps",
   "retry_run",
   "inspect_result",
-  "new_task"
+  "new_task",
+  "switch_model"
 ]);
+
+// Strong, low-false-positive indicators of an actual runtime/tool error dumped into an
+// otherwise "success"-outcome assistant answer. Deliberately narrower than a generic
+// /fehler/i match, since a coding assistant routinely discusses "Fehler" without one
+// having just occurred (e.g. "der Fehler wurde behoben").
+const ASSISTANT_ERROR_TEXT_PATTERNS = [
+  /ReferenceError:/,
+  /TypeError:/,
+  /Cannot read (?:properties|property) of undefined/i,
+  /undefined is not (?:an object|a function)/i,
+  /Traceback \(most recent call last\)/,
+  /\bException\b.*:/,
+  /^Error:/m,
+  /ist ein Fehler aufgetreten/i,
+  /\bfehlgeschlagen\b/i
+];
+
+function contentIndicatesError(content: string | null | undefined): boolean {
+  if (!content) return false;
+  if (isGenericRuntimeErrorSentinel(content)) return true;
+  return ASSISTANT_ERROR_TEXT_PATTERNS.some((pattern) => pattern.test(content));
+}
 
 export interface FollowUpActionContext {
   message: RuntimeChatMessage;
@@ -36,13 +61,16 @@ export interface FollowUpActionContext {
   hasPatchProposal: boolean;
   hasErrors: boolean;
   workspaceRoot: string | null;
+  /** Literal text of the user message that started this run, for a real retry. */
+  originalUserPrompt?: string | null;
 }
 
 function buildAction(
   context: FollowUpActionContext,
   kind: FollowUpActionKind,
   title: string,
-  prompt: string
+  prompt: string,
+  extraPayload?: Record<string, unknown>
 ): ChatActionRequest {
   const workspaceRoot = context.workspaceRoot ?? "";
   return {
@@ -54,7 +82,7 @@ function buildAction(
     kind,
     title,
     riskLevel: "low",
-    payload: { prompt },
+    payload: extraPayload ? { prompt, ...extraPayload } : { prompt },
     state: "pending",
     createdAt: new Date().toISOString()
   };
@@ -69,15 +97,35 @@ export function buildFollowUpActions(context: FollowUpActionContext): ChatAction
 
   const isFailure = Boolean(outcome) && outcome !== "success";
   if (isFailure) {
-    return [
-      buildAction(context, "retry_run", "Erneut versuchen", "Bitte versuche die letzte Aufgabe erneut auszuführen."),
+    const hasOriginalPrompt = Boolean(context.originalUserPrompt?.trim());
+    const retryPrompt = hasOriginalPrompt
+      ? (context.originalUserPrompt as string).trim()
+      : "Bitte versuche die letzte Aufgabe erneut auszuführen.";
+    const actions = [
+      buildAction(context, "retry_run", "Erneut versuchen", retryPrompt, {
+        retryOriginal: hasOriginalPrompt,
+        taskType,
+        provider: run?.provider ?? null,
+        agentMode: run?.mode ?? null,
+        forceUseResidentModel: true
+      })
+    ];
+    const modelSwitchWorthy =
+      run?.resourceRisk === "high" || run?.resourceRisk === "unsupported" || Boolean(run?.fallbackRejection);
+    if (modelSwitchWorthy) {
+      actions.push(
+        buildAction(context, "switch_model", "Modell wechseln", "Modell wechseln", { navigateToTab: "runtime" })
+      );
+    }
+    actions.push(
       buildAction(
         context,
         "inspect_result",
         "Ergebnis prüfen",
         "Fasse zusammen, was fehlgeschlagen ist, und nenne mögliche Ursachen."
       )
-    ];
+    );
+    return actions.slice(0, 3);
   }
 
   if (hasErrors) {
@@ -131,7 +179,12 @@ export function attachFollowUpActionsToMessages(input: {
   if (targetMessage.actions?.some((a) => a.id.startsWith(followUpIdPrefix))) {
     return messages;
   }
-  const hasErrors = Boolean(targetMessage.toolCalls?.some((call) => call.status === "error"));
+  const hasErrors =
+    Boolean(targetMessage.toolCalls?.some((call) => call.status === "error")) ||
+    contentIndicatesError(targetMessage.content);
+  const originalUserPrompt = run?.userMessageId
+    ? messages.find((m) => m.id === run.userMessageId)?.content ?? null
+    : null;
   const followUps = buildFollowUpActions({
     message: targetMessage,
     run,
@@ -141,7 +194,8 @@ export function attachFollowUpActionsToMessages(input: {
     hasPlanProposal,
     hasPatchProposal,
     hasErrors,
-    workspaceRoot
+    workspaceRoot,
+    originalUserPrompt
   });
   if (followUps.length === 0) return messages;
   const next = [...messages];

@@ -117,7 +117,8 @@ export type ChatActionKind =
   | "show_next_steps"
   | "retry_run"
   | "inspect_result"
-  | "new_task";
+  | "new_task"
+  | "switch_model";
 
 export interface ChatActionRequest {
   id: string;

@@ -64,6 +64,56 @@ describe("buildFollowUpActions", () => {
     const run = { id: "run-1", repositoryReview: { reviewId: "r1" } } as unknown as RuntimeChatRun;
     expect(buildFollowUpActions(baseContext({ run, outcome: "success" }))).toEqual([]);
   });
+
+  it("echtes Retry: nutzt den urspruenglichen Nutzerprompt statt einer Standardformulierung", () => {
+    const actions = buildFollowUpActions(
+      baseContext({ outcome: "generation_failed", originalUserPrompt: "Baue eine neue Login-Seite." })
+    );
+    const retry = actions.find((a) => a.kind === "retry_run")!;
+    expect(retry.payload.prompt).toBe("Baue eine neue Login-Seite.");
+    expect(retry.payload.retryOriginal).toBe(true);
+  });
+
+  it("echtes Retry: faellt ohne urspruenglichen Prompt auf die generische Formulierung zurueck", () => {
+    const actions = buildFollowUpActions(baseContext({ outcome: "generation_failed" }));
+    const retry = actions.find((a) => a.kind === "retry_run")!;
+    expect(retry.payload.prompt).toBe("Bitte versuche die letzte Aufgabe erneut auszuführen.");
+    expect(retry.payload.retryOriginal).toBe(false);
+  });
+
+  it("echtes Retry: traegt Run-Kontext (taskType/provider/agentMode/forceUseResidentModel) im Payload", () => {
+    const run = { id: "run-1", provider: "llama-cpp", mode: "agent" } as unknown as RuntimeChatRun;
+    const actions = buildFollowUpActions(
+      baseContext({ outcome: "generation_failed", taskType: "debugging", run })
+    );
+    const retry = actions.find((a) => a.kind === "retry_run")!;
+    expect(retry.payload.taskType).toBe("debugging");
+    expect(retry.payload.provider).toBe("llama-cpp");
+    expect(retry.payload.agentMode).toBe("agent");
+    expect(retry.payload.forceUseResidentModel).toBe(true);
+  });
+
+  it('Fehlschlag mit hohem Resource-Risiko zeigt zusaetzlich "Modell wechseln"', () => {
+    const run = { id: "run-1", resourceRisk: "high" } as unknown as RuntimeChatRun;
+    const actions = buildFollowUpActions(baseContext({ outcome: "generation_failed", run }));
+    expect(actions.map((a) => a.kind)).toEqual(["retry_run", "switch_model", "inspect_result"]);
+    expect(actions).toHaveLength(3);
+  });
+
+  it('Fehlschlag mit abgelehntem Fallback-Modell zeigt "Modell wechseln"', () => {
+    const run = {
+      id: "run-1",
+      fallbackRejection: { modelId: "m1", modelName: "Model 1", reason: "incompatible" }
+    } as unknown as RuntimeChatRun;
+    const actions = buildFollowUpActions(baseContext({ outcome: "generation_failed", run }));
+    expect(actions.map((a) => a.kind)).toContain("switch_model");
+  });
+
+  it("Fehlschlag ohne Resource-Risiko zeigt kein Modellwechsel-Angebot", () => {
+    const run = { id: "run-1", resourceRisk: "low" } as unknown as RuntimeChatRun;
+    const actions = buildFollowUpActions(baseContext({ outcome: "generation_failed", run }));
+    expect(actions.map((a) => a.kind)).toEqual(["retry_run", "inspect_result"]);
+  });
 });
 
 describe("attachFollowUpActionsToMessages", () => {
@@ -95,5 +145,57 @@ describe("attachFollowUpActionsToMessages", () => {
   it("returns the original messages array when the target message is not found", () => {
     const input = { ...baseInput(), messages: [] as RuntimeChatMessage[] };
     expect(attachFollowUpActionsToMessages(input)).toBe(input.messages);
+  });
+
+  it("echtes Retry: findet den urspruenglichen Nutzerprompt ueber run.userMessageId", () => {
+    const userMessage: RuntimeChatMessage = { id: "msg-user", role: "user", content: "Fixe den Login-Bug." };
+    const run = {
+      id: "run-1",
+      userMessageId: "msg-user",
+      provider: "llama-cpp",
+      outcome: "generation_failed"
+    } as unknown as RuntimeChatRun;
+    const result = attachFollowUpActionsToMessages({
+      ...baseInput(),
+      messages: [userMessage, finalizedAssistantMessage],
+      run,
+      taskType: "debugging",
+      hasPatchProposal: false
+    });
+    const assistant = result.find((m) => m.id === finalizedAssistantMessage.id)!;
+    const retry = assistant.actions?.find((a) => a.kind === "retry_run");
+    expect(retry?.payload.prompt).toBe("Fixe den Login-Bug.");
+  });
+
+  it("Freitext-Fehlererkennung: Stacktrace in der Antwort loest Fehler-Folgeaktionen aus, auch ohne Tool-Fehler", () => {
+    const message: RuntimeChatMessage = {
+      id: "msg-1",
+      role: "assistant",
+      content: "Beim Ausfuehren trat auf:\nTypeError: Cannot read properties of undefined (reading 'foo')"
+    };
+    const result = attachFollowUpActionsToMessages({
+      ...baseInput(),
+      messages: [message],
+      finalizedAssistantMessage: message,
+      run: { id: "run-1", outcome: "success" } as unknown as RuntimeChatRun
+    });
+    const actions = result[0]!.actions ?? [];
+    expect(actions.map((a) => a.kind)).toContain("continue_task");
+    expect(actions.find((a) => a.kind === "continue_task")!.title).toBe("Fehler beheben");
+  });
+
+  it("Freitext-Fehlererkennung: normale Erwaehnung von 'Fehler' loest keine Fehler-Folgeaktionen aus", () => {
+    const message: RuntimeChatMessage = {
+      id: "msg-1",
+      role: "assistant",
+      content: "Der Fehler in der letzten Version wurde bereits vor zwei Wochen behoben."
+    };
+    const result = attachFollowUpActionsToMessages({
+      ...baseInput(),
+      messages: [message],
+      finalizedAssistantMessage: message
+    });
+    const actions = result[0]!.actions ?? [];
+    expect(actions.find((a) => a.kind === "continue_task")!.title).toBe("Vertiefen");
   });
 });

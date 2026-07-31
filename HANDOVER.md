@@ -1,6 +1,35 @@
 # Handover
 
-Stand: 2026-07-29
+Stand: 2026-07-31
+
+## Chat-Folgeaktionen Phase 2 umgesetzt (2026-07-31, noch uncommitted auf `feature/runtime-chat-ux-overhaul`)
+
+Die vier in `TODO.md` offenen Phase-2-Punkte zu den Chat-Folgeaktionen (Basis:
+`Pläne/06 DBZS_CODEE_CHAT_FOLLOW_UP_ACTIONS_DIAGNOSE_PLAN.md`, Phase 1 bereits per PR #5/Merge-Commit `210f0ff`
+in `main`) sind umgesetzt und automatisiert getestet (voller Desktop-Vitest-Lauf: 1250 Tests gruen, 42 geskippt,
+0 Failures; `packages/shared`- und `apps/desktop`-Typecheck fehlerfrei):
+
+- **echtes Retry mit Run-Kontext**: `retry_run` sendet den woertlichen urspruenglichen Nutzerprompt (statt einer
+  festen Platzhalterformulierung) und reicht `taskType`/`provider`/`agentMode`/`forceUseResidentModel` als
+  `sendOptions` durch. Bewusst kein hartes Modell-/Slot-Pinning — dafuer fehlt in `RuntimeChatSendOptions` ein
+  `forcedModelId`-Feld, das tiefer in `modelSelectionBroker.ts` eingreifen wuerde.
+- **Modellwechsel-Angebot nach Fehlschlag**: neuer Action-Kind `switch_model`, erscheint zusaetzlich zu
+  `retry_run` bei `run.resourceRisk` `"high"`/`"unsupported"` oder gesetztem `run.fallbackRejection`. Klick
+  navigiert per `useNotebookStore.setActiveTab("runtime")` zum Model Control Center statt ein Modell zu erraten.
+- **Fehlererkennung aus Freitext**: `hasErrors` prueft jetzt zusaetzlich zu `toolCalls[].status` den
+  Antworttext auf starke Fehlerindikatoren (Stacktrace-Muster, `isGenericRuntimeErrorSentinel` aus
+  `runtimeRunFinalization.ts`), bewusst ohne generisches `/fehler/i`-Matching gegen Fehlalarme.
+- **persistierte Folgeaktionen**: bereits durch die bestehende `messages`-Synchronisierung in
+  `runtimeChatSync.ts` (localStorage-Roundtrip inkl. `message.actions`) abgedeckt — kein zusaetzlicher Code
+  noetig.
+
+Geaenderte Dateien: `packages/shared/src/index.ts` (neuer `ChatActionKind` `switch_model`),
+`apps/desktop/src/services/runtimeChatFollowUpActions.ts`, `apps/desktop/src/stores/runtimeChatStoreInteractionActions.ts`,
+plus Tests (`runtimeChatFollowUpActions.test.ts`, `apps/desktop/src/testing/chatActions.test.ts`).
+**Noch offen:** manuelle Bestaetigung in einer echten Desktop-Session (siehe `TODO.md`) — insbesondere die
+`switch_model`-Navigation und der tatsaechliche Retry-Prompt-Inhalt wurden nur automatisiert, nicht interaktiv
+getestet. Die Aenderungen sind zum Zeitpunkt dieses Eintrags noch **uncommitted** im Arbeitsverzeichnis
+(`git status` zeigt sechs modifizierte Dateien) — vor Merge/PR noch commiten.
 
 ## Aktueller Arbeitsbranch
 
