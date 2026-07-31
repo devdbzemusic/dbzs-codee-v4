@@ -12,10 +12,12 @@ import type {
 import type { PatchPipelineService } from "./patchPipelineService.js";
 import type { RestorePointService } from "./restorePointService.js";
 import { ensurePathInsideWorkspace, toResolvedPath } from "./workspaceService.js";
+import { WorkspaceProtectedPathsService } from "./workspaceProtectedPathsService.js";
 
 interface AgentPatchCoordinatorOptions {
   patchPipelineService: PatchPipelineService;
   restorePointService: RestorePointService;
+  protectedPathsService?: WorkspaceProtectedPathsService;
   maxFilesChanged?: number;
   maxPatchSize?: number;
 }
@@ -77,6 +79,7 @@ async function readTextIfExists(targetPath: string): Promise<string> {
 export class AgentPatchCoordinator {
   private readonly patchPipelineService: PatchPipelineService;
   private readonly restorePointService: RestorePointService;
+  private readonly protectedPathsService: WorkspaceProtectedPathsService;
   private readonly maxFilesChanged: number;
   private readonly maxPatchSize: number;
   private readonly proposals = new Map<string, StoredProposal>();
@@ -84,6 +87,7 @@ export class AgentPatchCoordinator {
   constructor(options: AgentPatchCoordinatorOptions) {
     this.patchPipelineService = options.patchPipelineService;
     this.restorePointService = options.restorePointService;
+    this.protectedPathsService = options.protectedPathsService ?? new WorkspaceProtectedPathsService();
     this.maxFilesChanged = options.maxFilesChanged ?? 8;
     this.maxPatchSize = options.maxPatchSize ?? 64_000;
   }
@@ -174,6 +178,7 @@ export class AgentPatchCoordinator {
 
     for (const change of validated.changes) {
       const { absolutePath } = this.resolveSafeTarget(workspaceRoot, change.filePath);
+      await this.protectedPathsService.assertPatchAllowed(workspaceRoot, change.filePath);
       await this.assertNoSymlinkEscape(workspaceRoot, absolutePath);
       const existed = await exists(absolutePath);
 
@@ -251,6 +256,7 @@ export class AgentPatchCoordinator {
     try {
       for (const change of stored.proposal.changes) {
         const { absolutePath } = this.resolveSafeTarget(workspaceRoot, change.filePath);
+        await this.protectedPathsService.assertPatchAllowed(workspaceRoot, change.filePath);
         await this.assertNoSymlinkEscape(workspaceRoot, absolutePath);
         await readTextIfExists(absolutePath);
       }

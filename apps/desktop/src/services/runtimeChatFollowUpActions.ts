@@ -9,6 +9,10 @@ import type {
 import { workspaceScopeId } from "@dbzs/shared";
 import { PRESET_MESSAGES } from "@/stores/runtimeChatStoreRuntimeHelpers";
 import { isGenericRuntimeErrorSentinel } from "@/services/runtimeRunFinalization";
+import {
+  analyzeNoActionRecoveryOutput,
+  buildNoActionRecoveryPrompt
+} from "@/services/runtimeChatNoActionRecovery";
 
 export type FollowUpActionKind =
   | "continue_task"
@@ -96,6 +100,51 @@ export function buildFollowUpActions(context: FollowUpActionContext): ChatAction
   if (run?.repositoryReview) return [];
 
   const isFailure = Boolean(outcome) && outcome !== "success";
+  if (outcome === "execution_no_action") {
+    const analysis = analyzeNoActionRecoveryOutput(context.message.rawContent ?? context.message.content);
+    const actions: ChatActionRequest[] = [];
+    if (analysis.hasRecoverableOutput) {
+      actions.push(
+        buildAction(
+          context,
+          "continue_task",
+          "Aktion vorbereiten",
+          buildNoActionRecoveryPrompt({
+            originalUserPrompt: context.originalUserPrompt,
+            analysis
+          }),
+          { recoveryKind: "no_action_output", recoverySignals: analysis.signals }
+        )
+      );
+    }
+    const retryPrompt = context.originalUserPrompt?.trim()
+      ? [
+          context.originalUserPrompt.trim(),
+          "",
+          "Bitte fuehre den Auftrag im Agent-Modus mit echten Tools/Patches aus. Wenn du blockiert bist, frage konkret nach."
+        ].join("\n")
+      : "Bitte versuche die letzte Aufgabe erneut und nutze dafuer echte Tools, Patches oder freigabepflichtige Aktionen.";
+    actions.push(
+      buildAction(context, "retry_run", "Mit Tools erneut", retryPrompt, {
+        retryOriginal: Boolean(context.originalUserPrompt?.trim()),
+        taskType,
+        provider: run?.provider ?? null,
+        agentMode: run?.mode ?? null,
+        forceUseResidentModel: true,
+        recoveryKind: "execution_no_action"
+      })
+    );
+    actions.push(
+      buildAction(
+        context,
+        "inspect_result",
+        "Nur analysieren",
+        "Analysiere die letzte nicht ausgefuehrte Antwort: Was war verwertbar, was fehlte fuer eine sichere CODEE-Aktion?"
+      )
+    );
+    return actions.slice(0, 3);
+  }
+
   if (isFailure) {
     const hasOriginalPrompt = Boolean(context.originalUserPrompt?.trim());
     const retryPrompt = hasOriginalPrompt

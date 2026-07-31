@@ -30,12 +30,16 @@ function readPersistedTab(): NotebookTabId {
 
 interface NotebookState {
   activeTab: NotebookTabId;
+  runtimeFocusSlotId: string | null;
   setActiveTab: (tab: NotebookTabId) => void;
   focusEditorTab: () => void;
+  focusRuntimeSlot: (slotId?: string | null) => void;
+  clearRuntimeSlotFocus: () => void;
 }
 
 export const useNotebookStore = create<NotebookState>((set) => ({
   activeTab: readPersistedTab(),
+  runtimeFocusSlotId: null,
   setActiveTab: (tab) => {
     set({ activeTab: tab });
     try {
@@ -55,6 +59,19 @@ export const useNotebookStore = create<NotebookState>((set) => ({
     } catch {
       // ignore persistence failures
     }
+  },
+  focusRuntimeSlot: (slotId) => {
+    set({ activeTab: "runtime", runtimeFocusSlotId: slotId?.trim() || null });
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(STORAGE_KEY, "runtime");
+      }
+    } catch {
+      // ignore persistence failures
+    }
+  },
+  clearRuntimeSlotFocus: () => {
+    set({ runtimeFocusSlotId: null });
   }
 }));
 

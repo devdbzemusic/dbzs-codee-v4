@@ -2,6 +2,17 @@
 
 Statusvokabular (projektweit): `SERVICE_VERIFIED` → `UI_VERIFIED` → `INSTALLER_VERIFIED` → `PERSONAL_STABLE`.
 
+**Aktuelle, verbindliche Abnahmevorschrift:** `Pläne/10 DBZS_CODEE_V4_ABNAHME_TEST_PLAYBOOK.md` (SV-01…SV-09,
+UI-01…UI-28, IN-01…IN-07, PS-01…PS-04). Für einen neuen Abnahmelauf zuerst
+`pnpm acceptance:new-run` ausführen — legt `docs/audits/runs/<timestamp>/` mit vorbefülltem
+`RUN_SUMMARY.md` (alle Test-IDs, Status `NOT_RUN`) sowie `environment.txt`/`git-status.txt` an; danach
+`node scripts/generate-verification-run-json.mjs` für eine maschinenlesbare Zusammenfassung. Die Stufe
+`SERVICE_VERIFIED` (SV-01…SV-09) ist automatisiert durchführbar — siehe
+`docs/audits/runs/2026-07-31_21-43/RUN_SUMMARY.md` für einen echten, vollständig ausgeführten Referenzlauf.
+Dieses Dokument hier bleibt für die Punkte gültig, die sich nicht automatisiert treiben lassen (harter
+Abbruch + Neustart, echter Installer-Build + Installation, Wiederholung an weiteren Tagen) — inhaltlich
+deckungsgleich mit UI-26, IN-01…IN-07 und PS-01 im neuen Playbook.
+
 Dieses Dokument deckt genau die Punkte ab, die sich nicht automatisiert
 treiben lassen (harter Abbruch + Neustart, echter Installer-Build +
 Installation, Wiederholung an weiteren Tagen). Für die automatisiert

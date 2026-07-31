@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -53,6 +54,9 @@ describe("RestorePointService", () => {
     expect(restored.success).toBe(true);
     expect(restored.restoredFiles).toContain("README.md");
     await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("before\n");
+    expect(restored.restoredFileHashes["README.md"]).toBe(
+      createHash("sha256").update("before\n", "utf-8").digest("hex")
+    );
   });
 
   it("deletes files that did not exist at restore-point time", async () => {

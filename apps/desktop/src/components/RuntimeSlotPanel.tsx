@@ -16,7 +16,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import type { RuntimeSlotId } from "@/services/modelSelectionBroker";
 import { runtimeSlotManager, getRecentRoutingEvents, type RuntimeSlotStatus } from "@/services/runtimeSlotManager";
-import { getSlotHealthState } from "@/services/runtimeProcessSupervisor";
+import { getAllSlotHealthStates, getSlotHealthState } from "@/services/runtimeProcessSupervisor";
 import { modelContextCacheClient } from "@/services/modelContextCacheClient";
 import { backendClient } from "@/services/backendClient";
 import { openPlatformDiagnosticsWindow } from "@/utils/platformDiagnosticsWindow";
@@ -191,7 +191,7 @@ export const RuntimeSlotPanel: React.FC<RuntimeSlotPanelProps> = ({
   const handleExportFullDiagnostics = async () => {
     setDiagnosticsExportStatus("Exportiere...");
     try {
-      const targetPath = await backendClient.exportFullDiagnosticsZip();
+      const targetPath = await backendClient.exportFullDiagnosticsZip(getAllSlotHealthStates());
       setDiagnosticsExportStatus(targetPath ? `Exportiert: ${targetPath}` : "Export abgebrochen.");
     } catch (error) {
       setDiagnosticsExportStatus(

@@ -1674,6 +1674,8 @@ export interface RestoreResult {
   restoredFiles: string[];
   deletedFiles: string[];
   errors: string[];
+  /** SHA-256 (hex) of each restored file's actual on-disk content after the write, keyed by workspace-relative path. */
+  restoredFileHashes: Record<string, string>;
 }
 
 export type TaskStatus = "todo" | "in_progress" | "done";

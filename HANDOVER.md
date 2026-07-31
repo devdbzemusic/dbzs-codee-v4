@@ -2,6 +2,57 @@
 
 Stand: 2026-07-31
 
+## Abnahme-Test-Playbook umgesetzt (2026-07-31)
+
+Basis: `Pläne/10 DBZS_CODEE_V4_ABNAHME_TEST_PLAYBOOK.md` (48 Test-IDs über `SERVICE_VERIFIED` →
+`UI_VERIFIED` → `INSTALLER_VERIFIED` → `PERSONAL_STABLE`). Gebaute Infrastruktur plus ein echter, vollständig
+ausgeführter `SERVICE_VERIFIED`-Lauf — kein reines Gerüst.
+
+- **`pnpm acceptance:new-run`** (`scripts/new-acceptance-run.ps1`, neu): legt
+  `docs/audits/runs/<timestamp>/` mit der im Playbook vorgegebenen Struktur an (`screenshots/`, `logs/`,
+  `diffs/`, `test-output/`, `backups/`, `crash/`), schreibt `environment.txt`/`git-status.txt` automatisch
+  und erzeugt `RUN_SUMMARY.md` mit allen 48 Test-IDs vorbefüllt (Status `NOT_RUN`) — ein Lauf muss nur noch
+  ausgefüllt, nicht mehr strukturiert werden.
+- **`node scripts/generate-verification-run-json.mjs`** (neu): liest genau dieselbe `RUN_SUMMARY.md`-
+  Übersichtstabelle und schreibt eine maschinenlesbare `verification-run.json` daneben (Commit, Branch,
+  Test-ID-Liste mit Status) — Abschnitt-14-Wunsch aus dem Playbook.
+- **Diagnosepaket um Process-Supervisor-Telemetrie erweitert**: `diagnosticsZipExport.ts`s
+  `buildFullDiagnosticsZip()` nimmt jetzt optional `slotHealthStates` entgegen (vom Renderer per
+  `getAllSlotHealthStates()` ermittelt, da der Supervisor-Zustand nur dort im Speicher liegt) und legt sie als
+  `slot-health.json` ins ZIP — `RuntimeSlotPanel.tsx` liefert sie beim Export automatisch mit.
+- **Vorher-/Nachher-Hashes für Patch und Rollback**: `fileChangeService.ts`s `createDiff()`/`applyChange()`
+  liefern jetzt `beforeHash`/`afterHash` (SHA-256), und `applyChange()` verifiziert nach dem Schreiben durch
+  Zurücklesen, dass der Inhalt tatsächlich angekommen ist (wirft sonst). `restorePointService.ts`s
+  `restorePoint()` macht dieselbe Rücklese-Verifikation je wiederhergestellter Datei und liefert
+  `restoredFileHashes` — schließt die Beweisanforderung aus UI-19–UI-24 direkt im Code statt nur in der
+  manuellen Prüfung.
+- **`pnpm docs:check-drift`** (`scripts/check-docs-drift.mjs`, neu): vergleicht die `Stand:`-Zeilen und
+  `origin/main`-Commit-Referenzen in README/TODO/HANDOVER/STATUS_TODAY und warnt bei Abweichung — bewusst
+  kein Auto-Rewrite (würde die von Hand gepflegte Nuance in diesen Dateien zerstören), nicht-blockierend
+  (`--strict` für einen harten Exitcode). Im ersten echten Lauf sofort einen berechtigten Fund geliefert:
+  HANDOVER.md trägt in einem als "historischer Kontext" markierten Abschnitt bewusst einen alten
+  `origin/main`-Commit — der Checker meldet das korrekt als Abweichung, ein Mensch muss weiterhin
+  entscheiden, ob das echte Drift oder Absicht ist.
+- **Echter `SERVICE_VERIFIED`-Lauf durchgeführt**: `docs/audits/runs/2026-07-31_21-43/` — SV-01, SV-03…SV-09
+  PASS, SV-02 (der `pnpm ci:local:win`-Wrapper selbst) BLOCKED, weil `pnpm`/`uv` in dieser Sandbox gar nicht
+  installiert sind (nur `node`/`npx` und das Backend-`.venv`) — alle darin enthaltenen Teilschritte wurden
+  einzeln direkt ausgeführt und sind grün, inklusive eines echten PyInstaller-Backend-Builds (SV-08, ~18 MB
+  `dbzs-backend.exe`, real auf der Festplatte erzeugt und verifiziert). Volle Details in
+  `docs/audits/runs/2026-07-31_21-43/RUN_SUMMARY.md`.
+- **Bewusst nicht in dieser Sandbox versucht:** alle UI-01…UI-28, IN-01…IN-07, PS-01…PS-04 (Kategorie C —
+  braucht eine echte interaktive Session; diese Sandbox hat Hintergrundprozesse in dieser Session bereits
+  zweimal mit unterschiedlichen Techniken nachweislich nicht am Leben erhalten können, kein dritter Versuch).
+  `RUN_SUMMARY.md` bleibt für diese 39 Test-IDs auf `NOT_RUN` — direkt einsatzbereit für eine echte Session.
+
+Geänderte/neue Dateien: `scripts/new-acceptance-run.ps1`, `scripts/generate-verification-run-json.mjs`,
+`scripts/check-docs-drift.mjs` (alle neu, mit `package.json`-Aliassen `acceptance:new-run`/`docs:check-drift`),
+`apps/desktop/electron/diagnosticsZipExport.ts` (+Test), `apps/desktop/electron/{main,preload}.ts`,
+`apps/desktop/src/services/backendClient.ts`, `apps/desktop/src/types/global.d.ts`,
+`apps/desktop/src/components/RuntimeSlotPanel.tsx`, `apps/desktop/electron/fileChangeService.ts` (+Test),
+`apps/desktop/electron/patchPipelineService.ts`, `apps/desktop/electron/restorePointService.ts` (+Test),
+`packages/shared/src/index.ts`, `docs/audits/GOLDEN_PATH_MANUAL_VERIFICATION_SCRIPT.md`, neuer
+`docs/audits/runs/2026-07-31_21-43/` (echter SV-Lauf).
+
 ## Produktionsreife-Revision Phase 4 umgesetzt (2026-07-31) — Installer & Updatefähigkeit
 
 Basis: `Pläne/09 DBZS_CODEE_V4_REPOSITORY_URTEIL_2026-07-31.md`, Umsetzungsplan Phase 4. Wie im Plan

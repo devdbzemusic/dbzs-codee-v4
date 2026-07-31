@@ -95,7 +95,8 @@ const api = {
     ipcRenderer.invoke("dbzs:settings:diagnostics") as Promise<
       import("@dbzs/shared").SettingsDiagnostics
     >,
-  exportFullDiagnosticsZip: () => ipcRenderer.invoke("dbzs:diagnostics:export-full-zip") as Promise<string>,
+  exportFullDiagnosticsZip: (slotHealthStates?: unknown) =>
+    ipcRenderer.invoke("dbzs:diagnostics:export-full-zip", slotHealthStates) as Promise<string>,
   openFileDialog: () => ipcRenderer.invoke("dbzs:file:open-dialog") as Promise<WorkspaceFile | null>,
   openImageFileDialog: () =>
     ipcRenderer.invoke("dbzs:file:open-image-dialog") as Promise<

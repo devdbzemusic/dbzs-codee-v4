@@ -255,6 +255,31 @@ function commonProjectFiles(projectName: string, workflow: ProjectWorkflow): Arr
       )}\n`
     ],
     [
+      ".codee/protected-paths.json",
+      `${JSON.stringify(
+        {
+          protectedPaths: [
+            {
+              path: ".codee/restore-points/",
+              reason: "Restore-Points duerfen nicht per Agent-Patch veraendert werden."
+            }
+          ],
+          examples: [
+            {
+              path: "docs/ARCHITECTURE.md",
+              reason: "Beispiel: Architektur nur nach bewusster Freigabe aendern."
+            },
+            {
+              path: "Plaene/**",
+              reason: "Beispiel: Planungsordner als geschuetzten Ordnerbaum markieren."
+            }
+          ]
+        },
+        null,
+        2
+      )}\n`
+    ],
+    [
       "README.md",
       `# ${projectName}\n\nDBZS-Projekt, erstellt mit dem Workflow \`${workflow}\`.\n\n## Start\n\n- Architektur in \`docs/ARCHITECTURE.md\` pflegen.\n- Aufgaben in \`TODO.md\` klein und pruefbar halten.\n- Secrets niemals committen.\n`
     ],

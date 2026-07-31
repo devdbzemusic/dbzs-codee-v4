@@ -33,13 +33,20 @@ export interface FullDiagnosticsZipInput {
   settings: unknown;
   /** Model index snapshot as returned by the backend. */
   modelIndex: unknown;
+  /**
+   * Runtime-process-supervisor health state per slot (runtimeProcessSupervisor.ts's
+   * getAllSlotHealthStates()) — lives in the renderer, so the caller must fetch it
+   * there and pass it through the IPC call; the main process can't reach into
+   * renderer-side in-memory state directly.
+   */
+  slotHealthStates?: unknown;
 }
 
 /**
- * Assembles the three diagnostic sources into ZIP entries. Per-run trace
- * events are deliberately not included here — they need a specific run id to
- * select, which this global export has no context for; a future per-run
- * export can add them alongside this bundle.
+ * Assembles the diagnostic sources into ZIP entries. Per-run trace events are
+ * deliberately not included here — they need a specific run id to select,
+ * which this global export has no context for; a future per-run export can
+ * add them alongside this bundle.
  */
 export function buildFullDiagnosticsZip(input: FullDiagnosticsZipInput): Buffer {
   const entries: ZipEntryInput[] = [
@@ -47,6 +54,9 @@ export function buildFullDiagnosticsZip(input: FullDiagnosticsZipInput): Buffer 
     { name: "settings.json", content: JSON.stringify(redactSecretsDeep(input.settings), null, 2) },
     { name: "model-index.json", content: JSON.stringify(input.modelIndex, null, 2) }
   ];
+  if (input.slotHealthStates !== undefined) {
+    entries.push({ name: "slot-health.json", content: JSON.stringify(input.slotHealthStates, null, 2) });
+  }
   return buildZipArchive(entries);
 }
 

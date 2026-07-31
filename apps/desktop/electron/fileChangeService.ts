@@ -1,8 +1,13 @@
+import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { RestorePointReason, WorkspaceFile } from "@dbzs/shared";
 import { ensurePathInsideWorkspace, toResolvedPath } from "./workspaceService.js";
 import type { RestorePointService } from "./restorePointService.js";
+
+function sha256Hex(content: string): string {
+  return createHash("sha256").update(content, "utf-8").digest("hex");
+}
 
 interface FileSnapshot {
   id: string;
@@ -157,7 +162,14 @@ export class FileChangeService {
     workspaceRoot: string,
     filePath: string,
     proposedContent: string
-  ): Promise<{ snapshotId: string; beforeContent: string; afterContent: string; diff: string }> {
+  ): Promise<{
+    snapshotId: string;
+    beforeContent: string;
+    afterContent: string;
+    diff: string;
+    beforeHash: string;
+    afterHash: string;
+  }> {
     const safePath = ensurePathInsideWorkspace(workspaceRoot, filePath);
     const resolved = toResolvedPath(safePath);
     const existingSnapshot = this.getSnapshotByFilePath(resolved);
@@ -169,7 +181,9 @@ export class FileChangeService {
       snapshotId: snapshot.id,
       beforeContent: snapshot.content,
       afterContent: proposedContent,
-      diff: this.createTextDiff(snapshot.content, proposedContent)
+      diff: this.createTextDiff(snapshot.content, proposedContent),
+      beforeHash: sha256Hex(snapshot.content),
+      afterHash: sha256Hex(proposedContent)
     };
   }
 
@@ -179,7 +193,14 @@ export class FileChangeService {
     proposedContent: string,
     snapshotId?: string,
     restoreOptions: ApplyPatchRestoreOptions = {}
-  ): Promise<{ snapshotId: string; file: WorkspaceFile; diff: string; restorePointId?: string }> {
+  ): Promise<{
+    snapshotId: string;
+    file: WorkspaceFile;
+    diff: string;
+    restorePointId?: string;
+    beforeHash: string;
+    afterHash: string;
+  }> {
     const safePath = ensurePathInsideWorkspace(workspaceRoot, filePath);
     const resolved = toResolvedPath(safePath);
     const snapshot = snapshotId
@@ -211,11 +232,22 @@ export class FileChangeService {
     await fs.mkdir(path.dirname(safePath), { recursive: true });
     await fs.writeFile(safePath, proposedContent, "utf-8");
     const file = await readWorkspaceFile(safePath);
+
+    // Verify the write landed the intended content — re-read rather than trust
+    // fs.writeFile succeeded silently (matches the same check on rollback).
+    const afterHash = sha256Hex(proposedContent);
+    const actualHash = sha256Hex(await fs.readFile(safePath, "utf-8"));
+    if (actualHash !== afterHash) {
+      throw new Error(`Patch apply verification failed: on-disk content does not match the intended write for ${safePath}.`);
+    }
+
     return {
       snapshotId: snapshot.id,
       file,
       diff: this.createTextDiff(snapshot.content, proposedContent),
-      restorePointId
+      restorePointId,
+      beforeHash: sha256Hex(snapshot.content),
+      afterHash
     };
   }
 
@@ -264,7 +296,14 @@ export class FileChangeService {
     newContent: string,
     snapshotId?: string,
     restoreOptions: ApplyPatchRestoreOptions = {}
-  ): Promise<{ snapshotId: string; file: WorkspaceFile; diff: string; restorePointId?: string }> {
+  ): Promise<{
+    snapshotId: string;
+    file: WorkspaceFile;
+    diff: string;
+    restorePointId?: string;
+    beforeHash: string;
+    afterHash: string;
+  }> {
     return this.applyChange(workspaceRoot, filePath, newContent, snapshotId, restoreOptions);
   }
 }

@@ -1,0 +1,137 @@
+153 INFO: PyInstaller: 6.21.0, contrib hooks: 2026.6
+153 INFO: Python: 3.14.0
+189 INFO: Platform: Windows-11-10.0.26200-SP0
+189 INFO: Python environment: C:\Users\ralle\source\repos\dbzs-codee-project\backend\.venv
+237 WARNING: Failed to collect submodules for 'app.observability' because importing 'app.observability' raised: ModuleNotFoundError: No module named 'app.observability.models'
+2551 INFO: Module search paths (PYTHONPATH):
+['C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend',
+ 'C:\\Users\\ralle\\AppData\\Local\\Programs\\Python\\Python314\\python314.zip',
+ 'C:\\Users\\ralle\\AppData\\Local\\Programs\\Python\\Python314\\DLLs',
+ 'C:\\Users\\ralle\\AppData\\Local\\Programs\\Python\\Python314\\Lib',
+ 'C:\\Users\\ralle\\AppData\\Local\\Programs\\Python\\Python314',
+ 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv',
+ 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages',
+ 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project',
+ 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend']
+2974 INFO: Appending 'datas' from .spec
+2978 INFO: checking Analysis
+2978 INFO: Building Analysis because Analysis-00.toc is non existent
+2978 INFO: Looking for Python shared library...
+2978 INFO: Using Python shared library: C:\Users\ralle\AppData\Local\Programs\Python\Python314\python314.dll
+2978 INFO: Running Analysis Analysis-00.toc
+2978 INFO: Target bytecode optimization level: 0
+2978 INFO: Initializing module dependency graph...
+2980 INFO: Initializing module graph hook caches...
+2997 INFO: Analyzing modules for base_library.zip ...
+4472 INFO: Processing standard module hook 'hook-math.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+5996 INFO: Processing standard module hook 'hook-encodings.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+6825 INFO: Processing standard module hook 'hook-pickle.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+12374 INFO: Processing standard module hook 'hook-difflib.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+12409 INFO: Processing standard module hook 'hook-heapq.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+14964 INFO: Caching module dependency graph...
+15011 INFO: Analyzing C:\Users\ralle\source\repos\dbzs-codee-project\backend\run.py
+15013 INFO: Processing standard module hook 'hook-uvicorn.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+15937 INFO: Processing standard module hook 'hook-multiprocessing.util.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+16183 INFO: Processing standard module hook 'hook-xml.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+16913 INFO: Processing standard module hook 'hook-_ctypes.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+19083 INFO: Processing standard module hook 'hook-platform.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+19177 INFO: Processing pre-safe-import-module hook 'hook-typing_extensions.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+19178 INFO: SetuptoolsInfo: initializing cached setuptools info...
+20477 INFO: Processing standard module hook 'hook-webbrowser.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+21339 INFO: Processing standard module hook 'hook-websockets.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+22452 INFO: Processing standard module hook 'hook-anyio.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+24324 INFO: Processing standard module hook 'hook-pydantic.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+25341 INFO: Processing standard module hook 'hook-rich.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+26485 INFO: Processing standard module hook 'hook-pygments.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+29474 INFO: Processing standard module hook 'hook-sysconfig.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+30193 INFO: Processing standard module hook 'hook-zoneinfo.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+32710 INFO: Processing standard module hook 'hook-sqlite3.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+33842 INFO: Processing standard module hook 'hook-certifi.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+48792 INFO: Processing standard module hook 'hook-psutil.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+50424 INFO: Processing standard module hook 'hook-xml.dom.domreg.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+52869 INFO: Processing pre-safe-import-module hook 'hook-importlib_metadata.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+52870 INFO: Setuptools: 'importlib_metadata' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.importlib_metadata'!
+52880 INFO: Processing standard module hook 'hook-setuptools.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+52902 INFO: Processing pre-safe-import-module hook 'hook-distutils.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+52964 INFO: Processing pre-safe-import-module hook 'hook-jaraco.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+52965 INFO: Setuptools: 'jaraco' appears to be a full setuptools-vendored copy - creating alias to 'setuptools._vendor.jaraco'!
+53001 INFO: Processing pre-safe-import-module hook 'hook-more_itertools.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+53002 INFO: Setuptools: 'more_itertools' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.more_itertools'!
+53395 INFO: Processing pre-safe-import-module hook 'hook-packaging.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+53812 INFO: Processing standard module hook 'hook-setuptools._vendor.jaraco.text.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+53814 INFO: Processing pre-safe-import-module hook 'hook-importlib_resources.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+53829 INFO: Processing pre-safe-import-module hook 'hook-backports.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+53829 INFO: Setuptools: 'backports' appears to be a full setuptools-vendored copy - creating alias to 'setuptools._vendor.backports'!
+54683 INFO: Processing pre-safe-import-module hook 'hook-tomli.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+54684 INFO: Setuptools: 'tomli' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.tomli'!
+55749 INFO: Processing pre-safe-import-module hook 'hook-wheel.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+55750 INFO: Setuptools: 'wheel' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.wheel'!
+55855 INFO: Processing standard module hook 'hook-setuptools._vendor.importlib_metadata.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+55897 INFO: Processing pre-safe-import-module hook 'hook-zipp.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+55898 INFO: Setuptools: 'zipp' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.zipp'!
+58965 INFO: Processing standard module hook 'hook-fsspec.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+60787 INFO: Analyzing hidden import 'fastapi.__main__'
+60790 INFO: Analyzing hidden import 'fastapi.middleware.gzip'
+60806 INFO: Analyzing hidden import 'fastapi.middleware.httpsredirect'
+60811 INFO: Analyzing hidden import 'fastapi.middleware.trustedhost'
+60818 INFO: Analyzing hidden import 'fastapi.middleware.wsgi'
+60834 INFO: Analyzing hidden import 'fastapi.staticfiles'
+60852 INFO: Analyzing hidden import 'fastapi.templating'
+60863 INFO: Analyzing hidden import 'fastapi.testclient'
+60923 INFO: Analyzing hidden import 'sse_starlette'
+60959 INFO: Analyzing hidden import 'app.agent_loop'
+60975 INFO: Analyzing hidden import 'app.agents.agent_daemon'
+60980 INFO: Analyzing hidden import 'app.agents.agent_loop'
+61005 INFO: Analyzing hidden import 'app.core.audit'
+61016 INFO: Analyzing hidden import 'app.core.metrics'
+61029 INFO: Analyzing hidden import 'app.runtime.anthropic_client'
+61039 INFO: Analyzing hidden import 'uvicorn.loops.auto'
+61045 INFO: Analyzing hidden import 'uvicorn.protocols.http.auto'
+61046 INFO: Analyzing hidden import 'uvicorn.protocols.websockets.auto'
+61047 INFO: Analyzing hidden import 'uvicorn.lifespan.on'
+61057 INFO: Analyzing hidden import 'anyio._backends._asyncio'
+61349 INFO: Processing module hooks (post-graph stage)...
+61505 INFO: Processing standard module hook 'hook-pytest.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+62039 INFO: Processing standard module hook 'hook-py.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+66501 INFO: Processing standard module hook 'hook-xml.etree.cElementTree.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+67164 WARNING: Hidden import "tzdata" not found!
+72689 INFO: Performing binary vs. data reclassification (87 entries)
+72722 INFO: Looking for ctypes DLLs
+72857 INFO: Analyzing run-time hooks ...
+72879 INFO: Including run-time hook 'pyi_rth_pkgutil.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+72883 INFO: Including run-time hook 'pyi_rth_setuptools.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+72885 INFO: Including run-time hook 'pyi_rth_inspect.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+72889 INFO: Including run-time hook 'pyi_rth_multiprocessing.py' from 'C:\\Users\\ralle\\source\\repos\\dbzs-codee-project\\backend\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+72972 INFO: Creating base_library.zip...
+73006 INFO: Looking for dynamic libraries
+77600 INFO: Extra DLL search directories (AddDllDirectory): []
+77600 INFO: Extra DLL search directories (PATH): []
+78413 INFO: Warnings written to C:\Users\ralle\source\repos\dbzs-codee-project\.cache\backend-build\dbzs-backend\warn-dbzs-backend.txt
+78900 INFO: Graph cross-reference written to C:\Users\ralle\source\repos\dbzs-codee-project\.cache\backend-build\dbzs-backend\xref-dbzs-backend.html
+79059 INFO: checking PYZ
+79059 INFO: Building PYZ because PYZ-00.toc is non existent
+79059 INFO: Building PYZ (ZlibArchive) C:\Users\ralle\source\repos\dbzs-codee-project\.cache\backend-build\dbzs-backend\PYZ-00.pyz
+80679 INFO: Building PYZ (ZlibArchive) C:\Users\ralle\source\repos\dbzs-codee-project\.cache\backend-build\dbzs-backend\PYZ-00.pyz completed successfully.
+80810 INFO: checking PKG
+80810 INFO: Building PKG because PKG-00.toc is non existent
+80811 INFO: Building PKG (CArchive) dbzs-backend.pkg
+80849 INFO: Building PKG (CArchive) dbzs-backend.pkg completed successfully.
+80851 INFO: Bootloader C:\Users\ralle\source\repos\dbzs-codee-project\backend\.venv\Lib\site-packages\PyInstaller\bootloader\Windows-64bit-intel\run.exe
+80851 INFO: checking EXE
+80851 INFO: Building EXE because EXE-00.toc is non existent
+80851 INFO: Building EXE from EXE-00.toc
+80852 INFO: Copying bootloader EXE to C:\Users\ralle\source\repos\dbzs-codee-project\.cache\backend-build\dbzs-backend\dbzs-backend.exe
+80914 INFO: Copying icon to EXE
+80975 INFO: Copying 0 resources to EXE
+80975 INFO: Embedding manifest in EXE
+81033 INFO: Appending PKG archive to EXE
+81115 INFO: Fixing EXE headers
+81548 INFO: Building EXE from EXE-00.toc completed successfully.
+81552 INFO: checking COLLECT
+81552 INFO: Building COLLECT because COLLECT-00.toc is non existent
+81552 INFO: Building COLLECT COLLECT-00.toc
+81970 INFO: Building COLLECT COLLECT-00.toc completed successfully.
+81977 INFO: Build complete! The results are available in: C:\Users\ralle\source\repos\dbzs-codee-project\backend-dist
+Building backend -> C:\Users\ralle\source\repos\dbzs-codee-project\backend-dist
+Backend bundle ready at: C:\Users\ralle\source\repos\dbzs-codee-project\backend-dist\dbzs-backend
+exit: 0

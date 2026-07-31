@@ -8,6 +8,13 @@ Lokaler Ordnername und einige historische Dokumente verwenden noch `dbzs-codee-p
 
 Stand: 2026-07-31
 
+- [PR #13](https://github.com/devdbzemusic/dbzs-codee-v4/pull/13) (Produktionsreife-Revision Phase 4 —
+  Installer & Updatefähigkeit, plus drei begleitende Runtime-Chat-Fixes) ist gemergt: Diagnose-ZIP-Export
+  (crash.log/Settings/Modellindex gebündelt, ohne neue npm-Abhängigkeit), Repair-Mode fürs Restore-Point-Index
+  (`rebuildIndexFromDisk()`), versioniertes Settings-Migrations-Framework mit Backup-vor-Migration,
+  Code-Signing-Grundgerüst in `electron-builder.yml`. `origin/main` zeigt auf `4e3e7f3`.
+- [PR #12](https://github.com/devdbzemusic/dbzs-codee-v4/pull/12) (Produktionsreife-Revision Phase 3 —
+  Release-Gates vorbereitet, Status-Doku-Sync) ist gemergt.
 - [PR #11](https://github.com/devdbzemusic/dbzs-codee-v4/pull/11) (Produktionsreife-Revision Phase 2 —
   Runtime-Härtung) ist gemergt: Vision-GPU-Exklusivität (`fast_gpu`/`vision_gpu` teilen sich eine GPU und
   laufen nie gleichzeitig), Vision-Broker-Routing (`defaultVisionModelId` ist kein `orphaned`-Setting mehr),
@@ -29,7 +36,7 @@ Stand: 2026-07-31
 - `npm run typecheck` (apps/desktop) ist seitdem erstmals vollstaendig fehlerfrei.
 - GitHub-CI ist weiterhin nicht automatisch an `push` oder `pull_request` gebunden (GitHub-Billing-Sperre seit
   2026-07-23, Reaktivierungs-Checkliste in `HANDOVER.md`).
-- `origin/main` zeigt auf `63a2675` (Merge von PR #11).
+- `origin/main` zeigt auf `4e3e7f3` (Merge von PR #13).
 - Offene Pull Requests im Repo `devdbzemusic/dbzs-codee-v4`: keine.
 - Branch Protection fuer `main`: aktuell nicht aktiv (dokumentierter, nicht ausgefuehrter Aktivierungsbefehl in `HANDOVER.md`).
 

@@ -8,6 +8,8 @@ export interface PatchPreviewResult {
   beforeContent: string;
   afterContent: string;
   diff: string;
+  beforeHash: string;
+  afterHash: string;
 }
 
 export interface PatchApplyResult {
@@ -15,6 +17,8 @@ export interface PatchApplyResult {
   file: WorkspaceFile;
   diff: string;
   restorePointId?: string;
+  beforeHash: string;
+  afterHash: string;
 }
 
 export interface PatchSafetyLimits {

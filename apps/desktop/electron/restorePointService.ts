@@ -1,7 +1,12 @@
+import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { RestorePoint, RestorePointReason, RestoreResult } from "@dbzs/shared";
 import { ensurePathInsideWorkspace, toResolvedPath } from "./workspaceService.js";
+
+function sha256Hex(content: string): string {
+  return createHash("sha256").update(content, "utf-8").digest("hex");
+}
 
 interface RestorePointServiceOptions {
   maxPointsPerWorkspace?: number;
@@ -303,6 +308,7 @@ export class RestorePointService {
     const restoredFiles: string[] = [];
     const deletedFiles: string[] = [];
     const errors: string[] = [];
+    const restoredFileHashes: Record<string, string> = {};
 
     for (const file of point.files) {
       try {
@@ -314,7 +320,19 @@ export class RestorePointService {
         if (file.existed) {
           await fs.mkdir(path.dirname(safeFile), { recursive: true });
           await fs.writeFile(safeFile, file.content, "utf-8");
-          restoredFiles.push(toPosixPath(path.relative(safeWorkspace, safeFile)));
+          const relativePath = toPosixPath(path.relative(safeWorkspace, safeFile));
+          restoredFiles.push(relativePath);
+
+          // Verify the write actually landed the intended content — re-read rather
+          // than trust the fs.writeFile call succeeded silently (UI-24's evidence
+          // requirement: "ursprünglicher Inhalt vollständig wiederhergestellt").
+          const expectedHash = sha256Hex(file.content);
+          const actualContent = await fs.readFile(safeFile, "utf-8");
+          const actualHash = sha256Hex(actualContent);
+          restoredFileHashes[relativePath] = actualHash;
+          if (actualHash !== expectedHash) {
+            errors.push(`${file.filePath}: hash_mismatch_after_restore`);
+          }
           continue;
         }
 
@@ -330,7 +348,8 @@ export class RestorePointService {
       success: errors.length === 0,
       restoredFiles,
       deletedFiles,
-      errors
+      errors,
+      restoredFileHashes
     };
   }
 

@@ -1,0 +1,9 @@
+
+ RUN  v4.1.10 C:/Users/ralle/source/repos/dbzs-codee-project/apps/desktop
+
+
+ Test Files  2 passed (2)
+      Tests  14 passed (14)
+   Start at  22:00:23
+   Duration  2.10s (transform 286ms, setup 864ms, import 341ms, tests 61ms, environment 2.15s)
+

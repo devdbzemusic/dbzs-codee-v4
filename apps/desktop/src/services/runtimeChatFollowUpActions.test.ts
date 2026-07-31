@@ -114,6 +114,37 @@ describe("buildFollowUpActions", () => {
     const actions = buildFollowUpActions(baseContext({ outcome: "generation_failed", run }));
     expect(actions.map((a) => a.kind)).toEqual(["retry_run", "inspect_result"]);
   });
+
+  it("execution_no_action mit Code-Spuren bietet Recovery-Auswahl an", () => {
+    const message: RuntimeChatMessage = {
+      id: "msg-recovery",
+      role: "assistant",
+      content: "Im Ausfuehrungsmodus wurden keine Tools ausgefuehrt.",
+      rawContent: "Datei: `src/app.ts`\n```ts\nexport const ok = true;\n```"
+    };
+    const actions = buildFollowUpActions(
+      baseContext({
+        message,
+        outcome: "execution_no_action",
+        originalUserPrompt: "Fixe src/app.ts"
+      })
+    );
+
+    expect(actions.map((a) => a.title)).toEqual(["Aktion vorbereiten", "Mit Tools erneut", "Nur analysieren"]);
+    expect(actions[0]!.payload.recoveryKind).toBe("no_action_output");
+    expect(actions[0]!.payload.prompt).toContain("Wandle das jetzt in eine sichere CODEE-Aktion um.");
+  });
+
+  it("execution_no_action ohne Code-Spuren bietet Retry und Analyse an", () => {
+    const actions = buildFollowUpActions(
+      baseContext({
+        outcome: "execution_no_action",
+        message: { id: "msg-empty", role: "assistant", content: "Ich kann das leider nicht tun." }
+      })
+    );
+
+    expect(actions.map((a) => a.title)).toEqual(["Mit Tools erneut", "Nur analysieren"]);
+  });
 });
 
 describe("attachFollowUpActionsToMessages", () => {

@@ -330,7 +330,8 @@ export async function handleChatActionAction(
           await useEditorStore.getState().openWorkspaceFile(filePath);
         }
       } else if (action.kind === "switch_model") {
-        useNotebookStore.getState().setActiveTab("runtime");
+        const slotId = typeof action.payload?.slotId === "string" ? action.payload.slotId : null;
+        useNotebookStore.getState().focusRuntimeSlot(slotId);
       } else if (FOLLOW_UP_ACTION_KINDS.has(action.kind)) {
         const prompt = typeof action.payload?.prompt === "string" ? action.payload.prompt : null;
         if (prompt) {
@@ -546,14 +547,15 @@ export async function submitAssistantAnswerAction(
           lastRoutingSlotId: preflight.workspaceRoot ? get().lastRouting?.slotId : null,
           lastResolvedModelId: get().lastBrokerDecision?.resolvedModelId,
           sendMessage: sendFollowupMessage,
-          appendSystemMessage: (content) =>
+          appendSystemMessage: (content, actions) =>
             set((state) => ({
               messages: [
                 ...state.messages,
                 {
-                  id: `msg-${Date.now().toString(36)}-choose-model`,
+                  id: actions?.[0]?.messageId ?? `msg-${Date.now().toString(36)}-choose-model`,
                   role: "system",
-                  content
+                  content,
+                  actions
                 }
               ]
             }))

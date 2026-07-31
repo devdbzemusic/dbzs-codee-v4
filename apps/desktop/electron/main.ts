@@ -896,14 +896,14 @@ ipcMain.handle("dbzs:settings:patch", async (_event, request: unknown) => {
   return sanitizeSettingsPatchResponse({ ...response, settings: safeSettings });
 });
 ipcMain.handle("dbzs:settings:diagnostics", () => requestBackend("/settings/diagnostics"));
-ipcMain.handle("dbzs:diagnostics:export-full-zip", async () => {
+ipcMain.handle("dbzs:diagnostics:export-full-zip", async (_event, slotHealthStates?: unknown) => {
   const crashLogPath = path.join(app.getPath("userData"), "logs", "crash.log");
   const crashLog = await fs.readFile(crashLogPath, "utf-8").catch(() => null);
   const [settings, modelIndex] = await Promise.all([
     requestBackend("/settings").catch(() => ({})),
     requestBackend("/models/index").catch(() => ({}))
   ]);
-  const zip = buildFullDiagnosticsZip({ crashLog, settings, modelIndex });
+  const zip = buildFullDiagnosticsZip({ crashLog, settings, modelIndex, slotHealthStates });
 
   const defaultPath = path.join(app.getPath("temp"), `dbzs-full-diagnostics-${Date.now()}.zip`);
   const parentWindow = getWindowCoordinator().getMainWindow();
