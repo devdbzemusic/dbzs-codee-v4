@@ -28,14 +28,22 @@ hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht no
       wieder echte LLM-Findings statt `degraded_heuristic_only` liefert — nicht in dieser Session verifizierbar
       (siehe Sandbox-Limitierung unten), braucht eine echte interaktive Session.
 - [ ] unerklaerter App-/Backend-Absturz kurz nach Modellwechsel auf `qwen2.5-coder-7b-instruct` root-causen
-      (Logs: `golden-path-run-2/user-data/logs/crash.log`, zeitliche Korrelation nicht abschliessend belegt)
+      (Logs: `golden-path-run-2/user-data/logs/crash.log`, zeitliche Korrelation nicht abschliessend belegt).
+      **Neu (2026-07-31):** `crash.log` enthaelt jetzt `activeRuns=<run-ids>` und das Backend loggt `run_id` bei
+      `chat()`/`chat_stream()`-Eintritt — ein erneuter Absturz waere jetzt tatsaechlich korrelierbar. Root-Cause
+      selbst noch offen (braucht eine echte Reproduktion, siehe Sandbox-Limitierung unten).
 - [ ] 2.6 (Tests)/2.7 (Rollback) gegen den echten, verdrahteten Pfad neu verifizieren:
       `apps/desktop/electron/patchPipelineService.ts`/`restorePointService.ts` ueber `runtimeChatStorePatchActions.ts`
       (nicht die entfernten `repositoryReview/patchValidationService.ts`/`patchRollbackService.ts`)
 - [ ] gepacktes-Build-Userdata-Verzeichnis fuer `backupService.ts` an einem echten Installer-Build verifizieren
       (`INSTALLER_VERIFIED`) — Ablauf in `docs/audits/GOLDEN_PATH_MANUAL_VERIFICATION_SCRIPT.md`
-- [ ] rollenspezifische Modell-IDs (`defaultCoderModelId`/`defaultReviewerModelId`/...) sinnvoll defaulten statt
-      hartem `"Rollenmodell in Settings fehlt"`-Fehler beim ersten Coding-Task-Versuch (in `GOLDEN_PATH_VERIFICATION_2026-07-28-ui.md` gefunden)
+- [x] **rollenspezifische Modell-IDs sinnvoll defaulten (2026-07-31):** `modelSelectionBroker.ts` faellt jetzt,
+      wenn kein `default*ModelId` konfiguriert ist, zuerst auf ein passendes laufendes und dann auf das beste
+      installierte Modell zurueck (`selectionSource: "explicit_fallback"`), statt hart mit
+      `"Rollenmodell in Settings fehlt"` abzubrechen — Vision-Sicherheit bleibt dabei ein harter Filter. Nur
+      wenn wirklich kein kompatibles Modell existiert, gibt es weiterhin einen klaren Fehler
+      (`role_model_missing_no_fallback`). **Noch offen:** manuelle Bestaetigung in einer echten Session (siehe
+      `docs/audits/GOLDEN_PATH_MANUAL_VERIFICATION_SCRIPT.md`, Abschnitt D.1).
 - [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen) —
       Rescan-Button selbst bereits `UI_VERIFIED` (364 Modelle, keine Regression)
 
@@ -53,9 +61,29 @@ Basis: `Pläne/06 DBZS_CODEE_CHAT_FOLLOW_UP_ACTIONS_DIAGNOSE_PLAN.md`, umgesetzt
 - [ ] waehrend eine Antwort noch gesendet wird sind die Folgeaktionen-Buttons sichtbar deaktiviert
 - [ ] Patch-Approval- und Repository-Review-Flows optisch unveraendert gegenpruefen (keine Vermischung
       mit den neuen Folgeaktionen)
-- [ ] Phase 2 einordnen/priorisieren, sobald Phase 1 im echten Gebrauch bestaetigt ist: echtes Retry mit
-      Run-Kontext, Modellwechsel-Angebot nach Fehlschlag, Fehlererkennung aus Freitext statt nur ueber
-      `toolCalls[].status`, persistierte Folgeaktionen
+- [x] **Phase 2 umgesetzt und automatisiert getestet (2026-07-31):** alle vier vorher offenen Punkte
+      bearbeitet, siehe `apps/desktop/src/services/runtimeChatFollowUpActions.ts`:
+      - **echtes Retry mit Run-Kontext**: `retry_run` sendet jetzt den woertlichen urspruenglichen
+        Nutzerprompt (ueber `run.userMessageId` in `messages` nachgeschlagen) statt einer festen
+        Platzhalterformulierung, und reicht `taskType`/`provider`/`agentMode`/`forceUseResidentModel`
+        als `sendOptions` durch `runtimeChatStoreInteractionActions.ts` an `sendMessage()` weiter
+        (kein hartes Modell-/Slot-Pinning — dafuer fehlt in `RuntimeChatSendOptions` ein
+        `forcedModelId`-Feld, das die Model-Selection-Broker-Logik veraendern wuerde; bewusst nicht
+        in dieser Session angefasst).
+      - **Modellwechsel-Angebot nach Fehlschlag**: neuer Action-Kind `switch_model`, erscheint
+        zusaetzlich zu `retry_run`, wenn `run.resourceRisk` `"high"`/`"unsupported"` ist oder
+        `run.fallbackRejection` gesetzt ist. Klick navigiert per `useNotebookStore.setActiveTab("runtime")`
+        zum Model Control Center (`RuntimeModelsTab`), statt ein Modell blind zu erraten.
+      - **Fehlererkennung aus Freitext**: `hasErrors` prueft jetzt zusaetzlich zu `toolCalls[].status`
+        den Antworttext auf starke Fehlerindikatoren (Stacktrace-Muster, `isGenericRuntimeErrorSentinel`
+        aus `runtimeRunFinalization.ts`), bewusst ohne generisches `/fehler/i`-Matching, um keine
+        Fehlalarme bei Antworten auszuloesen, die frueher behobene Fehler nur erwaehnen.
+      - **persistierte Folgeaktionen**: bereits durch die bestehende, generische `messages`-Synchronisierung
+        in `apps/desktop/src/services/runtimeChatSync.ts` (localStorage, verlustfreier Roundtrip inkl.
+        `message.actions`) abgedeckt — kein zusaetzlicher Code noetig, da Folgeaktionen als normale
+        `ChatActionRequest`-Eintraege in `message.actions` liegen.
+      Noch offen: manuelle Bestaetigung in einer echten Desktop-Session (siehe Punkte oben, gilt jetzt
+      auch fuer die Phase-2-Ergaenzungen: `switch_model`-Navigation, echter Retry-Prompt-Inhalt).
 
 ## Neu offen: Vision-Slot-Grundlage Phase 1 — Folgeschritte
 

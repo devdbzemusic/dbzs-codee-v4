@@ -1,6 +1,70 @@
 # Handover
 
-Stand: 2026-07-29
+Stand: 2026-07-31
+
+## Produktionsreife-Revision Phase 1 umgesetzt (2026-07-31)
+
+Basis: `Pläne/09 DBZS_CODEE_V4_REPOSITORY_URTEIL_2026-07-31.md`, Umsetzungsplan Phase 1 ("Stabilitäts-Sprint").
+Voller Desktop-Vitest-Lauf (1267 Tests grün, 42 geskippt), voller Backend-Pytest-Lauf (437 grün), beide
+Typechecks (`tsconfig.node.json`, `tsconfig.web.json`) fehlerfrei.
+
+- **Rollenmodell-Fallback-Kette** (`modelSelectionBroker.ts`): der bisherige harte `role_model_missing`-Abbruch,
+  wenn kein `default*ModelId` gesetzt ist, versucht jetzt zuerst ein passendes **laufendes** Modell (mit
+  Slot-Umzug der Entscheidung) und danach das beste **installierte** Modell, bevor er endgueltig mit
+  `role_model_missing_no_fallback` abbricht. Vision-Sicherheit bleibt an jeder Stufe ein harter Filter (kein
+  Text-Turn faellt je auf ein Vision-only-Modell zurueck und umgekehrt). Neuer Export
+  `hasConfiguredRoleModelForTask()` laesst `runtimeChatStoreRoutingPhase.ts` den Slot-Status nur dann abfragen,
+  wenn er tatsaechlich gebraucht wird. Aus Vorsicht bewusst auf `quality_cpu`/`fast_gpu`/`utility` beschraenkt —
+  `vision_gpu`/`orchestrator_cpu`-Fallback wuerde am `contextSlotId`-Clamp in `runtimeChatStoreRoutingPhase.ts`
+  scheitern (der nur die drei erstgenannten Slot-IDs kennt); das faellt in die geplante
+  Vision-Broker-Routing-Phase, die diesen Clamp ohnehin erweitern muss.
+- **Crash-Correlation-ID**: `RuntimeChatRun.id` (dem Nutzer bereits als "Diagnose-ID" bekannt) laeuft jetzt als
+  neues optionales Feld `run_id` durch `RuntimeChatRequest` bis ins Backend (`service.py` loggt `run_id` beim
+  Eintritt in `chat()`/`chat_stream()` — Backend hatte bis dahin kein Logging-Setup) und wird im Electron-
+  Main-Process per neuem `activeRunTracker.ts` (Set aktiver Run-IDs, mehrfenstertauglich) getrackt. Jede
+  `crash.log`-Zeile (`flushPendingState()` in `main.ts`) enthaelt jetzt `activeRuns=<ids-oder-"none">`.
+- **Sandbox-Prozessueberleben (Phase 0, erneuter Versuch)**: zwei technisch unterschiedliche Techniken
+  getestet (Bash/PowerShell-Hintergrundprozess — bereits zweimal gescheitert; Windows Task Scheduler
+  `schtasks` — neu). Ergebnis: `schtasks` scheiterte sogar **schneller** (~25-30s statt ~2-3min) und der
+  gestartete Prozess zeigte trotzdem `claude.exe` als Elternprozess — spricht gegen klassisches
+  Job-Object-Reaping und fuer eine sandbox-weite Prozessueberwachung unabhaengig von der tatsaechlichen
+  Prozess-Elternschaft. Als endgueltig nicht loesbar in dieser Sandbox dokumentiert (Details:
+  `docs/audits/GOLDEN_PATH_MANUAL_VERIFICATION_SCRIPT.md`, Abschnitt D) — die Kategorie-C-Punkte
+  (Rollenmodell-Fallback, Crash-Correlation, GPU-Exklusivitaet) bleiben manuelle Verifikation.
+
+Geaenderte Dateien: `apps/desktop/src/services/modelSelectionBroker.ts` (+Test), neue
+`apps/desktop/electron/activeRunTracker.ts` (+Test), `apps/desktop/src/stores/runtimeChatStoreRoutingPhase.ts`
+(+Test), `apps/desktop/electron/{main,runtimeAndJobIpc}.ts`, `apps/desktop/src/stores/runtimeChatStore.ts`,
+`packages/shared/src/index.ts`, `backend/app/runtime/{schemas,service}.py` (+Test),
+`docs/audits/GOLDEN_PATH_MANUAL_VERIFICATION_SCRIPT.md`.
+
+## Chat-Folgeaktionen Phase 2 umgesetzt (2026-07-31)
+
+Die vier in `TODO.md` offenen Phase-2-Punkte zu den Chat-Folgeaktionen (Basis:
+`Pläne/06 DBZS_CODEE_CHAT_FOLLOW_UP_ACTIONS_DIAGNOSE_PLAN.md`, Phase 1 bereits per PR #5/Merge-Commit `210f0ff`
+in `main`) sind umgesetzt und automatisiert getestet (voller Desktop-Vitest-Lauf: 1250 Tests gruen, 42 geskippt,
+0 Failures; `packages/shared`- und `apps/desktop`-Typecheck fehlerfrei):
+
+- **echtes Retry mit Run-Kontext**: `retry_run` sendet den woertlichen urspruenglichen Nutzerprompt (statt einer
+  festen Platzhalterformulierung) und reicht `taskType`/`provider`/`agentMode`/`forceUseResidentModel` als
+  `sendOptions` durch. Bewusst kein hartes Modell-/Slot-Pinning — dafuer fehlt in `RuntimeChatSendOptions` ein
+  `forcedModelId`-Feld, das tiefer in `modelSelectionBroker.ts` eingreifen wuerde.
+- **Modellwechsel-Angebot nach Fehlschlag**: neuer Action-Kind `switch_model`, erscheint zusaetzlich zu
+  `retry_run` bei `run.resourceRisk` `"high"`/`"unsupported"` oder gesetztem `run.fallbackRejection`. Klick
+  navigiert per `useNotebookStore.setActiveTab("runtime")` zum Model Control Center statt ein Modell zu erraten.
+- **Fehlererkennung aus Freitext**: `hasErrors` prueft jetzt zusaetzlich zu `toolCalls[].status` den
+  Antworttext auf starke Fehlerindikatoren (Stacktrace-Muster, `isGenericRuntimeErrorSentinel` aus
+  `runtimeRunFinalization.ts`), bewusst ohne generisches `/fehler/i`-Matching gegen Fehlalarme.
+- **persistierte Folgeaktionen**: bereits durch die bestehende `messages`-Synchronisierung in
+  `runtimeChatSync.ts` (localStorage-Roundtrip inkl. `message.actions`) abgedeckt — kein zusaetzlicher Code
+  noetig.
+
+Geaenderte Dateien: `packages/shared/src/index.ts` (neuer `ChatActionKind` `switch_model`),
+`apps/desktop/src/services/runtimeChatFollowUpActions.ts`, `apps/desktop/src/stores/runtimeChatStoreInteractionActions.ts`,
+plus Tests (`runtimeChatFollowUpActions.test.ts`, `apps/desktop/src/testing/chatActions.test.ts`).
+**Noch offen:** manuelle Bestaetigung in einer echten Desktop-Session (siehe `TODO.md`) — insbesondere die
+`switch_model`-Navigation und der tatsaechliche Retry-Prompt-Inhalt wurden nur automatisiert, nicht interaktiv
+getestet.
 
 ## Aktueller Arbeitsbranch
 

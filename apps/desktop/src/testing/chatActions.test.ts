@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { extractReasoningSummary, mergeAssistantMessageState, mergeStreamingAssistantMessage, useRuntimeChatStore } from "../stores/runtimeChatStore";
 import { useEditorStore } from "../stores/editorStore";
+import { useNotebookStore } from "../stores/notebookStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { parseAssistantPayload } from "../services/assistantPayloadParser";
 import { approvalCoordinator } from "../services/approvalCoordinator";
@@ -622,6 +623,98 @@ Here is the visible response.
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage.mock.calls[0]?.[0]).toBe("Vertiefe deine letzte Antwort mit mehr Details.");
     expect(sendMessage.mock.calls[0]?.[5]).toBe("runtime_chat");
+
+    const state = useRuntimeChatStore.getState();
+    expect(state.messages[0]?.actions?.[0]?.state).toBe("completed");
+  });
+
+  it("echtes Retry: reicht Run-Kontext aus dem Payload als sendOptions durch", async () => {
+    useRuntimeChatStore.setState({
+      messages: [{
+        id: "msg-retry",
+        role: "assistant",
+        content: "Das hat leider nicht funktioniert.",
+        actions: [{
+          id: "followup-msg-retry-retry_run",
+          runId: "run-retry",
+          messageId: "msg-retry",
+          workspaceRoot: "C:/work/a",
+          workspaceId: "c:/work/a",
+          kind: "retry_run",
+          title: "Erneut versuchen",
+          state: "pending",
+          riskLevel: "low",
+          payload: {
+            prompt: "Baue eine neue Login-Seite.",
+            retryOriginal: true,
+            taskType: "debugging",
+            provider: "llama-cpp",
+            agentMode: "agent",
+            forceUseResidentModel: true
+          },
+          createdAt: new Date().toISOString()
+        }]
+      }]
+    });
+
+    const sendMessage = vi.fn().mockResolvedValue(true);
+    useRuntimeChatStore.setState({ sendMessage } as never);
+
+    await useRuntimeChatStore.getState().handleChatAction(
+      "followup-msg-retry-retry_run",
+      "msg-retry",
+      true,
+      "c:/work/a"
+    );
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0]?.[0]).toBe("Baue eine neue Login-Seite.");
+    const sendOptions = sendMessage.mock.calls[0]?.[6];
+    expect(sendOptions).toMatchObject({
+      taskType: "debugging",
+      stickyTaskType: "debugging",
+      provider: "llama-cpp",
+      agentMode: "agent",
+      forceUseResidentModel: true
+    });
+  });
+
+  it('dispatches "Modell wechseln" by switching the notebook tab instead of sending a message', async () => {
+    useNotebookStore.setState({ activeTab: "cdee" });
+
+    useRuntimeChatStore.setState({
+      messages: [{
+        id: "msg-switch",
+        role: "assistant",
+        content: "Das hat leider nicht funktioniert.",
+        actions: [{
+          id: "followup-msg-switch-switch_model",
+          runId: "run-switch",
+          messageId: "msg-switch",
+          workspaceRoot: "C:/work/a",
+          workspaceId: "c:/work/a",
+          kind: "switch_model",
+          title: "Modell wechseln",
+          state: "pending",
+          riskLevel: "low",
+          payload: { prompt: "Modell wechseln", navigateToTab: "runtime" },
+          createdAt: new Date().toISOString()
+        }]
+      }]
+    });
+
+    const sendMessage = vi.fn().mockResolvedValue(true);
+    useRuntimeChatStore.setState({ sendMessage } as never);
+
+    await useRuntimeChatStore.getState().handleChatAction(
+      "followup-msg-switch-switch_model",
+      "msg-switch",
+      true,
+      "c:/work/a"
+    );
+
+    expect(useNotebookStore.getState().activeTab).toBe("runtime");
+    expect(sendMessage).not.toHaveBeenCalled();
 
     const state = useRuntimeChatStore.getState();
     expect(state.messages[0]?.actions?.[0]?.state).toBe("completed");

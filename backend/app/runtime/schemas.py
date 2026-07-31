@@ -166,6 +166,7 @@ class RuntimeChatRequest(BaseModel):
     fallback_policy: RuntimeFallbackPolicy | None = None
     routing_reason: str | None = None
     decision_id: str | None = None
+    run_id: str | None = None
 
     def native_tools_payload(self) -> list[dict] | None:
         """Provider-native ``tools`` payload, or ``None`` when not applicable.

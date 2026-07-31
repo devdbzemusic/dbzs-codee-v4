@@ -10,24 +10,35 @@ const {
   upsertActiveTaskContractMock,
   validateResolvedRuntimeRouteMock,
   useSettingsStoreGetStateMock,
-  useModelIndexStoreGetStateMock
+  useModelIndexStoreGetStateMock,
+  hasConfiguredRoleModelForTaskMock,
+  getAllSlotsStatusMock
 } = vi.hoisted(() => ({
   brokerDecisionMock: vi.fn(),
   createRuntimeBindingDecisionMock: vi.fn(),
   upsertActiveTaskContractMock: vi.fn(),
   validateResolvedRuntimeRouteMock: vi.fn(),
   useSettingsStoreGetStateMock: vi.fn(),
-  useModelIndexStoreGetStateMock: vi.fn()
+  useModelIndexStoreGetStateMock: vi.fn(),
+  hasConfiguredRoleModelForTaskMock: vi.fn(),
+  getAllSlotsStatusMock: vi.fn()
 }));
 
 vi.mock("@/services/modelSelectionBroker", () => ({
   brokerDecision: brokerDecisionMock,
+  hasConfiguredRoleModelForTask: hasConfiguredRoleModelForTaskMock,
   BindingModelError: class BindingModelError extends Error {
     code = "binding_error";
     options: string[] = [];
   },
   formatModelDisplayLabel: (modelName: string | null | undefined, modelId: string | null | undefined) =>
     modelName ?? modelId ?? "Lokales Modell"
+}));
+
+vi.mock("@/services/runtimeSlotManager", () => ({
+  runtimeSlotManager: {
+    getAllSlotsStatus: getAllSlotsStatusMock
+  }
 }));
 
 vi.mock("@/services/runtimeBinding", () => ({
@@ -124,6 +135,10 @@ describe("runRoutingPhaseAction", () => {
     createRuntimeBindingDecisionMock.mockReset();
     upsertActiveTaskContractMock.mockReset();
     validateResolvedRuntimeRouteMock.mockReset();
+    hasConfiguredRoleModelForTaskMock.mockReset();
+    getAllSlotsStatusMock.mockReset();
+    hasConfiguredRoleModelForTaskMock.mockReturnValue(true);
+    getAllSlotsStatusMock.mockResolvedValue([]);
 
     brokerDecisionMock.mockReturnValue({
       taskType: "casual_chat",
@@ -254,5 +269,88 @@ describe("runRoutingPhaseAction", () => {
     });
     expect(result.handled).toBe(false);
     expect(result.routing?.modelId).toBe("vision-model");
+  });
+
+  function buildCallArgs(overrides: { taskType?: string; workflowAssignment?: CanonicalWorkflowAssignment } = {}) {
+    const set = vi.fn();
+    const get = vi.fn(() => ({
+      activeRun: { id: "run-1" },
+      currentActivity: { id: "activity-1" },
+      historicalRuns: {}
+    })) as unknown as () => RuntimeChatState;
+    const activity = {
+      id: "activity-1",
+      startedAt: "2026-07-28T10:00:00.000Z",
+      userPrompt: "Hallo",
+      targetAgent: "runtime_chat",
+      steps: []
+    } as unknown as RuntimeChatActivityRun;
+    const callbacks = {
+      failStep: vi.fn(),
+      finishStep: vi.fn(),
+      appendStepDetail: vi.fn(),
+      updateActiveRun: vi.fn(),
+      updateActivity: vi.fn(),
+      getActivity: vi.fn(() => activity)
+    };
+    const workflowAssignment =
+      overrides.workflowAssignment ??
+      ({
+        workflowKind: "execution",
+        phase: "implementation",
+        effectiveAgent: "runtime_chat",
+        requestedAgent: "runtime_chat",
+        policyVersion: 1,
+        modelRole: "primary",
+        toolProfile: "standard",
+        source: "normalized",
+        normalized: true,
+        normalizationReasons: []
+      } as unknown as CanonicalWorkflowAssignment);
+    return {
+      set,
+      get,
+      sendOptions: { workspaceRoot: "C:/repo" },
+      trimmedContent: "Hallo",
+      taskType: overrides.taskType ?? "casual_chat",
+      effectiveAgent: "runtime_chat" as const,
+      requestCapabilities: { hasImageInput: false, requiresVision: false },
+      preferPlannerFirst: true,
+      toolsEnabled: false,
+      continuation: { useActiveContract: false, reason: "fresh_turn" },
+      activeTaskContract: null,
+      workflowAssignment,
+      runWorkspaceRoot: null,
+      initialRunId: "run-1",
+      safeTraceEvents: [] as ReasoningTraceEvent[],
+      callbacks,
+      resetFirstTokenTimeout: vi.fn(),
+      clearTotalTimeout: vi.fn()
+    };
+  }
+
+  it("does not fetch slot status when a role model is already configured", async () => {
+    hasConfiguredRoleModelForTaskMock.mockReturnValue(true);
+
+    await runRoutingPhaseAction(buildCallArgs() as never);
+
+    expect(getAllSlotsStatusMock).not.toHaveBeenCalled();
+    expect(brokerDecisionMock.mock.calls[0]?.[2]).toMatchObject({ runningModels: undefined });
+  });
+
+  it("fetches slot status and passes running models into the broker when no role model is configured", async () => {
+    hasConfiguredRoleModelForTaskMock.mockReturnValue(false);
+    getAllSlotsStatusMock.mockResolvedValue([
+      { slot_id: "quality_cpu", model_id: "running-model", state: "running" },
+      { slot_id: "fast_gpu", model_id: null, state: "stopped" },
+      { slot_id: "orchestrator_cpu", model_id: "orchestrator-model", state: "running" }
+    ]);
+
+    await runRoutingPhaseAction(buildCallArgs() as never);
+
+    expect(getAllSlotsStatusMock).toHaveBeenCalledTimes(1);
+    expect(brokerDecisionMock.mock.calls[0]?.[2]).toMatchObject({
+      runningModels: [{ slotId: "quality_cpu", modelId: "running-model" }]
+    });
   });
 });

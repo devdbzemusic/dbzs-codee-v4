@@ -10,7 +10,8 @@ import {
   matchesReviewIntent,
   deriveModelDisplayName,
   formatModelDisplayLabel,
-  looksLikeOpaqueModelId
+  looksLikeOpaqueModelId,
+  BindingModelError
 } from "@/services/modelSelectionBroker";
 import type { TaskType, ModelTargetAgent } from "@/services/modelSelectionBroker";
 
@@ -477,6 +478,140 @@ describe("modelSelectionBroker", () => {
       expect(result.taskType).toBe("casual_chat");
       expect(result.confidence).toBe(1);
       expect(result.alternativeTaskTypes).toEqual([]);
+    });
+  });
+
+  describe("role-model fallback chain", () => {
+    const noRoleModels = {
+      defaultModelId: "",
+      defaultChatModelId: "",
+      defaultModelName: "Default Model",
+      defaultPlannerModelId: "",
+      defaultCoderModelId: "",
+      defaultReviewerModelId: "",
+      defaultDebugModelId: ""
+    };
+    const coderCatalog = [
+      { id: "running-coder.gguf", name: "Running Coder", capabilities: ["chat", "code"], recommended_use: "primary_coding" },
+      { id: "installed-chat.gguf", name: "Installed Chat", capabilities: ["chat"], recommended_use: "chat_candidate" },
+      { id: "installed-coder.gguf", name: "Installed Coder", capabilities: ["chat", "code"], recommended_use: "primary_coding" }
+    ];
+
+    it("falls back to a compatible running model and reassigns the slot when no role model is configured", () => {
+      const decision = brokerDecision("small_code_change", noRoleModels, {
+        preferPlannerFirst: false,
+        catalog: coderCatalog,
+        runningModels: [{ slotId: "quality_cpu", modelId: "running-coder.gguf" }]
+      });
+      expect(decision.modelId).toBe("running-coder.gguf");
+      expect(decision.selectionSource).toBe("explicit_fallback");
+      expect(decision.fallbackReason).toBe("role_model_missing_used_running");
+      expect(decision.slotId).toBe("quality_cpu");
+      expect(decision.reason).toContain("role_fallback:running_model:running-coder.gguf");
+      expect(decision.reason).toContain("slot:reassigned_from:fast_gpu");
+    });
+
+    it("prefers a code-capable running model over a chat-only one for coding tasks", () => {
+      const decision = brokerDecision("small_code_change", noRoleModels, {
+        preferPlannerFirst: false,
+        catalog: coderCatalog,
+        runningModels: [
+          { slotId: "quality_cpu", modelId: "installed-chat.gguf" },
+          { slotId: "fast_gpu", modelId: "running-coder.gguf" }
+        ]
+      });
+      expect(decision.modelId).toBe("running-coder.gguf");
+      expect(decision.slotId).toBe("fast_gpu");
+    });
+
+    it("falls back to the best installed model when nothing is running", () => {
+      const decision = brokerDecision("small_code_change", noRoleModels, {
+        preferPlannerFirst: false,
+        catalog: [
+          { id: "installed-chat.gguf", name: "Installed Chat", capabilities: ["chat"], recommended_use: "chat_candidate" },
+          { id: "installed-coder.gguf", name: "Installed Coder", capabilities: ["chat", "code"], recommended_use: "primary_coding" }
+        ]
+      });
+      expect(decision.modelId).toBe("installed-coder.gguf");
+      expect(decision.selectionSource).toBe("explicit_fallback");
+      expect(decision.fallbackReason).toBe("role_model_missing_used_installed");
+      // Falls back onto the task-derived default slot since no running model claims a slot.
+      expect(decision.slotId).toBe("fast_gpu");
+    });
+
+    it("never falls back onto a vision-only model for a text-only turn", () => {
+      const catalog = [
+        {
+          id: "vision-only.gguf",
+          name: "Vision Only",
+          capabilities: ["vision"],
+          supportsTextOnly: false,
+          requiresVisionProjector: true
+        }
+      ];
+      expect(() =>
+        brokerDecision("casual_chat", noRoleModels, {
+          hasImageInput: false,
+          catalog,
+          runningModels: [{ slotId: "quality_cpu", modelId: "vision-only.gguf" }]
+        })
+      ).toThrow(/role_model_missing_no_fallback|kein.*Fallback|Modell installieren/i);
+    });
+
+    it("excludes a vision model that requires an unverified MMProj pairing from fallback candidates", () => {
+      const catalog = [
+        {
+          id: "unverified-vision.gguf",
+          name: "Unverified Vision",
+          capabilities: ["vision"],
+          requiresVisionProjector: true
+        }
+      ];
+      expect(() =>
+        brokerDecision("casual_chat", noRoleModels, {
+          hasImageInput: true,
+          catalog,
+          runningModels: [{ slotId: "quality_cpu", modelId: "unverified-vision.gguf" }]
+        })
+      ).toThrow(/role_model_missing_no_fallback|kein.*Fallback|Modell installieren/i);
+    });
+
+    it("excludes support artifacts (mmproj) from fallback candidates", () => {
+      const catalog = [
+        { id: "mmproj.gguf", name: "mmproj", artifact_type: "mmproj", capabilities: ["vision"] }
+      ];
+      expect(() =>
+        brokerDecision("casual_chat", noRoleModels, { catalog, runningModels: [{ slotId: "quality_cpu", modelId: "mmproj.gguf" }] })
+      ).toThrow(BindingModelError);
+    });
+
+    it("throws role_model_missing_no_fallback when no candidate exists at all", () => {
+      expect.assertions(2);
+      try {
+        brokerDecision("casual_chat", noRoleModels, {});
+      } catch (error) {
+        expect(error).toBeInstanceOf(BindingModelError);
+        expect((error as BindingModelError).code).toBe("role_model_missing_no_fallback");
+      }
+    });
+
+    it("does not attempt fallback when a role model is explicitly configured", () => {
+      const decision = brokerDecision("small_code_change", mockSettings, {
+        preferPlannerFirst: false,
+        runningModels: [{ slotId: "quality_cpu", modelId: "some-other-model.gguf" }]
+      });
+      expect(decision.modelId).toBe(mockSettings.defaultCoderModelId);
+      expect(decision.selectionSource).toBe("role_setting");
+    });
+
+    it("still respects a manual model override when no role model is configured", () => {
+      const decision = brokerDecision("small_code_change", noRoleModels, {
+        manualModelId: "manual-pick.gguf",
+        catalog: coderCatalog,
+        runningModels: [{ slotId: "fast_gpu", modelId: "running-coder.gguf" }]
+      });
+      expect(decision.modelId).toBe("manual-pick.gguf");
+      expect(decision.selectionSource).toBe("manual_selection");
     });
   });
 });

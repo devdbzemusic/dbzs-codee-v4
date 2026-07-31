@@ -18,6 +18,7 @@ import type { RuntimeChatState } from "@/stores/runtimeChatStore";
 import { FOLLOW_UP_ACTION_KINDS } from "@/services/runtimeChatFollowUpActions";
 import type { AgentToolProfile } from "@/runtime/agent/agentToolProfile";
 import { useEditorStore } from "@/stores/editorStore";
+import { useNotebookStore } from "@/stores/notebookStore";
 import { useRuntimeStore } from "@/stores/runtimeStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
@@ -328,9 +329,31 @@ export async function handleChatActionAction(
         if (filePath) {
           await useEditorStore.getState().openWorkspaceFile(filePath);
         }
+      } else if (action.kind === "switch_model") {
+        useNotebookStore.getState().setActiveTab("runtime");
       } else if (FOLLOW_UP_ACTION_KINDS.has(action.kind)) {
         const prompt = typeof action.payload?.prompt === "string" ? action.payload.prompt : null;
         if (prompt) {
+          const payload = action.payload ?? {};
+          const sendOptions: Parameters<RuntimeChatState["sendMessage"]>[6] = {
+            workspaceRoot: action.workspaceRoot || useWorkspaceStore.getState().state.projectPath || undefined,
+            toolProfile: get().toolProfile
+          };
+          if (action.kind === "retry_run") {
+            if (typeof payload.taskType === "string") {
+              sendOptions.taskType = payload.taskType;
+              sendOptions.stickyTaskType = payload.taskType as RuntimeTaskType;
+            }
+            if (typeof payload.provider === "string") {
+              sendOptions.provider = payload.provider;
+            }
+            if (payload.agentMode === "agent" || payload.agentMode === "auto") {
+              sendOptions.agentMode = payload.agentMode;
+            }
+            if (payload.forceUseResidentModel === true) {
+              sendOptions.forceUseResidentModel = true;
+            }
+          }
           await get().sendMessage(
             prompt,
             useRuntimeStore.getState().status,
@@ -338,10 +361,7 @@ export async function handleChatActionAction(
             undefined,
             null,
             "runtime_chat",
-            {
-              workspaceRoot: action.workspaceRoot || useWorkspaceStore.getState().state.projectPath || undefined,
-              toolProfile: get().toolProfile
-            }
+            sendOptions
           );
         }
       }
