@@ -6,13 +6,14 @@ Repo-Wahrheit: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
 
 ## Stabil
 
-- `origin/main` zeigt auf `4e3e7f3` (PR #13 gemergt: Produktionsreife-Revision Phase 4 —
-  Diagnose-ZIP-Export, Restore-Point-Repair-Mode, Settings-Migrations-Framework, Code-Signing-Grundgerüst,
-  plus drei begleitende Runtime-Chat-Fixes)
-- Produktionsreife-Revision Phase 1-3 (Rollenmodell-Fallback-Kette, Crash-Correlation-ID, GPU-Exklusivitaet,
-  Vision-Broker-Routing, Prozess-Supervisor, Release-Gates-Vorbereitung) per PR #10-#12 in `main`
+- `origin/main` zeigt auf `ff911bd` (PR #14 gemergt: Abnahme-Test-Playbook-Infrastruktur — echter
+  SERVICE_VERIFIED-Lauf unter `docs/audits/runs/2026-07-31_21-43/`, Vorher-/Nachher-Hashes fuer
+  Patch/Rollback, Doku-Drift-Checker, plus drei begleitende Runtime-Chat-Fixes)
+- Produktionsreife-Revision Phase 1-4 (Rollenmodell-Fallback-Kette, Crash-Correlation-ID, GPU-Exklusivitaet,
+  Vision-Broker-Routing, Prozess-Supervisor, Release-Gates-Vorbereitung, Diagnose-ZIP-Export, Repair-Mode,
+  Settings-Migrations-Framework, Code-Signing-Grundgerüst) per PR #10-#13 in `main`
 - Chat-Folgeaktionen Phase 2 (echtes Retry, `switch_model`-Aktion, Freitext-Fehlererkennung) in `main`
-- voller Desktop-Vitest-Lauf (1307 Tests gruen, 42 geskippt) und voller Backend-Pytest-Lauf (454 gruen) zum
+- voller Desktop-Vitest-Lauf (1312 Tests gruen, 42 geskippt) und voller Backend-Pytest-Lauf (454 gruen) zum
   Stand dieses Eintrags, beide Typechecks fehlerfrei — siehe `HANDOVER.md` fuer Details je Phase
 - Shared-, Desktop- und Backend-Kernchecks sind belastbar nachgewiesen
 - Desktop-Capability-Suite ist im Gate-Pfad mit 37/37 belegt
