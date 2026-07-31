@@ -145,10 +145,8 @@ export async function runRoutingPhaseAction(input: {
 
     // Slot-status is only worth fetching when no role model is configured for this
     // target — otherwise the role setting always wins and the fallback chain never runs.
-    // Restricted to the three slot ids the downstream context-window pipeline (see
-    // contextSlotId below) understands today; vision_gpu/orchestrator_cpu fallback
-    // is deferred to the Vision-Broker-Routing phase, which already has to widen that
-    // pipeline for its own slot-relocation needs.
+    // Excludes orchestrator_cpu — its tiny function-calling model is never an
+    // appropriate stand-in for a missing chat/coder/reviewer/vision role model.
     let runningModels: RunningModelSnapshot[] | undefined;
     if (
       !hasConfiguredRoleModelForTask(taskType, settings, { preferPlannerFirst, workflowAssignment })
@@ -159,7 +157,10 @@ export async function runRoutingPhaseAction(input: {
           (status) =>
             status.state === "running" &&
             status.model_id &&
-            (status.slot_id === "quality_cpu" || status.slot_id === "fast_gpu" || status.slot_id === "utility")
+            (status.slot_id === "quality_cpu" ||
+              status.slot_id === "fast_gpu" ||
+              status.slot_id === "utility" ||
+              status.slot_id === "vision_gpu")
         )
         .map((status) => ({ slotId: status.slot_id, modelId: status.model_id as string }));
     }
@@ -174,6 +175,7 @@ export async function runRoutingPhaseAction(input: {
         defaultCoderModelId: settings.defaultCoderModelId,
         defaultReviewerModelId: settings.defaultReviewerModelId,
         defaultDebugModelId: settings.defaultDebugModelId,
+        defaultVisionModelId: settings.defaultVisionModelId,
         localOnlyModels: settings.modelDiscoveryMode === "project_local_strict"
       },
       {
@@ -311,8 +313,11 @@ export async function runRoutingPhaseAction(input: {
   }
 
   const runtimeFlags = useSettingsStore.getState().settings;
-  const contextSlotId = ((taskType: RuntimeTaskType, slotId?: string | null): "quality_cpu" | "fast_gpu" | "utility" => {
-    if (slotId === "quality_cpu" || slotId === "fast_gpu" || slotId === "utility") {
+  const contextSlotId = ((
+    taskType: RuntimeTaskType,
+    slotId?: string | null
+  ): "quality_cpu" | "fast_gpu" | "utility" | "vision_gpu" => {
+    if (slotId === "quality_cpu" || slotId === "fast_gpu" || slotId === "utility" || slotId === "vision_gpu") {
       return slotId;
     }
     if (["small_code_change", "large_code_change", "debugging", "review", "planning", "architecture", "test_analysis", "refactoring"].includes(taskType)) {

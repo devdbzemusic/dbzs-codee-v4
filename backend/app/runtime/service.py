@@ -40,6 +40,7 @@ from app.runtime.chat_stream import (
 from app.runtime.chat_clients import LlamaServerChatClient, OllamaChatClient
 from app.runtime.cloud_client import CloudRuntimeClient
 from app.runtime.gpu_detect import GpuInfo, detect_gpu
+from app.runtime.gpu_exclusivity import other_exclusive_gpu_slot, wait_for_slot_drain
 from app.runtime.hardware_fingerprint import collect_hardware_fingerprint, fingerprint_hash
 from app.runtime.process_runner import CapturingSubprocessRunner
 from app.runtime.prompts import RUNTIME_CHAT_SYSTEM_PROMPT
@@ -889,6 +890,10 @@ class RuntimeService:
                     self._status = shared_status
                     return shared_status
 
+            # About to actually launch a new process on target_slot_id — fast_gpu and
+            # vision_gpu share one GPU's VRAM and must never run a model concurrently.
+            self._enforce_gpu_exclusivity(target_slot_id)
+
             # Binding / role settings: never silently substitute another GGUF.
             # Retry loops below may still OOM-reduce the *same* model.
             ordered_candidate_ids = [model_id]
@@ -1186,6 +1191,26 @@ class RuntimeService:
         self.residency.record_stopped(slot_id)
         self._statuses[slot_id] = RuntimeStatus(state="stopped", slot_id=slot_id, message="Runtime stopped.")
         return self._statuses[slot_id]
+
+    def _enforce_gpu_exclusivity(self, target_slot_id: str) -> None:
+        """fast_gpu and vision_gpu share one GPU and must never run concurrently.
+
+        Called right before actually launching a new process on target_slot_id.
+        Drains in-flight requests on the other GPU slot with a bounded wait
+        rather than hard-killing them, then stops it.
+        """
+        other_slot = other_exclusive_gpu_slot(target_slot_id)
+        if other_slot is None:
+            return
+        if self.status_for_slot(other_slot).state != "running":
+            return
+
+        def get_active_requests(slot_id: str) -> int:
+            entry = self.residency.entry_for_slot(slot_id)
+            return entry.active_requests if entry is not None else 0
+
+        wait_for_slot_drain(get_active_requests, other_slot)
+        self.stop_model_for_slot(other_slot)
 
     def _build_antigravity_prompt(self, chat_request: RuntimeChatRequest) -> tuple[str, str | None]:
         system_messages = [m.content for m in chat_request.messages if m.role == "system"]

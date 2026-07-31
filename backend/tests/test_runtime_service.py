@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 import types
 from pathlib import Path
 
@@ -112,6 +114,20 @@ class OomThenSucceedRunner(FakeProcessRunner):
         return process
 
 
+class MultiStartProcessRunner(FakeProcessRunner):
+    """A FakeProcessRunner whose base class returns one shared FakeProcess for every
+    start() — fine for single-launch tests, but a second slot's start() after a first
+    slot was stopped (terminate() sets _terminated=True) would then see a pre-terminated
+    process and look like an immediate crash. Needed whenever a test starts more than
+    one slot against the same runner, e.g. GPU-exclusivity tests."""
+
+    def start(self, command: list[str], cwd: Path, env: dict[str, str] | None = None) -> FakeProcess:
+        self.commands.append(command)
+        process = FakeProcess()
+        self.processes.append(process)
+        return process
+
+
 def _gpu_layers_in_command(command: list[str]) -> int:
     index = command.index("--gpu-layers") + 1
     return int(command[index])
@@ -186,6 +202,113 @@ def test_runtime_service_starts_llama_server_for_indexed_model(tmp_path: Path) -
     assert runner.commands[0][0].endswith("llama-server.exe")
     assert "--ctx-size" in runner.commands[0]
     assert "--gpu-layers" in runner.commands[0]
+
+
+def _add_second_model_to_catalog(models_dir: Path, model_id: str) -> None:
+    """GPU-exclusivity tests need two distinct models — reusing the same model_id
+    across both slots would trigger the unrelated shared-slot-binding reuse path
+    instead of a genuine new process launch."""
+    model_path = models_dir / f"{model_id}.gguf"
+    model_path.write_bytes(b"GGUF")
+    catalog_path = models_dir / "models.catalog.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    catalog["artifacts"].append(
+        {
+            "id": model_id,
+            "name": model_id,
+            "artifact_type": "model",
+            "role": "VISION_MODEL",
+            "capabilities": ["chat", "vision"],
+            "modality": ["text", "image"],
+            "file_path": str(model_path),
+            "size_bytes": 1000,
+            "quantization": "Q4_K_M",
+            "backend": "llama.cpp",
+            "loader": {"launcher": "llama-server"},
+        }
+    )
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+
+
+def test_runtime_service_stops_vision_gpu_when_fast_gpu_starts(tmp_path: Path) -> None:
+    write_catalog(tmp_path)
+    _add_second_model_to_catalog(tmp_path, "vision-model")
+    runner = MultiStartProcessRunner()
+    service = RuntimeService(
+        model_index_service=ModelIndexService(models_dir=tmp_path),
+        process_runner=runner,
+        endpoint_checker=lambda _url: True,
+    )
+
+    service.start_model("vision-model", slot_id="vision_gpu")
+    assert service.status_for_slot("vision_gpu").state == "running"
+
+    service.start_model("coder", slot_id="fast_gpu")
+
+    assert service.status_for_slot("fast_gpu").state == "running"
+    assert service.status_for_slot("vision_gpu").state == "stopped"
+
+
+def test_runtime_service_stops_fast_gpu_when_vision_gpu_starts(tmp_path: Path) -> None:
+    """GPU exclusivity must be symmetric, not just one-directional."""
+    write_catalog(tmp_path)
+    _add_second_model_to_catalog(tmp_path, "vision-model")
+    runner = MultiStartProcessRunner()
+    service = RuntimeService(
+        model_index_service=ModelIndexService(models_dir=tmp_path),
+        process_runner=runner,
+        endpoint_checker=lambda _url: True,
+    )
+
+    service.start_model("coder", slot_id="fast_gpu")
+    assert service.status_for_slot("fast_gpu").state == "running"
+
+    service.start_model("vision-model", slot_id="vision_gpu")
+
+    assert service.status_for_slot("vision_gpu").state == "running"
+    assert service.status_for_slot("fast_gpu").state == "stopped"
+
+
+def test_runtime_service_gpu_exclusivity_waits_for_in_flight_request_to_drain(tmp_path: Path) -> None:
+    write_catalog(tmp_path)
+    _add_second_model_to_catalog(tmp_path, "vision-model")
+    runner = MultiStartProcessRunner()
+    service = RuntimeService(
+        model_index_service=ModelIndexService(models_dir=tmp_path),
+        process_runner=runner,
+        endpoint_checker=lambda _url: True,
+    )
+
+    service.start_model("coder", slot_id="fast_gpu")
+    service.residency.begin_request("fast_gpu")
+
+    def finish_request_soon() -> None:
+        time.sleep(0.05)
+        service.residency.end_request("fast_gpu")
+
+    threading.Thread(target=finish_request_soon).start()
+
+    service.start_model("vision-model", slot_id="vision_gpu")
+
+    assert service.status_for_slot("vision_gpu").state == "running"
+    assert service.status_for_slot("fast_gpu").state == "stopped"
+
+
+def test_runtime_service_leaves_quality_cpu_and_utility_slots_alone(tmp_path: Path) -> None:
+    """Exclusivity is scoped to the two GPU slots — CPU slots must be unaffected."""
+    write_catalog(tmp_path)
+    runner = FakeProcessRunner()
+    service = RuntimeService(
+        model_index_service=ModelIndexService(models_dir=tmp_path),
+        process_runner=runner,
+        endpoint_checker=lambda _url: True,
+    )
+
+    service.start_model("coder", slot_id="quality_cpu")
+    service.start_model("coder", slot_id="fast_gpu")
+
+    assert service.status_for_slot("quality_cpu").state == "running"
+    assert service.status_for_slot("fast_gpu").state == "running"
 
 
 def test_runtime_service_routes_antigravity_provider_to_antigravity_service() -> None:

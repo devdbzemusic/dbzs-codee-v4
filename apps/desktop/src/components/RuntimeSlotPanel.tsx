@@ -16,6 +16,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import type { RuntimeSlotId } from "@/services/modelSelectionBroker";
 import { runtimeSlotManager, getRecentRoutingEvents, type RuntimeSlotStatus } from "@/services/runtimeSlotManager";
+import { getSlotHealthState } from "@/services/runtimeProcessSupervisor";
 import { modelContextCacheClient } from "@/services/modelContextCacheClient";
 import { openPlatformDiagnosticsWindow } from "@/utils/platformDiagnosticsWindow";
 
@@ -334,6 +335,7 @@ const SlotCard: React.FC<SlotCardProps> = ({
 }) => {
   const isReady = slot.state === "running" && slot.chat_ready;
   const isRunning = slot.state === "running" || slot.state === "starting";
+  const healthState = getSlotHealthState(slot.slot_id);
 
   // Status Badge
   const statusStyles: Record<string, string> = {
@@ -439,6 +441,13 @@ const SlotCard: React.FC<SlotCardProps> = ({
           )}
           {slot.error_message && slot.state === "error" && (
             <p className="mt-1 text-xs text-red-400">{slot.error_message}</p>
+          )}
+          {slot.state === "error" && healthState.lastKnownModelId && (
+            <p className="mt-1 text-xs text-yellow-400">
+              {healthState.budgetExhausted
+                ? "Auto-Recovery: Restart-Budget erschöpft — manueller Neustart nötig."
+                : `Auto-Recovery: Neustart wird versucht (${healthState.restartAttempts}/3 in diesem Fenster).`}
+            </p>
           )}
         </div>
 

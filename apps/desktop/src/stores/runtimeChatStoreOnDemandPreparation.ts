@@ -43,8 +43,8 @@ export interface OnDemandPreparationResult {
   result: boolean;
   routing: RuntimeChatRoutingInfo;
   bindingDecision: RuntimeBindingDecision;
-  contextSlotId: "quality_cpu" | "fast_gpu" | "utility";
-  slotId: "quality_cpu" | "fast_gpu" | "utility";
+  contextSlotId: "quality_cpu" | "fast_gpu" | "utility" | "vision_gpu";
+  slotId: "quality_cpu" | "fast_gpu" | "utility" | "vision_gpu";
   modelToStart: string;
   currentSlotStatus: Awaited<ReturnType<typeof runtimeSlotManager.getSlotStatus>>;
   launchProfile: "cpu_safe" | "hybrid" | "balanced" | "large_context" | "fast";
@@ -66,7 +66,7 @@ export async function prepareOnDemandRuntimeAction(input: {
   routing: RuntimeChatRoutingInfo;
   bindingDecision: RuntimeBindingDecision;
   brokerDecisionFull: ModelSelectionDecision;
-  contextSlotId: "quality_cpu" | "fast_gpu" | "utility";
+  contextSlotId: "quality_cpu" | "fast_gpu" | "utility" | "vision_gpu";
   trimmedContent: string;
   resetFirstTokenTimeout: () => void;
   clearTotalTimeout: () => void;

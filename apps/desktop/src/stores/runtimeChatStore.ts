@@ -254,6 +254,7 @@ import {
   startWorkModelIdleWatcher,
   touchWorkModelActivity
 } from "@/services/lazyRuntimePolicy";
+import { startRuntimeProcessSupervisor } from "@/services/runtimeProcessSupervisor";
 import { RUNTIME_SLOT_DEFINITIONS, type ContextManifest, type RuntimeTaskType, type RuntimeSlotId, type ContextStage, type RuntimeRunOutcome } from "@dbzs/shared";
 import { WORKFLOW_POLICY_VERSION } from "@/runtime/workflow/workflowPolicyRegistry";
 import {
@@ -393,8 +394,11 @@ export interface RuntimeChatSendOptions {
   /** Explicit user choice: continue with the currently resident slot model. */
   forceUseResidentModel?: boolean;
 }
-function resolveContextSlotId(taskType: string, slotId?: string | null): "quality_cpu" | "fast_gpu" | "utility" {
-  if (slotId === "quality_cpu" || slotId === "fast_gpu" || slotId === "utility") {
+function resolveContextSlotId(
+  taskType: string,
+  slotId?: string | null
+): "quality_cpu" | "fast_gpu" | "utility" | "vision_gpu" {
+  if (slotId === "quality_cpu" || slotId === "fast_gpu" || slotId === "utility" || slotId === "vision_gpu") {
     return slotId;
   }
 
@@ -997,7 +1001,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
     brokerDecisionFull = routingPhase.brokerDecisionFull ?? undefined;
     bindingDecision = routingPhase.bindingDecision;
     activeTaskContract = routingPhase.activeTaskContract;
-    let contextSlotId = routingPhase.contextSlotId as "quality_cpu" | "fast_gpu" | "utility";
+    let contextSlotId = routingPhase.contextSlotId as "quality_cpu" | "fast_gpu" | "utility" | "vision_gpu";
     const displayModelLabel = routingPhase.displayModelLabel!;
     shadowMatch = routingPhase.shadowMatch;
 
@@ -3000,3 +3004,4 @@ registerIdleEvictionActiveRunGuard(() => {
   return state.isSending || Boolean(state.activeRun && !state.activeRun.finishedAt);
 });
 startWorkModelIdleWatcher();
+startRuntimeProcessSupervisor();
