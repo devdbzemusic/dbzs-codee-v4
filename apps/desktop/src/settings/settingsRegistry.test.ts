@@ -53,8 +53,13 @@ describe("settings contract registry", () => {
     expect(getSettingDefinition("autoSave")?.control).toBe("readonly");
     expect(getSettingDefinition("runtimeChatUseBroker")?.control).toBe("readonly");
     expect(getSettingDefinition("agentExecutionEnabled")?.control).toBe("readonly");
-    expect(getSettingDefinition("defaultVisionModelId")?.control).toBe("readonly");
-    expect(getSettingDefinition("defaultVisionModelId")?.classification).toBe("orphaned");
+    expect(getSettingDefinition("autoStartVisionRuntime")?.control).toBe("readonly");
+    expect(getSettingDefinition("autoStartVisionRuntime")?.classification).toBe("orphaned");
+  });
+
+  it("promotes defaultVisionModelId once the broker actually consumes it (Vision-Broker-Routing)", () => {
+    expect(getSettingDefinition("defaultVisionModelId")?.control).toBe("model_select");
+    expect(getSettingDefinition("defaultVisionModelId")?.classification).toBe("user_tunable");
   });
 
   it("keeps shared defaults aligned for critical fields", () => {

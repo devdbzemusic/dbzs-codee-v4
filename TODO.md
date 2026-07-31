@@ -93,11 +93,15 @@ routet heute real auf `vision_gpu`:
 
 - [ ] optionaler manueller Sanity-Check: `previewResourcePlan()` gegen ein echtes Qwen2.5-VL-GGUF auf
       `vision_gpu` aufrufen und bestaetigen, dass der Resource-Planner die 5. Slot-ID ohne Sonderfall akzeptiert
-- [ ] Phase 2 (GPU-Exklusivitaet `fast_gpu` ⟷ `vision_gpu`, serverseitig in `RuntimeService.start_model()`)
-      einordnen/priorisieren — echte Hardware-Verhaltensaenderung, braucht eigene Entscheidung zu
-      In-Flight-Request-Handling (Warten vs. Hard-Kill)
-- [ ] Phase 3 (Broker-Routing fuer Bildeingaben auf `vision_gpu`, `defaultVisionModelId`/`autoStartVisionRuntime`
-      von `orphaned` auf `user_tunable` umschalten) einordnen/priorisieren
+- [x] **Phase 2 (GPU-Exklusivitaet) umgesetzt (2026-07-31):** `backend/app/runtime/gpu_exclusivity.py` —
+      `RuntimeService.start_model()` stoppt vor dem tatsaechlichen Prozessstart auf `fast_gpu`/`vision_gpu` den
+      jeweils anderen GPU-Slot, mit begrenztem Warten auf laufende Requests (`wait_for_slot_drain`) statt
+      Hard-Kill. Siehe `HANDOVER.md`. **Noch offen:** manuelle Bestaetigung mit zwei echten Modellen
+      (`docs/audits/GOLDEN_PATH_MANUAL_VERIFICATION_SCRIPT.md`, Abschnitt D.3).
+- [x] **Phase 3 (Broker-Routing) umgesetzt (2026-07-31):** ein Modell, das strikt einen Vision-Projector
+      benoetigt, wird zwingend auf `vision_gpu` geroutet; `defaultVisionModelId` ist jetzt `user_tunable` und
+      wird fuer die vier Vision-Task-Typen konsultiert. `autoStartVisionRuntime` bleibt bewusst `orphaned` —
+      es existiert weiterhin kein Auto-Start-Consumer dafuer. Siehe `HANDOVER.md`.
 - [ ] separat bleiben lassen: FunctionGemma-Routing-Integration, Yi-Coder-9B-„Advisor“-Rolle,
       `defaultTesterModelId`/`defaultDocsModelId`, TS/Python-Settings-Schema-Drift (alle bewusst nicht Teil
       dieses Slices)
@@ -160,7 +164,8 @@ Basis: `Pläne/07 CODEE_MODELL_ROLLEN_MATRIX.md`. Committet und per
 - [x] Verifikation: beide TS-Projekte fehlerfrei; voller Desktop-Vitest-Lauf 1226 Tests gruen; Backend-Pytest
       fuer die betroffenen Suiten plus breitere `runtime`/`slot`/`residency`-Filterauswahl (153 Tests) gruen;
       ein isolierter, vorbestehender Windows-Datei-Lock-Flake in `test_task_manifest.py` bestaetigt (unrelated)
-- [ ] Phase 2 (GPU-Exklusivitaet)/Phase 3 (Broker-Routing) bewusst nicht Teil dieses Slices — siehe "Neu offen" oben
+- [x] Phase 2 (GPU-Exklusivitaet)/Phase 3 (Broker-Routing) waren bewusst nicht Teil dieses Slices — beide
+      inzwischen umgesetzt (2026-07-31), siehe "Neu offen" oben / `HANDOVER.md`
 
 ## Erledigt: Workflow-Audit P0-Fixes (2026-07-29)
 

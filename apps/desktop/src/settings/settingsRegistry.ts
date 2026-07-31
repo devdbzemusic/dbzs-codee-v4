@@ -252,11 +252,13 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
     category: "models",
     label: "Vision-Modell",
     description: "Basismodell für den vision_gpu-Slot (Bild-/UI-Analyse).",
-    classification: "orphaned",
+    classification: "user_tunable",
     defaultValue: d.defaultVisionModelId ?? "",
-    control: "readonly",
-    restartRequirement: "none",
-    consumerDescription: "runtimeSlotManager.configuredModelForSlot liest das Feld, aber kein Aufrufer startet vision_gpu (Phase 3: getRecommendedSlot/autoStartSlots)",
+    control: "model_select",
+    restartRequirement: "runtime_restart",
+    consumerDescription:
+      "modelSelectionBroker.selectModelForTask (image_analysis/ui_analysis/visual_debugging/document_vision) " +
+      "und runtimeSlotManager.configuredModelForSlot",
   }),
   def({
     key: "defaultOrchestratorModelId",

@@ -2,6 +2,43 @@
 
 Stand: 2026-07-31
 
+## Produktionsreife-Revision Phase 2 umgesetzt (2026-07-31)
+
+Basis: `Pläne/09 DBZS_CODEE_V4_REPOSITORY_URTEIL_2026-07-31.md`, Umsetzungsplan Phase 2 ("Runtime-Härtung").
+Voller Desktop-Vitest-Lauf (1281 Tests grün, 42 geskippt), voller Backend-Pytest-Lauf (446 grün), beide
+Typechecks fehlerfrei.
+
+- **Vision-GPU-Exklusivität** (`backend/app/runtime/gpu_exclusivity.py`, neu): `fast_gpu` und `vision_gpu`
+  teilen sich eine GPU und dürfen nie gleichzeitig ein Modell resident halten. `RuntimeService.start_model()`
+  ruft vor dem tatsächlichen Prozessstart `_enforce_gpu_exclusivity()` auf, die den jeweils anderen GPU-Slot
+  sauber stoppt — mit begrenztem Warten auf laufende Requests (`wait_for_slot_drain`, Default 10s) statt
+  Hard-Kill. CPU-Slots (`quality_cpu`, `orchestrator_cpu`, `utility`) sind unbetroffen.
+- **Vision-Broker-Routing** (`modelSelectionBroker.ts`): ein Modell, das strikt einen Vision-Projector
+  benötigt (`modelRequiresVisionProjector`), wird jetzt zwingend auf `vision_gpu` geroutet statt auf
+  `quality_cpu`/`fast_gpu` (die den Projector nie laden). Ein Dual-Chat+Vision-Modell, das als normales
+  Rollenmodell läuft, bleibt bewusst auf seinem Slot — nur echte Vision-only-Modelle werden umgeleitet.
+  `defaultVisionModelId` wird jetzt tatsächlich für die vier Vision-Task-Typen
+  (`image_analysis`/`ui_analysis`/`visual_debugging`/`document_vision`) konsultiert und ist damit kein
+  `orphaned`-Setting mehr (`settingsRegistry.ts`: `user_tunable`/`model_select`). Die dafür nötige Verbreiterung
+  des `contextSlotId`-Typs (3 → 4 Slot-IDs) wurde in allen 4 betroffenen Store-Dateien konsistent nachgezogen.
+- **Prozess-Supervisor mit Health-Heartbeat + Restart-Budget** (`apps/desktop/src/services/runtimeProcessSupervisor.ts`,
+  neu): periodischer Check (60s-Intervall, analog zum bestehenden Idle-Watcher in `lazyRuntimePolicy.ts`)
+  erkennt einen Slot, der von "running" auf "error" gewechselt hat, und startet ihn mit dem zuletzt bekannten
+  Modell neu — begrenzt auf 3 Versuche pro 5-Minuten-Fenster, danach manuelle Intervention nötig (keine
+  Neustart-Stürme). Ein deliberater Stop (Idle-Eviction, manueller Stop → state "stopped") wird nie als Absturz
+  interpretiert. `restartSlot()` in `runtimeSlotManager.ts` hat damit erstmals einen echten Aufrufer.
+  Health-Zustand pro Slot ist in `RuntimeSlotPanel.tsx` sichtbar (Restart-Versuche, Budget erschöpft).
+
+Geänderte Dateien: neue `backend/app/runtime/gpu_exclusivity.py` (+`tests/test_gpu_exclusivity.py`, +4 neue
+Integrationstests in `test_runtime_service.py`), `apps/desktop/src/services/modelSelectionBroker.ts` (+Test),
+neue `apps/desktop/src/services/runtimeProcessSupervisor.ts` (+Test), `apps/desktop/src/components/RuntimeSlotPanel.tsx`,
+`apps/desktop/src/settings/settingsRegistry.ts` (+Test), `apps/desktop/src/stores/runtimeChatStore.ts`,
+`apps/desktop/src/stores/runtimeChatStoreRoutingPhase.ts`, `apps/desktop/src/stores/runtimeChatStoreOnDemandPreparation.ts`,
+`apps/desktop/src/stores/runtimeChatStoreOnDemandExecution.ts`.
+**Noch offen:** manuelle Bestätigung in einer echten Session mit zwei geladenen Modellen (siehe
+`docs/audits/GOLDEN_PATH_MANUAL_VERIFICATION_SCRIPT.md`, Abschnitt D.3) — GPU-Exklusivität und der Supervisor
+wurden nur gegen Fakes verifiziert, nie gegen einen echten llama-server-Prozess.
+
 ## Produktionsreife-Revision Phase 1 umgesetzt (2026-07-31)
 
 Basis: `Pläne/09 DBZS_CODEE_V4_REPOSITORY_URTEIL_2026-07-31.md`, Umsetzungsplan Phase 1 ("Stabilitäts-Sprint").

@@ -614,4 +614,97 @@ describe("modelSelectionBroker", () => {
       expect(decision.selectionSource).toBe("manual_selection");
     });
   });
+
+  describe("vision-broker-routing", () => {
+    it("routes to vision_gpu when the resolved role model strictly requires a vision projector", () => {
+      const settings = {
+        ...mockSettings,
+        defaultChatModelId: "vision-projector-model.gguf"
+      };
+      const decision = brokerDecision("casual_chat", settings, {
+        hasImageInput: true,
+        catalog: [
+          {
+            id: "vision-projector-model.gguf",
+            name: "Vision Projector Model",
+            capabilities: ["vision"],
+            supportsTextOnly: true,
+            requiresVisionProjector: true
+          }
+        ],
+        multimodalPairs: [
+          {
+            id: "pair-1",
+            base_model_id: "vision-projector-model.gguf",
+            projector_artifact_id: "mmproj-vision.gguf",
+            modalities: ["image", "text"],
+            source: "manual",
+            confidence: 1,
+            status: "candidate",
+            routing_allowed: true,
+            candidate_base_model_ids: ["vision-projector-model.gguf"]
+          }
+        ]
+      });
+      expect(decision.slotId).toBe("vision_gpu");
+      expect(decision.reason).toContain("slot:vision_routed:vision_gpu");
+    });
+
+    it("does not route to vision_gpu for a dual chat+vision model used as a normal role model", () => {
+      const settings = {
+        ...mockSettings,
+        defaultChatModelId: "dual-model.gguf"
+      };
+      const decision = brokerDecision("casual_chat", settings, {
+        hasImageInput: true,
+        catalog: [
+          {
+            id: "dual-model.gguf",
+            name: "Dual Chat+Vision Model",
+            capabilities: ["chat", "vision"],
+            supportsTextOnly: true,
+            requiresVisionProjector: false
+          }
+        ]
+      });
+      expect(decision.slotId).toBe("quality_cpu");
+      expect(decision.reason.some((r) => r.startsWith("slot:vision_routed:"))).toBe(false);
+    });
+
+    it("does not route to vision_gpu when the turn has no image (allowVision false), even for a projector model with text-only support", () => {
+      const settings = {
+        ...mockSettings,
+        defaultChatModelId: "vision-projector-model.gguf"
+      };
+      const decision = brokerDecision("casual_chat", settings, {
+        hasImageInput: false,
+        catalog: [
+          {
+            id: "vision-projector-model.gguf",
+            name: "Vision Projector Model",
+            capabilities: ["vision"],
+            supportsTextOnly: true,
+            requiresVisionProjector: true
+          }
+        ]
+      });
+      expect(decision.slotId).toBe("quality_cpu");
+    });
+
+    it("picks defaultVisionModelId for image_analysis/ui_analysis/visual_debugging/document_vision task types", () => {
+      const settings = {
+        ...mockSettings,
+        defaultVisionModelId: "vision-role-model.gguf"
+      };
+      for (const taskType of ["image_analysis", "ui_analysis", "visual_debugging", "document_vision"] as const) {
+        const decision = brokerDecision(taskType, settings, { hasImageInput: true });
+        expect(decision.modelId).toBe("vision-role-model.gguf");
+      }
+    });
+
+    it("falls back to defaultChatModelId for vision task types when defaultVisionModelId is unset", () => {
+      const decision = brokerDecision("image_analysis", mockSettings, { hasImageInput: true });
+      expect(decision.modelId).toBe(mockSettings.defaultChatModelId);
+    });
+  });
 });

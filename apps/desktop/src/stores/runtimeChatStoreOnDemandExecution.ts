@@ -17,7 +17,7 @@ import { runtimeSlotManager } from "@/services/runtimeSlotManager";
 export interface ExecuteOnDemandRuntimeActionResult {
   ok: boolean;
   routing: RuntimeChatRoutingInfo;
-  contextSlotId: "quality_cpu" | "fast_gpu" | "utility";
+  contextSlotId: "quality_cpu" | "fast_gpu" | "utility" | "vision_gpu";
   slotId: RuntimeSlotId;
   modelToStart: string;
   finalBudget: FinalRequestTokenBudget;
@@ -39,7 +39,7 @@ export async function executeOnDemandRuntimeAction(input: {
     routing: RuntimeChatRoutingInfo;
     bindingDecision: RuntimeBindingDecision;
     brokerDecisionFull: ModelSelectionDecision;
-    contextSlotId: "quality_cpu" | "fast_gpu" | "utility";
+    contextSlotId: "quality_cpu" | "fast_gpu" | "utility" | "vision_gpu";
     slotId: RuntimeSlotId;
     currentSlotStatus: Awaited<ReturnType<typeof runtimeSlotManager.getSlotStatus>>;
     modelToStart: string;

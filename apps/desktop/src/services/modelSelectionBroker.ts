@@ -591,6 +591,7 @@ function resolveModelIdWithVisionGate(
     defaultCoderModelId?: string;
     defaultReviewerModelId?: string;
     defaultDebugModelId?: string;
+    defaultVisionModelId?: string;
   },
   allowVision: boolean,
   catalog: BrokerModelCatalogEntry[] | undefined,
@@ -742,6 +743,7 @@ export function hasConfiguredRoleModelForTask(
     defaultCoderModelId?: string;
     defaultReviewerModelId?: string;
     defaultDebugModelId?: string;
+    defaultVisionModelId?: string;
   },
   options?: {
     preferPlannerFirst?: boolean;
@@ -772,6 +774,7 @@ export function brokerDecision(
     defaultCoderModelId?: string;
     defaultReviewerModelId?: string;
     defaultDebugModelId?: string;
+    defaultVisionModelId?: string;
     localOnlyModels?: boolean;
   },
   options?: BrokerDecisionOptions,
@@ -817,7 +820,7 @@ export function brokerDecision(
     taskType,
     options?.runningModels,
   );
-  const effectiveSlotId = resolved.fallbackSlotId ?? slotId;
+  const preVisionSlotId = resolved.fallbackSlotId ?? slotId;
   if (resolved.fallbackSlotId && resolved.fallbackSlotId !== slotId) {
     reasons.push(`slot:reassigned_from:${slotId}`);
   }
@@ -827,6 +830,15 @@ export function brokerDecision(
     ? catalogEntry.name.trim()
     : deriveModelDisplayName(resolvedModelId, settings.defaultModelName, catalog);
   reasons.push(`selection_source:${resolved.selectionSource}`);
+
+  // A model that strictly requires the vision projector (not just a dual chat+vision
+  // model being used as a normal role model) must run on the dedicated vision_gpu slot,
+  // never on quality_cpu/fast_gpu — those never load the projector.
+  const requiresVisionSlot = allowVision && modelRequiresVisionProjector(resolvedModelId, catalog);
+  const effectiveSlotId = requiresVisionSlot ? "vision_gpu" : preVisionSlotId;
+  if (requiresVisionSlot && effectiveSlotId !== preVisionSlotId) {
+    reasons.push(`slot:vision_routed:${effectiveSlotId}`);
+  }
 
   if (
     allowVision &&
@@ -967,6 +979,7 @@ function selectModelForTask(
     defaultCoderModelId?: string;
     defaultReviewerModelId?: string;
     defaultDebugModelId?: string;
+    defaultVisionModelId?: string;
   },
   targetAgent: ModelTargetAgent,
 ): string | undefined {
@@ -986,6 +999,11 @@ function selectModelForTask(
     case "planning":
     case "architecture":
       return settings.defaultPlannerModelId || undefined;
+    case "image_analysis":
+    case "ui_analysis":
+    case "visual_debugging":
+    case "document_vision":
+      return settings.defaultVisionModelId || settings.defaultChatModelId || settings.defaultModelId || undefined;
     case "casual_chat":
     case "normal_chat":
       return settings.defaultChatModelId || settings.defaultModelId || undefined;
@@ -1003,6 +1021,7 @@ function selectModelForRole(
     defaultCoderModelId?: string;
     defaultReviewerModelId?: string;
     defaultDebugModelId?: string;
+    defaultVisionModelId?: string;
   },
   targetAgent: ModelTargetAgent
 ): string | undefined {
