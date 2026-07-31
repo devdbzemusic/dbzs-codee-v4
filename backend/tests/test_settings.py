@@ -4,6 +4,7 @@ import json
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.settings import migrations
 from app.settings.service import SettingsService, get_settings_service
 
 
@@ -194,6 +195,41 @@ def test_corrupt_settings_file_is_backed_up(tmp_path: Path) -> None:
     assert settings_path.exists()
     raw = json.loads(settings_path.read_text(encoding="utf-8"))
     assert raw["schemaVersion"] == 1
+
+
+def test_load_backs_up_settings_before_applying_a_real_migration(
+    tmp_path: Path, monkeypatch
+) -> None:
+    settings_path = tmp_path / "settings.json"
+    settings_path.write_text(
+        json.dumps({"schemaVersion": 1, "theme": "dark"}), encoding="utf-8"
+    )
+
+    def bump_theme_field(raw: dict) -> dict:
+        return {**raw, "theme": "light"}
+
+    monkeypatch.setattr(migrations, "CURRENT_SCHEMA_VERSION", 2)
+    monkeypatch.setattr(migrations, "MIGRATIONS", {2: bump_theme_field})
+
+    service = SettingsService(settings_path=settings_path)
+    loaded = service.load()
+
+    assert loaded.schemaVersion == 2
+    assert loaded.theme == "light"
+    backups = list(tmp_path.glob("settings.json.pre-migration-v1-to-v2.*"))
+    assert len(backups) == 1
+    backed_up_raw = json.loads(backups[0].read_text(encoding="utf-8"))
+    assert backed_up_raw["theme"] == "dark"  # pre-migration content preserved
+
+
+def test_load_does_not_back_up_for_the_trivial_missing_schema_version_case(tmp_path: Path) -> None:
+    settings_path = tmp_path / "settings.json"
+    settings_path.write_text(json.dumps({"theme": "dark"}), encoding="utf-8")
+
+    service = SettingsService(settings_path=settings_path)
+    service.load()
+
+    assert list(tmp_path.glob("settings.json.pre-migration-*")) == []
 
 
 def test_atomic_save_replaces_file(tmp_path: Path) -> None:

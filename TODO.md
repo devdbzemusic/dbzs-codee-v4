@@ -47,6 +47,25 @@ hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht no
 - [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen) —
       Rescan-Button selbst bereits `UI_VERIFIED` (364 Modelle, keine Regression)
 
+## Neu offen: Phase 4 manuell abnehmen
+
+Basis: Produktionsreife-Revision Phase 4 aus `HANDOVER.md`. Die neuen Grundgerueste sind automatisiert frisch
+verifiziert (Diagnose-ZIP/Restore-Point-Repair/Settings-Migrationen/Typechecks), aber die Live-/Installer-Seite
+ist noch nicht vollstaendig abgenommen:
+
+- [ ] Diagnose-ZIP-Export in einer echten Desktop-Session ausloesen und pruefen:
+      ZIP wird geschrieben, enthaelt `crash.log` falls vorhanden, redigierte Settings und Modellindex-Snapshot;
+      keine Secrets im Export.
+- [ ] Restore-Point-Repair in einer echten Workspace-Session pruefen:
+      korruptes `index.json` simulieren, vorhandene Restore-Point-Dateien sichtbar wiederherstellen,
+      defekte Einzeldateien werden gemeldet statt still verworfen.
+- [ ] Settings-Migrations-Backup einmal mit einer kuenftigen echten Migration oder Testmigration pruefen:
+      Vor-Migrations-Backup wird nur bei echter Transformation angelegt, Luecken in der Migrationskette stoppen
+      den Runner sichtbar.
+- [ ] Code-Signing erst bei echtem Zertifikat weiterverfolgen:
+      `CSC_LINK`/`CSC_KEY_PASSWORD` nicht im Repo ablegen; `signAndEditExecutable` erst fuer einen
+      Signatur-Testbuild aktivieren.
+
 ## Neu offen: Chat-Folgeaktionen (Phase 1) manuell verifizieren
 
 Basis: `Pläne/06 DBZS_CODEE_CHAT_FOLLOW_UP_ACTIONS_DIAGNOSE_PLAN.md`, umgesetzt und automatisiert getestet

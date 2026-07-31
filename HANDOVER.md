@@ -2,6 +2,70 @@
 
 Stand: 2026-07-31
 
+## Produktionsreife-Revision Phase 4 umgesetzt (2026-07-31) — Installer & Updatefähigkeit
+
+Basis: `Pläne/09 DBZS_CODEE_V4_REPOSITORY_URTEIL_2026-07-31.md`, Umsetzungsplan Phase 4. Wie im Plan
+angekündigt bewusst Grundgerüst-Charakter (aktuell kein echter Migrationsschritt noetig, kein echtes
+Zertifikat vorhanden) — aber jeweils vollstaendig funktionsfaehig und getestet, kein totes Geruest.
+
+- **Diagnose-ZIP-Export** (`apps/desktop/electron/diagnosticsZipExport.ts`, neu): buendelt `crash.log`,
+  redigierte Settings und den Modellindex-Snapshot in ein ZIP. Bewusst **ohne neues npm-Package** — ein
+  minimaler ZIP-Writer (STORE-Methode, unkomprimiert) ueber Node's eingebautes `zlib.crc32` reicht fuer eine
+  Handvoll kleiner Diagnosedateien. Neuer IPC-Handler `dbzs:diagnostics:export-full-zip` plus Button
+  "📦 Vollpaket exportieren" in `RuntimeSlotPanel.tsx`. **Bewusst nicht enthalten:** Trace-Events pro Lauf —
+  die brauchen eine Run-ID-Auswahl, fuer die dieser globale Export keinen Kontext hat; das waere ein
+  separater, Run-bezogener Export.
+- **Repair-Mode-Grundgerüst**: `RestorePointService.rebuildIndexFromDisk()` (neu) behebt genau den in der
+  Leck-Audit-Session gefundenen Bug — ein korruptes `index.json` machte bisher alle existierenden Restore
+  Points unsichtbar, obwohl die einzelnen `<id>.json`-Punktdateien unangetastet blieben. Die neue Funktion
+  baut den Index direkt aus den vorhandenen Punktdateien neu auf (defekte Dateien werden uebersprungen und
+  gemeldet, nicht stillschweigend verworfen). Neuer IPC-Handler `dbzs:restore-points:repair-index` plus
+  "🔧 Reparieren"-Button in `FileToolsPanel.tsx`.
+- **Settings-Migrations-Framework** (`backend/app/settings/migrations.py`, neu): versionierter Runner statt
+  des bisherigen Ad-hoc-Inline-Sonderfalls ("schemaVersion fehlt" in `service.py`). Migrationen werden nach
+  Zielversion registriert (`MIGRATIONS: dict[int, MigrationFn]`) und der Reihe nach angewendet; eine Luecke
+  in der Kette stoppt den Runner statt stillschweigend vorzuspringen. `SettingsService.load()` sichert
+  `settings.json` **vor** einer echten Migration (`settings.json.pre-migration-v{X}-to-v{Y}.<timestamp>`) —
+  nicht fuer den trivialen "Feld fehlt komplett"-Fall, nur wenn tatsaechlich Inhalte transformiert wurden.
+  Aktuell `CURRENT_SCHEMA_VERSION == 1`, keine echte Migration registriert. **Bewusst nicht enthalten:** eine
+  Modellindex-Migration — der Modellindex wird bei jedem Boot frisch aus dem Dateisystem aufgebaut
+  (`ModelIndexService.build_index()`), nicht als versioniertes Dokument persistiert und vorwaerts migriert,
+  daher passt dasselbe Framework dort nicht direkt.
+- **Code-Signing-Grundgerüst**: `electron-builder.yml` bekommt erklaerende Kommentare bei `win:`/`mac:`, wo
+  Signierung/Notarisierung ansetzen wuerde (`CSC_LINK`/`CSC_KEY_PASSWORD`-Env-Vars fuer beide Plattformen,
+  zusaetzlich `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID` fuer macOS-Notarisierung) —
+  electron-builder erkennt diese automatisch, sobald sie gesetzt sind, ohne YAML-Aenderung. `signAndEditExecutable: false`
+  bleibt bewusst unveraendert. **Checkliste, sobald ein echtes Zertifikat vorhanden ist:**
+  1. Zertifikat als `.pfx` (Windows) / `.p12` (macOS) sicher ablegen (nicht im Repo).
+  2. `CSC_LINK` (Pfad oder base64) und `CSC_KEY_PASSWORD` als Umgebungsvariablen im Build-Kontext setzen.
+  3. Fuer macOS zusaetzlich `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID` setzen.
+  4. `signAndEditExecutable: true` in `electron-builder.yml` setzen (win-Sektion).
+  5. Einen Test-Build fahren und die Signatur pruefen (`signtool verify` / `codesign --verify`).
+
+Geänderte/neue Dateien: `apps/desktop/electron/diagnosticsZipExport.ts` (+Test), `apps/desktop/electron/main.ts`,
+`apps/desktop/electron/preload.ts`, `apps/desktop/src/services/backendClient.ts`,
+`apps/desktop/src/types/global.d.ts`, `apps/desktop/src/components/RuntimeSlotPanel.tsx`,
+`apps/desktop/electron/restorePointService.ts` (+Test), `apps/desktop/src/stores/gitStore.ts`,
+`apps/desktop/src/components/FileToolsPanel.tsx`, `backend/app/settings/migrations.py` (+Test),
+`backend/app/settings/service.py` (+2 neue Tests in `test_settings.py`), `apps/desktop/electron-builder.yml`.
+
+Frisch verifiziert in dieser Session (2026-07-31):
+
+- `backend\.venv\Scripts\python.exe -m pytest backend\tests\test_settings.py backend\tests\test_settings_migrations.py -q`
+  - 18 Tests gruen, 1 bekannte `StarletteDeprecationWarning`
+- `.\node_modules\.bin\vitest.CMD run electron/diagnosticsZipExport.test.ts electron/restorePointService.test.ts`
+  in `apps/desktop`
+  - 2 Testdateien / 18 Tests gruen
+- `.\node_modules\.bin\vitest.CMD run src/components/RuntimeSlotPanel.test.tsx` in `apps/desktop`
+  - 1 Testdatei / 5 Tests gruen
+- `.\node_modules\.bin\tsc.CMD --noEmit -p tsconfig.node.json` in `apps/desktop`
+  - fehlerfrei
+- `.\node_modules\.bin\tsc.CMD --noEmit -p tsconfig.web.json` in `apps/desktop`
+  - fehlerfrei
+
+Hinweis: globales `pnpm` war in dieser Shell nicht im PATH; Desktop-Checks wurden deshalb ueber die lokalen
+`apps/desktop/node_modules/.bin`-Binaries ausgefuehrt.
+
 ## Produktionsreife-Revision Phase 3 vorbereitet (2026-07-31) — Release-Gates
 
 Basis: `Pläne/09 DBZS_CODEE_V4_REPOSITORY_URTEIL_2026-07-31.md`, Umsetzungsplan Phase 3 ("Release-Gates").

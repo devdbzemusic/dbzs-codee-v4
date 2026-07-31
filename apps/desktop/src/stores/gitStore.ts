@@ -35,6 +35,7 @@ interface GitStoreState {
   restorePoints: RestorePoint[];
   isRestorePointsLoading: boolean;
   restorePointsError: string | null;
+  restorePointsRepairStatus: string | null;
   busyRestorePointId: string | null;
   isLoading: boolean;
   error: string | null;
@@ -52,6 +53,7 @@ interface GitStoreState {
   restoreFromPoint: (restorePointId: string) => Promise<void>;
   deleteRestorePoint: (restorePointId: string) => Promise<void>;
   cleanupRestorePoints: () => Promise<void>;
+  repairRestorePointIndex: () => Promise<void>;
 }
 
 function requireProjectPath(): string {
@@ -135,6 +137,7 @@ export const useGitStore = create<GitStoreState>((set, get) => ({
   restorePoints: [],
   isRestorePointsLoading: false,
   restorePointsError: null,
+  restorePointsRepairStatus: null,
   busyRestorePointId: null,
   isLoading: false,
   error: null,
@@ -430,6 +433,26 @@ export const useGitStore = create<GitStoreState>((set, get) => ({
     } catch (error) {
       set({
         restorePointsError: error instanceof Error ? error.message : "Cleanup der Restore Points fehlgeschlagen."
+      });
+    }
+  },
+  repairRestorePointIndex: async () => {
+    set({ restorePointsError: null, restorePointsRepairStatus: "Repariere Index..." });
+    try {
+      const workspaceRoot = requireProjectPath();
+      const result = await backendClient.repairRestorePointIndex(workspaceRoot);
+      set({
+        restorePointsRepairStatus:
+          result.recovered > 0 || result.corrupted.length > 0
+            ? `${result.recovered} Restore Point(s) wiederhergestellt` +
+              (result.corrupted.length > 0 ? `, ${result.corrupted.length} defekte Datei(en) uebersprungen.` : ".")
+            : "Index war bereits konsistent."
+      });
+      await get().refreshRestorePoints();
+    } catch (error) {
+      set({
+        restorePointsRepairStatus: null,
+        restorePointsError: error instanceof Error ? error.message : "Index-Reparatur fehlgeschlagen."
       });
     }
   }

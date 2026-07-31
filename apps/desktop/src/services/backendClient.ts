@@ -75,6 +75,7 @@ export interface BackendBridge {
   updateSettings: (settings: AppSettings) => Promise<AppSettings>;
   patchSettings?: (request: SettingsPatchRequest) => Promise<SettingsPatchResponse>;
   getSettingsDiagnostics?: () => Promise<SettingsDiagnostics>;
+  exportFullDiagnosticsZip?: () => Promise<string>;
   selectProjectDirectory?: () => Promise<{ projectPath: string; projectName: string } | null>;
   createNewProject?: () => Promise<ProjectCreationResult | null>;
   scanProjectFiles?: (projectPath: string) => Promise<WorkspaceProjectFile[]>;
@@ -152,6 +153,7 @@ export interface BackendBridge {
   restorePoint?: (workspaceRoot: string, restorePointId: string) => Promise<RestoreResult>;
   deleteRestorePoint?: (workspaceRoot: string, restorePointId: string) => Promise<{ deleted: boolean }>;
   cleanupRestorePoints?: (workspaceRoot: string) => Promise<{ removed: string[] }>;
+  repairRestorePointIndex?: (workspaceRoot: string) => Promise<{ recovered: number; corrupted: string[] }>;
   listProjectMemory: (workspace: string) => Promise<ProjectMemoryEntry[]>;
   upsertProjectMemory: (request: ProjectMemoryUpsertRequest) => Promise<ProjectMemoryEntry>;
   deleteProjectMemory: (entryId: number) => Promise<{ status: string; id: number }>;
@@ -202,6 +204,13 @@ export const backendClient = {
       return Promise.reject(new Error("getSettingsDiagnostics is unavailable."));
     }
     return load();
+  },
+  exportFullDiagnosticsZip: () => {
+    const method = bridge().exportFullDiagnosticsZip;
+    if (!method) {
+      return Promise.reject(new Error("exportFullDiagnosticsZip is unavailable."));
+    }
+    return method();
   },
   selectProjectDirectory: () => {
     const method = bridge().selectProjectDirectory;
@@ -662,6 +671,13 @@ export const backendClient = {
     const method = bridge().cleanupRestorePoints;
     if (!method) {
       return Promise.reject(new Error("cleanupRestorePoints is unavailable."));
+    }
+    return method(workspaceRoot);
+  },
+  repairRestorePointIndex: (workspaceRoot: string) => {
+    const method = bridge().repairRestorePointIndex;
+    if (!method) {
+      return Promise.reject(new Error("repairRestorePointIndex is unavailable."));
     }
     return method(workspaceRoot);
   },

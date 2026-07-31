@@ -90,6 +90,7 @@ import { createPhaseRunners } from "./boot/phaseRunners.js";
 import { registerBootEventBridge } from "./boot/bootEventBridge.js";
 import { WindowCoordinator } from "./boot/windowCoordinator.js";
 import { exportBootDiagnosticsToFile } from "./boot/bootDiagnosticExport.js";
+import { buildFullDiagnosticsZip } from "./diagnosticsZipExport.js";
 import { startBootLogPersistence } from "./boot/bootLogPersistence.js";
 import { writeFileAtomic } from "./atomicFileWrite.js";
 import { registerRuntimeAndJobIpcHandlers } from "./runtimeAndJobIpc.js";
@@ -895,6 +896,24 @@ ipcMain.handle("dbzs:settings:patch", async (_event, request: unknown) => {
   return sanitizeSettingsPatchResponse({ ...response, settings: safeSettings });
 });
 ipcMain.handle("dbzs:settings:diagnostics", () => requestBackend("/settings/diagnostics"));
+ipcMain.handle("dbzs:diagnostics:export-full-zip", async () => {
+  const crashLogPath = path.join(app.getPath("userData"), "logs", "crash.log");
+  const crashLog = await fs.readFile(crashLogPath, "utf-8").catch(() => null);
+  const [settings, modelIndex] = await Promise.all([
+    requestBackend("/settings").catch(() => ({})),
+    requestBackend("/models/index").catch(() => ({}))
+  ]);
+  const zip = buildFullDiagnosticsZip({ crashLog, settings, modelIndex });
+
+  const defaultPath = path.join(app.getPath("temp"), `dbzs-full-diagnostics-${Date.now()}.zip`);
+  const parentWindow = getWindowCoordinator().getMainWindow();
+  const result = parentWindow
+    ? await dialog.showSaveDialog(parentWindow, { defaultPath, filters: [{ name: "ZIP", extensions: ["zip"] }] })
+    : await dialog.showSaveDialog({ defaultPath, filters: [{ name: "ZIP", extensions: ["zip"] }] });
+  const targetPath = result.canceled || !result.filePath ? defaultPath : result.filePath;
+  await fs.writeFile(targetPath, zip);
+  return targetPath;
+});
 registerRuntimeAndJobIpcHandlers({
   backendUrl: BACKEND_URL,
   requestBackend,
@@ -1541,6 +1560,13 @@ ipcMain.handle("dbzs:restore-points:delete", async (_event, workspaceRoot: strin
 ipcMain.handle("dbzs:restore-points:cleanup", async (_event, workspaceRoot: string) => {
   const workspace = requireActiveWorkspace(workspaceRoot);
   return restorePointService.cleanupOldRestorePoints(workspace);
+});
+
+// Repair action: rebuilds index.json from the `<id>.json` point files on disk,
+// recovering restore points that a corrupted index would otherwise hide entirely.
+ipcMain.handle("dbzs:restore-points:repair-index", async (_event, workspaceRoot: string) => {
+  const workspace = requireActiveWorkspace(workspaceRoot);
+  return restorePointService.rebuildIndexFromDisk(workspace);
 });
 
 ipcMain.handle("dbzs:backups:list", async () => {

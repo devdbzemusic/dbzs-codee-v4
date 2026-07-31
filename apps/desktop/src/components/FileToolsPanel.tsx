@@ -8,12 +8,14 @@ export function FileToolsPanel() {
     restorePoints,
     isRestorePointsLoading,
     restorePointsError,
+    restorePointsRepairStatus,
     busyRestorePointId,
     refreshRestorePoints,
     createManualRestorePoint,
     restoreFromPoint,
     deleteRestorePoint,
-    cleanupRestorePoints
+    cleanupRestorePoints,
+    repairRestorePointIndex
   } = useGitStore();
 
   useEffect(() => {
@@ -71,12 +73,27 @@ export function FileToolsPanel() {
               >
                 + Neu
               </button>
+              <button
+                className="border border-dbzs-border bg-dbzs-bg px-2 py-0.5 text-[10px] text-dbzs-muted hover:text-dbzs-text disabled:opacity-50"
+                disabled={isRestorePointsLoading}
+                onClick={() => void repairRestorePointIndex()}
+                title="Restore-Point-Index aus den vorhandenen Dateien auf der Festplatte neu aufbauen — hilft, wenn der Index beschaedigt ist und Punkte fehlen, die eigentlich noch existieren."
+                type="button"
+              >
+                🔧 Reparieren
+              </button>
             </div>
           </div>
 
           {restorePointsError ? (
             <div className="border border-dbzs-red/30 bg-dbzs-red/5 px-2 py-1 text-[11px] text-dbzs-red">
               {restorePointsError}
+            </div>
+          ) : null}
+
+          {restorePointsRepairStatus ? (
+            <div className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[11px] text-dbzs-muted">
+              {restorePointsRepairStatus}
             </div>
           ) : null}
 
