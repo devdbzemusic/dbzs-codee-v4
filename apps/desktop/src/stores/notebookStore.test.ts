@@ -26,4 +26,15 @@ describe("notebookStore", () => {
     useNotebookStore.getState().focusEditorTab();
     expect(useNotebookStore.getState().activeTab).toBe("editor");
   });
+
+  it("focusRuntimeSlot selects runtime tab and stores the target slot", () => {
+    useNotebookStore.getState().setActiveTab("cdee");
+    useNotebookStore.getState().focusRuntimeSlot("fast_gpu");
+
+    expect(useNotebookStore.getState().activeTab).toBe("runtime");
+    expect(useNotebookStore.getState().runtimeFocusSlotId).toBe("fast_gpu");
+
+    useNotebookStore.getState().clearRuntimeSlotFocus();
+    expect(useNotebookStore.getState().runtimeFocusSlotId).toBeNull();
+  });
 });

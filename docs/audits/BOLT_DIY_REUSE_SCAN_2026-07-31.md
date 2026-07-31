@@ -438,6 +438,9 @@ Status nach erster Umsetzung:
   Resource-Risk-Rueckfragen nennen Slot, Modell und Empfehlung konkreter.
 - Wenn "anderes Rollenmodell auswaehlen" gewaehlt wird, erzeugt CODEE nun
   zusaetzlich eine `Modell-Auswahl oeffnen`-Aktion fuer das Runtime-Panel.
+- Die `Modell-Auswahl oeffnen`-Aktion setzt nun einen Runtime-Slot-Fokus im
+  Notebook. Der Runtime-Tab zeigt dadurch sichtbar an, fuer welchen Slot ein
+  alternatives Rollenmodell gewaehlt werden soll.
 
 Unterstuetztes Lock-Format:
 

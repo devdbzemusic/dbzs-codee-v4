@@ -330,7 +330,8 @@ export async function handleChatActionAction(
           await useEditorStore.getState().openWorkspaceFile(filePath);
         }
       } else if (action.kind === "switch_model") {
-        useNotebookStore.getState().setActiveTab("runtime");
+        const slotId = typeof action.payload?.slotId === "string" ? action.payload.slotId : null;
+        useNotebookStore.getState().focusRuntimeSlot(slotId);
       } else if (FOLLOW_UP_ACTION_KINDS.has(action.kind)) {
         const prompt = typeof action.payload?.prompt === "string" ? action.payload.prompt : null;
         if (prompt) {

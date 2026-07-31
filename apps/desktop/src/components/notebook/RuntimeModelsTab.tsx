@@ -1,4 +1,5 @@
 import { useRuntimeModelsTabController } from "./RuntimeModelsTab.controller";
+import { useNotebookStore } from "@/stores/notebookStore";
 import {
   MultimodalPairsSection,
   RuntimeModelsEmptyState,
@@ -17,6 +18,8 @@ export {
 export * from "./RuntimeModelsTab.helpers";
 
 export function RuntimeModelsTab() {
+  const runtimeFocusSlotId = useNotebookStore((state) => state.runtimeFocusSlotId);
+  const clearRuntimeSlotFocus = useNotebookStore((state) => state.clearRuntimeSlotFocus);
   const {
     backendOnline,
     index,
@@ -66,6 +69,25 @@ export function RuntimeModelsTab() {
       />
 
       <div className="min-h-0 flex-1 overflow-auto p-4">
+        {runtimeFocusSlotId ? (
+          <div className="mb-4 rounded border border-dbzs-cyan/40 bg-dbzs-cyan/10 px-3 py-2 text-xs text-dbzs-text">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span className="font-medium text-dbzs-cyan">Modell-Auswahl fuer Slot {runtimeFocusSlotId}</span>
+                <p className="mt-0.5 text-[11px] text-dbzs-muted">
+                  Waehle hier ein passendes Rollenmodell fuer diesen Slot. Es erfolgt kein stiller Modellwechsel.
+                </p>
+              </div>
+              <button
+                className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-muted hover:text-dbzs-text"
+                onClick={clearRuntimeSlotFocus}
+                type="button"
+              >
+                Fokus entfernen
+              </button>
+            </div>
+          </div>
+        ) : null}
         {!index ? (
           <RuntimeModelsEmptyState hasAnyEntries={false} indexError={indexError} indexLoading={indexLoading} />
         ) : startableModels.length === 0 && visibleSupportArtifacts.length === 0 ? (
