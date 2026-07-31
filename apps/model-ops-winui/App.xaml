@@ -1,0 +1,23 @@
+<Application
+    x:Class="DBZS.Codee.ModelOps.WinUI.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+            </ResourceDictionary.MergedDictionaries>
+            <SolidColorBrush x:Key="DbzsBackgroundBrush" Color="#101418" />
+            <SolidColorBrush x:Key="DbzsPanelBrush" Color="#161D24" />
+            <SolidColorBrush x:Key="DbzsAccentBrush" Color="#22D3EE" />
+            <SolidColorBrush x:Key="DbzsTextMutedBrush" Color="#9FB0C0" />
+            <Style x:Key="CardBorderStyle" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource DbzsPanelBrush}" />
+                <Setter Property="BorderBrush" Value="#263545" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="16" />
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
