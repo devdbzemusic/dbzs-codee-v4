@@ -123,9 +123,18 @@ export function buildResourceRiskQuestion(input: {
   residentModelName?: string | null;
 }): import("@dbzs/shared").AssistantQuestion {
   const reasonText = input.reasons.length ? ` (${input.reasons.slice(0, 3).join(", ")})` : "";
+  const riskLabel = input.risk === "unsupported" ? "nicht passend" : "grenzwertig";
   const alternativeModelLabel = input.residentModelName
     ? `bereits geladenes Modell nutzen (${input.residentModelName})`
     : `anderes Rollenmodell fuer Slot ${input.slotId} auswaehlen`;
+  const context = [
+    `Betroffener Slot: ${input.slotId}`,
+    `Konfiguriertes Modell: ${input.modelName}`,
+    `Ressourcenbewertung: ${input.risk}${reasonText}`,
+    `Kurzbewertung: ${riskLabel}`,
+    `Empfehlung: ${alternativeModelLabel}`,
+    "Kein automatischer Modellwechsel."
+  ].join(" · ");
   const options: import("@dbzs/shared").AssistantQuestionOption[] = [
     {
       id: "smaller_profile",
@@ -175,8 +184,8 @@ export function buildResourceRiskQuestion(input: {
   return {
     id: `q-resource-risk-${Date.now().toString(36)}`,
     questionType: "single_choice",
-    prompt: `Das konfigurierte ${input.roleLabel}-Modell ist fuer Slot ${input.slotId} grenzwertig.`,
-    context: `${input.modelName} · Slot: ${input.slotId} · Risiko: ${input.risk}${reasonText}. Empfehlung: ${alternativeModelLabel}. Kein automatischer Modellwechsel.`,
+    prompt: `Das konfigurierte ${input.roleLabel}-Modell ist fuer Slot ${input.slotId} ${riskLabel}: ${input.modelName}.`,
+    context,
     options,
     defaultOptionId: input.residentModelName ? "continue_with_resident" : "smaller_profile",
     riskLevel: input.risk === "unsupported" ? "high" : "medium",

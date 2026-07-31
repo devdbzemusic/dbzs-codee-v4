@@ -170,6 +170,40 @@ describe("AgentPatchCoordinator file apply acceptance", () => {
     await expect(coordinator.createPreview(workspaceRoot, proposal)).rejects.toThrow("workspace-relativ");
   });
 
+  it("blocks workspace-protected paths from patch preview", async () => {
+    const workspaceRoot = await createWorkspace();
+    await fs.mkdir(path.join(workspaceRoot, ".codee"), { recursive: true });
+    await fs.writeFile(
+      path.join(workspaceRoot, ".codee", "protected-paths.json"),
+      JSON.stringify({
+        protectedPaths: [{ path: "src/locked.ts", reason: "manuell gesperrt" }]
+      }),
+      "utf-8"
+    );
+    await fs.writeFile(path.join(workspaceRoot, "src", "locked.ts"), "export const locked = false;\n", "utf-8");
+    const coordinator = createCoordinator();
+    const proposal = createAgentPatchProposal({
+      id: "proposal-locked",
+      runId: "run-locked",
+      title: "Change locked file",
+      summary: "Attempt to change a protected file.",
+      changes: [
+        {
+          id: "change-locked",
+          filePath: "src/locked.ts",
+          changeType: "modify",
+          proposedContent: "export const locked = true;\n",
+          reason: "test",
+          summary: "locked=true",
+          riskLevel: "medium",
+          requiresReview: true
+        }
+      ]
+    });
+
+    await expect(coordinator.createPreview(workspaceRoot, proposal)).rejects.toThrow("[PATCH_WORKSPACE_PATH_LOCKED]");
+  });
+
   it("rejects stale approvals after proposal preview version changes", async () => {
     const workspaceRoot = await createWorkspace();
     await fs.writeFile(path.join(workspaceRoot, "src", "math.ts"), "export const x = 1;\n", "utf-8");

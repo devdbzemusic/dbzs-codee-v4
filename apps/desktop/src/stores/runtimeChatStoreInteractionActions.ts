@@ -546,14 +546,15 @@ export async function submitAssistantAnswerAction(
           lastRoutingSlotId: preflight.workspaceRoot ? get().lastRouting?.slotId : null,
           lastResolvedModelId: get().lastBrokerDecision?.resolvedModelId,
           sendMessage: sendFollowupMessage,
-          appendSystemMessage: (content) =>
+          appendSystemMessage: (content, actions) =>
             set((state) => ({
               messages: [
                 ...state.messages,
                 {
-                  id: `msg-${Date.now().toString(36)}-choose-model`,
+                  id: actions?.[0]?.messageId ?? `msg-${Date.now().toString(36)}-choose-model`,
                   role: "system",
-                  content
+                  content,
+                  actions
                 }
               ]
             }))

@@ -13,7 +13,9 @@ describe("buildResourceRiskQuestion", () => {
     });
 
     expect(question.prompt).toContain("Slot fast_gpu");
-    expect(question.context).toContain("Slot: fast_gpu");
+    expect(question.prompt).toContain("Qwen2.5-Coder-7B-Instruct-Q4-K-M-GGUF");
+    expect(question.context).toContain("Betroffener Slot: fast_gpu");
+    expect(question.context).toContain("Konfiguriertes Modell: Qwen2.5-Coder-7B-Instruct-Q4-K-M-GGUF");
     expect(question.context).toContain("Phi-3.5-mini-instruct");
     expect(question.defaultOptionId).toBe("continue_with_resident");
     expect(question.options?.[0]).toMatchObject({
@@ -33,6 +35,7 @@ describe("buildResourceRiskQuestion", () => {
     });
 
     expect(question.prompt).toContain("Slot vision_gpu");
+    expect(question.prompt).toContain("Large-Coder-Model");
     expect(question.defaultOptionId).toBe("smaller_profile");
     expect(question.options?.find((option) => option.id === "choose_other_model")?.label).toContain(
       "Slot vision_gpu"

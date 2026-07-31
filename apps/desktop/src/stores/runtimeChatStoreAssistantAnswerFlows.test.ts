@@ -179,6 +179,15 @@ describe("runtimeChatStoreAssistantAnswerFlows", () => {
       appendSystemMessage
     });
 
-    expect(appendSystemMessage).toHaveBeenCalledWith(expect.stringContaining("Slot fast_gpu"));
+    expect(appendSystemMessage).toHaveBeenCalledWith(
+      expect.stringContaining("Slot fast_gpu"),
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "switch_model",
+          title: "Modell-Auswahl oeffnen",
+          payload: expect.objectContaining({ slotId: "fast_gpu" })
+        })
+      ])
+    );
   });
 });

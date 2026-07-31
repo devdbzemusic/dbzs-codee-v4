@@ -18,6 +18,7 @@ import {
 } from "@/services/runtimeRunFinalization";
 import { gateExecutionFinalAnswer } from "@/services/executionAnswerValidation";
 import { createTraceEvent } from "@/services/ragClient";
+import { analyzeNoActionRecoveryOutput } from "@/services/runtimeChatNoActionRecovery";
 import {
   hasPendingPlanApproval,
   mergeAssistantMessageState
@@ -176,7 +177,18 @@ export async function finalizeAgentTurnResult(input: {
   const gatedFinalAnswer = executionRejected
     ? terminalOutcome
       ? terminalReason === "execution_no_action"
-        ? "Im Ausführungsmodus wurden keine Tools, Patches oder Commands ausgeführt."
+        ? (() => {
+            const recovery = analyzeNoActionRecoveryOutput(
+              input.agentResult.assistantMessage.rawContent ?? agentAssistantContent
+            );
+            return recovery.hasRecoverableOutput
+              ? [
+                  "Im Ausfuehrungsmodus wurden keine Tools, Patches oder Commands ausgefuehrt.",
+                  recovery.summary,
+                  "Ich habe daraus sichere Optionen vorbereitet. Bitte waehle unten aus, ob CODEE daraus eine Aktion bauen, erneut mit Tools starten oder nur analysieren soll."
+                ].join("\n")
+              : "Im Ausfuehrungsmodus wurden keine Tools, Patches oder Commands ausgefuehrt. Bitte waehle unten aus, ob CODEE erneut mit Tools starten oder das Ergebnis analysieren soll.";
+          })()
         : terminalReason === "skill_tool_policy_violation"
           ? "Der aktive Skill hat einen nicht erlaubten Tool-Aufruf blockiert."
           : "Die strukturierte Agent-Ausgabe war ungültig (Protocol Failure)."

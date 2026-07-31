@@ -1,11 +1,13 @@
 import type {
   AssistantAnswer,
   AssistantQuestion,
+  ChatActionRequest,
   ClarificationWorkflow,
   ModelTargetAgent,
   ReviewRemediationSelectionScope,
   RuntimeTaskType
 } from "@dbzs/shared";
+import { workspaceScopeId } from "@dbzs/shared";
 import {
   appendContractFieldAnswer,
   formatActiveTaskContractBlock,
@@ -263,7 +265,7 @@ export async function handleResourceRiskAssistantAnswerFlow(input: {
   lastRoutingSlotId?: string | null;
   lastResolvedModelId?: string | null;
   sendMessage: SendMessageFn;
-  appendSystemMessage: (content: string) => void;
+  appendSystemMessage: (content: string, actions?: ChatActionRequest[]) => void;
 }): Promise<boolean> {
   const optionId = input.rawOptionId;
   if (!optionId) {
@@ -276,8 +278,26 @@ export async function handleResourceRiskAssistantAnswerFlow(input: {
 
   if (optionId === "choose_other_model") {
     const slotHint = input.lastRoutingSlotId ?? "unbekannt";
+    const workspaceRoot = input.preflight.workspaceRoot ?? "";
+    const messageId = `msg-${Date.now().toString(36)}-choose-model`;
     input.appendSystemMessage(
-      `Bitte waehle im Settings-/Runtime-Panel fuer Slot ${slotHint} ein anderes Rollenmodell und sende die Anfrage erneut. Es erfolgt kein stiller Modellwechsel.`
+      `Bitte waehle im Runtime-Panel fuer Slot ${slotHint} ein anderes Rollenmodell und sende die Anfrage erneut. Es erfolgt kein stiller Modellwechsel.`,
+      [
+        {
+          id: `act-${Math.random().toString(36).substring(2, 10)}`,
+          runId: "",
+          messageId,
+          workspaceRoot,
+          workspaceId: workspaceRoot ? workspaceScopeId(workspaceRoot) : "",
+          kind: "switch_model",
+          title: "Modell-Auswahl oeffnen",
+          description: `Runtime-Panel fuer Slot ${slotHint} oeffnen.`,
+          riskLevel: "low",
+          payload: { navigateToTab: "runtime", slotId: slotHint },
+          state: "pending",
+          createdAt: new Date().toISOString()
+        }
+      ]
     );
     return true;
   }
