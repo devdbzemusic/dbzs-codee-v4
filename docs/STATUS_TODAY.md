@@ -6,11 +6,13 @@ Repo-Wahrheit: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
 
 ## Stabil
 
-- `origin/main` zeigt auf `63a2675efbddf69a130406608bacc46869d9026a` (PR #11 gemergt: Produktionsreife-Revision
-  Phase 2 — GPU-Exklusivitaet, Vision-Broker-Routing, Prozess-Supervisor)
-- Produktionsreife-Revision Phase 1 (Rollenmodell-Fallback-Kette, Crash-Correlation-ID) per PR #10 in `main`
+- `origin/main` zeigt auf `4e3e7f3` (PR #13 gemergt: Produktionsreife-Revision Phase 4 —
+  Diagnose-ZIP-Export, Restore-Point-Repair-Mode, Settings-Migrations-Framework, Code-Signing-Grundgerüst,
+  plus drei begleitende Runtime-Chat-Fixes)
+- Produktionsreife-Revision Phase 1-3 (Rollenmodell-Fallback-Kette, Crash-Correlation-ID, GPU-Exklusivitaet,
+  Vision-Broker-Routing, Prozess-Supervisor, Release-Gates-Vorbereitung) per PR #10-#12 in `main`
 - Chat-Folgeaktionen Phase 2 (echtes Retry, `switch_model`-Aktion, Freitext-Fehlererkennung) in `main`
-- voller Desktop-Vitest-Lauf (1281 Tests gruen, 42 geskippt) und voller Backend-Pytest-Lauf (446 gruen) zum
+- voller Desktop-Vitest-Lauf (1307 Tests gruen, 42 geskippt) und voller Backend-Pytest-Lauf (454 gruen) zum
   Stand dieses Eintrags, beide Typechecks fehlerfrei — siehe `HANDOVER.md` fuer Details je Phase
 - Shared-, Desktop- und Backend-Kernchecks sind belastbar nachgewiesen
 - Desktop-Capability-Suite ist im Gate-Pfad mit 37/37 belegt
