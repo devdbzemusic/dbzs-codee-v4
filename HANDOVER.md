@@ -2,6 +2,117 @@
 
 Stand: 2026-08-01
 
+## Bildtransport zum Modell repariert (Vision-Context-Pack-Vorstufe) (2026-08-01)
+
+Auftrag war urspruenglich, die im Model-Control-Center-Plan beschriebene "Vision Context Pack"-Pipeline
+(Screenshot-Coding/-Review: Vision-Modell erzeugt Kontext, Coding-/Review-Modell verarbeitet ihn) zu bauen.
+Recherche vor der Umsetzung (End-to-End-Codepfad-Verfolgung von Attachment-Erzeugung bis zum HTTP-Request)
+deckte einen fundamentaleren Befund auf: **es gab bisher ueberhaupt keinen funktionierenden Bildtransport zu
+irgendeinem Modell** — auch nicht in einem einfachen Ein-Modell-Turn. Das Routing waehlte korrekt ein
+verifiziertes Vision-Modell und den `vision_gpu`-Slot, aber `buildRuntimeChatAttachmentPrompt()`
+(`runtimeChatAttachments.ts`) baute fuer Bildanhaenge nur den Platzhaltertext "Kein inline lesbarer Inhalt
+verfuegbar." — die Bilddaten selbst wurden nie an ein Modell gesendet. Nutzerentscheidung: das zuerst fixen,
+bevor die eigentliche Zwei-Modell-Pipeline ueberhaupt sinnvoll waere (ein Vision-Modell ohne Bild waere witzlos).
+
+**Umgesetzt (additiv, `RuntimeChatMessage.content` bleibt ueberall ein reiner String):**
+- `RuntimeChatMessage` bekommt ein neues optionales Feld `images: string[] | None` — sowohl im Frontend
+  (`packages/shared/src/index.ts`) als auch im Backend (`backend/app/runtime/schemas.py`), parallel zu
+  `content`, nicht als Ersatz. Diese additive Wahl (statt `content` auf ein OpenAI-artiges
+  Content-Parts-Array umzustellen) haelt jede bestehende textbasierte Verarbeitung (Systemprompt-Merging,
+  Rollen-Alternierungs-Normalisierung, Budget-/Token-Schaetzung) komplett unberuehrt — nur die letzte
+  Serialisierungsstufe direkt vor dem HTTP-Call ist bildbewusst.
+- `apps/desktop/src/services/runtimeChatAttachments.ts`: neue `collectAttachmentImageDataUrls()` liest
+  `attachment.dataUrl` fuer `kind === "image"`-Anhaenge; der Platzhaltertext fuer Bilder wurde auf "Bild wird
+  als Bildinhalt an das Modell uebergeben" korrigiert (vorher faelschlich "kein lesbarer Inhalt").
+- `runtimeChatStore.ts`: an beiden Stellen, wo die ausgehende Nutzer-Nachricht finalisiert wird
+  (Context-Spooler-Pfad und Budget-Fallback-Pfad), wird jetzt zusaetzlich `images` gesetzt. Durchverfolgt bis
+  zum tatsaechlichen Request: `freezePreparedRuntimeRequest()` (`Object.freeze({...message})`),
+  `agentTurnEngine.ts` (`[...params.baseMessages]`) und der `runAgentChatTurnLoop`-Adapter
+  (`{...request, ...overrides}`) spreaden Nachrichtenobjekte alle additiv, kein Narrowing-Schritt entfernt
+  das neue Feld — verifiziert durch Codeverfolgung, nicht nur durch Tests (siehe "Noch offen" unten).
+- `backend/app/runtime/service.py`: neue `_wire_chat_message()` uebersetzt `images` beim tatsaechlichen
+  Request-Aufbau (`chat()`/`chat_stream()`, lokaler llama-server/Ollama-Pfad) in das jeweilige
+  Provider-Wireformat — OpenAI-Content-Parts (`[{"type":"text",...},{"type":"image_url",...}]`) fuer
+  llama-server, natives `images`-Array (Base64 ohne `data:`-Praefix, via `_strip_data_url_prefix()`) fuer
+  Ollama. Nachrichten ohne Bilder erzeugen exakt denselben `{"role","content"}`-Dict wie vorher.
+  `_build_strict_alternating_messages()`/`_merge_consecutive_same_role_messages()` geben `images` jetzt durch
+  `_merge_images()` durch, damit ein Bild nicht verloren geht, wenn zwei aufeinanderfolgende
+  gleich-rollige Nachrichten gemergt werden (Gemma-Rollenalternierungs-Fix von frueher, siehe weiter unten
+  im Dokument).
+- Nebenfund behoben: der Cloud-Pfad (`provider in {"openai","anthropic"}`) haette durch das neue
+  `images`-Feld ploetzlich ein unerwartetes `"images": null` in jeder Nachricht an die Anthropic-/OpenAI-SDKs
+  gesendet (`.model_dump()` serialisiert jetzt jedes deklarierte Feld). Fix: `model_dump(exclude_none=True)`
+  an dieser einen Stelle — Cloud-Bildunterstuetzung bleibt bewusst ausserhalb dieses Slices.
+- Der bereits vorhandene, aber komplett verwaiste Backend-Endpunkt `/runtime/prepare-chat-attachments`
+  (`chat_attachments.py`) wurde NICHT angefasst/verdrahtet — er loest ein anderes Problem (serverseitige
+  Bildaufbereitung/-validierung) und war fuer diesen Fix nicht noetig, da `dataUrl` bereits vollstaendig
+  clientseitig via `FileReader.readAsDataURL()` vorliegt.
+
+Verifikation: 5 neue Backend-Unit-Tests (`_wire_chat_message`/`_strip_data_url_prefix`/`_merge_images` isoliert
+plus ein echter `service.chat()`-Request-Payload-Test) und 1 Merge-Regressionstest in
+`test_runtime_service.py`, 2 neue Frontend-Tests in `runtimeChatAttachments.test.ts`. Voller Backend-Testlauf
+520/523 gruen (2 bewusst deselektierte bekannte Sandbox-Haenger, 1 unrelated: fehlende echte
+`.gguf`-Fixture-Dateien in `test-fixtures/runtime-chat-tuning-lab/` in diesem Worktree — 0 statt 3 gefunden,
+kein Bezug zu dieser Aenderung). Voller Desktop-Vitest-Lauf 1373/1373 gruen (42 geskippt), beide Typechecks
+fehlerfrei.
+
+**Noch offen:**
+- Kein End-to-End-Test auf Store-Ebene, der beweist, dass `images` tatsaechlich im finalen
+  `RuntimeChatRequest` ankommt — der Datenfluss wurde stattdessen durch direkte Codeverfolgung durch alle
+  Zwischenschritte (Spooler/Budget-Fallback/Freeze/Agent-Loop-Adapter) verifiziert, keine bestehende
+  Store-Testinfrastruktur deckt einen vollstaendigen `sendMessage()`-Lauf mit Attachments ab, und ein neuer
+  Harness dafuer haette den Umfang dieses Slices gesprengt. Manuelle Bestaetigung in einer echten Session mit
+  einem MMProj-verifizierten Vision-Modell und einem Bild-Anhang steht aus.
+- Die eigentliche Vision-Context-Pack-Pipeline (Zwei-Modell-Turn: Vision-Modell -> strukturierter Kontext ->
+  Coding-/Review-Modell) ist weiterhin NICHT gebaut — dieser Schritt war die notwendige Vorstufe dafuer.
+  Ausserdem weiterhin ungeloest: das bestehende `code_capability_missing`-Gate im `modelSelectionBroker.ts`
+  verlangt aktuell ein einzelnes Modell mit Vision+Code, im Spannungsverhaeltnis zum Zwei-Modell-Design.
+- Cloud-Provider-Bildtransport (OpenAI/Anthropic) bewusst nicht Teil dieses Slices.
+- Bildgroesse fliesst nicht ins Context-Budget/Token-Limit ein (nur Text wird geschaetzt) — fuer diesen Slice
+  bewusst vereinfacht, da Bildnutzung ohnehin nur ueber verifizierte Vision-Routen erreichbar ist.
+
+## Model Control Center Phase 4, erster Slice: Diagnose-Bereich in RuntimeModelsTab (2026-08-01)
+
+Basis: `Pläne/03 04 05 DBZS_CODEE_ADAPTED_MODEL_CONTROL_MM_PLAN_CURRENT_REPO.md`, Abschnitt 8/14 (Phase 4 —
+`RuntimeModelsTab` zum Model Control Center ausbauen). Nutzerauftrag war "Model Control Center weiterbauen".
+
+**Bestandsaufnahme vor der Umsetzung:** `RuntimeModelsTab` deckt inhaltlich bereits vier der sechs in Phase 4
+genannten Bereiche ab, nur nicht als eigene Tab-Navigation, sondern als gestapelte Sektionen: Modelle
+(`StartableModelsSection`), Multimodale Paare (`MultimodalPairsSection`), Hilfsartefakte
+(`SupportArtifactsSection`), sowie Rollen/Routing bereits als Badges/Spalten innerhalb der Modelltabelle
+(`modelRoleSummary`/`modelRoutingSummary`, `describeModelRoutingReadiness`). Fehlend war ausschliesslich ein
+konsolidierter "Diagnose"-Bereich, der Blocker buendelt statt sie nur verstreut pro Zeile zu zeigen.
+
+**Bewusst nicht mit umgesetzt:** "Capabilities" und "Benchmarks" als eigene Phase-4-Bereiche — der neue
+Model-Lab-Tab (siehe Eintrag "Model Lab: Electron statt WinUI entschieden" weiter unten) deckt bereits das
+Modell-Inventar/Capabilities ab und hat laut seinem eigenen "Noch offen"-Vermerk einen "Model Inspector" mit
+Benchmarks/Quality/Certification als naechste Phase geplant. Diese hier zusaetzlich zu bauen haette
+Funktionalitaet zwischen zwei Tabs dupliziert, bevor die Model-Lab-Seite ihre eigene Phase erreicht.
+
+**Umgesetzt:**
+- `collectDiagnosticsIssues()` + `summarizeDiagnosticsIssues()` (neu, `RuntimeModelsTab.helpers.ts`): reine
+  Client-Aggregation bereits vorhandener Ableitungen — keine neuen Backend-Aufrufe. Sammelt drei Arten von
+  Blockern: startbare Modelle mit `describeExclusionReason() !== null` (Severity `error`, wenn das Modell
+  wirklich nicht startbar ist, sonst `warn`, ueber `isRunnableModel()` unterschieden statt Message-String-Parsing),
+  MM-Paare mit Status `ambiguous`/`missing_base` (immer `error`), und verwaiste Hilfsartefakte
+  (`describeSupportArtifact().statusLabel === "orphan"`, `warn`). Sortiert Fehler vor Hinweisen, alphabetisch
+  innerhalb der Severity.
+- `DiagnosticsSection` (neu, `RuntimeModelsTab.sections.tsx`): rendert nichts, wenn keine Probleme vorliegen;
+  sonst eine kompakte Liste mit Bereichs-Badge (Modell/MM-Paar/Hilfsartefakt), Titel und Klartext-Grund, plus
+  Summary-Badges fuer Blockiert-/Hinweis-Zaehler im Header.
+- In `RuntimeModelsTab.controller.ts`/`.tsx` verdrahtet, rendert als erste Sektion oberhalb der bestehenden
+  Tabellen — Nutzer sieht Blocker sofort, statt sich durch alle drei Tabellen scrollen zu muessen.
+
+Verifikation: neue `RuntimeModelsTab.helpers.diagnostics.test.ts` (10 Tests) plus Section-Test in
+`RuntimeModelsTab.sections.test.tsx` (2 Tests), voller Desktop-Vitest-Lauf 1371/1371 gruen (42 geskippt, keine
+Regressionen), `tsconfig.web.json`/`tsconfig.node.json` beide fehlerfrei.
+
+**Noch offen aus Phase 4:** die volle interne Tab-Navigation ("Übersicht" als Einstiegspunkt, "Runtimes" als
+eigener Bereich) wurde nicht gebaut — die aktuelle gestapelte Sektionsansicht deckt den fachlichen Bedarf
+bereits ab, ein reiner Navigations-Umbau ohne neuen Informationsgehalt war hier nicht der naechste sinnvolle
+Schritt. Phase 5 (Routing sauber anbinden) und Phase 6 (Capability-Zertifizierung) bleiben laut Plan
+nachgelagert.
+
 ## Plan 14, Phase 2 Fortsetzung: `/embeddings` + `/rerank` (echten Produktionsbug behoben + Reranking) (2026-08-01)
 
 Auftrag war "Reranking-Faehigkeit hinzufuegen". Die Recherche dafuer deckte einen wichtigeren, bereits

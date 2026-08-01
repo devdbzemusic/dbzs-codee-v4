@@ -280,6 +280,20 @@ Kurzstatus 2026-07-28h:
 - [x] **Zwischenschritt 2026-07-28f:** multimodale Probe prueft jetzt auch einen echten Bild-Chat:
       MMProj-Paare gelten erst dann als verifiziert, wenn neben Start, Basis-Endpoint und `/v1/models` auch ein kleiner
       Vision-Request erfolgreich beantwortet wird. Fehlerursachen aus dem Bildtest werden als Probe-Evidenz mitgegeben.
+- [x] **Zwischenschritt 2026-08-01 (Phase 4, Diagnose-Bereich):** `RuntimeModelsTab` zeigt jetzt eine
+      `DiagnosticsSection` ("Diagnose") oberhalb der bestehenden Tabellen, die blockierte Modelle
+      (`describeExclusionReason`), mehrdeutige/basislose MM-Paare und verwaiste Hilfsartefakte in einer
+      priorisierten Liste buendelt (`collectDiagnosticsIssues()` in `RuntimeModelsTab.helpers.ts`, reine
+      Client-Aggregation bereits vorhandener Daten, kein neuer Backend-Endpunkt). Bewusst nur diesen einen
+      der sechs in Phase 4 genannten Bereiche umgesetzt, nicht die volle interne Tab-Navigation: "Capabilities"
+      und "Benchmarks" ueberschneiden sich inzwischen mit dem neuen, separaten Model-Lab-Tab (siehe
+      "Model Lab: Electron statt WinUI entschieden" weiter unten) — dort ist laut `HANDOVER.md` ohnehin ein
+      eigener "Model Inspector" mit Benchmarks/Quality/Certification als naechste Phase geplant, ein zweiter
+      Anlauf dafuer hier haette Funktionalitaet dupliziert. "Rollen & Routing" existiert inhaltlich bereits als
+      Badges/Spalten in der bestehenden Modelltabelle (`modelRoleSummary`/`modelRoutingSummary`), eine
+      eigenstaendige Navigationsebene dafuer war nicht noetig. Verifikation: voller Desktop-Vitest-Lauf
+      1371/1371 (42 geskippt, keine Regressionen, 8 neue Tests), beide Typechecks (`tsconfig.web.json`/
+      `tsconfig.node.json`) fehlerfrei.
 
 Basis: `Pläne/03 04 05 DBZS_CODEE_CONSOLIDATED_MODEL_CONTROL_MM_PAIRING_PLAN.md` plus
 `Pläne/03 04 05 DBZS_CODEE_ADAPTED_MODEL_CONTROL_MM_PLAN_CURRENT_REPO.md`
@@ -296,10 +310,29 @@ Basis: `Pläne/03 04 05 DBZS_CODEE_CONSOLIDATED_MODEL_CONTROL_MM_PAIRING_PLAN.md
       Modellstarts beim App-Start.
 - [ ] **Phase 4 â€” `RuntimeModelsTab` zum Model Control Center ausbauen:** Bereiche fuer Modelle, multimodale Paare,
       Hilfsartefakte, Capabilities, Rollen/Routing und Diagnose; manuelle Zuordnung erst hier an die UI bringen,
-      nicht verdeckt im Broker.
+      nicht verdeckt im Broker. Modelle/MM-Paare/Hilfsartefakte/Rollen-Routing/Diagnose sind jetzt vorhanden
+      (siehe Zwischenschritt 2026-08-01 oben); Capabilities/Benchmarks bewusst ausgelassen (siehe dort),
+      offen bleibt nur noch eine eigene interne Tab-Navigation statt gestapelter Sektionen — kein neuer
+      Informationsgehalt, daher kein Selbstzweck.
 - [ ] **Phase 5 â€” Routing sauber anbinden:** Textanfragen bleiben unveraendert text-only; Bildinput darf nur auf verifizierte
       multimodale Paare gehen. Erste Produktionsstufe fuer Screenshot-Coding/Review: Vision analysiert, zertifiziertes
-      Coding-/Review-Modell setzt um bzw. bewertet.
+      Coding-/Review-Modell setzt um bzw. bewertet. **Teilweise bereits umgesetzt (bestaetigt 2026-08-01):** die
+      Verifiziert-Pair-Gate-Regel ist bereits scharf geschaltet — `modelSelectionBroker.ts` blockiert Modelle mit
+      `requiresVisionProjector` ohne `routing_allowed = true`-Paar (`modelSelectionBroker.ts:612,699-701,837`),
+      umgesetzt im Rahmen von Plan 07 (Vision-Slot-Grundlage Phase 3) und Plan 09 (Produktionsreife-Revision
+      Phase 2), nicht unter diesem Plan getrackt. **Notwendige Vorstufe umgesetzt (2026-08-01):** der
+      Bildtransport zum Modell war komplett kaputt — Vision-Routing waehlte korrekt ein verifiziertes Modell,
+      aber die Bilddaten selbst erreichten nie ein Modell (`buildRuntimeChatAttachmentPrompt()` gab fuer
+      Bildanhaenge nur "Kein inline lesbarer Inhalt verfuegbar." aus). Jetzt behoben: neues additives
+      `RuntimeChatMessage.images`-Feld (Frontend + Backend), `_wire_chat_message()` in `service.py` uebersetzt
+      es beim Request-Aufbau in OpenAI-Content-Parts (llama-server) bzw. natives `images`-Array (Ollama).
+      Details siehe `HANDOVER.md`. **Noch offen:** die eigentliche Screenshot-Coding/-Review-Pipeline
+      (Vision-Modell erzeugt einen strukturierten Vision Context Pack, ein zertifiziertes Coding-/Review-Modell
+      verarbeitet ihn) existiert weiterhin nicht — bisher nur die Routing-Klassifikation
+      ("Screenshot-bereit"-Label in `describeModelRoutingReadiness()`), kein tatsaechlicher Zwei-Modell-Turn.
+      Auch weiterhin offen: das bestehende `code_capability_missing`-Gate verlangt ein einzelnes Modell mit
+      Vision+Code, im Spannungsverhaeltnis zum geplanten Zwei-Modell-Design; manuelle Bestaetigung des neuen
+      Bildtransports in einer echten Session mit einem MMProj-verifizierten Modell steht aus.
 - [ ] **Phase 6 â€” Capability-Zertifizierung getrennt nachziehen:** direkte Vision-Coding-/Review-Faehigkeit nur nach expliziter
       Zertifizierung (`code_generation`, `code_review`, `structured_output`, `instruction_following`, `tool_calling`);
       Audio bewusst spaeter separat.
