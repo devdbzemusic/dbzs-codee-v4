@@ -467,13 +467,13 @@ class ModelIndexService:
                 runtime = runtime_entry.get("runtime", {})
                 server = runtime_entry.get("server", {})
                 health = state_by_id.get(model_id, {})
-                artifact_type = _infer_artifact_type(path)
+                gguf_metadata = read_gguf_metadata(model_path)
+                artifact_type = _infer_artifact_type(path, architecture=gguf_metadata.architecture if gguf_metadata else None)
                 capabilities = _infer_capabilities(path)
                 modality = _infer_modality(path, artifact_type)
                 size_bytes = model_path.stat().st_size
                 name = model_path.stem
                 health_status = _resolve_health_status(health, runtime_entry)
-                gguf_metadata = read_gguf_metadata(model_path)
                 quantization = (gguf_metadata.quantization if gguf_metadata else None) or _infer_quantization(name)
 
                 model = IndexedModel(
@@ -985,7 +985,13 @@ def _infer_quantization(name: str) -> str | None:
     return match.group(1).upper() if match else None
 
 
-def _infer_artifact_type(path: str) -> str:
+def _infer_artifact_type(path: str, architecture: str | None = None) -> str:
+    # GGUF metadata is authoritative when available: llama.cpp's own converters
+    # tag every CLIP vision-projector file with general.architecture="clip",
+    # regardless of filename. Filename heuristics below are only a fallback for
+    # when metadata couldn't be read (e.g. corrupt header, catalog-only entries).
+    if architecture == "clip":
+        return "mmproj"
     value = Path(path).name.lower()
     if "mmproj" in value:
         return "mmproj"
