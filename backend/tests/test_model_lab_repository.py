@@ -196,6 +196,24 @@ def test_fleet_repository_records_probe_certification_and_role_assignment(tmp_pa
     }
 
 
+def test_runtime_presets_are_seeded_from_plan_15_matrix(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+
+    presets = repo.list_runtime_presets()
+    by_profile = {preset.profile: preset for preset in presets}
+
+    assert set(by_profile) >= {
+        "cpu_fallback",
+        "safe_balanced",
+        "best_low_latency",
+        "best_throughput",
+        "large_context",
+    }
+    assert by_profile["safe_balanced"].adapter_id == "llama.cpp"
+    assert by_profile["safe_balanced"].config["gpu_layers"] == 16
+    assert by_profile["large_context"].config["ctx"] == 16384
+
+
 def test_rebuild_logical_models_groups_quantized_variants(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     source = repo.create_source(ModelSourceCreate(path=str(tmp_path)))

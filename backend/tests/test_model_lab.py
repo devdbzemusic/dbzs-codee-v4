@@ -247,6 +247,9 @@ def test_model_lab_fleet_endpoints_record_safe_gates_and_roles(tmp_path: Path) -
     adapters = client.get("/model-lab/runtime-adapters")
     assert adapters.status_code == 200
     assert adapters.json()[0]["id"] == "llama.cpp"
+    presets = client.get("/model-lab/runtime-presets")
+    assert presets.status_code == 200
+    assert {preset["profile"] for preset in presets.json()} >= {"safe_balanced", "cpu_fallback"}
 
     probe = client.post("/model-lab/probe", json={"bundle_id": bundle_id})
     assert probe.status_code == 200

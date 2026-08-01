@@ -286,6 +286,7 @@ class ModelLabRepository:
             _ensure_column(conn, "scan_jobs", "progress_message", "TEXT")
             _ensure_column(conn, "scan_jobs", "progress_events", "TEXT NOT NULL DEFAULT '[]'")
             self._seed_runtime_adapters(conn)
+            self._seed_runtime_presets(conn)
             self._seed_execution_policies(conn)
             conn.execute(
                 "INSERT OR REPLACE INTO schema_info (key, value) VALUES ('model_lab_schema_version', ?)",
@@ -1047,6 +1048,24 @@ class ModelLabRepository:
                 (adapter_id, name, priority, json.dumps(formats, sort_keys=True), now, now),
             )
 
+    def _seed_runtime_presets(self, conn: sqlite3.Connection) -> None:
+        now = _dt(datetime.now(UTC))
+        for preset_id, name, profile, config in _LLAMA_CPP_RUNTIME_PRESETS:
+            conn.execute(
+                """
+                INSERT INTO runtime_presets(id, name, adapter_id, bundle_id, profile, config, created_at, updated_at)
+                VALUES (?, ?, 'llama.cpp', NULL, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name=excluded.name,
+                    adapter_id=excluded.adapter_id,
+                    bundle_id=excluded.bundle_id,
+                    profile=excluded.profile,
+                    config=excluded.config,
+                    updated_at=excluded.updated_at
+                """,
+                (preset_id, name, profile, json.dumps(config, sort_keys=True), now, now),
+            )
+
     def _seed_execution_policies(self, conn: sqlite3.Connection) -> None:
         now = _dt(datetime.now(UTC))
         for role, (max_safety, required) in _ROLE_POLICY.items():
@@ -1368,6 +1387,80 @@ _ROLE_POLICY: dict[str, tuple[str, list[str]]] = {
     "REASONING_VALIDATOR": ("LEVEL_1_READ_ONLY_TOOLS", ["INSTRUCTION_FOLLOWING_VERIFIED"]),
     "REPORT_GENERATOR": ("LEVEL_0_CHAT_ONLY", ["REPORT_GENERATION_VERIFIED"]),
 }
+
+
+_LLAMA_CPP_RUNTIME_PRESETS: tuple[tuple[str, str, str, dict[str, object]], ...] = (
+    (
+        "llama-cpp-cpu-fallback",
+        "CPU fallback",
+        "cpu_fallback",
+        {
+            "gpu_layers": 0,
+            "ctx": 4096,
+            "batch_size": 64,
+            "ubatch_size": 32,
+            "cache_type_k": "f16",
+            "cache_type_v": "f16",
+            "flash_attention": "off",
+        },
+    ),
+    (
+        "llama-cpp-safe-balanced",
+        "Safe balanced",
+        "safe_balanced",
+        {
+            "gpu_layers": 16,
+            "ctx": 4096,
+            "batch_size": 128,
+            "ubatch_size": 64,
+            "cache_type_k": "q8_0",
+            "cache_type_v": "q8_0",
+            "flash_attention": "auto",
+        },
+    ),
+    (
+        "llama-cpp-best-low-latency",
+        "Best low latency",
+        "best_low_latency",
+        {
+            "gpu_layers": "full",
+            "ctx": 2048,
+            "batch_size": 128,
+            "ubatch_size": 64,
+            "cache_type_k": "q8_0",
+            "cache_type_v": "q8_0",
+            "flash_attention": "on",
+        },
+    ),
+    (
+        "llama-cpp-best-throughput",
+        "Best throughput",
+        "best_throughput",
+        {
+            "gpu_layers": "full",
+            "ctx": 4096,
+            "batch_size": 256,
+            "ubatch_size": 128,
+            "cache_type_k": "q8_0",
+            "cache_type_v": "q8_0",
+            "flash_attention": "on",
+        },
+    ),
+    (
+        "llama-cpp-large-context",
+        "Large context",
+        "large_context",
+        {
+            "gpu_layers": 8,
+            "ctx": 16384,
+            "batch_size": 64,
+            "ubatch_size": 32,
+            "cache_type_k": "q4_0",
+            "cache_type_v": "q4_0",
+            "flash_attention": "auto",
+        },
+    ),
+)
 
 
 _STATUS_RANK = {
