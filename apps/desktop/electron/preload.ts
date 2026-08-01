@@ -481,6 +481,10 @@ const api = {
     ipcRenderer.invoke("dbzs:model-lab:logical-models:get", logicalModelId) as Promise<
       import("@dbzs/shared").ModelLabLogicalModel
     >,
+  listModelVariants: (logicalModelId?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:variants:list", logicalModelId) as Promise<
+      import("@dbzs/shared").ModelLabVariant[]
+    >,
   listModelRuntimeAdapters: () =>
     ipcRenderer.invoke("dbzs:model-lab:runtime-adapters:list") as Promise<
       import("@dbzs/shared").ModelLabRuntimeAdapter[]

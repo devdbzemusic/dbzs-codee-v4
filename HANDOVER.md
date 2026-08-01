@@ -22,6 +22,8 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
 - Model Lab SQLite-Schema auf Version 3 erweitert: logische Modelle, Runtime-Adapter/-Presets,
   Hardware-Snapshots, Probe-/Benchmark-Runs, Capability Evidence, Zertifikate, Rollen-Zuweisungen,
   Failures und Agent-Execution-Policies.
+- `model_variants` als eigene Masterplan-Schicht nachgezogen: Varianten werden stabil aus Bundles abgeleitet,
+  ueber `/model-lab/variants` abgefragt und an `logical_model_id` gebunden.
 - Statuskette auf die Masterplan-Stufen erweitert (`COMPATIBLE`, `LOADABLE`, `TUNED`, `BENCHMARKED`,
   `CERTIFIED`, `DEGRADED`, `QUARANTINED`), bestehende Altstatus bleiben kompatibel.
 - Neue Model-Lab/Fleet-Endpunkte unter `/model-lab`: logical models, runtime adapters/presets,

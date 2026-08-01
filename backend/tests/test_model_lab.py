@@ -41,6 +41,7 @@ def test_model_lab_registry_initializes_schema(tmp_path: Path) -> None:
     assert "model_metadata" in tables
     assert "model_collections" in tables
     assert "logical_models" in tables
+    assert "model_variants" in tables
     assert "runtime_adapters" in tables
     assert "probe_runs" in tables
     assert "benchmark_runs" in tables
@@ -194,6 +195,9 @@ def test_model_lab_fleet_endpoints_record_safe_gates_and_roles(tmp_path: Path) -
     logical = client.get("/model-lab/logical-models")
     assert logical.status_code == 200
     assert logical.json()[0]["primary_bundle_id"] == bundle_id
+    variants = client.get("/model-lab/variants", params={"logical_model_id": logical.json()[0]["logical_model_id"]})
+    assert variants.status_code == 200
+    assert variants.json()[0]["bundle_id"] == bundle_id
 
     adapters = client.get("/model-lab/runtime-adapters")
     assert adapters.status_code == 200

@@ -23,6 +23,7 @@ from app.model_lab.models import (
     ModelRoleAssignmentRequest,
     ModelSource,
     ModelSourceCreate,
+    ModelVariant,
     RuntimeAdapterRecord,
     RuntimePresetRecord,
     ScanJob,
@@ -183,6 +184,14 @@ def get_logical_model(
     if model is None:
         raise HTTPException(status_code=404, detail="Logical model not found")
     return model
+
+
+@router.get("/variants")
+def list_model_variants(
+    logical_model_id: str | None = None,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> list[ModelVariant]:
+    return service.list_model_variants(logical_model_id=logical_model_id)
 
 
 @router.get("/runtime-adapters")

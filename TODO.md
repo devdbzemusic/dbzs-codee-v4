@@ -58,6 +58,8 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
 - [x] Foundation-Slice umgesetzt: Model-Lab-Schema v3, logische Modelle, Runtime-Adapter/-Presets,
       Probe-/Benchmark-Runs, Zertifikate, Rollen-Zuweisungen, Failures, Agent-Execution-Policies,
       neue `/model-lab`-Endpunkte und offizielle optionale Desktop-Bridge-/IPC-/Preload-Vertraege.
+- [x] `model_variants` nachgezogen: Varianten sind als eigene SQLite-/API-/Bridge-Schicht verfuegbar und
+      werden aus Bundles stabil an `logical_model_id` gebunden.
 - [x] Rollen-Gate erzwingt Zertifikate: keine aktive Fleet-Rolle nur auf Basis von Dateiname/Heuristik;
       Workspace-/Write-Rollen verlangen zusaetzlich `WRITE_AGENT_VERIFIED`.
 - [x] Sicheres Probe-Gate: `probeModel` speichert ohne `allow_start` einen `skipped`-Run und startet kein

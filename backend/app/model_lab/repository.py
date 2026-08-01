@@ -30,6 +30,7 @@ from app.model_lab.models import (
     ModelRoleAssignmentRequest,
     ModelSource,
     ModelSourceCreate,
+    ModelVariant,
     RuntimeAdapterRecord,
     RuntimePresetRecord,
     ScanJob,
@@ -153,6 +154,23 @@ class ModelLabRepository:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS model_variants (
+                    variant_id TEXT PRIMARY KEY,
+                    logical_model_id TEXT NOT NULL,
+                    bundle_id TEXT NOT NULL UNIQUE,
+                    primary_artifact_id TEXT,
+                    display_name TEXT NOT NULL,
+                    format TEXT,
+                    quantization TEXT,
+                    parameter_count INTEGER,
+                    context_length INTEGER,
+                    size_bytes INTEGER NOT NULL,
+                    capabilities TEXT NOT NULL,
+                    modalities TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS runtime_adapters (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -261,6 +279,7 @@ class ModelLabRepository:
                 CREATE INDEX IF NOT EXISTS idx_model_role_assignments_role ON model_role_assignments(role, enabled, priority);
                 CREATE INDEX IF NOT EXISTS idx_certifications_bundle ON certifications(bundle_id, status);
                 CREATE INDEX IF NOT EXISTS idx_probe_runs_bundle ON probe_runs(bundle_id, started_at);
+                CREATE INDEX IF NOT EXISTS idx_model_variants_logical ON model_variants(logical_model_id, status);
                 """
             )
             _ensure_column(conn, "model_bundles", "health", "TEXT NOT NULL DEFAULT '{}'")
@@ -648,6 +667,20 @@ class ModelLabRepository:
             ).fetchone()
         return _logical_model_from_row(row) if row else None
 
+    def list_model_variants(self, logical_model_id: str | None = None) -> list[ModelVariant]:
+        self.rebuild_logical_models()
+        with sqlite_connection(self.db_path) as conn:
+            if logical_model_id:
+                rows = conn.execute(
+                    "SELECT * FROM model_variants WHERE logical_model_id = ? ORDER BY display_name",
+                    (logical_model_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM model_variants ORDER BY logical_model_id, display_name"
+                ).fetchall()
+        return [_variant_from_row(row) for row in rows]
+
     def rebuild_logical_models(self) -> None:
         models = self.list_models()
         now = datetime.now(UTC)
@@ -691,6 +724,43 @@ class ModelLabRepository:
                         _dt(now),
                     ),
                 )
+            conn.execute("DELETE FROM model_variants")
+            model_by_bundle_id = {model.bundle.bundle_id: model for model in models}
+            for family, bundles in grouped.items():
+                logical_model_id = _logical_model_id(family)
+                for bundle in bundles:
+                    model = model_by_bundle_id[bundle.bundle_id]
+                    primary = next(
+                        (artifact for artifact in model.artifacts if artifact.artifact_id == bundle.primary_artifact_id),
+                        None,
+                    )
+                    conn.execute(
+                        """
+                        INSERT INTO model_variants(
+                            variant_id, logical_model_id, bundle_id, primary_artifact_id,
+                            display_name, format, quantization, parameter_count,
+                            context_length, size_bytes, capabilities, modalities,
+                            status, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            _variant_id(bundle.bundle_id),
+                            logical_model_id,
+                            bundle.bundle_id,
+                            bundle.primary_artifact_id,
+                            bundle.name,
+                            primary.format if primary else None,
+                            (primary.quantization if primary else None) or bundle.health.quantization,
+                            bundle.health.parameters,
+                            bundle.health.context_length,
+                            sum(artifact.size_bytes for artifact in model.artifacts),
+                            json.dumps(bundle.capabilities, sort_keys=True),
+                            json.dumps(bundle.modalities, sort_keys=True),
+                            bundle.status,
+                            _dt(now),
+                            _dt(now),
+                        ),
+                    )
 
     def list_runtime_adapters(self) -> list[RuntimeAdapterRecord]:
         with sqlite_connection(self.db_path) as conn:
@@ -1179,6 +1249,26 @@ def _runtime_adapter_from_row(row: sqlite3.Row) -> RuntimeAdapterRecord:
     )
 
 
+def _variant_from_row(row: sqlite3.Row) -> ModelVariant:
+    return ModelVariant(
+        variant_id=str(row["variant_id"]),
+        logical_model_id=str(row["logical_model_id"]),
+        bundle_id=str(row["bundle_id"]),
+        primary_artifact_id=row["primary_artifact_id"],
+        display_name=str(row["display_name"]),
+        format=row["format"],
+        quantization=row["quantization"],
+        parameter_count=int(row["parameter_count"]) if row["parameter_count"] is not None else None,
+        context_length=int(row["context_length"]) if row["context_length"] is not None else None,
+        size_bytes=int(row["size_bytes"]),
+        capabilities=json.loads(row["capabilities"] or "[]"),
+        modalities=json.loads(row["modalities"] or "[]"),
+        status=row["status"],
+        created_at=_parse_dt(row["created_at"]),
+        updated_at=_parse_dt(row["updated_at"]),
+    )
+
+
 def _runtime_preset_from_row(row: sqlite3.Row) -> RuntimePresetRecord:
     return RuntimePresetRecord(
         id=str(row["id"]),
@@ -1310,6 +1400,10 @@ def _logical_family(name: str) -> str:
 
 def _logical_model_id(family: str) -> str:
     return uuid.uuid5(uuid.NAMESPACE_URL, f"dbzs:model-lab:logical:{family}").hex
+
+
+def _variant_id(bundle_id: str) -> str:
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"dbzs:model-lab:variant:{bundle_id}").hex
 
 
 def _best_status(statuses: list[str]) -> str:

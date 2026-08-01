@@ -207,6 +207,24 @@ class LogicalModel(BaseModel):
     updated_at: datetime
 
 
+class ModelVariant(BaseModel):
+    variant_id: str
+    logical_model_id: str
+    bundle_id: str
+    primary_artifact_id: str | None = None
+    display_name: str
+    format: str | None = None
+    quantization: str | None = None
+    parameter_count: int | None = None
+    context_length: int | None = None
+    size_bytes: int = 0
+    capabilities: list[str] = Field(default_factory=list)
+    modalities: list[str] = Field(default_factory=list)
+    status: ModelLabStatus = "DISCOVERED"
+    created_at: datetime
+    updated_at: datetime
+
+
 class RuntimeAdapterRecord(BaseModel):
     id: str
     name: str
@@ -325,6 +343,7 @@ class ModelFailureRecord(BaseModel):
 
 class ModelFleetSummary(BaseModel):
     logical_models: list[LogicalModel]
+    variants: list[ModelVariant]
     runtime_adapters: list[RuntimeAdapterRecord]
     runtime_presets: list[RuntimePresetRecord]
     probe_runs: list[ModelProbeRun]

@@ -25,7 +25,8 @@ Repo-Wahrheit: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
   `HANDOVER.md` fuer Details je Phase
 - Plan 15 Agentic Model Fleet Integration ist auf Branch `codex/agentic-model-fleet-integration` gestartet:
   Model-Lab-Schema v3, Fleet-Endpunkte, Zertifikats-/Rollen-Gates und optionale Desktop-Bridge-Vertraege
-  sind implementiert; frische Checks: Backend 23/23, Desktop-Fokus 88/88, Desktop-Typecheck gruen
+  sind implementiert; `model_variants` ist als eigene SQLite-/API-/Bridge-Schicht nachgezogen; frische Checks:
+  Backend 23/23, Desktop-Fokus 88/88, Desktop-Typecheck gruen
 - Shared-, Desktop- und Backend-Kernchecks sind belastbar nachgewiesen
 - Desktop-Capability-Suite ist im Gate-Pfad mit 37/37 belegt
 - Backend-Capability-/Scenario-/Tuning-Lab-Pfad ist mit 15 bestandenen Tests belegt

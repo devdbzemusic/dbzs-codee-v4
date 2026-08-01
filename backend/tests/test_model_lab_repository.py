@@ -200,10 +200,18 @@ def test_rebuild_logical_models_groups_quantized_variants(tmp_path: Path) -> Non
     repo = _repo(tmp_path)
     source = repo.create_source(ModelSourceCreate(path=str(tmp_path)))
     first = _artifact(artifact_id="a1", bundle_id="b1", source_id=source.id).model_copy(
-        update={"detected_name": "qwenpaw-flash-2b-Q4_K_M", "file_name": "qwenpaw-flash-2b-Q4_K_M.gguf"}
+        update={
+            "detected_name": "qwenpaw-flash-2b-Q4_K_M",
+            "file_name": "qwenpaw-flash-2b-Q4_K_M.gguf",
+            "quantization": "Q4_K_M",
+        }
     )
     second = _artifact(artifact_id="a2", bundle_id="b2", source_id=source.id).model_copy(
-        update={"detected_name": "qwenpaw-flash-2b-Q8_0", "file_name": "qwenpaw-flash-2b-Q8_0.gguf"}
+        update={
+            "detected_name": "qwenpaw-flash-2b-Q8_0",
+            "file_name": "qwenpaw-flash-2b-Q8_0.gguf",
+            "quantization": "Q8_0",
+        }
     )
     repo.save_scan_output(
         source=source,
@@ -219,6 +227,9 @@ def test_rebuild_logical_models_groups_quantized_variants(tmp_path: Path) -> Non
     )
 
     logical = repo.list_logical_models()
+    variants = repo.list_model_variants(logical[0].logical_model_id)
 
     assert len(logical) == 1
     assert set(logical[0].bundle_ids) == {"b1", "b2"}
+    assert {variant.bundle_id for variant in variants} == {"b1", "b2"}
+    assert {variant.quantization for variant in variants} == {"Q4_K_M", "Q8_0"}

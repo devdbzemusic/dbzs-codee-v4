@@ -1568,6 +1568,24 @@ export interface ModelLabLogicalModel {
   updated_at: string;
 }
 
+export interface ModelLabVariant {
+  variant_id: string;
+  logical_model_id: string;
+  bundle_id: string;
+  primary_artifact_id: string | null;
+  display_name: string;
+  format: string | null;
+  quantization: string | null;
+  parameter_count: number | null;
+  context_length: number | null;
+  size_bytes: number;
+  capabilities: string[];
+  modalities: string[];
+  status: ModelLabStatus;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ModelLabRuntimeAdapter {
   id: string;
   name: string;

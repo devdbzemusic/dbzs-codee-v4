@@ -26,6 +26,7 @@ from app.model_lab.models import (
     ModelRoleAssignmentRequest,
     ModelSource,
     ModelSourceCreate,
+    ModelVariant,
     RuntimeAdapterRecord,
     RuntimePresetRecord,
     ScanJob,
@@ -164,6 +165,9 @@ class ModelLabService:
 
     def get_logical_model(self, logical_model_id: str) -> LogicalModel | None:
         return self.repository.get_logical_model(logical_model_id)
+
+    def list_model_variants(self, logical_model_id: str | None = None) -> list[ModelVariant]:
+        return self.repository.list_model_variants(logical_model_id=logical_model_id)
 
     def list_runtime_adapters(self) -> list[RuntimeAdapterRecord]:
         return self.repository.list_runtime_adapters()

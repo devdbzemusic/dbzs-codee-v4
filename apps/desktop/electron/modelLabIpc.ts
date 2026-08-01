@@ -98,6 +98,10 @@ export function registerModelLabIpcHandlers(options: RegisterModelLabIpcOptions)
   ipcMain.handle("dbzs:model-lab:logical-models:get", (_event, logicalModelId: string) =>
     requestBackend(`/model-lab/logical-models/${encodeURIComponent(logicalModelId)}`)
   );
+  ipcMain.handle("dbzs:model-lab:variants:list", (_event, logicalModelId?: string) => {
+    const params = logicalModelId ? `?logical_model_id=${encodeURIComponent(logicalModelId)}` : "";
+    return requestBackend(`/model-lab/variants${params}`);
+  });
   ipcMain.handle("dbzs:model-lab:runtime-adapters:list", () => requestBackend("/model-lab/runtime-adapters"));
   ipcMain.handle("dbzs:model-lab:runtime-presets:list", () => requestBackend("/model-lab/runtime-presets"));
   ipcMain.handle("dbzs:model-lab:probe", (_event, request: ModelLabProbeRequest) =>

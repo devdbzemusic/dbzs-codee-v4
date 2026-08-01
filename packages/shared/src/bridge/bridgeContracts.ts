@@ -27,6 +27,7 @@ import type {
   ModelLabScanResult,
   ModelLabSource,
   ModelLabSourceCreate,
+  ModelLabVariant,
   ModelIndex,
   RuntimeChatRequest,
   RuntimeChatResponse,
@@ -151,6 +152,7 @@ export interface DesktopBridgeV1 {
   getModelLabHardware?: () => Promise<ModelLabHardwareProfile>;
   listLogicalModels?: () => Promise<ModelLabLogicalModel[]>;
   getLogicalModel?: (logicalModelId: string) => Promise<ModelLabLogicalModel>;
+  listModelVariants?: (logicalModelId?: string) => Promise<ModelLabVariant[]>;
   listModelRuntimeAdapters?: () => Promise<ModelLabRuntimeAdapter[]>;
   listModelRuntimePresets?: () => Promise<ModelLabRuntimePreset[]>;
   probeModel?: (request: ModelLabProbeRequest) => Promise<ModelLabProbeRun>;

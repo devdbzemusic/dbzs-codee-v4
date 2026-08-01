@@ -55,6 +55,7 @@ import type {
   ModelLabScanResult,
   ModelLabSource,
   ModelLabSourceCreate,
+  ModelLabVariant,
   MultimodalPair,
   JobArtifact,
   JobArtifactCreateRequest,
@@ -144,6 +145,7 @@ export interface BackendBridge extends DesktopBridgeV1 {
   getModelLabHardware?: () => Promise<ModelLabHardwareProfile>;
   listLogicalModels?: () => Promise<ModelLabLogicalModel[]>;
   getLogicalModel?: (logicalModelId: string) => Promise<ModelLabLogicalModel>;
+  listModelVariants?: (logicalModelId?: string) => Promise<ModelLabVariant[]>;
   listModelRuntimeAdapters?: () => Promise<ModelLabRuntimeAdapter[]>;
   listModelRuntimePresets?: () => Promise<ModelLabRuntimePreset[]>;
   probeModel?: (request: ModelLabProbeRequest) => Promise<ModelLabProbeRun>;
@@ -502,6 +504,13 @@ export const backendClient = {
     const method = bridge().getLogicalModel;
     if (!method) {
       return Promise.reject(new Error("getLogicalModel is unavailable."));
+    }
+    return method(logicalModelId);
+  },
+  listModelVariants: (logicalModelId?: string) => {
+    const method = bridge().listModelVariants;
+    if (!method) {
+      return Promise.reject(new Error("listModelVariants is unavailable."));
     }
     return method(logicalModelId);
   },
