@@ -105,6 +105,12 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       (500 Dateien/Root, 5s Budget) Model-Lab-Extra-Roots-Scan in `ModelIndexService` implementiert. Bridge
       ist noch an keinem Produktions-Call-Site verdrahtet (kein `ModelIndexService(...)`-Aufruf uebergibt
       `model_lab_repository`) — bleibt in der echten App inaktiv, bis das nachgezogen wird.
+- [x] Bugfix: CLIP-Vision-Projector-GGUF-Dateien (z. B. `phi4-mm-vision-q8.gguf`) wurden mangels
+      `"mmproj"`/`"projector"` im Dateinamen faelschlich als Hauptmodell eingestuft und stuerzten beim Start
+      ab (`CLIP cannot be used as main model`). `_infer_artifact_type()` nutzt jetzt
+      `general.architecture == "clip"` aus den ohnehin gelesenen GGUF-Metadaten als primaeres Signal.
+      Bekannte Einschraenkung: bestehende `model-index-cache.json`-Eintraege mit alter Klassifizierung
+      brauchen einen frischen Scan, um den Fix zu sehen.
 - [ ] `D:\Models\Agentic` als erste produktive Quelle ueber den neuen Candidate-Button registrieren/scannen
       und den veralteten lokalen Model-Katalog auf dieser Maschine neu erzeugen.
 - [ ] `llama.cpp`-RuntimeAdapter live verdrahten: `probe_load`, `health_check`, echte Benchmark-Messung,

@@ -1,11 +1,27 @@
 import json
+import struct
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from app.core.gguf_metadata import GGUF_MAGIC
 from app.model_lab.models import ModelSourceCreate
 from app.model_lab.repository import ModelLabRepository
-from app.models.index_service import ModelIndexService
+from app.models.index_service import ModelIndexService, _infer_artifact_type
 from app.settings.models import AppSettings
+
+
+def _gguf_string(value: str) -> bytes:
+    encoded = value.encode("utf-8")
+    return struct.pack("<Q", len(encoded)) + encoded
+
+
+def _kv_string(key: str, value: str) -> bytes:
+    return _gguf_string(key) + struct.pack("<I", 8) + _gguf_string(value)
+
+
+def _build_gguf(kv_entries: list[bytes], *, version: int = 3, tensor_count: int = 0) -> bytes:
+    header = GGUF_MAGIC + struct.pack("<I", version) + struct.pack("<Q", tensor_count) + struct.pack("<Q", len(kv_entries))
+    return header + b"".join(kv_entries)
 
 
 def test_model_index_prefers_existing_catalog(tmp_path: Path) -> None:
@@ -740,3 +756,37 @@ def test_model_index_invalidates_cache_when_file_changes(tmp_path: Path) -> None
 
     assert rebuilt.summary.total == 1
     assert service.last_build_metrics.cached_model_count == 0
+
+
+def test_infer_artifact_type_uses_clip_architecture_over_filename() -> None:
+    """A real bug: llama.cpp tags every CLIP vision-projector GGUF with
+    general.architecture="clip" regardless of filename. A file named
+    "phi4-mm-vision-q8.gguf" doesn't contain "mmproj"/"projector", so the
+    filename-only heuristic misclassified it as a standalone chat model -
+    the runtime then tried to load it with llama-server and crashed with
+    "error loading model: CLIP cannot be used as main model"."""
+    assert _infer_artifact_type("phi4-mm-vision-q8.gguf", architecture="clip") == "mmproj"
+    assert _infer_artifact_type("mmproj-model.gguf", architecture=None) == "mmproj"
+    assert _infer_artifact_type("phi4-mm-vision-q8.gguf", architecture=None) == "model"
+    assert _infer_artifact_type("regular-model.gguf", architecture="llama") == "model"
+
+
+def test_model_index_classifies_clip_projector_by_metadata_not_filename(tmp_path: Path) -> None:
+    """End-to-end regression for the same bug via the real filesystem scan
+    path: a CLIP projector file with a misleading filename must come out of
+    build_index() as artifact_type "mmproj", not "model"."""
+    projector_path = tmp_path / "phi4-mm-vision-q8.gguf"
+    projector_path.write_bytes(
+        _build_gguf(
+            [
+                _kv_string("general.architecture", "clip"),
+                _kv_string("general.name", "Phi-4 Multimodal Vision"),
+            ]
+        )
+    )
+
+    service = ModelIndexService(models_dir=tmp_path, ollama_models_dir=tmp_path / "empty-ollama")
+    index = service.build_index()
+
+    assert index.summary.total == 1
+    assert index.models[0].artifact_type == "mmproj"

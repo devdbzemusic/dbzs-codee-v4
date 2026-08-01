@@ -13,6 +13,42 @@ Die zuvor aufgefallenen Plan-Dateien `Pläne/14 DBZS_CODEE_BACKEND_BRIDGE_REVIEW
 `Pläne/Codee_Agentenmodelle_Auswahl_Liste Teil I.md` sind im aktuellen Git-Stand getrackt; es bleibt keine
 separate Untracked-Entscheidung fuer diese beiden Dateien offen.
 
+## Bugfix: CLIP-Vision-Projector-Dateien faelschlich als Hauptmodell gestartet (2026-08-01)
+
+**Auftrag:** Nutzer hat die echte gebaute App auf einem anderen Projekt laufen lassen und einen konkreten
+Runtime-Absturz gemeldet: `D:\Models\GGUF_LIBRARY\phi4-multimodal-quantized-ggml\phi4-mm-vision-q8.gguf`
+wurde vom Runtime-Modell-Index als normales Chat-Modell eingestuft und mit `llama-server` gestartet;
+llama.cpp brach sofort ab mit `error loading model: CLIP cannot be used as main model, use it with --mmproj
+instead`.
+
+**Root Cause verifiziert:** `_infer_artifact_type()` in `backend/app/models/index_service.py:988-996` prüfte
+ausschließlich den Dateinamen auf die Substrings `"mmproj"`/`"projector"`. Der Dateiname
+`phi4-mm-vision-q8.gguf` enthält keinen davon (nur `"mm-vision"`), obwohl die GGUF-Datei selbst laut dem vom
+Nutzer geposteten Ladelog eindeutig ein CLIP-Vision-Projector ist (`general.architecture = "clip"`, jede
+Menge `clip.vision.*`-Metadaten-Keys). Diese Architektur-Metadaten wurden im selben Codepfad bereits per
+`read_gguf_metadata()` gelesen (fuer die Quantisierungserkennung), aber nie fuer die Artefakt-Typ-Klassifizierung
+herangezogen — ein zuverlaessiges Signal lag ungenutzt direkt daneben.
+
+**Fix:** `_infer_artifact_type(path, architecture=None)` bekommt einen optionalen `architecture`-Parameter;
+`architecture == "clip"` ist jetzt das primaere, autoritative Signal (noch vor der Dateinamen-Heuristik) fuer
+`artifact_type="mmproj"`. Im Filesystem-Scan-Pfad (`_from_filesystem`, Zeile ~470) wird `read_gguf_metadata()`
+jetzt vor `_infer_artifact_type()` aufgerufen und `gguf_metadata.architecture` durchgereicht. Der
+Katalog-Fallback-Pfad (`_from_catalog`, Zeile 305) bleibt unveraendert (Dateiname-only), da Katalogeintraege
+normalerweise bereits einen expliziten `artifact_type` mitbringen und dort kein GGUF-Header gelesen wird.
+
+**Bekannte Einschraenkung:** bereits bestehende `model-index-cache.json`-Eintraege mit der alten,
+falschen Klassifizierung werden per Datei-Signatur-Cache weiterverwendet, bis sich die Datei aendert oder
+der Cache manuell/durch Neustart invalidiert wird — bei einer echten betroffenen Installation ist ein
+frischer Scan noetig, damit der Fix sichtbar wird.
+
+**Verifiziert:**
+- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_index.py -q` -> 28/28 gruen, davon 2 neu:
+  `test_infer_artifact_type_uses_clip_architecture_over_filename` (direkter Funktionstest mit/ohne
+  `architecture="clip"`) und `test_model_index_classifies_clip_projector_by_metadata_not_filename`
+  (End-zu-Ende ueber `build_index()` mit einer echten, handgebauten Minimal-GGUF-Fixture mit
+  `general.architecture="clip"` und irrefuehrendem Dateinamen)
+- `backend\.venv\Scripts\python.exe -m pytest -q` (voller Backend-Lauf) -> 555/555 gruen
+
 ## Plan 15: Agentic Model Fleet Integration, Foundation-Slice gestartet (2026-08-01)
 
 Branch: `codex/agentic-model-fleet-integration`. Basis ist der aktuelle Arbeitsstand inklusive der

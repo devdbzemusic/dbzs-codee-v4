@@ -30,13 +30,16 @@ Repo-Wahrheit: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
   Evidence, read-only Roles-&-Routing-/Readiness-UI, die Plan-14/Fleet-RAG-Folge fuer serverseitiges
   `query_embedding` in `POST /rag/retrieve`, sowie Plan 15 Phase 3: bearbeitbare `Rollenzuordnung`-Sektion
   im Model-Lab-Tab mit `settings_field`/`residency_intent`, Konfliktanzeige und Best-effort Start-Aktion) in `main`
-- Plan 15, Phase 0/1/2 auf Branch `codex/agentic-model-fleet-integration` nachgezogen (noch nicht gemergt):
-  Scanner-Adapter/Lora-Reihenfolge-Fix inkl. korrigiertem JSON/Tokenizer-Klassifizierungsfall; verwaiste
-  GET-mit-Seiteneffekt-Quellauto-Registrierung entfernt; tote `model_lab_roles.py` geloescht;
-  `enableModelLabRuntimeBridge`-Setting plus gedeckelter (500 Dateien/Root, 5s Budget)
-  Model-Lab-Extra-Roots-Scan in `ModelIndexService` implementiert (noch an keinem Produktions-Call-Site
-  verdrahtet); frische Checks: Backend-Model-Lab-/Model-Index-Suite 85/85, voller Backend-Lauf 553/553,
-  Desktop-Vitest 1366/1366, Shared-/Desktop-Typecheck fehlerfrei — keine bekannten Fehlschlaege mehr offen
+- PR #36 ist gemergt: Plan 15, Phase 0/1/2 (Scanner-Adapter/Lora-Reihenfolge-Fix inkl. korrigiertem
+  JSON/Tokenizer-Klassifizierungsfall; verwaiste GET-mit-Seiteneffekt-Quellauto-Registrierung entfernt; tote
+  `model_lab_roles.py` geloescht; `enableModelLabRuntimeBridge`-Setting plus gedeckelter (500 Dateien/Root, 5s
+  Budget) Model-Lab-Extra-Roots-Scan in `ModelIndexService`, noch an keinem Produktions-Call-Site verdrahtet)
+  in `main`
+- Bugfix auf Branch `codex/agentic-model-fleet-integration` nachgezogen (noch nicht gemergt): CLIP-Vision-
+  Projector-GGUF-Dateien (z. B. `phi4-mm-vision-q8.gguf`) wurden mangels `"mmproj"`/`"projector"` im
+  Dateinamen faelschlich als Hauptmodell eingestuft und stuerzten beim Start ab; `_infer_artifact_type()`
+  nutzt jetzt `general.architecture == "clip"` aus den ohnehin gelesenen GGUF-Metadaten als primaeres,
+  autoritatives Signal; frische Checks: `test_model_index.py` 28/28 (2 neu), voller Backend-Lauf 555/555
 - Shared-, Desktop- und Backend-Kernchecks sind belastbar nachgewiesen
 - Desktop-Capability-Suite ist im Gate-Pfad mit 37/37 belegt
 - Backend-Capability-/Scenario-/Tuning-Lab-Pfad ist mit 15 bestandenen Tests belegt
