@@ -28,16 +28,28 @@ import type {
   DesktopBridgeV1,
   GpuInfo,
   ManualMultimodalPairingRequest,
+  ModelLabBenchmarkRequest,
+  ModelLabBenchmarkRun,
   ModelIndex,
   ModelLabBundle,
+  ModelLabCertificationRecord,
+  ModelLabCertificationRequest,
   ModelLabCollection,
   ModelLabCollectionCreate,
   ModelLabDuplicateGroup,
+  ModelLabFailureRecord,
   ModelLabHardwareProfile,
   ModelLabHuggingFaceRepoInfo,
   ModelLabHuggingFaceSearchResult,
+  ModelLabLogicalModel,
   ModelLabMetadataUpdate,
   ModelLabModel,
+  ModelLabProbeRequest,
+  ModelLabProbeRun,
+  ModelLabRoleAssignment,
+  ModelLabRoleAssignmentRequest,
+  ModelLabRuntimeAdapter,
+  ModelLabRuntimePreset,
   ModelLabScanJob,
   ModelLabScanRequest,
   ModelLabScanResult,
@@ -130,6 +142,19 @@ export interface BackendBridge extends DesktopBridgeV1 {
   ) => Promise<ModelLabHuggingFaceSearchResult[]>;
   getModelLabHuggingFaceRepo?: (repoId: string, revision?: string) => Promise<ModelLabHuggingFaceRepoInfo>;
   getModelLabHardware?: () => Promise<ModelLabHardwareProfile>;
+  listLogicalModels?: () => Promise<ModelLabLogicalModel[]>;
+  getLogicalModel?: (logicalModelId: string) => Promise<ModelLabLogicalModel>;
+  listModelRuntimeAdapters?: () => Promise<ModelLabRuntimeAdapter[]>;
+  listModelRuntimePresets?: () => Promise<ModelLabRuntimePreset[]>;
+  probeModel?: (request: ModelLabProbeRequest) => Promise<ModelLabProbeRun>;
+  listModelProbeRuns?: (bundleId?: string) => Promise<ModelLabProbeRun[]>;
+  benchmarkModel?: (request: ModelLabBenchmarkRequest) => Promise<ModelLabBenchmarkRun>;
+  listModelBenchmarkRuns?: (bundleId?: string) => Promise<ModelLabBenchmarkRun[]>;
+  certifyModel?: (request: ModelLabCertificationRequest) => Promise<ModelLabCertificationRecord>;
+  listModelCertifications?: (bundleId?: string) => Promise<ModelLabCertificationRecord[]>;
+  assignModelRole?: (request: ModelLabRoleAssignmentRequest) => Promise<ModelLabRoleAssignment>;
+  listModelRoleAssignments?: (role?: string) => Promise<ModelLabRoleAssignment[]>;
+  listModelFailures?: (bundleId?: string) => Promise<ModelLabFailureRecord[]>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   startRuntimeModel: (modelId: string, profile?: string) => Promise<RuntimeStatus>;
   stopRuntimeModel: () => Promise<RuntimeStatus>;
@@ -465,6 +490,97 @@ export const backendClient = {
       return Promise.reject(new Error("getModelLabHardware is unavailable."));
     }
     return method();
+  },
+  listLogicalModels: () => {
+    const method = bridge().listLogicalModels;
+    if (!method) {
+      return Promise.reject(new Error("listLogicalModels is unavailable."));
+    }
+    return method();
+  },
+  getLogicalModel: (logicalModelId: string) => {
+    const method = bridge().getLogicalModel;
+    if (!method) {
+      return Promise.reject(new Error("getLogicalModel is unavailable."));
+    }
+    return method(logicalModelId);
+  },
+  listModelRuntimeAdapters: () => {
+    const method = bridge().listModelRuntimeAdapters;
+    if (!method) {
+      return Promise.reject(new Error("listModelRuntimeAdapters is unavailable."));
+    }
+    return method();
+  },
+  listModelRuntimePresets: () => {
+    const method = bridge().listModelRuntimePresets;
+    if (!method) {
+      return Promise.reject(new Error("listModelRuntimePresets is unavailable."));
+    }
+    return method();
+  },
+  probeModel: (request: ModelLabProbeRequest) => {
+    const method = bridge().probeModel;
+    if (!method) {
+      return Promise.reject(new Error("probeModel is unavailable."));
+    }
+    return method(request);
+  },
+  listModelProbeRuns: (bundleId?: string) => {
+    const method = bridge().listModelProbeRuns;
+    if (!method) {
+      return Promise.reject(new Error("listModelProbeRuns is unavailable."));
+    }
+    return method(bundleId);
+  },
+  benchmarkModel: (request: ModelLabBenchmarkRequest) => {
+    const method = bridge().benchmarkModel;
+    if (!method) {
+      return Promise.reject(new Error("benchmarkModel is unavailable."));
+    }
+    return method(request);
+  },
+  listModelBenchmarkRuns: (bundleId?: string) => {
+    const method = bridge().listModelBenchmarkRuns;
+    if (!method) {
+      return Promise.reject(new Error("listModelBenchmarkRuns is unavailable."));
+    }
+    return method(bundleId);
+  },
+  certifyModel: (request: ModelLabCertificationRequest) => {
+    const method = bridge().certifyModel;
+    if (!method) {
+      return Promise.reject(new Error("certifyModel is unavailable."));
+    }
+    return method(request);
+  },
+  listModelCertifications: (bundleId?: string) => {
+    const method = bridge().listModelCertifications;
+    if (!method) {
+      return Promise.reject(new Error("listModelCertifications is unavailable."));
+    }
+    return method(bundleId);
+  },
+  assignModelRole: (request: ModelLabRoleAssignmentRequest) => {
+    const method = bridge().assignModelRole;
+    if (!method) {
+      return Promise.reject(new Error("assignModelRole is unavailable."));
+    }
+    return method(request);
+  },
+  listModelRoleAssignments: (role?: string) => {
+    const method = bridge().listModelRoleAssignments;
+    if (!method) {
+      return Promise.reject(new Error("listModelRoleAssignments is unavailable."));
+    }
+    return method(role);
+  },
+  listModelFailures: (bundleId?: string) => {
+    const method = bridge().listModelFailures;
+    if (!method) {
+      return Promise.reject(new Error("listModelFailures is unavailable."));
+    }
+    return method(bundleId);
   },
   getRuntimeStatus: () => bridge().getRuntimeStatus(),
   startRuntimeModel: (modelId: string, profile?: string) => bridge().startRuntimeModel(modelId, profile),

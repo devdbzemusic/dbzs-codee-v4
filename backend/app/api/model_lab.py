@@ -1,6 +1,34 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.model_lab.models import CollectionMembershipRequest, DuplicateGroup, HardwareProfile, HuggingFaceRepoInfo, HuggingFaceSearchResult, ModelBundle, ModelCollection, ModelCollectionCreate, ModelLabModel, ModelMetadataUpdate, ModelSource, ModelSourceCreate, ScanJob, ScanRequest, ScanResult
+from app.model_lab.models import (
+    CollectionMembershipRequest,
+    DuplicateGroup,
+    HardwareProfile,
+    HuggingFaceRepoInfo,
+    HuggingFaceSearchResult,
+    LogicalModel,
+    ModelBenchmarkRequest,
+    ModelBenchmarkRun,
+    ModelBundle,
+    ModelCertificationRecord,
+    ModelCertificationRequest,
+    ModelCollection,
+    ModelCollectionCreate,
+    ModelFailureRecord,
+    ModelLabModel,
+    ModelMetadataUpdate,
+    ModelProbeRequest,
+    ModelProbeRun,
+    ModelRoleAssignment,
+    ModelRoleAssignmentRequest,
+    ModelSource,
+    ModelSourceCreate,
+    RuntimeAdapterRecord,
+    RuntimePresetRecord,
+    ScanJob,
+    ScanRequest,
+    ScanResult,
+)
 from app.model_lab.service import ModelLabService
 
 router = APIRouter(prefix="/model-lab", tags=["model-lab"])
@@ -139,4 +167,114 @@ def get_huggingface_repo_info(
 @router.get("/hardware")
 def get_hardware(service: ModelLabService = Depends(get_model_lab_service)) -> HardwareProfile:
     return service.collect_hardware()
+
+
+@router.get("/logical-models")
+def list_logical_models(service: ModelLabService = Depends(get_model_lab_service)) -> list[LogicalModel]:
+    return service.list_logical_models()
+
+
+@router.get("/logical-models/{logical_model_id}")
+def get_logical_model(
+    logical_model_id: str,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> LogicalModel:
+    model = service.get_logical_model(logical_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Logical model not found")
+    return model
+
+
+@router.get("/runtime-adapters")
+def list_runtime_adapters(service: ModelLabService = Depends(get_model_lab_service)) -> list[RuntimeAdapterRecord]:
+    return service.list_runtime_adapters()
+
+
+@router.get("/runtime-presets")
+def list_runtime_presets(service: ModelLabService = Depends(get_model_lab_service)) -> list[RuntimePresetRecord]:
+    return service.list_runtime_presets()
+
+
+@router.post("/probe")
+def probe_model(
+    request: ModelProbeRequest,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> ModelProbeRun:
+    try:
+        return service.probe_model(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/probe-runs")
+def list_probe_runs(
+    bundle_id: str | None = None,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> list[ModelProbeRun]:
+    return service.list_probe_runs(bundle_id=bundle_id)
+
+
+@router.post("/benchmark")
+def benchmark_model(
+    request: ModelBenchmarkRequest,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> ModelBenchmarkRun:
+    try:
+        return service.benchmark_model(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/benchmark-runs")
+def list_benchmark_runs(
+    bundle_id: str | None = None,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> list[ModelBenchmarkRun]:
+    return service.list_benchmark_runs(bundle_id=bundle_id)
+
+
+@router.post("/certifications")
+def certify_model(
+    request: ModelCertificationRequest,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> ModelCertificationRecord:
+    try:
+        return service.certify_model(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/certifications")
+def list_certifications(
+    bundle_id: str | None = None,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> list[ModelCertificationRecord]:
+    return service.list_certifications(bundle_id=bundle_id)
+
+
+@router.post("/role-assignments")
+def assign_model_role(
+    request: ModelRoleAssignmentRequest,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> ModelRoleAssignment:
+    try:
+        return service.assign_model_role(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/role-assignments")
+def list_role_assignments(
+    role: str | None = None,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> list[ModelRoleAssignment]:
+    return service.list_role_assignments(role=role)
+
+
+@router.get("/failures")
+def list_failures(
+    bundle_id: str | None = None,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> list[ModelFailureRecord]:
+    return service.list_failures(bundle_id=bundle_id)
 

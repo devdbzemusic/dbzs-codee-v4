@@ -15,8 +15,11 @@ import pytest
 from app.model_lab.models import (
     ModelArtifact,
     ModelBundle,
+    ModelCertificationRequest,
     ModelCollectionCreate,
     ModelMetadataUpdate,
+    ModelProbeRequest,
+    ModelRoleAssignmentRequest,
     ModelSourceCreate,
 )
 from app.model_lab.repository import ModelLabRepository
@@ -145,3 +148,77 @@ def test_find_duplicates_returns_empty_for_unique_models(tmp_path: Path) -> None
     _seed_bundle(repo, tmp_path)
 
     assert repo.find_duplicates() == []
+
+
+def test_fleet_repository_records_probe_certification_and_role_assignment(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    probe = repo.create_probe_run(
+        ModelProbeRequest(bundle_id=bundle.bundle_id),
+        status="skipped",
+        message="safe gate",
+    )
+    assert probe.allow_start is False
+    assert repo.list_probe_runs(bundle.bundle_id)[0].id == probe.id
+
+    with pytest.raises(ValueError, match="fehlende Zertifikate"):
+        repo.assign_model_role(
+            ModelRoleAssignmentRequest(
+                bundle_id=bundle.bundle_id,
+                role="CODING_EXECUTOR",
+                safety_level="LEVEL_2_WORKSPACE_WRITE",
+            )
+        )
+
+    for certification in ("CODING_VERIFIED", "STRUCTURED_OUTPUT_VERIFIED", "WRITE_AGENT_VERIFIED"):
+        repo.upsert_certification(
+            ModelCertificationRequest(
+                bundle_id=bundle.bundle_id,
+                certification=certification,
+                evidence={"source": "unit"},
+            )
+        )
+
+    assignment = repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="CODING_EXECUTOR",
+            safety_level="LEVEL_2_WORKSPACE_WRITE",
+        )
+    )
+
+    assert assignment.enabled is True
+    assert set(assignment.required_certifications) == {
+        "CODING_VERIFIED",
+        "STRUCTURED_OUTPUT_VERIFIED",
+        "WRITE_AGENT_VERIFIED",
+    }
+
+
+def test_rebuild_logical_models_groups_quantized_variants(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    source = repo.create_source(ModelSourceCreate(path=str(tmp_path)))
+    first = _artifact(artifact_id="a1", bundle_id="b1", source_id=source.id).model_copy(
+        update={"detected_name": "qwenpaw-flash-2b-Q4_K_M", "file_name": "qwenpaw-flash-2b-Q4_K_M.gguf"}
+    )
+    second = _artifact(artifact_id="a2", bundle_id="b2", source_id=source.id).model_copy(
+        update={"detected_name": "qwenpaw-flash-2b-Q8_0", "file_name": "qwenpaw-flash-2b-Q8_0.gguf"}
+    )
+    repo.save_scan_output(
+        source=source,
+        artifacts=[first, second],
+        bundles=[
+            _bundle(bundle_id="b1", source_id=source.id, artifact_id="a1").model_copy(
+                update={"name": "qwenpaw-flash-2b-Q4_K_M"}
+            ),
+            _bundle(bundle_id="b2", source_id=source.id, artifact_id="a2").model_copy(
+                update={"name": "qwenpaw-flash-2b-Q8_0"}
+            ),
+        ],
+    )
+
+    logical = repo.list_logical_models()
+
+    assert len(logical) == 1
+    assert set(logical[0].bundle_ids) == {"b1", "b2"}

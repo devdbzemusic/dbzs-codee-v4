@@ -17,7 +17,52 @@ ArtifactType = Literal[
     "support",
 ]
 ScanJobStatus = Literal["queued", "running", "completed", "failed"]
-ModelLabStatus = Literal["DISCOVERED", "IDENTIFIED", "INCOMPLETE", "UNSUPPORTED", "BROKEN"]
+ModelLabStatus = Literal[
+    "DISCOVERED",
+    "IDENTIFIED",
+    "INCOMPLETE",
+    "COMPATIBLE",
+    "LOADABLE",
+    "TUNED",
+    "BENCHMARKED",
+    "CERTIFIED",
+    "DEGRADED",
+    "QUARANTINED",
+    "UNSUPPORTED",
+    "BROKEN",
+]
+ModelFleetRole = Literal[
+    "MAIN_AGENT",
+    "DEEP_RESEARCH_AGENT",
+    "FAST_GENERAL_AGENT",
+    "MICRO_TOOL_AGENT",
+    "CODING_EXECUTOR",
+    "ALGORITHM_SPECIALIST",
+    "REASONING_VALIDATOR",
+    "REPORT_GENERATOR",
+]
+ModelFleetSafetyLevel = Literal[
+    "LEVEL_0_CHAT_ONLY",
+    "LEVEL_1_READ_ONLY_TOOLS",
+    "LEVEL_2_WORKSPACE_WRITE",
+    "LEVEL_3_TERMINAL_LIMITED",
+    "LEVEL_4_SHELL_AND_GIT",
+]
+ModelFleetCertificationKind = Literal[
+    "CHAT_VERIFIED",
+    "INSTRUCTION_FOLLOWING_VERIFIED",
+    "STRUCTURED_OUTPUT_VERIFIED",
+    "TOOL_CALLING_VERIFIED",
+    "READ_ONLY_AGENT_VERIFIED",
+    "WRITE_AGENT_VERIFIED",
+    "CODING_VERIFIED",
+    "REPOSITORY_QA_VERIFIED",
+    "DEEP_RESEARCH_VERIFIED",
+    "LONG_HORIZON_VERIFIED",
+    "REPORT_GENERATION_VERIFIED",
+    "GPU_PROFILE_VERIFIED",
+]
+ModelFleetRunStatus = Literal["queued", "running", "passed", "failed", "skipped"]
 
 
 class ModelHealth(BaseModel):
@@ -116,6 +161,8 @@ class ScanJob(BaseModel):
     started_at: datetime | None = None
     completed_at: datetime | None = None
     created_at: datetime
+    progress_message: str | None = None
+    progress_events: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ScanResult(BaseModel):
@@ -136,6 +183,155 @@ class HardwareProfile(BaseModel):
     vram_bytes: int | None = None
     runtime_backend: str
     collected_at: datetime
+
+
+class ModelFleetRequestEnvelope(BaseModel):
+    request_id: str
+    operation: str
+    started_at: datetime
+    timeout_policy: dict[str, int] = Field(default_factory=dict)
+    cancellation: dict[str, Any] = Field(default_factory=dict)
+
+
+class LogicalModel(BaseModel):
+    logical_model_id: str
+    display_name: str
+    family: str
+    architecture: str | None = None
+    primary_bundle_id: str | None = None
+    bundle_ids: list[str] = Field(default_factory=list)
+    capabilities: list[str] = Field(default_factory=list)
+    modalities: list[str] = Field(default_factory=list)
+    status: ModelLabStatus = "DISCOVERED"
+    created_at: datetime
+    updated_at: datetime
+
+
+class RuntimeAdapterRecord(BaseModel):
+    id: str
+    name: str
+    priority: int
+    enabled: bool = True
+    supported_formats: list[str] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class RuntimePresetRecord(BaseModel):
+    id: str
+    name: str
+    adapter_id: str
+    bundle_id: str | None = None
+    profile: str
+    config: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
+
+
+class ModelProbeRequest(BaseModel):
+    bundle_id: str
+    adapter_id: str = "llama.cpp"
+    allow_start: bool = False
+    envelope: ModelFleetRequestEnvelope | None = None
+    runtime_options: dict[str, Any] = Field(default_factory=dict)
+
+
+class ModelProbeRun(BaseModel):
+    id: str
+    bundle_id: str
+    adapter_id: str
+    status: ModelFleetRunStatus
+    allow_start: bool
+    message: str
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+    started_at: datetime
+    completed_at: datetime | None = None
+
+
+class ModelBenchmarkRequest(BaseModel):
+    bundle_id: str
+    adapter_id: str = "llama.cpp"
+    profile: str = "safe_balanced"
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    envelope: ModelFleetRequestEnvelope | None = None
+
+
+class ModelBenchmarkRun(BaseModel):
+    id: str
+    bundle_id: str
+    adapter_id: str
+    profile: str
+    status: ModelFleetRunStatus
+    measurements: dict[str, Any] = Field(default_factory=dict)
+    message: str = ""
+    started_at: datetime
+    completed_at: datetime | None = None
+
+
+class ModelCertificationRequest(BaseModel):
+    bundle_id: str
+    certification: ModelFleetCertificationKind
+    status: Literal["passed", "failed", "revoked"] = "passed"
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    notes: str = ""
+    envelope: ModelFleetRequestEnvelope | None = None
+
+
+class ModelCertificationRecord(BaseModel):
+    id: str
+    bundle_id: str
+    certification: ModelFleetCertificationKind
+    status: Literal["passed", "failed", "revoked"]
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    notes: str = ""
+    created_at: datetime
+    updated_at: datetime
+
+
+class ModelRoleAssignmentRequest(BaseModel):
+    bundle_id: str
+    role: ModelFleetRole
+    safety_level: ModelFleetSafetyLevel = "LEVEL_0_CHAT_ONLY"
+    enabled: bool = True
+    priority: int = 100
+    notes: str = ""
+    envelope: ModelFleetRequestEnvelope | None = None
+
+
+class ModelRoleAssignment(BaseModel):
+    id: str
+    bundle_id: str
+    role: ModelFleetRole
+    safety_level: ModelFleetSafetyLevel
+    enabled: bool
+    priority: int
+    required_certifications: list[ModelFleetCertificationKind] = Field(default_factory=list)
+    notes: str = ""
+    created_at: datetime
+    updated_at: datetime
+
+
+class ModelFailureRecord(BaseModel):
+    id: str
+    bundle_id: str | None = None
+    artifact_id: str | None = None
+    operation: str
+    severity: Literal["info", "warning", "error", "critical"] = "error"
+    message: str
+    details: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class ModelFleetSummary(BaseModel):
+    logical_models: list[LogicalModel]
+    runtime_adapters: list[RuntimeAdapterRecord]
+    runtime_presets: list[RuntimePresetRecord]
+    probe_runs: list[ModelProbeRun]
+    benchmark_runs: list[ModelBenchmarkRun]
+    certifications: list[ModelCertificationRecord]
+    role_assignments: list[ModelRoleAssignment]
+    failures: list[ModelFailureRecord]
 
 
 class ModelMetadataUpdate(BaseModel):

@@ -1383,7 +1383,48 @@ export type ModelLabArtifactType =
   | "ollama_manifest"
   | "support";
 export type ModelLabScanJobStatus = "queued" | "running" | "completed" | "failed";
-export type ModelLabStatus = "DISCOVERED" | "IDENTIFIED" | "INCOMPLETE" | "UNSUPPORTED" | "BROKEN";
+export type ModelLabStatus =
+  | "DISCOVERED"
+  | "IDENTIFIED"
+  | "INCOMPLETE"
+  | "COMPATIBLE"
+  | "LOADABLE"
+  | "TUNED"
+  | "BENCHMARKED"
+  | "CERTIFIED"
+  | "DEGRADED"
+  | "QUARANTINED"
+  | "UNSUPPORTED"
+  | "BROKEN";
+export type ModelFleetRole =
+  | "MAIN_AGENT"
+  | "DEEP_RESEARCH_AGENT"
+  | "FAST_GENERAL_AGENT"
+  | "MICRO_TOOL_AGENT"
+  | "CODING_EXECUTOR"
+  | "ALGORITHM_SPECIALIST"
+  | "REASONING_VALIDATOR"
+  | "REPORT_GENERATOR";
+export type ModelFleetSafetyLevel =
+  | "LEVEL_0_CHAT_ONLY"
+  | "LEVEL_1_READ_ONLY_TOOLS"
+  | "LEVEL_2_WORKSPACE_WRITE"
+  | "LEVEL_3_TERMINAL_LIMITED"
+  | "LEVEL_4_SHELL_AND_GIT";
+export type ModelFleetCertificationKind =
+  | "CHAT_VERIFIED"
+  | "INSTRUCTION_FOLLOWING_VERIFIED"
+  | "STRUCTURED_OUTPUT_VERIFIED"
+  | "TOOL_CALLING_VERIFIED"
+  | "READ_ONLY_AGENT_VERIFIED"
+  | "WRITE_AGENT_VERIFIED"
+  | "CODING_VERIFIED"
+  | "REPOSITORY_QA_VERIFIED"
+  | "DEEP_RESEARCH_VERIFIED"
+  | "LONG_HORIZON_VERIFIED"
+  | "REPORT_GENERATION_VERIFIED"
+  | "GPU_PROFILE_VERIFIED";
+export type ModelFleetRunStatus = "queued" | "running" | "passed" | "failed" | "skipped";
 
 export interface ModelLabHealth {
   status: "healthy" | "incomplete" | "empty" | "error" | "unknown";
@@ -1481,6 +1522,8 @@ export interface ModelLabScanJob {
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
+  progress_message?: string | null;
+  progress_events?: Array<Record<string, unknown>>;
 }
 
 export interface ModelLabScanResult {
@@ -1501,6 +1544,144 @@ export interface ModelLabHardwareProfile {
   vram_bytes: number | null;
   runtime_backend: string;
   collected_at: string;
+}
+
+export interface ModelFleetRequestEnvelope {
+  request_id: string;
+  operation: string;
+  started_at: string;
+  timeout_policy?: Record<string, number>;
+  cancellation?: Record<string, unknown>;
+}
+
+export interface ModelLabLogicalModel {
+  logical_model_id: string;
+  display_name: string;
+  family: string;
+  architecture: string | null;
+  primary_bundle_id: string | null;
+  bundle_ids: string[];
+  capabilities: string[];
+  modalities: string[];
+  status: ModelLabStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModelLabRuntimeAdapter {
+  id: string;
+  name: string;
+  priority: number;
+  enabled: boolean;
+  supported_formats: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModelLabRuntimePreset {
+  id: string;
+  name: string;
+  adapter_id: string;
+  bundle_id: string | null;
+  profile: string;
+  config: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModelLabProbeRequest {
+  bundle_id: string;
+  adapter_id?: string;
+  allow_start?: boolean;
+  envelope?: ModelFleetRequestEnvelope | null;
+  runtime_options?: Record<string, unknown>;
+}
+
+export interface ModelLabProbeRun {
+  id: string;
+  bundle_id: string;
+  adapter_id: string;
+  status: ModelFleetRunStatus;
+  allow_start: boolean;
+  message: string;
+  metrics: Record<string, unknown>;
+  error: string | null;
+  started_at: string;
+  completed_at: string | null;
+}
+
+export interface ModelLabBenchmarkRequest {
+  bundle_id: string;
+  adapter_id?: string;
+  profile?: string;
+  metrics?: Record<string, unknown>;
+  envelope?: ModelFleetRequestEnvelope | null;
+}
+
+export interface ModelLabBenchmarkRun {
+  id: string;
+  bundle_id: string;
+  adapter_id: string;
+  profile: string;
+  status: ModelFleetRunStatus;
+  measurements: Record<string, unknown>;
+  message: string;
+  started_at: string;
+  completed_at: string | null;
+}
+
+export interface ModelLabCertificationRequest {
+  bundle_id: string;
+  certification: ModelFleetCertificationKind;
+  status?: "passed" | "failed" | "revoked";
+  evidence?: Record<string, unknown>;
+  notes?: string;
+  envelope?: ModelFleetRequestEnvelope | null;
+}
+
+export interface ModelLabCertificationRecord {
+  id: string;
+  bundle_id: string;
+  certification: ModelFleetCertificationKind;
+  status: "passed" | "failed" | "revoked";
+  evidence: Record<string, unknown>;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModelLabRoleAssignmentRequest {
+  bundle_id: string;
+  role: ModelFleetRole;
+  safety_level?: ModelFleetSafetyLevel;
+  enabled?: boolean;
+  priority?: number;
+  notes?: string;
+  envelope?: ModelFleetRequestEnvelope | null;
+}
+
+export interface ModelLabRoleAssignment {
+  id: string;
+  bundle_id: string;
+  role: ModelFleetRole;
+  safety_level: ModelFleetSafetyLevel;
+  enabled: boolean;
+  priority: number;
+  required_certifications: ModelFleetCertificationKind[];
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModelLabFailureRecord {
+  id: string;
+  bundle_id: string | null;
+  artifact_id: string | null;
+  operation: string;
+  severity: "info" | "warning" | "error" | "critical";
+  message: string;
+  details: Record<string, unknown>;
+  created_at: string;
 }
 
 export interface ModelLabMetadataUpdate {

@@ -3,16 +3,40 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 import json
+import re
 import sqlite3
 import uuid
 
 from app.core.config import get_app_data_dir
 from app.core.sqlite import sqlite_connection
 from app.model_lab.analyzer import duplicate_key
-from app.model_lab.models import DuplicateGroup, ModelArtifact, ModelBundle, ModelCollection, ModelCollectionCreate, ModelLabModel, ModelMetadataUpdate, ModelSource, ModelSourceCreate, ScanJob
+from app.model_lab.models import (
+    DuplicateGroup,
+    LogicalModel,
+    ModelArtifact,
+    ModelBenchmarkRequest,
+    ModelBenchmarkRun,
+    ModelBundle,
+    ModelCertificationRecord,
+    ModelCertificationRequest,
+    ModelCollection,
+    ModelCollectionCreate,
+    ModelFailureRecord,
+    ModelLabModel,
+    ModelMetadataUpdate,
+    ModelProbeRequest,
+    ModelProbeRun,
+    ModelRoleAssignment,
+    ModelRoleAssignmentRequest,
+    ModelSource,
+    ModelSourceCreate,
+    RuntimeAdapterRecord,
+    RuntimePresetRecord,
+    ScanJob,
+)
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 class ModelLabRepository:
@@ -55,7 +79,9 @@ class ModelLabRepository:
                     error TEXT,
                     started_at TEXT,
                     completed_at TEXT,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    progress_message TEXT,
+                    progress_events TEXT NOT NULL DEFAULT '[]'
                 );
                 CREATE TABLE IF NOT EXISTS model_artifacts (
                     artifact_id TEXT PRIMARY KEY,
@@ -114,10 +140,134 @@ class ModelLabRepository:
                     PRIMARY KEY (collection_id, bundle_id),
                     FOREIGN KEY (collection_id) REFERENCES model_collections(id) ON DELETE CASCADE
                 );
+                CREATE TABLE IF NOT EXISTS logical_models (
+                    logical_model_id TEXT PRIMARY KEY,
+                    display_name TEXT NOT NULL,
+                    family TEXT NOT NULL,
+                    architecture TEXT,
+                    primary_bundle_id TEXT,
+                    bundle_ids TEXT NOT NULL,
+                    capabilities TEXT NOT NULL,
+                    modalities TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS runtime_adapters (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    priority INTEGER NOT NULL,
+                    enabled INTEGER NOT NULL,
+                    supported_formats TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS runtime_presets (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    adapter_id TEXT NOT NULL,
+                    bundle_id TEXT,
+                    profile TEXT NOT NULL,
+                    config TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS hardware_snapshots (
+                    id TEXT PRIMARY KEY,
+                    fingerprint_hash TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS probe_runs (
+                    id TEXT PRIMARY KEY,
+                    bundle_id TEXT NOT NULL,
+                    adapter_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    allow_start INTEGER NOT NULL,
+                    message TEXT NOT NULL,
+                    metrics TEXT NOT NULL,
+                    error TEXT,
+                    started_at TEXT NOT NULL,
+                    completed_at TEXT
+                );
+                CREATE TABLE IF NOT EXISTS benchmark_runs (
+                    id TEXT PRIMARY KEY,
+                    bundle_id TEXT NOT NULL,
+                    adapter_id TEXT NOT NULL,
+                    profile TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    measurements TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    started_at TEXT NOT NULL,
+                    completed_at TEXT
+                );
+                CREATE TABLE IF NOT EXISTS benchmark_measurements (
+                    id TEXT PRIMARY KEY,
+                    benchmark_run_id TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    value REAL NOT NULL,
+                    unit TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS capability_evidence (
+                    id TEXT PRIMARY KEY,
+                    bundle_id TEXT NOT NULL,
+                    capability TEXT NOT NULL,
+                    evidence TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS certifications (
+                    id TEXT PRIMARY KEY,
+                    bundle_id TEXT NOT NULL,
+                    certification TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    evidence TEXT NOT NULL,
+                    notes TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(bundle_id, certification)
+                );
+                CREATE TABLE IF NOT EXISTS model_role_assignments (
+                    id TEXT PRIMARY KEY,
+                    bundle_id TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    safety_level TEXT NOT NULL,
+                    enabled INTEGER NOT NULL,
+                    priority INTEGER NOT NULL,
+                    required_certifications TEXT NOT NULL,
+                    notes TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(bundle_id, role)
+                );
+                CREATE TABLE IF NOT EXISTS model_failures (
+                    id TEXT PRIMARY KEY,
+                    bundle_id TEXT,
+                    artifact_id TEXT,
+                    operation TEXT NOT NULL,
+                    severity TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    details TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS agent_execution_policies (
+                    role TEXT PRIMARY KEY,
+                    max_safety_level TEXT NOT NULL,
+                    required_certifications TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
                 CREATE INDEX IF NOT EXISTS idx_model_collection_members_bundle ON model_collection_members(bundle_id);
+                CREATE INDEX IF NOT EXISTS idx_model_role_assignments_role ON model_role_assignments(role, enabled, priority);
+                CREATE INDEX IF NOT EXISTS idx_certifications_bundle ON certifications(bundle_id, status);
+                CREATE INDEX IF NOT EXISTS idx_probe_runs_bundle ON probe_runs(bundle_id, started_at);
                 """
             )
             _ensure_column(conn, "model_bundles", "health", "TEXT NOT NULL DEFAULT '{}'")
+            _ensure_column(conn, "scan_jobs", "progress_message", "TEXT")
+            _ensure_column(conn, "scan_jobs", "progress_events", "TEXT NOT NULL DEFAULT '[]'")
+            self._seed_runtime_adapters(conn)
+            self._seed_execution_policies(conn)
             conn.execute(
                 "INSERT OR REPLACE INTO schema_info (key, value) VALUES ('model_lab_schema_version', ?)",
                 (str(SCHEMA_VERSION),),
@@ -483,6 +633,365 @@ class ModelLabRepository:
             )
         return sorted(duplicates, key=lambda group: (-group.total_size_bytes, group.duplicate_key))
 
+    def list_logical_models(self) -> list[LogicalModel]:
+        self.rebuild_logical_models()
+        with sqlite_connection(self.db_path) as conn:
+            rows = conn.execute("SELECT * FROM logical_models ORDER BY display_name").fetchall()
+        return [_logical_model_from_row(row) for row in rows]
+
+    def get_logical_model(self, logical_model_id: str) -> LogicalModel | None:
+        self.rebuild_logical_models()
+        with sqlite_connection(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM logical_models WHERE logical_model_id = ?",
+                (logical_model_id,),
+            ).fetchone()
+        return _logical_model_from_row(row) if row else None
+
+    def rebuild_logical_models(self) -> None:
+        models = self.list_models()
+        now = datetime.now(UTC)
+        grouped: dict[str, list[ModelBundle]] = {}
+        for model in models:
+            bundle = model.bundle
+            family = _logical_family(bundle.name)
+            grouped.setdefault(family, []).append(bundle)
+        with sqlite_connection(self.db_path) as conn:
+            for family, bundles in grouped.items():
+                sorted_bundles = sorted(bundles, key=lambda item: (item.status != "CERTIFIED", item.name.lower()))
+                primary = sorted_bundles[0]
+                conn.execute(
+                    """
+                    INSERT INTO logical_models (
+                        logical_model_id, display_name, family, architecture, primary_bundle_id,
+                        bundle_ids, capabilities, modalities, status, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(logical_model_id) DO UPDATE SET
+                        display_name=excluded.display_name,
+                        family=excluded.family,
+                        architecture=excluded.architecture,
+                        primary_bundle_id=excluded.primary_bundle_id,
+                        bundle_ids=excluded.bundle_ids,
+                        capabilities=excluded.capabilities,
+                        modalities=excluded.modalities,
+                        status=excluded.status,
+                        updated_at=excluded.updated_at
+                    """,
+                    (
+                        _logical_model_id(family),
+                        primary.name,
+                        family,
+                        primary.health.architecture,
+                        primary.bundle_id,
+                        json.dumps([bundle.bundle_id for bundle in sorted_bundles], sort_keys=True),
+                        json.dumps(sorted({cap for bundle in sorted_bundles for cap in bundle.capabilities}), sort_keys=True),
+                        json.dumps(sorted({mod for bundle in sorted_bundles for mod in bundle.modalities}), sort_keys=True),
+                        _best_status([bundle.status for bundle in sorted_bundles]),
+                        _dt(now),
+                        _dt(now),
+                    ),
+                )
+
+    def list_runtime_adapters(self) -> list[RuntimeAdapterRecord]:
+        with sqlite_connection(self.db_path) as conn:
+            rows = conn.execute("SELECT * FROM runtime_adapters ORDER BY priority, name").fetchall()
+        return [_runtime_adapter_from_row(row) for row in rows]
+
+    def list_runtime_presets(self) -> list[RuntimePresetRecord]:
+        with sqlite_connection(self.db_path) as conn:
+            rows = conn.execute("SELECT * FROM runtime_presets ORDER BY name").fetchall()
+        return [_runtime_preset_from_row(row) for row in rows]
+
+    def create_probe_run(self, request: ModelProbeRequest, *, status: str, message: str, error: str | None = None) -> ModelProbeRun:
+        if self.get_model(request.bundle_id) is None:
+            raise ValueError(f"Model bundle nicht gefunden: {request.bundle_id}")
+        now = datetime.now(UTC)
+        run = ModelProbeRun(
+            id=uuid.uuid4().hex,
+            bundle_id=request.bundle_id,
+            adapter_id=request.adapter_id,
+            status=status,
+            allow_start=request.allow_start,
+            message=message,
+            metrics=request.runtime_options,
+            error=error,
+            started_at=now,
+            completed_at=now,
+        )
+        with sqlite_connection(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO probe_runs(
+                    id, bundle_id, adapter_id, status, allow_start, message,
+                    metrics, error, started_at, completed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run.id,
+                    run.bundle_id,
+                    run.adapter_id,
+                    run.status,
+                    int(run.allow_start),
+                    run.message,
+                    json.dumps(run.metrics, sort_keys=True),
+                    run.error,
+                    _dt(run.started_at),
+                    _dt(run.completed_at) if run.completed_at else None,
+                ),
+            )
+        return run
+
+    def create_benchmark_run(self, request: ModelBenchmarkRequest, *, status: str, message: str) -> ModelBenchmarkRun:
+        if self.get_model(request.bundle_id) is None:
+            raise ValueError(f"Model bundle nicht gefunden: {request.bundle_id}")
+        now = datetime.now(UTC)
+        run = ModelBenchmarkRun(
+            id=uuid.uuid4().hex,
+            bundle_id=request.bundle_id,
+            adapter_id=request.adapter_id,
+            profile=request.profile,
+            status=status,
+            measurements=request.metrics,
+            message=message,
+            started_at=now,
+            completed_at=now,
+        )
+        with sqlite_connection(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO benchmark_runs(
+                    id, bundle_id, adapter_id, profile, status, measurements,
+                    message, started_at, completed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run.id,
+                    run.bundle_id,
+                    run.adapter_id,
+                    run.profile,
+                    run.status,
+                    json.dumps(run.measurements, sort_keys=True),
+                    run.message,
+                    _dt(run.started_at),
+                    _dt(run.completed_at) if run.completed_at else None,
+                ),
+            )
+        return run
+
+    def upsert_certification(self, request: ModelCertificationRequest) -> ModelCertificationRecord:
+        if self.get_model(request.bundle_id) is None:
+            raise ValueError(f"Model bundle nicht gefunden: {request.bundle_id}")
+        now = datetime.now(UTC)
+        record_id = uuid.uuid4().hex
+        with sqlite_connection(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO certifications(
+                    id, bundle_id, certification, status, evidence, notes, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(bundle_id, certification) DO UPDATE SET
+                    status=excluded.status,
+                    evidence=excluded.evidence,
+                    notes=excluded.notes,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    record_id,
+                    request.bundle_id,
+                    request.certification,
+                    request.status,
+                    json.dumps(request.evidence, sort_keys=True),
+                    request.notes,
+                    _dt(now),
+                    _dt(now),
+                ),
+            )
+            row = conn.execute(
+                "SELECT * FROM certifications WHERE bundle_id = ? AND certification = ?",
+                (request.bundle_id, request.certification),
+            ).fetchone()
+        return _certification_from_row(row)
+
+    def assign_model_role(self, request: ModelRoleAssignmentRequest) -> ModelRoleAssignment:
+        if self.get_model(request.bundle_id) is None:
+            raise ValueError(f"Model bundle nicht gefunden: {request.bundle_id}")
+        required = _required_certifications_for_role(request.role, request.safety_level)
+        passed = self._passed_certifications(request.bundle_id)
+        missing = [cert for cert in required if cert not in passed]
+        if request.enabled and missing:
+            raise ValueError(
+                f"Rolle {request.role} braucht fehlende Zertifikate: {', '.join(missing)}"
+            )
+        now = datetime.now(UTC)
+        assignment_id = uuid.uuid4().hex
+        with sqlite_connection(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO model_role_assignments(
+                    id, bundle_id, role, safety_level, enabled, priority,
+                    required_certifications, notes, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(bundle_id, role) DO UPDATE SET
+                    safety_level=excluded.safety_level,
+                    enabled=excluded.enabled,
+                    priority=excluded.priority,
+                    required_certifications=excluded.required_certifications,
+                    notes=excluded.notes,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    assignment_id,
+                    request.bundle_id,
+                    request.role,
+                    request.safety_level,
+                    int(request.enabled),
+                    request.priority,
+                    json.dumps(required, sort_keys=True),
+                    request.notes,
+                    _dt(now),
+                    _dt(now),
+                ),
+            )
+            row = conn.execute(
+                "SELECT * FROM model_role_assignments WHERE bundle_id = ? AND role = ?",
+                (request.bundle_id, request.role),
+            ).fetchone()
+        return _role_assignment_from_row(row)
+
+    def list_probe_runs(self, bundle_id: str | None = None) -> list[ModelProbeRun]:
+        with sqlite_connection(self.db_path) as conn:
+            if bundle_id:
+                rows = conn.execute(
+                    "SELECT * FROM probe_runs WHERE bundle_id = ? ORDER BY started_at DESC",
+                    (bundle_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute("SELECT * FROM probe_runs ORDER BY started_at DESC").fetchall()
+        return [_probe_run_from_row(row) for row in rows]
+
+    def list_benchmark_runs(self, bundle_id: str | None = None) -> list[ModelBenchmarkRun]:
+        with sqlite_connection(self.db_path) as conn:
+            if bundle_id:
+                rows = conn.execute(
+                    "SELECT * FROM benchmark_runs WHERE bundle_id = ? ORDER BY started_at DESC",
+                    (bundle_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute("SELECT * FROM benchmark_runs ORDER BY started_at DESC").fetchall()
+        return [_benchmark_run_from_row(row) for row in rows]
+
+    def list_certifications(self, bundle_id: str | None = None) -> list[ModelCertificationRecord]:
+        with sqlite_connection(self.db_path) as conn:
+            if bundle_id:
+                rows = conn.execute(
+                    "SELECT * FROM certifications WHERE bundle_id = ? ORDER BY certification",
+                    (bundle_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute("SELECT * FROM certifications ORDER BY bundle_id, certification").fetchall()
+        return [_certification_from_row(row) for row in rows]
+
+    def list_role_assignments(self, role: str | None = None) -> list[ModelRoleAssignment]:
+        with sqlite_connection(self.db_path) as conn:
+            if role:
+                rows = conn.execute(
+                    "SELECT * FROM model_role_assignments WHERE role = ? ORDER BY enabled DESC, priority, updated_at DESC",
+                    (role,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM model_role_assignments ORDER BY role, enabled DESC, priority"
+                ).fetchall()
+        return [_role_assignment_from_row(row) for row in rows]
+
+    def list_failures(self, bundle_id: str | None = None) -> list[ModelFailureRecord]:
+        with sqlite_connection(self.db_path) as conn:
+            if bundle_id:
+                rows = conn.execute(
+                    "SELECT * FROM model_failures WHERE bundle_id = ? ORDER BY created_at DESC",
+                    (bundle_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute("SELECT * FROM model_failures ORDER BY created_at DESC").fetchall()
+        return [_failure_from_row(row) for row in rows]
+
+    def record_failure(self, *, bundle_id: str | None, operation: str, message: str, details: dict[str, object] | None = None) -> ModelFailureRecord:
+        now = datetime.now(UTC)
+        record = ModelFailureRecord(
+            id=uuid.uuid4().hex,
+            bundle_id=bundle_id,
+            operation=operation,
+            message=message,
+            details=details or {},
+            created_at=now,
+        )
+        with sqlite_connection(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO model_failures(id, bundle_id, artifact_id, operation, severity, message, details, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record.id,
+                    record.bundle_id,
+                    record.artifact_id,
+                    record.operation,
+                    record.severity,
+                    record.message,
+                    json.dumps(record.details, sort_keys=True),
+                    _dt(record.created_at),
+                ),
+            )
+        return record
+
+    def _passed_certifications(self, bundle_id: str) -> set[str]:
+        with sqlite_connection(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT certification FROM certifications WHERE bundle_id = ? AND status = 'passed'",
+                (bundle_id,),
+            ).fetchall()
+        return {str(row["certification"]) for row in rows}
+
+    def _seed_runtime_adapters(self, conn: sqlite3.Connection) -> None:
+        now = _dt(datetime.now(UTC))
+        adapters = [
+            ("llama.cpp", "llama.cpp / llama-server", 10, ["gguf"]),
+            ("ollama", "Ollama", 20, ["ollama"]),
+            ("transformers", "Transformers", 30, ["safetensors", "bin"]),
+            ("vllm", "vLLM", 40, ["safetensors"]),
+            ("onnxruntime", "ONNX Runtime", 50, ["onnx"]),
+            ("diffusers", "Diffusers", 60, ["safetensors"]),
+            ("whisper", "Whisper", 70, ["gguf", "bin"]),
+        ]
+        for adapter_id, name, priority, formats in adapters:
+            conn.execute(
+                """
+                INSERT INTO runtime_adapters(id, name, priority, enabled, supported_formats, created_at, updated_at)
+                VALUES (?, ?, ?, 1, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name=excluded.name,
+                    priority=excluded.priority,
+                    supported_formats=excluded.supported_formats,
+                    updated_at=excluded.updated_at
+                """,
+                (adapter_id, name, priority, json.dumps(formats, sort_keys=True), now, now),
+            )
+
+    def _seed_execution_policies(self, conn: sqlite3.Connection) -> None:
+        now = _dt(datetime.now(UTC))
+        for role, (max_safety, required) in _ROLE_POLICY.items():
+            conn.execute(
+                """
+                INSERT INTO agent_execution_policies(role, max_safety_level, required_certifications, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(role) DO UPDATE SET
+                    max_safety_level=excluded.max_safety_level,
+                    required_certifications=excluded.required_certifications,
+                    updated_at=excluded.updated_at
+                """,
+                (role, max_safety, json.dumps(required, sort_keys=True), now),
+            )
+
 
 def _source_from_row(row: sqlite3.Row) -> ModelSource:
     return ModelSource(
@@ -515,6 +1024,8 @@ def _job_from_row(row: sqlite3.Row) -> ScanJob:
         started_at=_parse_dt(row["started_at"]) if row["started_at"] else None,
         completed_at=_parse_dt(row["completed_at"]) if row["completed_at"] else None,
         created_at=_parse_dt(row["created_at"]),
+        progress_message=row["progress_message"] if "progress_message" in row.keys() else None,
+        progress_events=json.loads(row["progress_events"] or "[]") if "progress_events" in row.keys() else [],
     )
 
 
@@ -640,10 +1151,178 @@ def _collection_from_row(row: sqlite3.Row) -> ModelCollection:
     )
 
 
+def _logical_model_from_row(row: sqlite3.Row) -> LogicalModel:
+    return LogicalModel(
+        logical_model_id=str(row["logical_model_id"]),
+        display_name=str(row["display_name"]),
+        family=str(row["family"]),
+        architecture=row["architecture"],
+        primary_bundle_id=row["primary_bundle_id"],
+        bundle_ids=json.loads(row["bundle_ids"] or "[]"),
+        capabilities=json.loads(row["capabilities"] or "[]"),
+        modalities=json.loads(row["modalities"] or "[]"),
+        status=row["status"],
+        created_at=_parse_dt(row["created_at"]),
+        updated_at=_parse_dt(row["updated_at"]),
+    )
+
+
+def _runtime_adapter_from_row(row: sqlite3.Row) -> RuntimeAdapterRecord:
+    return RuntimeAdapterRecord(
+        id=str(row["id"]),
+        name=str(row["name"]),
+        priority=int(row["priority"]),
+        enabled=bool(row["enabled"]),
+        supported_formats=json.loads(row["supported_formats"] or "[]"),
+        created_at=_parse_dt(row["created_at"]),
+        updated_at=_parse_dt(row["updated_at"]),
+    )
+
+
+def _runtime_preset_from_row(row: sqlite3.Row) -> RuntimePresetRecord:
+    return RuntimePresetRecord(
+        id=str(row["id"]),
+        name=str(row["name"]),
+        adapter_id=str(row["adapter_id"]),
+        bundle_id=row["bundle_id"],
+        profile=str(row["profile"]),
+        config=json.loads(row["config"] or "{}"),
+        created_at=_parse_dt(row["created_at"]),
+        updated_at=_parse_dt(row["updated_at"]),
+    )
+
+
+def _probe_run_from_row(row: sqlite3.Row) -> ModelProbeRun:
+    return ModelProbeRun(
+        id=str(row["id"]),
+        bundle_id=str(row["bundle_id"]),
+        adapter_id=str(row["adapter_id"]),
+        status=row["status"],
+        allow_start=bool(row["allow_start"]),
+        message=str(row["message"]),
+        metrics=json.loads(row["metrics"] or "{}"),
+        error=row["error"],
+        started_at=_parse_dt(row["started_at"]),
+        completed_at=_parse_dt(row["completed_at"]) if row["completed_at"] else None,
+    )
+
+
+def _benchmark_run_from_row(row: sqlite3.Row) -> ModelBenchmarkRun:
+    return ModelBenchmarkRun(
+        id=str(row["id"]),
+        bundle_id=str(row["bundle_id"]),
+        adapter_id=str(row["adapter_id"]),
+        profile=str(row["profile"]),
+        status=row["status"],
+        measurements=json.loads(row["measurements"] or "{}"),
+        message=str(row["message"] or ""),
+        started_at=_parse_dt(row["started_at"]),
+        completed_at=_parse_dt(row["completed_at"]) if row["completed_at"] else None,
+    )
+
+
+def _certification_from_row(row: sqlite3.Row) -> ModelCertificationRecord:
+    return ModelCertificationRecord(
+        id=str(row["id"]),
+        bundle_id=str(row["bundle_id"]),
+        certification=row["certification"],
+        status=row["status"],
+        evidence=json.loads(row["evidence"] or "{}"),
+        notes=str(row["notes"] or ""),
+        created_at=_parse_dt(row["created_at"]),
+        updated_at=_parse_dt(row["updated_at"]),
+    )
+
+
+def _role_assignment_from_row(row: sqlite3.Row) -> ModelRoleAssignment:
+    return ModelRoleAssignment(
+        id=str(row["id"]),
+        bundle_id=str(row["bundle_id"]),
+        role=row["role"],
+        safety_level=row["safety_level"],
+        enabled=bool(row["enabled"]),
+        priority=int(row["priority"]),
+        required_certifications=json.loads(row["required_certifications"] or "[]"),
+        notes=str(row["notes"] or ""),
+        created_at=_parse_dt(row["created_at"]),
+        updated_at=_parse_dt(row["updated_at"]),
+    )
+
+
+def _failure_from_row(row: sqlite3.Row) -> ModelFailureRecord:
+    return ModelFailureRecord(
+        id=str(row["id"]),
+        bundle_id=row["bundle_id"],
+        artifact_id=row["artifact_id"],
+        operation=str(row["operation"]),
+        severity=row["severity"],
+        message=str(row["message"]),
+        details=json.loads(row["details"] or "{}"),
+        created_at=_parse_dt(row["created_at"]),
+    )
+
+
 def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
     columns = {str(row["name"]) for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
     if column not in columns:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
+_ROLE_POLICY: dict[str, tuple[str, list[str]]] = {
+    "MAIN_AGENT": ("LEVEL_1_READ_ONLY_TOOLS", ["CHAT_VERIFIED", "INSTRUCTION_FOLLOWING_VERIFIED"]),
+    "DEEP_RESEARCH_AGENT": ("LEVEL_1_READ_ONLY_TOOLS", ["DEEP_RESEARCH_VERIFIED", "READ_ONLY_AGENT_VERIFIED"]),
+    "FAST_GENERAL_AGENT": ("LEVEL_1_READ_ONLY_TOOLS", ["CHAT_VERIFIED", "STRUCTURED_OUTPUT_VERIFIED"]),
+    "MICRO_TOOL_AGENT": ("LEVEL_1_READ_ONLY_TOOLS", ["TOOL_CALLING_VERIFIED", "READ_ONLY_AGENT_VERIFIED"]),
+    "CODING_EXECUTOR": ("LEVEL_2_WORKSPACE_WRITE", ["CODING_VERIFIED", "STRUCTURED_OUTPUT_VERIFIED"]),
+    "ALGORITHM_SPECIALIST": ("LEVEL_1_READ_ONLY_TOOLS", ["CODING_VERIFIED"]),
+    "REASONING_VALIDATOR": ("LEVEL_1_READ_ONLY_TOOLS", ["INSTRUCTION_FOLLOWING_VERIFIED"]),
+    "REPORT_GENERATOR": ("LEVEL_0_CHAT_ONLY", ["REPORT_GENERATION_VERIFIED"]),
+}
+
+
+_STATUS_RANK = {
+    "CERTIFIED": 90,
+    "BENCHMARKED": 80,
+    "TUNED": 70,
+    "LOADABLE": 60,
+    "COMPATIBLE": 50,
+    "IDENTIFIED": 40,
+    "DISCOVERED": 30,
+    "INCOMPLETE": 20,
+    "DEGRADED": 15,
+    "UNSUPPORTED": 10,
+    "BROKEN": 5,
+    "QUARANTINED": 0,
+}
+
+
+def _logical_family(name: str) -> str:
+    stem = Path(name).stem.lower()
+    stem = re.sub(r"(?:^|[-_.])(?:iq\d_[a-z0-9_]+|q\d(?:_[a-z0-9]+)+|q\d+|f16|bf16)(?:[-_.]|$)", "-", stem)
+    tokens = stem.replace("_", "-").split("-")
+    filtered = [
+        token
+        for token in tokens
+        if token and token not in {"gguf", "model"}
+    ]
+    return "-".join(filtered[:6]) or stem
+
+
+def _logical_model_id(family: str) -> str:
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"dbzs:model-lab:logical:{family}").hex
+
+
+def _best_status(statuses: list[str]) -> str:
+    return max(statuses or ["DISCOVERED"], key=lambda status: _STATUS_RANK.get(status, 0))
+
+
+def _required_certifications_for_role(role: str, safety_level: str) -> list[str]:
+    required = list(_ROLE_POLICY.get(role, ("LEVEL_0_CHAT_ONLY", []))[1])
+    if safety_level in {"LEVEL_2_WORKSPACE_WRITE", "LEVEL_3_TERMINAL_LIMITED", "LEVEL_4_SHELL_AND_GIT"}:
+        required.append("WRITE_AGENT_VERIFIED")
+    if safety_level == "LEVEL_4_SHELL_AND_GIT":
+        required.append("REPOSITORY_QA_VERIFIED")
+    return sorted(set(required))
 
 
 def _dt(value: datetime) -> str:

@@ -1,6 +1,6 @@
 # TODO
 
-Stand: 2026-07-31
+Stand: 2026-08-01
 
 ## Jetzt direkt
 
@@ -46,6 +46,50 @@ hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht no
       `docs/audits/GOLDEN_PATH_MANUAL_VERIFICATION_SCRIPT.md`, Abschnitt D.1).
 - [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen) —
       Rescan-Button selbst bereits `UI_VERIFIED` (364 Modelle, keine Regression)
+- [x] zwei neue Plan-Dateien eingeordnet; beide sind im aktuellen Git-Stand getrackt:
+      `Pläne/14 DBZS_CODEE_BACKEND_BRIDGE_REVIEW.md` und
+      `Pläne/Codee_Agentenmodelle_Auswahl_Liste Teil I.md`
+
+## Neu offen: Plan 15 Agentic Model Fleet Integration
+
+Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Branch:
+`codex/agentic-model-fleet-integration`.
+
+- [x] Foundation-Slice umgesetzt: Model-Lab-Schema v3, logische Modelle, Runtime-Adapter/-Presets,
+      Probe-/Benchmark-Runs, Zertifikate, Rollen-Zuweisungen, Failures, Agent-Execution-Policies,
+      neue `/model-lab`-Endpunkte und offizielle optionale Desktop-Bridge-/IPC-/Preload-Vertraege.
+- [x] Rollen-Gate erzwingt Zertifikate: keine aktive Fleet-Rolle nur auf Basis von Dateiname/Heuristik;
+      Workspace-/Write-Rollen verlangen zusaetzlich `WRITE_AGENT_VERIFIED`.
+- [x] Sicheres Probe-Gate: `probeModel` speichert ohne `allow_start` einen `skipped`-Run und startet kein
+      lokales Modell.
+- [ ] `D:\Models\Agentic` als erste produktive Quelle registrieren/scannen und den veralteten lokalen
+      Model-Katalog auf dieser Maschine neu erzeugen.
+- [ ] `llama.cpp`-RuntimeAdapter live verdrahten: detect, validate_artifact, build_command, probe_load,
+      health_check, benchmark, collect_metrics, stop.
+- [ ] GPU-Autotuning-Matrix aus Plan 15 als Presets/Messlaeufe ausfuehren und Profile
+      `best_low_latency`, `best_throughput`, `safe_balanced`, `cpu_fallback`, `large_context` persistieren.
+- [ ] Fleet Console UI ausbauen: Compatibility, Tuning Lab, Benchmarks, Certification, Roles & Routing,
+      Runtime, Failures, Metadata.
+- [ ] manuelle Abnahme mit echten Modellen: MiniCPM5-1B, QwenPaw-Flash-2B, Agents-A1-4B,
+      AgentCPM-Explore, Nemotron-3-Nano-4B; danach DeepCoder, DeepScaleR, QwenPaw-Flash-4B,
+      AgentCPM-Report.
+- [ ] Plan-14/Runtime-Restpunkte im Fleet-Kontext weiterfuehren: `vision_gpu` mit echtem Qwen2.5-VL/MMProj
+      pruefen, GPU-Exklusivitaet mit zwei echten Modellen bestaetigen, Qwen2.5-Coder-Crash root-causen,
+      Role-Model-Fallback in echter Session bestaetigen.
+
+## Neu offen: Plan 14 RAG-/Reranking-Folgen
+
+Basis: `HANDOVER.md`, Stand 2026-08-01. `/embeddings` und `/rerank` sind umgesetzt und automatisiert
+verifiziert; offen sind die Anschlussarbeiten, die bewusst nicht in denselben Slice gehoerten:
+
+- [ ] zwei vorbestehend haengende Backend-Tests separat diagnostizieren:
+      `test_model_profiles.py::test_profile_validation` und
+      `test_residency_cache.py::test_sweep_idle_slots_evicts_utility_but_not_keep_resident`
+- [ ] RAG `retrieve()` optional automatisch `query_embedding` berechnen lassen, wenn ein
+      `defaultEmbeddingModelId` konfiguriert ist
+- [ ] Frontend-seitige Modell-Auswahl in `embeddingService.ts` mit dem Model-Lab-ID-Raum versoehnen oder die
+      kosmetisch wirkungslose Client-Modellauswahl sichtbar entfernen/erklaeren; der Server ignoriert das
+      gesendete `model`-Feld aktuell bewusst und nutzt das konfigurierte Standardmodell
 
 ## Neu offen: Phase 4 manuell abnehmen
 

@@ -40,7 +40,15 @@ def test_model_lab_registry_initializes_schema(tmp_path: Path) -> None:
     assert "model_bundles" in tables
     assert "model_metadata" in tables
     assert "model_collections" in tables
-    assert version == "2"
+    assert "logical_models" in tables
+    assert "runtime_adapters" in tables
+    assert "probe_runs" in tables
+    assert "benchmark_runs" in tables
+    assert "certifications" in tables
+    assert "model_role_assignments" in tables
+    assert "model_failures" in tables
+    assert "agent_execution_policies" in tables
+    assert version == "3"
 
 
 def test_model_lab_source_scan_and_model_detail_api(tmp_path: Path) -> None:
@@ -170,6 +178,54 @@ def test_model_lab_metadata_collections_and_duplicates_api(tmp_path: Path) -> No
     app.dependency_overrides.clear()
     assert duplicates
     assert duplicates[0]["model_count"] == 2
+
+
+def test_model_lab_fleet_endpoints_record_safe_gates_and_roles(tmp_path: Path) -> None:
+    models_dir = tmp_path / "models"
+    models_dir.mkdir()
+    (models_dir / "minicpm5-1b-agentic-tooluse-Q4_K_M.gguf").write_bytes(b"GGUF-model")
+
+    app.dependency_overrides[get_model_lab_service] = lambda: _service(tmp_path / "test.sqlite3")
+    client = TestClient(app)
+    source_id = client.post("/model-lab/sources", json={"path": str(models_dir)}).json()["id"]
+    client.post("/model-lab/scan", json={"source_id": source_id})
+    bundle_id = client.get("/model-lab/models").json()[0]["bundle"]["bundle_id"]
+
+    logical = client.get("/model-lab/logical-models")
+    assert logical.status_code == 200
+    assert logical.json()[0]["primary_bundle_id"] == bundle_id
+
+    adapters = client.get("/model-lab/runtime-adapters")
+    assert adapters.status_code == 200
+    assert adapters.json()[0]["id"] == "llama.cpp"
+
+    probe = client.post("/model-lab/probe", json={"bundle_id": bundle_id})
+    assert probe.status_code == 200
+    assert probe.json()["status"] == "skipped"
+    assert probe.json()["allow_start"] is False
+
+    role_without_evidence = client.post(
+        "/model-lab/role-assignments",
+        json={"bundle_id": bundle_id, "role": "MICRO_TOOL_AGENT", "safety_level": "LEVEL_1_READ_ONLY_TOOLS"},
+    )
+    assert role_without_evidence.status_code == 400
+    assert "fehlende Zertifikate" in role_without_evidence.json()["detail"]
+
+    for certification in ("TOOL_CALLING_VERIFIED", "READ_ONLY_AGENT_VERIFIED"):
+        response = client.post(
+            "/model-lab/certifications",
+            json={"bundle_id": bundle_id, "certification": certification, "evidence": {"test": "unit"}},
+        )
+        assert response.status_code == 200
+
+    role = client.post(
+        "/model-lab/role-assignments",
+        json={"bundle_id": bundle_id, "role": "MICRO_TOOL_AGENT", "safety_level": "LEVEL_1_READ_ONLY_TOOLS"},
+    )
+    app.dependency_overrides.clear()
+    assert role.status_code == 200
+    assert role.json()["enabled"] is True
+    assert set(role.json()["required_certifications"]) == {"TOOL_CALLING_VERIFIED", "READ_ONLY_AGENT_VERIFIED"}
 
 
 def test_huggingface_search_uses_category_filter_without_network() -> None:

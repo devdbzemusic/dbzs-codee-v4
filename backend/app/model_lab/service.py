@@ -4,7 +4,33 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from app.model_lab.hf_integration import HuggingFaceModelService
-from app.model_lab.models import DuplicateGroup, HardwareProfile, HuggingFaceRepoInfo, HuggingFaceSearchResult, ModelBundle, ModelCollection, ModelCollectionCreate, ModelLabModel, ModelMetadataUpdate, ModelSource, ModelSourceCreate, ScanJob, ScanResult
+from app.model_lab.models import (
+    DuplicateGroup,
+    HardwareProfile,
+    HuggingFaceRepoInfo,
+    HuggingFaceSearchResult,
+    LogicalModel,
+    ModelBenchmarkRequest,
+    ModelBenchmarkRun,
+    ModelBundle,
+    ModelCertificationRecord,
+    ModelCertificationRequest,
+    ModelCollection,
+    ModelCollectionCreate,
+    ModelFailureRecord,
+    ModelLabModel,
+    ModelMetadataUpdate,
+    ModelProbeRequest,
+    ModelProbeRun,
+    ModelRoleAssignment,
+    ModelRoleAssignmentRequest,
+    ModelSource,
+    ModelSourceCreate,
+    RuntimeAdapterRecord,
+    RuntimePresetRecord,
+    ScanJob,
+    ScanResult,
+)
 from app.model_lab.repository import ModelLabRepository
 from app.model_lab.scanner import ModelLabScanner
 from app.runtime.gpu_detect import detect_gpu
@@ -132,6 +158,67 @@ class ModelLabService:
             runtime_backend=fingerprint.runtime_backend,
             collected_at=datetime.now(UTC),
         )
+
+    def list_logical_models(self) -> list[LogicalModel]:
+        return self.repository.list_logical_models()
+
+    def get_logical_model(self, logical_model_id: str) -> LogicalModel | None:
+        return self.repository.get_logical_model(logical_model_id)
+
+    def list_runtime_adapters(self) -> list[RuntimeAdapterRecord]:
+        return self.repository.list_runtime_adapters()
+
+    def list_runtime_presets(self) -> list[RuntimePresetRecord]:
+        return self.repository.list_runtime_presets()
+
+    def probe_model(self, request: ModelProbeRequest) -> ModelProbeRun:
+        model = self.repository.get_model(request.bundle_id)
+        if model is None:
+            raise ValueError(f"Model bundle nicht gefunden: {request.bundle_id}")
+        primary = next((artifact for artifact in model.artifacts if artifact.artifact_id == model.bundle.primary_artifact_id), None)
+        if primary is None:
+            message = "Probe uebersprungen: Bundle hat kein startbares Primaerartefakt."
+            self.repository.record_failure(bundle_id=request.bundle_id, operation="probeModel", message=message)
+            return self.repository.create_probe_run(request, status="skipped", message=message)
+        if request.adapter_id == "llama.cpp" and primary.format != "gguf":
+            message = f"Probe fehlgeschlagen: llama.cpp unterstuetzt dieses Format nicht: {primary.format}"
+            self.repository.record_failure(
+                bundle_id=request.bundle_id,
+                operation="probeModel",
+                message=message,
+                details={"format": primary.format, "artifact_id": primary.artifact_id},
+            )
+            return self.repository.create_probe_run(request, status="failed", message=message, error=message)
+        if not request.allow_start:
+            message = "Probe als sichere Vorpruefung gespeichert; Runtime-Start wurde nicht erlaubt."
+            return self.repository.create_probe_run(request, status="skipped", message=message)
+        message = "Runtime-Start-Gate akzeptiert; Live-Probe wird in der naechsten RuntimeAdapter-Phase ausgefuehrt."
+        return self.repository.create_probe_run(request, status="queued", message=message)
+
+    def benchmark_model(self, request: ModelBenchmarkRequest) -> ModelBenchmarkRun:
+        message = "Benchmark-Messung gespeichert; echte Laufzeitmessung folgt ueber RuntimeAdapter-Gate."
+        return self.repository.create_benchmark_run(request, status="queued", message=message)
+
+    def certify_model(self, request: ModelCertificationRequest) -> ModelCertificationRecord:
+        return self.repository.upsert_certification(request)
+
+    def assign_model_role(self, request: ModelRoleAssignmentRequest) -> ModelRoleAssignment:
+        return self.repository.assign_model_role(request)
+
+    def list_certifications(self, bundle_id: str | None = None) -> list[ModelCertificationRecord]:
+        return self.repository.list_certifications(bundle_id=bundle_id)
+
+    def list_role_assignments(self, role: str | None = None) -> list[ModelRoleAssignment]:
+        return self.repository.list_role_assignments(role=role)
+
+    def list_probe_runs(self, bundle_id: str | None = None) -> list[ModelProbeRun]:
+        return self.repository.list_probe_runs(bundle_id=bundle_id)
+
+    def list_benchmark_runs(self, bundle_id: str | None = None) -> list[ModelBenchmarkRun]:
+        return self.repository.list_benchmark_runs(bundle_id=bundle_id)
+
+    def list_failures(self, bundle_id: str | None = None) -> list[ModelFailureRecord]:
+        return self.repository.list_failures(bundle_id=bundle_id)
 
     def _scan_sources(self, source_id: str | None) -> list[ModelSource]:
         if source_id:

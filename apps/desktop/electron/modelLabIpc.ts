@@ -12,7 +12,11 @@
 import { ipcMain } from "electron";
 import type {
   ModelLabCollectionCreate,
+  ModelLabBenchmarkRequest,
+  ModelLabCertificationRequest,
   ModelLabMetadataUpdate,
+  ModelLabProbeRequest,
+  ModelLabRoleAssignmentRequest,
   ModelLabScanRequest,
   ModelLabSourceCreate
 } from "@dbzs/shared";
@@ -90,4 +94,54 @@ export function registerModelLabIpcHandlers(options: RegisterModelLabIpcOptions)
     return requestBackend(`/model-lab/hf/repos/${encodeURIComponent(repoId)}${params}`);
   });
   ipcMain.handle("dbzs:model-lab:hardware", () => requestBackend("/model-lab/hardware"));
+  ipcMain.handle("dbzs:model-lab:logical-models:list", () => requestBackend("/model-lab/logical-models"));
+  ipcMain.handle("dbzs:model-lab:logical-models:get", (_event, logicalModelId: string) =>
+    requestBackend(`/model-lab/logical-models/${encodeURIComponent(logicalModelId)}`)
+  );
+  ipcMain.handle("dbzs:model-lab:runtime-adapters:list", () => requestBackend("/model-lab/runtime-adapters"));
+  ipcMain.handle("dbzs:model-lab:runtime-presets:list", () => requestBackend("/model-lab/runtime-presets"));
+  ipcMain.handle("dbzs:model-lab:probe", (_event, request: ModelLabProbeRequest) =>
+    requestBackend("/model-lab/probe", {
+      method: "POST",
+      body: JSON.stringify(request)
+    })
+  );
+  ipcMain.handle("dbzs:model-lab:probe-runs:list", (_event, bundleId?: string) => {
+    const params = bundleId ? `?bundle_id=${encodeURIComponent(bundleId)}` : "";
+    return requestBackend(`/model-lab/probe-runs${params}`);
+  });
+  ipcMain.handle("dbzs:model-lab:benchmark", (_event, request: ModelLabBenchmarkRequest) =>
+    requestBackend("/model-lab/benchmark", {
+      method: "POST",
+      body: JSON.stringify(request)
+    })
+  );
+  ipcMain.handle("dbzs:model-lab:benchmark-runs:list", (_event, bundleId?: string) => {
+    const params = bundleId ? `?bundle_id=${encodeURIComponent(bundleId)}` : "";
+    return requestBackend(`/model-lab/benchmark-runs${params}`);
+  });
+  ipcMain.handle("dbzs:model-lab:certifications:create", (_event, request: ModelLabCertificationRequest) =>
+    requestBackend("/model-lab/certifications", {
+      method: "POST",
+      body: JSON.stringify(request)
+    })
+  );
+  ipcMain.handle("dbzs:model-lab:certifications:list", (_event, bundleId?: string) => {
+    const params = bundleId ? `?bundle_id=${encodeURIComponent(bundleId)}` : "";
+    return requestBackend(`/model-lab/certifications${params}`);
+  });
+  ipcMain.handle("dbzs:model-lab:role-assignments:create", (_event, request: ModelLabRoleAssignmentRequest) =>
+    requestBackend("/model-lab/role-assignments", {
+      method: "POST",
+      body: JSON.stringify(request)
+    })
+  );
+  ipcMain.handle("dbzs:model-lab:role-assignments:list", (_event, role?: string) => {
+    const params = role ? `?role=${encodeURIComponent(role)}` : "";
+    return requestBackend(`/model-lab/role-assignments${params}`);
+  });
+  ipcMain.handle("dbzs:model-lab:failures:list", (_event, bundleId?: string) => {
+    const params = bundleId ? `?bundle_id=${encodeURIComponent(bundleId)}` : "";
+    return requestBackend(`/model-lab/failures${params}`);
+  });
 }

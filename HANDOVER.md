@@ -2,6 +2,50 @@
 
 Stand: 2026-08-01
 
+## Aktuelle Repo-/Statuslage (2026-08-01)
+
+Frisch geprueft nach `git fetch origin --prune`: `origin/main` zeigt auf `a98e070` (Merge von PR #32).
+Der lokale Branch `feature/runtime-chat-ux-overhaul` ist mit `origin/feature/runtime-chat-ux-overhaul`
+synchron und gegenueber `origin/main` nur um den Merge-Commit hinterher; die fachlichen Commits
+`b7bbd9b`, `1249e4c` und `b440763` sind in `main` enthalten.
+
+Die zuvor aufgefallenen Plan-Dateien `Pläne/14 DBZS_CODEE_BACKEND_BRIDGE_REVIEW.md` und
+`Pläne/Codee_Agentenmodelle_Auswahl_Liste Teil I.md` sind im aktuellen Git-Stand getrackt; es bleibt keine
+separate Untracked-Entscheidung fuer diese beiden Dateien offen.
+
+## Plan 15: Agentic Model Fleet Integration, Foundation-Slice gestartet (2026-08-01)
+
+Branch: `codex/agentic-model-fleet-integration`. Basis ist der aktuelle Arbeitsstand inklusive der
+Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`.
+
+**Umgesetzt:**
+- Model Lab SQLite-Schema auf Version 3 erweitert: logische Modelle, Runtime-Adapter/-Presets,
+  Hardware-Snapshots, Probe-/Benchmark-Runs, Capability Evidence, Zertifikate, Rollen-Zuweisungen,
+  Failures und Agent-Execution-Policies.
+- Statuskette auf die Masterplan-Stufen erweitert (`COMPATIBLE`, `LOADABLE`, `TUNED`, `BENCHMARKED`,
+  `CERTIFIED`, `DEGRADED`, `QUARANTINED`), bestehende Altstatus bleiben kompatibel.
+- Neue Model-Lab/Fleet-Endpunkte unter `/model-lab`: logical models, runtime adapters/presets,
+  `probe`, probe-runs, benchmark-runs, certifications, role-assignments und failures.
+- `DesktopBridgeV1`, Electron-IPC, Preload und `backendClient` kennen die neuen Fleet-Operationen.
+  Die Bridge-Methoden bleiben optional, damit bestehende Test-/Mock-Teilbruecken kompatibel bleiben.
+- `probeModel` ist im ersten Slice absichtlich ein sicheres Gate: ohne `allow_start` wird ein
+  nachvollziehbarer `skipped`-Probe-Run gespeichert, aber kein lokales Modell gestartet.
+- Rollen-Zuweisungen werden nicht dateinamensbasiert freigegeben, sondern verlangen die im Masterplan
+  definierten Zertifikate; Schreib-/Workspace-Rollen verlangen zusaetzlich `WRITE_AGENT_VERIFIED`.
+
+**Frisch verifiziert:**
+- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab.py backend/tests/test_model_lab_repository.py backend/tests/test_model_lab_scan_jobs.py backend/tests/test_model_lab_bridge.py -q` -> 23/23 gruen
+- `npm run typecheck` in `apps/desktop` -> gruen
+- `npm run test -- src/components/notebook/ModelLabTab.controller.test.tsx src/components/notebook/RuntimeModelsTab.test.ts src/services/modelSelectionBroker.test.ts src/services/runtimeSlotManager.test.ts` in `apps/desktop` -> 88/88 gruen
+
+**Noch offen fuer die naechsten Gates:**
+- echter Scan von `D:\Models\Agentic`, Katalog-Rescan und produktive Modellreihenfolge aus Plan 15 abarbeiten
+- RuntimeAdapter-Live-Probe fuer `llama.cpp` implementieren, danach GPU-Autotuning und Benchmarks
+- Fleet Console UI ausbauen: Compatibility, Tuning Lab, Benchmarks, Certification, Roles & Routing, Failures
+- Plan-14-Folgen im selben Themengebiet weiterfuehren: haengende Backend-Tests diagnostizieren,
+  RAG-`retrieve()` optional mit Default-Embedding berechnen lassen und `embeddingService.ts`/Model-Lab-ID-Raum
+  endgueltig versoehnen
+
 ## Plan 14, Phase 2 Fortsetzung: `/embeddings` + `/rerank` (echten Produktionsbug behoben + Reranking) (2026-08-01)
 
 Auftrag war "Reranking-Faehigkeit hinzufuegen". Die Recherche dafuer deckte einen wichtigeren, bereits
@@ -546,7 +590,7 @@ getestet.
 
 - aktiver GitHub-Remote: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
 - lokaler Ordnername bleibt aktuell `dbzs-codee-project`
-- `origin/main` zeigt auf `f909fd9` (Merge-Commit von [PR #6](https://github.com/devdbzemusic/dbzs-codee-v4/pull/6))
+- historischer Merge-Stand fuer [PR #6](https://github.com/devdbzemusic/dbzs-codee-v4/pull/6): `f909fd9`
 - offene Pull Requests im Live-Repo: keine
 - Branch Protection fuer `main`: aktuell nicht aktiv
 - der Feature-Branch `feature/runtime-chat-ux-overhaul` ist nach dem PR-#6-Merge sauber (keine losen

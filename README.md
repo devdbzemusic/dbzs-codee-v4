@@ -6,14 +6,22 @@ Lokaler Ordnername und einige historische Dokumente verwenden noch `dbzs-codee-p
 
 ## Aktueller Stand
 
-Stand: 2026-07-31
+Stand: 2026-08-01
 
+- [PR #32](https://github.com/devdbzemusic/dbzs-codee-v4/pull/32) ist gemergt: `origin/main` zeigt nach
+  frischem `git fetch` auf `a98e070`. Enthalten sind die Desktop-Bridge-Contracts, IPC-Regressionstests und
+  die Plan-14-Fortsetzung fuer echte `POST /embeddings`- und `POST /rerank`-Endpunkte auf Basis des
+  bestehenden ONNX-/Model-Lab-Pfads. Der lokale Branch `feature/runtime-chat-ux-overhaul` ist mit
+  `origin/feature/runtime-chat-ux-overhaul` synchron und gegenueber `origin/main` nur um diesen Merge-Commit
+  hinterher.
+- [PR #31](https://github.com/devdbzemusic/dbzs-codee-v4/pull/31) ist gemergt: Model-Lab-sourcierter
+  Embedding-Modell-Picker und konkretere Runtime-Exclusion-Gruende in der UI.
 - [PR #14](https://github.com/devdbzemusic/dbzs-codee-v4/pull/14) (Abnahme-Test-Playbook-Infrastruktur, plus
   drei begleitende Runtime-Chat-Fixes) ist gemergt: `pnpm acceptance:new-run` legt einen strukturierten
   Abnahme-Run an (`Pläne/10 DBZS_CODEE_V4_ABNAHME_TEST_PLAYBOOK.md`), `verification-run.json`-Generator,
   Vorher-/Nachher-Hashes für Patch-Apply/Rollback, Doku-Drift-Checker (`pnpm docs:check-drift`), und ein
   echter, vollständig ausgeführter `SERVICE_VERIFIED`-Lauf (SV-01, SV-03–09 PASS, SV-02-Wrapper BLOCKED weil
-  `pnpm`/`uv` in der Sandbox fehlen — Teilschritte einzeln alle grün). `origin/main` zeigt auf `ff911bd`.
+  `pnpm`/`uv` in der Sandbox fehlen — Teilschritte einzeln alle grün).
 - [PR #13](https://github.com/devdbzemusic/dbzs-codee-v4/pull/13) (Produktionsreife-Revision Phase 4 —
   Installer & Updatefähigkeit, plus drei begleitende Runtime-Chat-Fixes) ist gemergt: Diagnose-ZIP-Export
   (crash.log/Settings/Modellindex gebündelt, ohne neue npm-Abhängigkeit), Repair-Mode fürs Restore-Point-Index
@@ -42,9 +50,11 @@ Stand: 2026-07-31
 - `npm run typecheck` (apps/desktop) ist seitdem erstmals vollstaendig fehlerfrei.
 - GitHub-CI ist weiterhin nicht automatisch an `push` oder `pull_request` gebunden (GitHub-Billing-Sperre seit
   2026-07-23, Reaktivierungs-Checkliste in `HANDOVER.md`).
-- `origin/main` zeigt auf `ff911bd` (Merge von PR #14).
+- `origin/main` zeigt auf `a98e070` (Merge von PR #32).
 - Offene Pull Requests im Repo `devdbzemusic/dbzs-codee-v4`: keine.
 - Branch Protection fuer `main`: aktuell nicht aktiv (dokumentierter, nicht ausgefuehrter Aktivierungsbefehl in `HANDOVER.md`).
+- Die zuvor aufgefallenen Plan-Dateien `Pläne/14 DBZS_CODEE_BACKEND_BRIDGE_REVIEW.md` und
+  `Pläne/Codee_Agentenmodelle_Auswahl_Liste Teil I.md` sind im aktuellen Git-Stand getrackt.
 
 Der vorherige Repair-Run vom 2026-07-27 (Backup-Branch `codex/backup-runtime-chat-overhaul-2026-07-27`,
 physischer Snapshot unter `C:\Users\ralle\source\repos\_backups\dbzs-codee-project-backup-2026-07-27-runtime-chat-overhaul`)
@@ -65,6 +75,20 @@ Seit PR #4 Teil von `main`. Der Runtime-Chat priorisiert Gespraechsfuehrung vor 
 
 Der Desktop liess sich nach diesem Umbau lokal erfolgreich ueber `pnpm dev`
 beziehungsweise `start-dev.ps1` starten.
+
+## RAG-Embeddings und Reranking
+
+Plan 14 Phase 2 ist im aktuellen Stand ueber die reine ONNX-Embedding-Engine hinaus erweitert:
+
+- `POST /rag/embeddings/generate` erzeugt Embeddings aus Model-Lab-ONNX-Bundles.
+- `POST /embeddings` stellt den OpenAI-kompatiblen Vertrag bereit, den der bestehende Desktop-RAG-Flow bereits
+  erwartet.
+- `POST /rerank` stellt den Cohere-kompatiblen Vertrag fuer Cross-Encoder-Reranking bereit.
+- `defaultEmbeddingModelId` und `defaultRerankerModelId` werden ueber Model-Lab-gefilterte Settings-Felder
+  konfiguriert.
+
+Frisch dokumentierte Verifikation fuer diesen Slice: Backend 514/514 mit zwei bewusst deselektierten,
+vorbestehend haengenden Fremdtests; Desktop-Vitest 1361/1361; beide Typechecks fehlerfrei.
 
 ## Runtime-Chat-Dateianhaenge
 

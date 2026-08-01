@@ -1,6 +1,11 @@
 # Handover
 
-Stand: 2026-07-27
+Stand: 2026-08-01
+
+> Hinweis: Dieses Dokument ist ein historischer Repair-Run-Snapshot vom 2026-07-27 und nicht mehr die aktive
+> Handover-Quelle. Fuer den aktuellen Projektstand gelten die Root-Dateien `HANDOVER.md`, `TODO.md` sowie
+> `docs/STATUS_TODAY.md`. Der aktuell frisch verifizierte Remote-Stand ist `origin/main` = `a98e070`
+> (Merge von PR #32).
 
 ## Repo-Wahrheit
 
