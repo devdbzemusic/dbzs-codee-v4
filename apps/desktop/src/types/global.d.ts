@@ -34,6 +34,7 @@ import type {
   BackendHealth,
   BackendStartupStatus,
   BootState,
+  DesktopBridgeV1,
   ModelIndex,
   ProjectMemoryEntry,
   ProjectMemoryUpsertRequest,
@@ -42,6 +43,7 @@ import type {
   RuntimeChatAttachment,
   RuntimeChatImageAttachment,
   RuntimeChatResponse,
+  RuntimeStreamChunk,
   RuntimeStatus,
   GitCommitSuggestion,
   GitDiffSummary,
@@ -84,7 +86,7 @@ import type {
 
 declare global {
   interface Window {
-    dbzs: {
+    dbzs: DesktopBridgeV1 & {
       getAppInfo: () => Promise<AppInfo>;
       restartApp?: () => Promise<void> | void;
       getBackendHealth: () => Promise<BackendHealth>;
@@ -299,7 +301,7 @@ declare global {
       sendRuntimeChat: (request: RuntimeChatRequest, requestId?: string) => Promise<RuntimeChatResponse>;
       streamRuntimeChat?: (
         request: RuntimeChatRequest,
-        onChunk: (payload: { delta: string; totalLength: number }) => void,
+        onChunk: (payload: RuntimeStreamChunk) => void,
         requestId?: string
       ) => Promise<RuntimeChatResponse>;
       cancelRuntimeChatStream?: (requestId?: string) => Promise<{ status: string }>;

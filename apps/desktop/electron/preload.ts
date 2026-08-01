@@ -31,6 +31,7 @@ import type {
   BackendHealth,
   BackendStartupStatus,
   BootState,
+  DesktopBridgeV1,
   ManualMultimodalPairingRequest,
   ModelIndex,
   MultimodalPair,
@@ -39,6 +40,7 @@ import type {
   ProjectCreationResult,
   RuntimeChatRequest,
   RuntimeChatResponse,
+  RuntimeStreamChunk,
   RuntimeStatus,
   GitCommitSuggestion,
   GitDiffSummary,
@@ -480,14 +482,14 @@ const api = {
     ipcRenderer.invoke("dbzs:runtime:chat", request, requestId) as Promise<RuntimeChatResponse>,
   streamRuntimeChat: (
     request: RuntimeChatRequest,
-    onChunk: (payload: { delta: string; totalLength: number }) => void,
+    onChunk: (payload: RuntimeStreamChunk) => void,
     requestId?: string
   ) => {
     const normalizedRequestId =
       typeof requestId === "string" && requestId.trim().length > 0
         ? requestId.trim()
         : `runtime-stream-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    const handler = (_event: IpcRendererEvent, payload: { requestId?: string; delta: string; totalLength: number }) => {
+    const handler = (_event: IpcRendererEvent, payload: RuntimeStreamChunk) => {
       if (payload.requestId !== normalizedRequestId) {
         return;
       }
@@ -621,6 +623,6 @@ const api = {
   enterBootSafeMode: () => ipcRenderer.invoke("dbzs:boot:safe-mode") as Promise<void>,
   isBootSafeMode: () => ipcRenderer.invoke("dbzs:boot:is-safe-mode") as Promise<boolean>,
   quitApp: () => ipcRenderer.invoke("dbzs:boot:quit") as Promise<void>
-};
+} satisfies DesktopBridgeV1 & Record<string, unknown>;
 
 contextBridge.exposeInMainWorld("dbzs", api);

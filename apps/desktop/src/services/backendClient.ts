@@ -25,6 +25,7 @@ import type {
   SettingsPatchRequest,
   SettingsPatchResponse,
   BackendHealth,
+  DesktopBridgeV1,
   GpuInfo,
   ManualMultimodalPairingRequest,
   ModelIndex,
@@ -59,6 +60,7 @@ import type {
   ProjectMemoryUpsertRequest,
   RuntimeChatRequest,
   RuntimeChatResponse,
+  RuntimeStreamChunk,
   RuntimeDoctorReport,
   RuntimeDryRunRequest,
   RuntimeDryRunResponse,
@@ -82,7 +84,7 @@ import type { RuntimeChatContextSnapshot } from "@/types/runtimeChatWindow";
 import { combineAbortSignals } from "@/services/abortSignals";
 import { runClientModelTest } from "@/services/runtimeModelTestService";
 
-export interface BackendBridge {
+export interface BackendBridge extends DesktopBridgeV1 {
   getAppInfo: () => Promise<AppInfo>;
   getBackendHealth: () => Promise<BackendHealth>;
   getSettings: () => Promise<AppSettings>;
@@ -139,7 +141,7 @@ export interface BackendBridge {
   cancelRuntimeChat?: (requestId: string) => Promise<{ status: string }>;
   streamRuntimeChat?: (
     request: RuntimeChatRequest,
-    onChunk: (payload: { delta: string; totalLength: number }) => void,
+    onChunk: (payload: RuntimeStreamChunk) => void,
     requestId?: string
   ) => Promise<RuntimeChatResponse>;
   cancelRuntimeChatStream?: (requestId?: string) => Promise<{ status: string }>;
