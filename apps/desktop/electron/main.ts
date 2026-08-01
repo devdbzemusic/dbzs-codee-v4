@@ -291,6 +291,7 @@ function delay(ms: number): Promise<void> {
  * - Runtime status: 30s (slot and llama.cpp probes can be slower while models start)
  * - Model index: 5m (large local model catalogs can take longer than the default)
  * - Runtime doctor: 60s (model index + launch plans for all models)
+ * - Model Lab scan: 30m (large local model folders can take many minutes)
  * - Chat requests: no timeout (Frontend handles timeout via AbortSignal)
  * - Benchmark/long-running: 30m (generous for heavy workloads)
  * - Default: 10s
@@ -307,6 +308,10 @@ function getEndpointTimeout(pathname: string): number {
 
   if (pathname.includes("/runtime/status")) {
     return 30_000;
+  }
+
+  if (pathname.includes("/model-lab/scan")) {
+    return 30 * 60 * 1_000;
   }
 
   // Doctor builds full model index + per-model launch plans (can be slow on large catalogs).

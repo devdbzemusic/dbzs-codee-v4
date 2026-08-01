@@ -227,6 +227,34 @@ class ModelLabRepository:
             raise ValueError(f"Scan job nicht gefunden: {job_id}")
         return _job_from_row(row)
 
+    def get_active_scan_job(self, source_id: str | None) -> ScanJob | None:
+        with sqlite_connection(self.db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM scan_jobs
+                WHERE status IN ('queued', 'running')
+                  AND ((source_id IS NULL AND ? IS NULL) OR source_id = ?)
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (source_id, source_id),
+            ).fetchone()
+        return _job_from_row(row) if row else None
+
+    def mark_stale_scan_jobs_failed(self, *, older_than: datetime, error: str) -> int:
+        now = datetime.now(UTC)
+        with sqlite_connection(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                UPDATE scan_jobs
+                SET status = 'failed', error = ?, completed_at = ?
+                WHERE status IN ('queued', 'running')
+                  AND COALESCE(started_at, created_at) < ?
+                """,
+                (error, _dt(now), _dt(older_than)),
+            )
+            return cursor.rowcount
+
     def list_jobs(self) -> list[ScanJob]:
         with sqlite_connection(self.db_path) as conn:
             rows = conn.execute("SELECT * FROM scan_jobs ORDER BY created_at DESC").fetchall()
