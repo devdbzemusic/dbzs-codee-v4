@@ -14,6 +14,17 @@ export function attachmentRequiresVision(attachments: RuntimeChatAttachment[]): 
   return attachments.some((attachment) => attachment.kind === "image");
 }
 
+/**
+ * Base64 data URLs for every image attachment, in attachment order - sent to
+ * the provider via `RuntimeChatMessage.images`, never inlined into the text
+ * prompt (`buildRuntimeChatAttachmentPrompt` only describes them there).
+ */
+export function collectAttachmentImageDataUrls(attachments: RuntimeChatAttachment[]): string[] {
+  return attachments
+    .filter((attachment) => attachment.kind === "image" && attachment.dataUrl.length > 0)
+    .map((attachment) => attachment.dataUrl);
+}
+
 export function defaultPromptForAttachments(attachments: RuntimeChatAttachment[]): string {
   return attachmentRequiresVision(attachments)
     ? "Bitte analysiere die angehaengten Dateien und Bilder."
@@ -126,7 +137,9 @@ export function buildRuntimeChatAttachmentPrompt(
         ].join("\n")
       );
     }
-    if (!attachment.textContent?.trim()) {
+    if (attachment.kind === "image") {
+      bodyParts.push("Bild wird als Bildinhalt an das Modell uebergeben (siehe images-Feld der Anfrage).");
+    } else if (!attachment.textContent?.trim()) {
       bodyParts.push("Kein inline lesbarer Inhalt verfuegbar.");
     }
 

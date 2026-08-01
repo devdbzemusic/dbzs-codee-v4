@@ -98,6 +98,44 @@ def _default_port_for_slot(slot_id: str) -> int:
         return 8091
 
 
+def _strip_data_url_prefix(data_url: str) -> str:
+    """Ollama's /api/chat `images` field wants raw base64, no `data:...;base64,` prefix."""
+    if data_url.startswith("data:") and "," in data_url:
+        return data_url.split(",", 1)[1]
+    return data_url
+
+
+def _wire_chat_message(message: RuntimeChatMessage, *, provider: str | None) -> dict:
+    """Serialize one chat message into the actual outgoing provider payload.
+
+    `RuntimeChatMessage.content` stays a plain string everywhere else in this
+    module (system-prompt merging, role-alternation normalization, ...) --
+    only this boundary translates `images` into each provider's real
+    multimodal wire format, so a message without images keeps producing the
+    exact same `{"role", "content"}` dict as before this field existed.
+    """
+    if not message.images:
+        return {"role": message.role, "content": message.content}
+
+    if provider == "ollama":
+        return {
+            "role": message.role,
+            "content": message.content,
+            "images": [_strip_data_url_prefix(image) for image in message.images],
+        }
+
+    parts: list[dict] = []
+    if message.content.strip():
+        parts.append({"type": "text", "text": message.content})
+    parts.extend({"type": "image_url", "image_url": {"url": image}} for image in message.images)
+    return {"role": message.role, "content": parts}
+
+
+def _merge_images(left: list[str] | None, right: list[str] | None) -> list[str] | None:
+    merged = [*(left or []), *(right or [])]
+    return merged or None
+
+
 def _build_sampling_payload(chat_request: RuntimeChatRequest) -> dict:
     """Build conservative llama.cpp/OpenAI-compatible sampling options."""
     return {
@@ -1317,7 +1355,13 @@ class RuntimeService:
 
             provider = (chat_request.provider or "").strip().lower()
             settings = get_settings_service().load()
-            messages = [message.model_dump() for message in self._build_chat_messages(chat_request)]
+            # exclude_none: cloud image support is out of scope here (see
+            # `_wire_chat_message` for the local llama-server/Ollama path) --
+            # this keeps the Anthropic/OpenAI SDK payload exactly as before
+            # `images` existed, instead of sending an unexpected `images: null`.
+            messages = [
+                message.model_dump(exclude_none=True) for message in self._build_chat_messages(chat_request)
+            ]
             content = self.cloud_runtime_client.chat(
                 messages,
                 model=chat_request.model_id,
@@ -1359,7 +1403,7 @@ class RuntimeService:
             messages = self._build_chat_messages(chat_request)
             native_tools = chat_request.native_tools_payload()
             payload = {
-                "messages": [message.model_dump() for message in messages],
+                "messages": [_wire_chat_message(message, provider=current.provider) for message in messages],
                 **_build_sampling_payload(chat_request),
             }
             if native_tools:
@@ -1430,7 +1474,7 @@ class RuntimeService:
             messages = self._build_chat_messages(chat_request)
             native_tools = chat_request.native_tools_payload()
             payload = {
-                "messages": [message.model_dump() for message in messages],
+                "messages": [_wire_chat_message(message, provider=current.provider) for message in messages],
                 **_build_sampling_payload(chat_request),
             }
             if native_tools:
@@ -1767,11 +1811,12 @@ class RuntimeService:
                 )
                 pending_assistant_context = []
 
-            candidate = RuntimeChatMessage(role=message.role, content=content)
+            candidate = RuntimeChatMessage(role=message.role, content=content, images=message.images)
             if normalized[-1].role == candidate.role:
                 normalized[-1] = RuntimeChatMessage(
                     role=normalized[-1].role,
                     content=f"{normalized[-1].content}\n\n{candidate.content}",
+                    images=_merge_images(normalized[-1].images, candidate.images),
                 )
             else:
                 normalized.append(candidate)
@@ -1813,6 +1858,7 @@ class RuntimeService:
                 merged[-1] = RuntimeChatMessage(
                     role=merged[-1].role,
                     content=f"{merged[-1].content}\n\n{message.content}",
+                    images=_merge_images(merged[-1].images, message.images),
                 )
             else:
                 merged.append(message)

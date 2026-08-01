@@ -200,7 +200,7 @@ import { runtimeSlotManager } from "@/services/runtimeSlotManager";
 import { modelRouterService } from "@/services/modelRouterService";
 import { classifyTaskForSend } from "@/services/runtimeChat/taskClassificationPhase";
 import { resolveWorkflowContinuationForSend } from "@/services/runtimeChat/workflowContinuationPhase";
-import { buildRuntimeChatAttachmentPrompt } from "@/services/runtimeChatAttachments";
+import { buildRuntimeChatAttachmentPrompt, collectAttachmentImageDataUrls } from "@/services/runtimeChatAttachments";
 import { runReviewRemediationPhase } from "@/services/runtimeChat/reviewRemediationPhase";
 import { mapBrokerAgentToShared, mapWorkflowAgentToShared } from "@/services/runtimeChat/agentMapping";
 import { isClarificationFieldBlockedInMessages } from "@/services/runtimeChat/clarificationGuards";
@@ -899,6 +899,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
     const requestUserContent = attachmentPrompt
       ? `${trimmedContent}\n\n${attachmentPrompt}`
       : trimmedContent;
+    const requestUserImages = collectAttachmentImageDataUrls(sendOptions?.attachments ?? []);
     let activity = initialActivity;
     let ragResult: RagRetrievalResponse | null = null;
     runsAbortControllers[initialRun.id] = runAbortController;
@@ -1698,7 +1699,11 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
 
       requestMessages = requestMessages.map((message) =>
         message.id === latestUserMessage?.id
-          ? { ...message, content: requestUserContent }
+          ? {
+              ...message,
+              content: requestUserContent,
+              images: requestUserImages.length > 0 ? requestUserImages : undefined
+            }
           : message
       );
 
@@ -1819,7 +1824,11 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
         ];
         requestMessages = nextMessages.slice(-4).map((message) =>
           message.id === latestUserMessage?.id
-            ? { ...message, content: requestUserContent }
+            ? {
+                ...message,
+                content: requestUserContent,
+                images: requestUserImages.length > 0 ? requestUserImages : undefined
+              }
             : message
         );
         messagesForRequest =

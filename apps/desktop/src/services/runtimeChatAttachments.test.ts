@@ -3,12 +3,64 @@ import type { RuntimeChatAttachment } from "@dbzs/shared";
 import {
   attachmentRequiresVision,
   buildRuntimeChatAttachmentPrompt,
+  collectAttachmentImageDataUrls,
   defaultPromptForAttachments,
   mergeRuntimeChatAttachments,
   summarizeAttachmentImport
 } from "@/services/runtimeChatAttachments";
 
 describe("runtimeChatAttachments", () => {
+  it("collects image attachment data URLs for the outgoing request, ignoring non-image attachments", () => {
+    expect(
+      collectAttachmentImageDataUrls([
+        {
+          id: "att-1",
+          name: "notes.md",
+          kind: "text",
+          extension: "md",
+          mimeType: "text/markdown",
+          dataUrl: "data:text/markdown;base64,AAAA",
+          source: "file_dialog"
+        },
+        {
+          id: "att-2",
+          name: "screen.png",
+          kind: "image",
+          extension: "png",
+          mimeType: "image/png",
+          dataUrl: "data:image/png;base64,BBBB",
+          source: "clipboard"
+        },
+        {
+          id: "att-3",
+          name: "diagram.jpg",
+          kind: "image",
+          extension: "jpg",
+          mimeType: "image/jpeg",
+          dataUrl: "data:image/jpeg;base64,CCCC",
+          source: "file_dialog"
+        }
+      ] satisfies RuntimeChatAttachment[])
+    ).toEqual(["data:image/png;base64,BBBB", "data:image/jpeg;base64,CCCC"]);
+  });
+
+  it("describes an image attachment as sent via the images field, not as unreadable content", () => {
+    const prompt = buildRuntimeChatAttachmentPrompt([
+      {
+        id: "att-1",
+        name: "screen.png",
+        kind: "image",
+        extension: "png",
+        mimeType: "image/png",
+        dataUrl: "data:image/png;base64,AAAA",
+        source: "clipboard"
+      }
+    ] satisfies RuntimeChatAttachment[]);
+
+    expect(prompt).toContain("Bild wird als Bildinhalt an das Modell uebergeben");
+    expect(prompt).not.toContain("Kein inline lesbarer Inhalt verfuegbar.");
+  });
+
   it("requires vision only when an image attachment is present", () => {
     expect(
       attachmentRequiresVision([

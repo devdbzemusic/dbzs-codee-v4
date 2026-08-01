@@ -84,6 +84,12 @@ AttachmentKind = Literal["image", "document", "archive", "text", "code"]
 class RuntimeChatMessage(BaseModel):
     role: ChatRole
     content: str
+    # Base64 data URLs of image attachments, translated into each provider's
+    # actual multimodal wire format at the payload boundary (see
+    # `_wire_chat_message` in service.py). `content` stays a plain string
+    # everywhere else so existing text-processing (system-prompt merging,
+    # role-alternation normalization) is unaffected.
+    images: list[str] | None = None
 
 
 class RuntimeChatFileContext(BaseModel):

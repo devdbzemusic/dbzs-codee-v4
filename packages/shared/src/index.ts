@@ -177,6 +177,13 @@ export interface RuntimeChatMessage {
   id: string;
   role: ChatRole;
   content: string;
+  /**
+   * Base64 data URLs of image attachments on this message, sent alongside
+   * `content` to the provider (never inlined into `content` itself). Only
+   * populated on the outgoing wire request for the current user turn -
+   * chat-history messages in the store do not carry this.
+   */
+  images?: string[];
   attachments?: RuntimeChatAttachment[];
   rawContent?: string;
   visibleContent?: string;

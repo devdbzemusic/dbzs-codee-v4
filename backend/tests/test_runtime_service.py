@@ -12,7 +12,7 @@ from app.runtime.gpu_detect import GpuInfo
 from app.runtime.hardware_fingerprint import collect_hardware_fingerprint, fingerprint_hash
 from app.runtime.prompts import RUNTIME_CHAT_SYSTEM_PROMPT
 from app.runtime.schemas import RuntimeChatMessage, RuntimeChatRequest, RuntimeStatus
-from app.runtime.service import RuntimeService
+from app.runtime.service import RuntimeService, _merge_images, _strip_data_url_prefix, _wire_chat_message
 
 
 class FakeAntigravityService:
@@ -725,6 +725,102 @@ def test_runtime_service_sends_chat_to_running_llama_server(tmp_path: Path) -> N
     assert chat_client.payload["repeat_last_n"] == 256
     assert chat_client.payload["presence_penalty"] == 0.15
     assert chat_client.payload["frequency_penalty"] == 0.25
+
+
+def test_runtime_service_sends_image_content_parts_to_llama_server(tmp_path: Path) -> None:
+    """A user message with images must reach llama-server as OpenAI-style
+    content parts, not silently dropped (previously the raw image bytes
+    never reached any model at all -- see HANDOVER.md 2026-08-01)."""
+    write_catalog(tmp_path)
+    runner = FakeProcessRunner()
+    chat_client = FakeChatClient()
+    service = RuntimeService(
+        model_index_service=ModelIndexService(models_dir=tmp_path),
+        process_runner=runner,
+        chat_client=chat_client,
+        endpoint_checker=lambda _url: True,
+    )
+    service.start_model("coder", slot_id="fast_gpu")
+
+    image_data_url = "data:image/png;base64,AAAA"
+    response = service.chat(
+        RuntimeChatRequest(
+            messages=[
+                RuntimeChatMessage(
+                    role="user",
+                    content="Was zeigt dieser Screenshot?",
+                    images=[image_data_url],
+                )
+            ],
+            slot_id="fast_gpu",
+        )
+    )
+
+    assert response.message.content == "Antwort aus der lokalen Runtime."
+    sent_content = chat_client.payload["messages"][-1]["content"]
+    assert sent_content == [
+        {"type": "text", "text": "Was zeigt dieser Screenshot?"},
+        {"type": "image_url", "image_url": {"url": image_data_url}},
+    ]
+
+
+def test_wire_chat_message_without_images_is_unchanged() -> None:
+    message = RuntimeChatMessage(role="user", content="Hallo")
+
+    assert _wire_chat_message(message, provider="llama.cpp") == {"role": "user", "content": "Hallo"}
+    assert _wire_chat_message(message, provider="ollama") == {"role": "user", "content": "Hallo"}
+
+
+def test_wire_chat_message_builds_ollama_images_field() -> None:
+    message = RuntimeChatMessage(
+        role="user",
+        content="Was zeigt das?",
+        images=["data:image/png;base64,AAAA", "raw-base64-without-prefix"],
+    )
+
+    assert _wire_chat_message(message, provider="ollama") == {
+        "role": "user",
+        "content": "Was zeigt das?",
+        "images": ["AAAA", "raw-base64-without-prefix"],
+    }
+
+
+def test_wire_chat_message_omits_empty_text_part() -> None:
+    message = RuntimeChatMessage(role="user", content="   ", images=["data:image/png;base64,AAAA"])
+
+    assert _wire_chat_message(message, provider="llama.cpp") == {
+        "role": "user",
+        "content": [{"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}],
+    }
+
+
+def test_strip_data_url_prefix() -> None:
+    assert _strip_data_url_prefix("data:image/png;base64,AAAA") == "AAAA"
+    assert _strip_data_url_prefix("already-raw-base64") == "already-raw-base64"
+
+
+def test_merge_images() -> None:
+    assert _merge_images(None, None) is None
+    assert _merge_images(["a"], None) == ["a"]
+    assert _merge_images(None, ["b"]) == ["b"]
+    assert _merge_images(["a"], ["b"]) == ["a", "b"]
+
+
+def test_build_strict_alternating_messages_preserves_images_through_merge() -> None:
+    """Two consecutive user messages (one with an image) must keep the image
+    attached to the merged message, not silently drop it."""
+    normalized = RuntimeService._build_strict_alternating_messages(
+        [RUNTIME_CHAT_SYSTEM_PROMPT],
+        [
+            RuntimeChatMessage(role="user", content="Erster Teil"),
+            RuntimeChatMessage(role="user", content="Zweiter Teil", images=["data:image/png;base64,AAAA"]),
+        ],
+    )
+
+    user_message = normalized[-1]
+    assert user_message.role == "user"
+    assert user_message.content == "Erster Teil\n\nZweiter Teil"
+    assert user_message.images == ["data:image/png;base64,AAAA"]
 
 
 def test_runtime_service_chat_logs_run_id_for_crash_correlation(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
