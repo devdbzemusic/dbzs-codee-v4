@@ -72,12 +72,21 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
   Blocker-Liste. Damit muessen UI und Broker keine Tabellen-Rohdaten zusammensetzen.
 - Model-Lab-UI zeigt die Readiness-Map jetzt als `Readiness Gates`-Sektion mit Probe/Benchmark,
   Evidence-/Zertifikatszaehlern, Routing-Freigaben und Blockern.
+- Plan 15, Phase 3 (Roles & Routing) umgesetzt: `model_role_assignments` traegt jetzt zusaetzlich
+  `settings_field` (welches der 8 echten `AppSettings`-Rollenfelder ein Bundle als Routing-Ziel
+  vorschlaegt) und `residency_intent` (`keep_resident | idle_evict | manual`). Ein urspruenglich
+  mitgeplantes freies `taxonomy_role`-Feld wurde verworfen, da das bestehende, zertifizierungsgated
+  `ModelFleetRole`-Enum (inkl. `enabled=false` fuer reine manuelle Kennzeichnung ohne Zertifikatszwang)
+  dieselben Konzepte bereits abdeckt. Neue editierbare `Rollenzuordnung`-Sektion im Model-Lab-Tab
+  (separat von der bestehenden read-only `Roles & Routing`-Sektion): pro Bundle Rolle/Settings-Feld/
+  Residency zuweisen, Konfliktanzeige bei doppelt vergebenem Settings-Feld, sowie ein Best-effort
+  "Start"-Knopf pro Zeile (funktioniert erst zuverlaessig, sobald die separate Model-Lab-Runtime-Bridge
+  aus Phase 2 aktiv ist; bis dahin zeigt er einen erklaerenden Fehler statt eines stillen Fehlschlags).
 
 **Frisch verifiziert:**
-- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab.py backend/tests/test_model_lab_repository.py backend/tests/test_model_lab_scan_jobs.py backend/tests/test_model_lab_bridge.py -q` -> 34/34 gruen
-- `npm run typecheck` in `apps/desktop` -> gruen
-- `npm run test -- src/components/notebook/ModelLabTab.controller.test.tsx` in `apps/desktop` -> 8/8 gruen
-- `npm run test -- src/components/notebook/ModelLabTab.controller.test.tsx src/components/notebook/RuntimeModelsTab.test.ts src/services/modelSelectionBroker.test.ts src/services/runtimeSlotManager.test.ts` in `apps/desktop` -> 88/88 gruen
+- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab_repository.py backend/tests/test_model_lab.py -q` -> 51/52 gruen (1 vorbestehender, unabhaengiger Fehlschlag: `test_model_lab_source_candidates_report_existing_and_registered_paths`, verursacht durch die noch unfertige/unverifizierte Phase-1-Quellauto-Registrierung in `service.py`, die bewusst NICHT Teil dieses Commits ist)
+- `npx vitest run ModelLabTab` in `apps/desktop` -> 16/16 gruen
+- `npx tsc --noEmit` in `packages/shared` und `apps/desktop` -> beide gruen
 
 **Noch offen fuer die naechsten Gates:**
 - echter Scan von `D:\Models\Agentic`, Katalog-Rescan und produktive Modellreihenfolge aus Plan 15 abarbeiten
@@ -88,6 +97,13 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
 - Plan-14-Folgen im selben Themengebiet weiterfuehren: haengende Backend-Tests diagnostizieren,
   `embeddingService.ts`/Model-Lab-ID-Raum endgueltig versoehnen und die zwei haengenden Testfaelle separat
   root-causen
+- Plan 15, Phase 0/1/2 aus einer vorherigen Session liegen noch unfertig/unverifiziert im Arbeitsverzeichnis
+  (nicht Teil dieses Commits): Scanner-Adapter/Lora-Reihenfolge-Fix mit einem offenen, unabhaengigen
+  Testfehler (`my_tokenizer.json` -> `tokenizer` statt `config`), die oben erwaehnte Phase-1-Quellauto-
+  Registrierung, drei fehlschlagende Phase-2-Bridge-Tests in `test_model_index.py` (Implementierung fehlt
+  noch in `index_service.py`/`AppSettings`), sowie eine tote, nirgends registrierte
+  `backend/app/api/model_lab_roles.py` mit doppelten Role-Assignment-Endpunkten (die echten, verdrahteten
+  liegen in `api/model_lab.py`). Vor dem naechsten Merge aus diesem Themengebiet root-causen/entscheiden.
 
 ## Plan 14, Phase 2 Fortsetzung: `/embeddings` + `/rerank` (echten Produktionsbug behoben + Reranking) (2026-08-01)
 

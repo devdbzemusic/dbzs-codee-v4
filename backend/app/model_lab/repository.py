@@ -258,6 +258,8 @@ class ModelLabRepository:
                     id TEXT PRIMARY KEY,
                     bundle_id TEXT NOT NULL,
                     role TEXT NOT NULL,
+                    settings_field TEXT,
+                    residency_intent TEXT NOT NULL DEFAULT 'manual',
                     safety_level TEXT NOT NULL,
                     enabled INTEGER NOT NULL,
                     priority INTEGER NOT NULL,
@@ -293,6 +295,8 @@ class ModelLabRepository:
             _ensure_column(conn, "model_bundles", "health", "TEXT NOT NULL DEFAULT '{}'")
             _ensure_column(conn, "scan_jobs", "progress_message", "TEXT")
             _ensure_column(conn, "scan_jobs", "progress_events", "TEXT NOT NULL DEFAULT '[]'")
+            _ensure_column(conn, "model_role_assignments", "settings_field", "TEXT")
+            _ensure_column(conn, "model_role_assignments", "residency_intent", "TEXT NOT NULL DEFAULT 'manual'")
             self._seed_runtime_adapters(conn)
             self._seed_runtime_presets(conn)
             self._seed_execution_policies(conn)
@@ -989,12 +993,18 @@ class ModelLabRepository:
         with sqlite_connection(self.db_path) as conn:
             conn.execute(
                 """
-                INSERT INTO model_role_assignments(
-                    id, bundle_id, role, safety_level, enabled, priority,
-                    required_certifications, notes, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO model_role_assignments (
+                    id, bundle_id, role, settings_field, residency_intent,
+                    safety_level, enabled, priority, required_certifications, notes,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(bundle_id, role) DO UPDATE SET
-                    safety_level=excluded.safety_level,
+                    settings_field=excluded.settings_field,
+                    residency_intent=excluded.residency_intent,
+                    safety_level=CASE
+                        WHEN excluded.safety_level IS NOT NULL THEN excluded.safety_level
+                        ELSE safety_level
+                    END,
                     enabled=excluded.enabled,
                     priority=excluded.priority,
                     required_certifications=excluded.required_certifications,
@@ -1005,6 +1015,8 @@ class ModelLabRepository:
                     assignment_id,
                     request.bundle_id,
                     request.role,
+                    request.settings_field,
+                    request.residency_intent,
                     request.safety_level,
                     int(request.enabled),
                     request.priority,
@@ -1575,6 +1587,8 @@ def _role_assignment_from_row(row: sqlite3.Row) -> ModelRoleAssignment:
         id=str(row["id"]),
         bundle_id=str(row["bundle_id"]),
         role=row["role"],
+        settings_field=row["settings_field"],
+        residency_intent=row["residency_intent"] or "manual",
         safety_level=row["safety_level"],
         enabled=bool(row["enabled"]),
         priority=int(row["priority"]),

@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   ModelLabCollection,
   ModelLabCollectionCreate,
   ModelLabHuggingFaceSearchResult,
   ModelLabModel,
   ModelLabReadinessEntry,
+  ModelLabRoleAssignment,
+  ModelLabRoleAssignmentRequest,
   ModelLabRoutingEntry,
   ModelLabScanJob,
   ModelLabSource,
@@ -13,6 +15,27 @@ import type {
 } from "@dbzs/shared";
 import { backendClient } from "@/services/backendClient";
 import { useSettingsStore } from "@/stores/settingsStore";
+
+export function findSettingsFieldConflicts(assignments: ModelLabRoleAssignment[]): Set<string> {
+  const bundlesByField = new Map<string, Set<string>>();
+  for (const assignment of assignments) {
+    if (!assignment.settings_field || !assignment.enabled) {
+      continue;
+    }
+    const bundles = bundlesByField.get(assignment.settings_field) ?? new Set<string>();
+    bundles.add(assignment.bundle_id);
+    bundlesByField.set(assignment.settings_field, bundles);
+  }
+  const conflicting = new Set<string>();
+  for (const bundles of bundlesByField.values()) {
+    if (bundles.size > 1) {
+      for (const bundleId of bundles) {
+        conflicting.add(bundleId);
+      }
+    }
+  }
+  return conflicting;
+}
 
 export function useModelLabTabController() {
   const backendHealth = useSettingsStore((state) => state.backendHealth);
@@ -31,6 +54,8 @@ export function useModelLabTabController() {
   const [collections, setCollections] = useState<ModelLabCollection[]>([]);
   const [routingMap, setRoutingMap] = useState<ModelLabRoutingEntry[]>([]);
   const [readinessMap, setReadinessMap] = useState<ModelLabReadinessEntry[]>([]);
+  const [roleAssignments, setRoleAssignments] = useState<ModelLabRoleAssignment[]>([]);
+  const [assigningRole, setAssigningRole] = useState(false);
   const [creatingCollection, setCreatingCollection] = useState(false);
   const [hfQuery, setHfQuery] = useState("");
   const [hfResults, setHfResults] = useState<ModelLabHuggingFaceSearchResult[]>([]);
@@ -48,7 +73,8 @@ export function useModelLabTabController() {
         nextJobs,
         nextCollections,
         nextRoutingMap,
-        nextReadinessMap
+        nextReadinessMap,
+        nextRoleAssignments
       ] = await Promise.all([
         backendClient.listModelLabSources ? backendClient.listModelLabSources() : Promise.resolve([]),
         backendClient.listModelLabSourceCandidates
@@ -58,7 +84,8 @@ export function useModelLabTabController() {
         backendClient.listModelLabJobs ? backendClient.listModelLabJobs() : Promise.resolve([]),
         backendClient.listModelLabCollections ? backendClient.listModelLabCollections() : Promise.resolve([]),
         backendClient.listModelRoutingMap ? backendClient.listModelRoutingMap() : Promise.resolve([]),
-        backendClient.listModelReadiness ? backendClient.listModelReadiness() : Promise.resolve([])
+        backendClient.listModelReadiness ? backendClient.listModelReadiness() : Promise.resolve([]),
+        backendClient.listModelRoleAssignments ? backendClient.listModelRoleAssignments() : Promise.resolve([])
       ]);
       setSources(nextSources);
       setSourceCandidates(nextSourceCandidates);
@@ -67,6 +94,7 @@ export function useModelLabTabController() {
       setCollections(nextCollections);
       setRoutingMap(nextRoutingMap);
       setReadinessMap(nextReadinessMap);
+      setRoleAssignments(nextRoleAssignments);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Model Lab konnte nicht geladen werden.");
     } finally {
@@ -139,6 +167,26 @@ export function useModelLabTabController() {
     [loadAll]
   );
 
+  const assignRole = useCallback(
+    async (request: ModelLabRoleAssignmentRequest) => {
+      if (!backendClient.assignModelRole) {
+        setError("assignModelRole ist nicht verfuegbar.");
+        return;
+      }
+      setAssigningRole(true);
+      setError(null);
+      try {
+        await backendClient.assignModelRole(request);
+        await loadAll();
+      } catch (assignError) {
+        setError(assignError instanceof Error ? assignError.message : "Rollenzuordnung fehlgeschlagen.");
+      } finally {
+        setAssigningRole(false);
+      }
+    },
+    [loadAll]
+  );
+
   const addToCollection = useCallback(
     async (collectionId: string, bundleId: string) => {
       if (!backendClient.addModelLabCollectionMember) {
@@ -197,6 +245,7 @@ export function useModelLabTabController() {
   }, []);
 
   const selectedModel = models.find((model) => model.bundle.bundle_id === selectedBundleId) ?? null;
+  const settingsFieldConflicts = useMemo(() => findSettingsFieldConflicts(roleAssignments), [roleAssignments]);
 
   return {
     backendOnline,
@@ -219,6 +268,10 @@ export function useModelLabTabController() {
     collections,
     routingMap,
     readinessMap,
+    roleAssignments,
+    assigningRole,
+    assignRole,
+    settingsFieldConflicts,
     creatingCollection,
     createCollection,
     addToCollection,

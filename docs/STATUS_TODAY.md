@@ -34,6 +34,13 @@ Repo-Wahrheit: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
 - Plan-14/Fleet-RAG-Folge auf dem Integrationsbranch: `POST /rag/retrieve` erzeugt serverseitig optional
   `query_embedding` ueber `defaultEmbeddingModelId` und faellt bei fehlender Embedding-Konfiguration weiter
   auf lexikalisches Retrieval zurueck
+- Plan 15, Phase 3 (Roles & Routing) auf dem Integrationsbranch: bearbeitbare `Rollenzuordnung`-Sektion im
+  Model-Lab-Tab, `settings_field`/`residency_intent` an `model_role_assignments`, Konfliktanzeige und
+  Best-effort Start-Aktion; frische Checks: Backend-Model-Lab-Suite 51/52 gruen (1 vorbestehender,
+  unabhaengiger Fehlschlag aus unfertiger Phase-1-Arbeit derselben Session), Desktop-ModelLabTab 16/16
+  gruen, Shared-/Desktop-Typecheck fehlerfrei. Phase 0/1/2 (Scanner-Fix, Quellauto-Registrierung,
+  Runtime-Bridge-Toggle) bleiben unverifiziert im Arbeitsverzeichnis liegen und sind bewusst nicht Teil
+  dieses Commits.
 - Shared-, Desktop- und Backend-Kernchecks sind belastbar nachgewiesen
 - Desktop-Capability-Suite ist im Gate-Pfad mit 37/37 belegt
 - Backend-Capability-/Scenario-/Tuning-Lab-Pfad ist mit 15 bestandenen Tests belegt

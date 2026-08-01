@@ -62,6 +62,17 @@ ModelFleetCertificationKind = Literal[
     "REPORT_GENERATION_VERIFIED",
     "GPU_PROFILE_VERIFIED",
 ]
+ModelResidencyIntent = Literal["keep_resident", "idle_evict", "manual"]
+ModelSettingsFieldRole = Literal[
+    "defaultModelId",
+    "defaultChatModelId",
+    "defaultPlannerModelId",
+    "defaultCoderModelId",
+    "defaultReviewerModelId",
+    "defaultDebugModelId",
+    "defaultVisionModelId",
+    "defaultOrchestratorModelId",
+]
 ModelFleetRunStatus = Literal["queued", "running", "passed", "failed", "skipped"]
 
 
@@ -352,6 +363,8 @@ class ModelCapabilityEvidenceRecord(BaseModel):
 class ModelRoleAssignmentRequest(BaseModel):
     bundle_id: str
     role: ModelFleetRole
+    settings_field: ModelSettingsFieldRole | None = None
+    residency_intent: ModelResidencyIntent = "manual"
     safety_level: ModelFleetSafetyLevel = "LEVEL_0_CHAT_ONLY"
     enabled: bool = True
     priority: int = 100
@@ -363,6 +376,8 @@ class ModelRoleAssignment(BaseModel):
     id: str
     bundle_id: str
     role: ModelFleetRole
+    settings_field: ModelSettingsFieldRole | None = None
+    residency_intent: ModelResidencyIntent = "manual"
     safety_level: ModelFleetSafetyLevel
     enabled: bool
     priority: int
@@ -489,6 +504,3 @@ class HuggingFaceRepoInfo(BaseModel):
     pipeline: str = ""
     tags: list[str] = Field(default_factory=list)
     files: list[HuggingFaceRepoFile] = Field(default_factory=list)
-
-
-

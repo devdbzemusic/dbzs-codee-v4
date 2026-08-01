@@ -94,6 +94,11 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       Routing-Freigaben und Blocker erscheinen als eigene Fleet-Console-Vorstufe.
 - [x] Sicheres Probe-Gate: `probeModel` speichert ohne `allow_start` einen `skipped`-Run und startet kein
       lokales Modell.
+- [x] Plan 15, Phase 3: bearbeitbare `Rollenzuordnung`-Sektion im Model-Lab-Tab (Rolle/Settings-Feld/
+      Residency pro Bundle zuweisen, Konfliktanzeige bei doppelt vergebenem Settings-Feld, Best-effort
+      "Start"-Aktion pro Zeile). `ModelSettingsFieldRole` auf alle 8 echten `AppSettings`-Rollenfelder
+      erweitert; ein urspruenglich mitgeplantes freies `taxonomy_role`-Feld wieder entfernt zugunsten des
+      bestehenden zertifizierungsgated `ModelFleetRole`-Enums.
 - [ ] `D:\Models\Agentic` als erste produktive Quelle ueber den neuen Candidate-Button registrieren/scannen
       und den veralteten lokalen Model-Katalog auf dieser Maschine neu erzeugen.
 - [ ] `llama.cpp`-RuntimeAdapter live verdrahten: `probe_load`, `health_check`, echte Benchmark-Messung,
@@ -101,7 +106,7 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
 - [ ] GPU-Autotuning-Matrix aus Plan 15 als echte Messlaeufe gegen die geseedeten Presets ausfuehren und
       beste Profile pro Bundle/Hardware-Snapshot persistieren.
 - [ ] Fleet Console UI weiter ausbauen: Compatibility, Tuning Lab, Benchmarks, Certification-Aktionen,
-      Runtime, Failures, Metadata und bearbeitbare Roles-&-Routing-Zuweisungen.
+      Runtime, Failures, Metadata.
 - [ ] `modelSelectionBroker` produktiv an die Fleet-Routing-Map anbinden; bis dahin bleibt die Map
       bewusst nur Model-Lab-/Bridge-Vertrag, nicht die aktive Laufzeitentscheidung.
 - [ ] manuelle Abnahme mit echten Modellen: MiniCPM5-1B, QwenPaw-Flash-2B, Agents-A1-4B,

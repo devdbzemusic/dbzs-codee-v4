@@ -5,6 +5,7 @@ import {
   type ModelLabCollection,
   type ModelLabModel,
   type ModelLabReadinessEntry,
+  type ModelLabRoleAssignment,
   type ModelLabRoutingEntry,
   type ModelLabScanJob,
   type ModelLabSource,
@@ -12,7 +13,7 @@ import {
 } from "@dbzs/shared";
 import { backendClient } from "@/services/backendClient";
 import { useSettingsStore } from "@/stores/settingsStore";
-import { useModelLabTabController } from "./ModelLabTab.controller";
+import { findSettingsFieldConflicts, useModelLabTabController } from "./ModelLabTab.controller";
 
 vi.mock("@/services/backendClient", () => ({
   backendClient: {
@@ -23,12 +24,14 @@ vi.mock("@/services/backendClient", () => ({
     listModelLabCollections: vi.fn(),
     listModelRoutingMap: vi.fn(),
     listModelReadiness: vi.fn(),
+    listModelRoleAssignments: vi.fn(),
     createModelLabSource: vi.fn(),
     runModelLabScan: vi.fn(),
     createModelLabCollection: vi.fn(),
     addModelLabCollectionMember: vi.fn(),
     removeModelLabCollectionMember: vi.fn(),
-    searchModelLabHuggingFace: vi.fn()
+    searchModelLabHuggingFace: vi.fn(),
+    assignModelRole: vi.fn()
   }
 }));
 
@@ -153,6 +156,53 @@ function createReadinessEntry(overrides: Partial<ModelLabReadinessEntry> = {}): 
   };
 }
 
+function createRoleAssignment(overrides: Partial<ModelLabRoleAssignment> = {}): ModelLabRoleAssignment {
+  return {
+    id: "assignment-1",
+    bundle_id: "bundle-1",
+    role: "MICRO_TOOL_AGENT",
+    settings_field: null,
+    residency_intent: "manual",
+    safety_level: "LEVEL_1_READ_ONLY_TOOLS",
+    enabled: true,
+    priority: 100,
+    required_certifications: [],
+    notes: "",
+    created_at: "2026-07-31T00:00:00Z",
+    updated_at: "2026-07-31T00:00:00Z",
+    ...overrides
+  };
+}
+
+describe("findSettingsFieldConflicts", () => {
+  it("returns an empty set when no assignments share a settings field", () => {
+    const conflicts = findSettingsFieldConflicts([
+      createRoleAssignment({ bundle_id: "bundle-1", settings_field: "defaultChatModelId" }),
+      createRoleAssignment({ bundle_id: "bundle-2", settings_field: "defaultCoderModelId" })
+    ]);
+
+    expect(conflicts.size).toBe(0);
+  });
+
+  it("flags bundles that share an enabled settings field", () => {
+    const conflicts = findSettingsFieldConflicts([
+      createRoleAssignment({ bundle_id: "bundle-1", settings_field: "defaultChatModelId" }),
+      createRoleAssignment({ bundle_id: "bundle-2", settings_field: "defaultChatModelId" })
+    ]);
+
+    expect(conflicts).toEqual(new Set(["bundle-1", "bundle-2"]));
+  });
+
+  it("ignores disabled assignments when detecting conflicts", () => {
+    const conflicts = findSettingsFieldConflicts([
+      createRoleAssignment({ bundle_id: "bundle-1", settings_field: "defaultChatModelId", enabled: true }),
+      createRoleAssignment({ bundle_id: "bundle-2", settings_field: "defaultChatModelId", enabled: false })
+    ]);
+
+    expect(conflicts.size).toBe(0);
+  });
+});
+
 describe("useModelLabTabController", () => {
   beforeEach(() => {
     vi.mocked(backendClient.listModelLabSources).mockReset().mockResolvedValue([createSource()]);
@@ -164,12 +214,14 @@ describe("useModelLabTabController", () => {
     vi.mocked(backendClient.listModelLabCollections).mockReset().mockResolvedValue([createCollection()]);
     vi.mocked(backendClient.listModelRoutingMap).mockReset().mockResolvedValue([createRoutingEntry()]);
     vi.mocked(backendClient.listModelReadiness).mockReset().mockResolvedValue([createReadinessEntry()]);
+    vi.mocked(backendClient.listModelRoleAssignments).mockReset().mockResolvedValue([createRoleAssignment()]);
     vi.mocked(backendClient.createModelLabSource).mockReset();
     vi.mocked(backendClient.runModelLabScan).mockReset();
     vi.mocked(backendClient.createModelLabCollection).mockReset();
     vi.mocked(backendClient.addModelLabCollectionMember).mockReset();
     vi.mocked(backendClient.removeModelLabCollectionMember).mockReset();
     vi.mocked(backendClient.searchModelLabHuggingFace).mockReset();
+    vi.mocked(backendClient.assignModelRole).mockReset();
 
     useSettingsStore.setState((state) => ({
       ...state,
@@ -195,6 +247,37 @@ describe("useModelLabTabController", () => {
     expect(result.current.models[0].bundle.bundle_id).toBe("bundle-1");
     expect(result.current.routingMap[0].routing_allowed).toBe(true);
     expect(result.current.readinessMap[0].routing_allowed_roles).toEqual(["MICRO_TOOL_AGENT"]);
+    expect(result.current.roleAssignments).toHaveLength(1);
+    expect(result.current.roleAssignments[0].bundle_id).toBe("bundle-1");
+  });
+
+  it("assigns a role and reloads the list", async () => {
+    vi.mocked(backendClient.assignModelRole).mockResolvedValue(createRoleAssignment({ id: "assignment-2" }));
+
+    const { result } = renderHook(() => useModelLabTabController());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.assignRole({ bundle_id: "bundle-1", role: "CODING_EXECUTOR" });
+    });
+
+    expect(backendClient.assignModelRole).toHaveBeenCalledWith({ bundle_id: "bundle-1", role: "CODING_EXECUTOR" });
+    expect(backendClient.listModelRoleAssignments).toHaveBeenCalledTimes(2);
+    expect(result.current.assigningRole).toBe(false);
+  });
+
+  it("surfaces role assignment errors", async () => {
+    vi.mocked(backendClient.assignModelRole).mockRejectedValue(new Error("Zuordnung fehlgeschlagen"));
+
+    const { result } = renderHook(() => useModelLabTabController());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.assignRole({ bundle_id: "bundle-1", role: "CODING_EXECUTOR" });
+    });
+
+    expect(result.current.error).toBe("Zuordnung fehlgeschlagen");
+    expect(result.current.assigningRole).toBe(false);
   });
 
   it("adds a source and reloads the list", async () => {

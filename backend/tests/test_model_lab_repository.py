@@ -199,6 +199,84 @@ def test_fleet_repository_records_probe_certification_and_role_assignment(tmp_pa
     }
 
 
+def test_assign_model_role_rejects_unknown_bundle_id(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+
+    with pytest.raises(ValueError, match="nicht gefunden"):
+        repo.assign_model_role(
+            ModelRoleAssignmentRequest(bundle_id="does-not-exist", role="MICRO_TOOL_AGENT")
+        )
+
+
+def test_assign_model_role_persists_settings_field_and_residency_intent(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    assignment = repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="MICRO_TOOL_AGENT",
+            safety_level="LEVEL_1_READ_ONLY_TOOLS",
+            enabled=False,
+            settings_field="defaultOrchestratorModelId",
+            residency_intent="keep_resident",
+        )
+    )
+
+    assert assignment.settings_field == "defaultOrchestratorModelId"
+    assert assignment.residency_intent == "keep_resident"
+
+    listed = repo.list_role_assignments("MICRO_TOOL_AGENT")[0]
+    assert listed.settings_field == "defaultOrchestratorModelId"
+    assert listed.residency_intent == "keep_resident"
+
+    default_assignment = repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="REASONING_VALIDATOR",
+            safety_level="LEVEL_1_READ_ONLY_TOOLS",
+            enabled=False,
+        )
+    )
+    assert default_assignment.settings_field is None
+    assert default_assignment.residency_intent == "manual"
+
+
+def test_assign_model_role_upserts_on_same_bundle_and_role(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    first = repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="MICRO_TOOL_AGENT",
+            safety_level="LEVEL_1_READ_ONLY_TOOLS",
+            enabled=False,
+            settings_field="defaultDebugModelId",
+            priority=10,
+            notes="first",
+        )
+    )
+    second = repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="MICRO_TOOL_AGENT",
+            safety_level="LEVEL_1_READ_ONLY_TOOLS",
+            enabled=False,
+            settings_field="defaultVisionModelId",
+            priority=20,
+            notes="second",
+        )
+    )
+
+    assert second.id == first.id
+    assignments = repo.list_role_assignments("MICRO_TOOL_AGENT")
+    assert len(assignments) == 1
+    assert assignments[0].settings_field == "defaultVisionModelId"
+    assert assignments[0].priority == 20
+    assert assignments[0].notes == "second"
+
+
 def test_fleet_repository_records_benchmark_measurements(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     _source_id, bundle = _seed_bundle(repo, tmp_path)

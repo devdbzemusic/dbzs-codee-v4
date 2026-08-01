@@ -1405,6 +1405,16 @@ export type ModelFleetRole =
   | "ALGORITHM_SPECIALIST"
   | "REASONING_VALIDATOR"
   | "REPORT_GENERATOR";
+export type ModelSettingsFieldRole =
+  | "defaultModelId"
+  | "defaultChatModelId"
+  | "defaultPlannerModelId"
+  | "defaultCoderModelId"
+  | "defaultReviewerModelId"
+  | "defaultDebugModelId"
+  | "defaultVisionModelId"
+  | "defaultOrchestratorModelId";
+export type ModelResidencyIntent = "keep_resident" | "idle_evict" | "manual";
 export type ModelFleetSafetyLevel =
   | "LEVEL_0_CHAT_ONLY"
   | "LEVEL_1_READ_ONLY_TOOLS"
@@ -1713,6 +1723,8 @@ export interface ModelLabCapabilityEvidenceRecord {
 export interface ModelLabRoleAssignmentRequest {
   bundle_id: string;
   role: ModelFleetRole;
+  settings_field?: ModelSettingsFieldRole | null;
+  residency_intent?: ModelResidencyIntent;
   safety_level?: ModelFleetSafetyLevel;
   enabled?: boolean;
   priority?: number;
@@ -1724,6 +1736,8 @@ export interface ModelLabRoleAssignment {
   id: string;
   bundle_id: string;
   role: ModelFleetRole;
+  settings_field: ModelSettingsFieldRole | null;
+  residency_intent: ModelResidencyIntent;
   safety_level: ModelFleetSafetyLevel;
   enabled: boolean;
   priority: number;

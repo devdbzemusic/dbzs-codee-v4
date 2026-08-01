@@ -6,6 +6,7 @@ import {
   ModelLabInspectorPanel,
   ModelLabModelsSection,
   ModelLabReadinessSection,
+  ModelLabRoleAssignmentSection,
   ModelLabRoutingSection,
   ModelLabSourcesSection
 } from "./ModelLabTab.sections";
@@ -31,6 +32,10 @@ export function ModelLabTab() {
     collections,
     routingMap,
     readinessMap,
+    roleAssignments,
+    assigningRole,
+    assignRole,
+    settingsFieldConflicts,
     creatingCollection,
     createCollection,
     addToCollection,
@@ -78,6 +83,13 @@ export function ModelLabTab() {
             />
             <ModelLabReadinessSection readinessMap={readinessMap} />
             <ModelLabRoutingSection routingMap={routingMap} />
+            <ModelLabRoleAssignmentSection
+              assigningRole={assigningRole}
+              models={models}
+              onAssignRole={(request) => void assignRole(request)}
+              roleAssignments={roleAssignments}
+              settingsFieldConflicts={settingsFieldConflicts}
+            />
             <ModelLabHuggingFaceSearchSection
               error={hfError}
               onQueryChange={setHfQuery}

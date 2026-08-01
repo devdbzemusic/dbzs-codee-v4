@@ -5,12 +5,14 @@ import type {
   ModelLabHuggingFaceSearchResult,
   ModelLabModel,
   ModelLabReadinessEntry,
+  ModelLabRoleAssignment,
+  ModelLabRoleAssignmentRequest,
   ModelLabRoutingEntry,
   ModelLabSource,
   ModelLabSourceCandidate
 } from "@dbzs/shared";
 import { formatBytes, ModelLabStatusBadge } from "./ModelLabTab.primitives";
-import { ModelBundleRow, SourceRow } from "./ModelLabTab.rows";
+import { ModelBundleRow, RoleAssignmentRow, SourceRow } from "./ModelLabTab.rows";
 
 export function ModelLabHeader({
   backendOnline,
@@ -465,6 +467,59 @@ export function ModelLabRoutingSection({ routingMap }: { routingMap: ModelLabRou
                   </span>
                 </td>
               </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+export function ModelLabRoleAssignmentSection({
+  models,
+  roleAssignments,
+  assigningRole,
+  settingsFieldConflicts,
+  onAssignRole
+}: {
+  models: ModelLabModel[];
+  roleAssignments: ModelLabRoleAssignment[];
+  assigningRole: boolean;
+  settingsFieldConflicts: Set<string>;
+  onAssignRole: (request: ModelLabRoleAssignmentRequest) => void;
+}) {
+  return (
+    <div>
+      <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-dbzs-muted">Rollenzuordnung</h3>
+      {models.length === 0 ? (
+        <p className="text-xs text-dbzs-muted">Noch keine Modelle gescannt.</p>
+      ) : (
+        <table className="w-full border-collapse text-left">
+          <thead>
+            <tr className="border-b border-dbzs-border text-[10px] uppercase tracking-[0.1em] text-dbzs-muted">
+              <th className="px-2 py-1">Bundle</th>
+              <th className="px-2 py-1">Health</th>
+              <th className="px-2 py-1">Zuordnung</th>
+              <th className="px-2 py-1">Rolle</th>
+              <th className="px-2 py-1">Settings-Feld</th>
+              <th className="px-2 py-1">Residency</th>
+              <th className="px-2 py-1">Aktiv</th>
+              <th className="px-2 py-1" />
+              <th className="px-2 py-1">Runtime</th>
+            </tr>
+          </thead>
+          <tbody>
+            {models.map((entry) => (
+              <RoleAssignmentRow
+                assigningRole={assigningRole}
+                assignments={roleAssignments.filter(
+                  (assignment) => assignment.bundle_id === entry.bundle.bundle_id
+                )}
+                entry={entry}
+                hasConflict={settingsFieldConflicts.has(entry.bundle.bundle_id)}
+                key={entry.bundle.bundle_id}
+                onAssignRole={onAssignRole}
+              />
             ))}
           </tbody>
         </table>
