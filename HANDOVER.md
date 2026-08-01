@@ -2,6 +2,20 @@
 
 Stand: 2026-08-01
 
+## Plan 12, Etappe 4, Punkt 17: Pläne/-Nummern-Kollisionschecker (2026-08-01)
+
+`scripts/check-plaene-numbering.mjs` (`pnpm docs:check-plaene-numbering` bzw.
+`node scripts/check-plaene-numbering.mjs [--strict]`), analog zu `check-docs-drift.mjs`: liest alle
+Dateinamen in `Pläne/` mit fuehrendem zweistelligem Nummern-Praefix (auch mehrstellig wie `"03 04 05"`) und
+meldet, wenn dieselbe Nummer von mehr als einer Datei beansprucht wird. Nicht-blockierend per Default (Exit 0
+trotz Kollisionen), `--strict` fuer harten Exit 1.
+
+Reiner Checker, kein Auto-Renumberer: welche von zwei kollidierenden, laengst abgeschlossenen Plaenen eine
+neue Nummer bekommen sollte, ist eine Entscheidung, keine Ableitung — daher wurden die beim ersten Lauf
+gefundenen historischen Kollisionen (`02`, `03`/`04`/`05`, `07`, jeweils doppelt beansprucht, alle aus
+laengst abgeschlossenen paralellen Plan-Phasen) bewusst NICHT automatisch bereinigt, nur der Checker selbst
+geliefert.
+
 ## Plan 12, Etappe 2, Punkt 9: Dependency-Audit nachgeholt + `pnpm` in der Sandbox doch nutzbar (2026-08-01)
 
 `pnpm audit` (workspace-weit, `pnpm-lock.yaml`/`pnpm-workspace.yaml`) ergab: **keine bekannten
