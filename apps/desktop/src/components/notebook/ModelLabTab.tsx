@@ -5,6 +5,7 @@ import {
   ModelLabHuggingFaceSearchSection,
   ModelLabInspectorPanel,
   ModelLabModelsSection,
+  ModelLabRoutingSection,
   ModelLabSourcesSection
 } from "./ModelLabTab.sections";
 
@@ -27,6 +28,7 @@ export function ModelLabTab() {
     setSelectedBundleId,
     selectedModel,
     collections,
+    routingMap,
     creatingCollection,
     createCollection,
     addToCollection,
@@ -72,6 +74,7 @@ export function ModelLabTab() {
               models={models}
               onCreateCollection={(request) => void createCollection(request)}
             />
+            <ModelLabRoutingSection routingMap={routingMap} />
             <ModelLabHuggingFaceSearchSection
               error={hfError}
               onQueryChange={setHfQuery}

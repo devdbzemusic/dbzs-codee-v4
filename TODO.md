@@ -72,6 +72,8 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       Workspace-/Write-Rollen verlangen zusaetzlich `WRITE_AGENT_VERIFIED`.
 - [x] Fleet-Routing-Map umgesetzt: `/model-lab/routing-map` liefert pro Rolle Bundle, Safety-Level,
       benoetigte/bestandene/fehlende Zertifikate und `routing_allowed` als stabile UI-/Broker-Vorstufe.
+- [x] Erste Roles-&-Routing-UI umgesetzt: Model Lab laedt die Routing-Map und zeigt Rolle, Modell,
+      Safety-Level, Evidence-Zaehler und Freigabestatus read-only an.
 - [x] Sicheres Probe-Gate: `probeModel` speichert ohne `allow_start` einen `skipped`-Run und startet kein
       lokales Modell.
 - [ ] `D:\Models\Agentic` als erste produktive Quelle ueber den neuen Candidate-Button registrieren/scannen
@@ -80,8 +82,8 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       `collect_metrics` und `stop` auf Basis der vorhandenen Command-/Validation-Preview.
 - [ ] GPU-Autotuning-Matrix aus Plan 15 als echte Messlaeufe gegen die geseedeten Presets ausfuehren und
       beste Profile pro Bundle/Hardware-Snapshot persistieren.
-- [ ] Fleet Console UI ausbauen: Compatibility, Tuning Lab, Benchmarks, Certification, Roles & Routing,
-      Runtime, Failures, Metadata.
+- [ ] Fleet Console UI weiter ausbauen: Compatibility, Tuning Lab, Benchmarks, Certification-Aktionen,
+      Runtime, Failures, Metadata und bearbeitbare Roles-&-Routing-Zuweisungen.
 - [ ] `modelSelectionBroker` produktiv an die Fleet-Routing-Map anbinden; bis dahin bleibt die Map
       bewusst nur Model-Lab-/Bridge-Vertrag, nicht die aktive Laufzeitentscheidung.
 - [ ] manuelle Abnahme mit echten Modellen: MiniCPM5-1B, QwenPaw-Flash-2B, Agents-A1-4B,

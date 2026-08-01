@@ -4,6 +4,7 @@ import type {
   ModelLabCollectionCreate,
   ModelLabHuggingFaceSearchResult,
   ModelLabModel,
+  ModelLabRoutingEntry,
   ModelLabSource,
   ModelLabSourceCandidate
 } from "@dbzs/shared";
@@ -379,6 +380,47 @@ export function ModelLabCollectionsSection({
             </span>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+export function ModelLabRoutingSection({ routingMap }: { routingMap: ModelLabRoutingEntry[] }) {
+  return (
+    <div>
+      <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-dbzs-muted">Roles & Routing</h3>
+      {routingMap.length === 0 ? (
+        <p className="text-xs text-dbzs-muted">Noch keine Fleet-Rollen zugewiesen.</p>
+      ) : (
+        <table className="w-full border-collapse text-left">
+          <thead>
+            <tr className="border-b border-dbzs-border text-[10px] uppercase tracking-[0.1em] text-dbzs-muted">
+              <th className="px-2 py-1">Rolle</th>
+              <th className="px-2 py-1">Modell</th>
+              <th className="px-2 py-1">Safety</th>
+              <th className="px-2 py-1">Evidence</th>
+              <th className="px-2 py-1">Routing</th>
+            </tr>
+          </thead>
+          <tbody>
+            {routingMap.map((entry) => (
+              <tr className="border-b border-dbzs-border/60" key={`${entry.role}:${entry.bundle_id}`}>
+                <td className="px-2 py-1.5 text-xs font-medium text-dbzs-text">{entry.role}</td>
+                <td className="px-2 py-1.5 text-xs text-dbzs-text">{entry.bundle_name}</td>
+                <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">{entry.safety_level}</td>
+                <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">
+                  {entry.passed_certifications.length}/{entry.required_certifications.length}
+                  {entry.missing_certifications.length > 0 ? ` fehlt: ${entry.missing_certifications.join(", ")}` : ""}
+                </td>
+                <td className="px-2 py-1.5 text-[11px]">
+                  <span className={entry.routing_allowed ? "text-dbzs-green" : "text-dbzs-red"}>
+                    {entry.routing_allowed ? "Freigegeben" : "Blockiert"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );

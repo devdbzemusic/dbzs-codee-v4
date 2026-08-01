@@ -4,6 +4,7 @@ import {
   DEFAULT_SETTINGS,
   type ModelLabCollection,
   type ModelLabModel,
+  type ModelLabRoutingEntry,
   type ModelLabScanJob,
   type ModelLabSource,
   type ModelLabSourceCandidate
@@ -19,6 +20,7 @@ vi.mock("@/services/backendClient", () => ({
     listModelLabModels: vi.fn(),
     listModelLabJobs: vi.fn(),
     listModelLabCollections: vi.fn(),
+    listModelRoutingMap: vi.fn(),
     createModelLabSource: vi.fn(),
     runModelLabScan: vi.fn(),
     createModelLabCollection: vi.fn(),
@@ -109,6 +111,27 @@ function createCollection(overrides: Partial<ModelLabCollection> = {}): ModelLab
   };
 }
 
+function createRoutingEntry(overrides: Partial<ModelLabRoutingEntry> = {}): ModelLabRoutingEntry {
+  return {
+    role: "MICRO_TOOL_AGENT",
+    bundle_id: "bundle-1",
+    bundle_name: "test-model",
+    safety_level: "LEVEL_1_READ_ONLY_TOOLS",
+    enabled: true,
+    priority: 100,
+    bundle_status: "CERTIFIED",
+    capabilities: ["tool_use"],
+    modalities: ["text"],
+    required_certifications: ["TOOL_CALLING_VERIFIED", "READ_ONLY_AGENT_VERIFIED"],
+    passed_certifications: ["TOOL_CALLING_VERIFIED", "READ_ONLY_AGENT_VERIFIED"],
+    missing_certifications: [],
+    routing_allowed: true,
+    notes: "",
+    updated_at: "2026-07-31T00:00:00Z",
+    ...overrides
+  };
+}
+
 describe("useModelLabTabController", () => {
   beforeEach(() => {
     vi.mocked(backendClient.listModelLabSources).mockReset().mockResolvedValue([createSource()]);
@@ -118,6 +141,7 @@ describe("useModelLabTabController", () => {
       .mockReset()
       .mockResolvedValue([] as ModelLabScanJob[]);
     vi.mocked(backendClient.listModelLabCollections).mockReset().mockResolvedValue([createCollection()]);
+    vi.mocked(backendClient.listModelRoutingMap).mockReset().mockResolvedValue([createRoutingEntry()]);
     vi.mocked(backendClient.createModelLabSource).mockReset();
     vi.mocked(backendClient.runModelLabScan).mockReset();
     vi.mocked(backendClient.createModelLabCollection).mockReset();
@@ -147,6 +171,7 @@ describe("useModelLabTabController", () => {
     expect(result.current.sourceCandidates).toHaveLength(1);
     expect(result.current.models).toHaveLength(1);
     expect(result.current.models[0].bundle.bundle_id).toBe("bundle-1");
+    expect(result.current.routingMap[0].routing_allowed).toBe(true);
   });
 
   it("adds a source and reloads the list", async () => {

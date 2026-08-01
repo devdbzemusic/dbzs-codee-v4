@@ -48,6 +48,8 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
 - Fleet-Routing-Map nachgezogen: `/model-lab/routing-map` aggregiert Rollen-Zuweisung, Bundle-Metadaten
   und bestandene/fehlende Zertifikate zu einer broker-/UI-lesbaren Freigabekarte; `routing_allowed` ist
   nur bei aktivierter Zuweisung und vollstaendiger Evidence wahr.
+- Model-Lab-UI laedt diese Routing-Map und zeigt sie als erste read-only `Roles & Routing`-Sektion mit
+  Rolle, Modell, Safety-Level, Evidence-Zaehler und Freigabestatus.
 
 **Frisch verifiziert:**
 - `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab.py backend/tests/test_model_lab_repository.py backend/tests/test_model_lab_scan_jobs.py backend/tests/test_model_lab_bridge.py -q` -> 27/27 gruen
