@@ -9,7 +9,7 @@ from app.core.config import get_app_data_dir, get_models_dir, get_win_runtimes_d
 from app.settings.migrations import migrate as migrate_settings_dict
 from app.settings.models import AppSettings, SettingsRevisionConflict
 
-SECRET_KEYS = ("openaiApiKey", "anthropicApiKey")
+SECRET_KEYS = ("openaiApiKey", "anthropicApiKey", "huggingfaceApiKey")
 
 ORPHANED_SETTINGS = [
     "autoSave",

@@ -10,9 +10,24 @@ except ImportError:  # pragma: no cover - exercised when optional dependency is 
     HfApi = None  # type: ignore[assignment]
 
 
+def _resolve_hf_token() -> str:
+    """Same precedence as other cloud API keys in this backend (see runtime/cloud_client.py):
+    App-Settings first, HF_TOKEN env var as fallback. Keeps the token out of plain env-only
+    storage and covered by the settings diagnostics redaction (SECRET_KEYS)."""
+    try:
+        from app.settings.service import get_settings_service
+
+        settings_token = get_settings_service().load().huggingfaceApiKey.strip()
+        if settings_token:
+            return settings_token
+    except Exception:  # pragma: no cover - settings unavailable (e.g. isolated unit test)
+        pass
+    return os.environ.get("HF_TOKEN", "").strip()
+
+
 class HuggingFaceModelService:
     def __init__(self, token: str | None = None) -> None:
-        self.token = token or os.environ.get("HF_TOKEN")
+        self.token = (token or _resolve_hf_token()) or None
         self._api = HfApi(token=self.token) if HfApi is not None else None
 
     def is_available(self) -> bool:
