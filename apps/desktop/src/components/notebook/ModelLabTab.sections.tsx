@@ -4,6 +4,7 @@ import type {
   ModelLabCollectionCreate,
   ModelLabHuggingFaceSearchResult,
   ModelLabModel,
+  ModelLabReadinessEntry,
   ModelLabRoutingEntry,
   ModelLabSource,
   ModelLabSourceCandidate
@@ -380,6 +381,52 @@ export function ModelLabCollectionsSection({
             </span>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+export function ModelLabReadinessSection({ readinessMap }: { readinessMap: ModelLabReadinessEntry[] }) {
+  return (
+    <div>
+      <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-dbzs-muted">Readiness Gates</h3>
+      {readinessMap.length === 0 ? (
+        <p className="text-xs text-dbzs-muted">Noch keine Readiness-Daten vorhanden.</p>
+      ) : (
+        <table className="w-full border-collapse text-left">
+          <thead>
+            <tr className="border-b border-dbzs-border text-[10px] uppercase tracking-[0.1em] text-dbzs-muted">
+              <th className="px-2 py-1">Modell</th>
+              <th className="px-2 py-1">Status</th>
+              <th className="px-2 py-1">Probe</th>
+              <th className="px-2 py-1">Benchmark</th>
+              <th className="px-2 py-1">Evidence</th>
+              <th className="px-2 py-1">Routing</th>
+              <th className="px-2 py-1">Blocker</th>
+            </tr>
+          </thead>
+          <tbody>
+            {readinessMap.map((entry) => (
+              <tr className="border-b border-dbzs-border/60" key={entry.bundle_id}>
+                <td className="px-2 py-1.5 text-xs font-medium text-dbzs-text">{entry.bundle_name}</td>
+                <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">{entry.status}</td>
+                <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">{entry.latest_probe_status ?? "-"}</td>
+                <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">{entry.latest_benchmark_status ?? "-"}</td>
+                <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">
+                  {entry.evidence_count} / {entry.certification_count} Zert.
+                </td>
+                <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">
+                  {entry.routing_allowed_roles.length}/{entry.assigned_roles.length}
+                </td>
+                <td className="px-2 py-1.5 text-[11px]">
+                  <span className={entry.blockers.length === 0 ? "text-dbzs-green" : "text-dbzs-red"}>
+                    {entry.blockers.length === 0 ? "OK" : entry.blockers.join(", ")}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );

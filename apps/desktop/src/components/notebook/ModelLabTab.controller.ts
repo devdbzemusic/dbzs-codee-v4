@@ -4,6 +4,7 @@ import type {
   ModelLabCollectionCreate,
   ModelLabHuggingFaceSearchResult,
   ModelLabModel,
+  ModelLabReadinessEntry,
   ModelLabRoutingEntry,
   ModelLabScanJob,
   ModelLabSource,
@@ -29,6 +30,7 @@ export function useModelLabTabController() {
   const [selectedBundleId, setSelectedBundleId] = useState<string | null>(null);
   const [collections, setCollections] = useState<ModelLabCollection[]>([]);
   const [routingMap, setRoutingMap] = useState<ModelLabRoutingEntry[]>([]);
+  const [readinessMap, setReadinessMap] = useState<ModelLabReadinessEntry[]>([]);
   const [creatingCollection, setCreatingCollection] = useState(false);
   const [hfQuery, setHfQuery] = useState("");
   const [hfResults, setHfResults] = useState<ModelLabHuggingFaceSearchResult[]>([]);
@@ -39,7 +41,15 @@ export function useModelLabTabController() {
     setIsLoading(true);
     setError(null);
     try {
-      const [nextSources, nextSourceCandidates, nextModels, nextJobs, nextCollections, nextRoutingMap] = await Promise.all([
+      const [
+        nextSources,
+        nextSourceCandidates,
+        nextModels,
+        nextJobs,
+        nextCollections,
+        nextRoutingMap,
+        nextReadinessMap
+      ] = await Promise.all([
         backendClient.listModelLabSources ? backendClient.listModelLabSources() : Promise.resolve([]),
         backendClient.listModelLabSourceCandidates
           ? backendClient.listModelLabSourceCandidates()
@@ -47,7 +57,8 @@ export function useModelLabTabController() {
         backendClient.listModelLabModels ? backendClient.listModelLabModels() : Promise.resolve([]),
         backendClient.listModelLabJobs ? backendClient.listModelLabJobs() : Promise.resolve([]),
         backendClient.listModelLabCollections ? backendClient.listModelLabCollections() : Promise.resolve([]),
-        backendClient.listModelRoutingMap ? backendClient.listModelRoutingMap() : Promise.resolve([])
+        backendClient.listModelRoutingMap ? backendClient.listModelRoutingMap() : Promise.resolve([]),
+        backendClient.listModelReadiness ? backendClient.listModelReadiness() : Promise.resolve([])
       ]);
       setSources(nextSources);
       setSourceCandidates(nextSourceCandidates);
@@ -55,6 +66,7 @@ export function useModelLabTabController() {
       setJobs(nextJobs);
       setCollections(nextCollections);
       setRoutingMap(nextRoutingMap);
+      setReadinessMap(nextReadinessMap);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Model Lab konnte nicht geladen werden.");
     } finally {
@@ -206,6 +218,7 @@ export function useModelLabTabController() {
     selectedModel,
     collections,
     routingMap,
+    readinessMap,
     creatingCollection,
     createCollection,
     addToCollection,

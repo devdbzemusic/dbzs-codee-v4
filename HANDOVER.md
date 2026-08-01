@@ -70,6 +70,8 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
 - Fleet-Readiness-Map ergaenzt: `/model-lab/readiness` aggregiert pro Bundle Health/Status, letzte
   Probe/Benchmark, Zertifikats-/Evidence-/Failure-Zaehler, Rollen und Routing-Freigaben inklusive
   Blocker-Liste. Damit muessen UI und Broker keine Tabellen-Rohdaten zusammensetzen.
+- Model-Lab-UI zeigt die Readiness-Map jetzt als `Readiness Gates`-Sektion mit Probe/Benchmark,
+  Evidence-/Zertifikatszaehlern, Routing-Freigaben und Blockern.
 
 **Frisch verifiziert:**
 - `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab.py backend/tests/test_model_lab_repository.py backend/tests/test_model_lab_scan_jobs.py backend/tests/test_model_lab_bridge.py -q` -> 34/34 gruen

@@ -4,6 +4,7 @@ import {
   DEFAULT_SETTINGS,
   type ModelLabCollection,
   type ModelLabModel,
+  type ModelLabReadinessEntry,
   type ModelLabRoutingEntry,
   type ModelLabScanJob,
   type ModelLabSource,
@@ -21,6 +22,7 @@ vi.mock("@/services/backendClient", () => ({
     listModelLabJobs: vi.fn(),
     listModelLabCollections: vi.fn(),
     listModelRoutingMap: vi.fn(),
+    listModelReadiness: vi.fn(),
     createModelLabSource: vi.fn(),
     runModelLabScan: vi.fn(),
     createModelLabCollection: vi.fn(),
@@ -132,6 +134,25 @@ function createRoutingEntry(overrides: Partial<ModelLabRoutingEntry> = {}): Mode
   };
 }
 
+function createReadinessEntry(overrides: Partial<ModelLabReadinessEntry> = {}): ModelLabReadinessEntry {
+  return {
+    bundle_id: "bundle-1",
+    bundle_name: "test-model",
+    status: "CERTIFIED",
+    health_status: "healthy",
+    latest_probe_status: "skipped",
+    latest_benchmark_status: "queued",
+    certification_count: 2,
+    evidence_count: 3,
+    failure_count: 0,
+    assigned_roles: ["MICRO_TOOL_AGENT"],
+    routing_allowed_roles: ["MICRO_TOOL_AGENT"],
+    blockers: [],
+    updated_at: "2026-07-31T00:00:00Z",
+    ...overrides
+  };
+}
+
 describe("useModelLabTabController", () => {
   beforeEach(() => {
     vi.mocked(backendClient.listModelLabSources).mockReset().mockResolvedValue([createSource()]);
@@ -142,6 +163,7 @@ describe("useModelLabTabController", () => {
       .mockResolvedValue([] as ModelLabScanJob[]);
     vi.mocked(backendClient.listModelLabCollections).mockReset().mockResolvedValue([createCollection()]);
     vi.mocked(backendClient.listModelRoutingMap).mockReset().mockResolvedValue([createRoutingEntry()]);
+    vi.mocked(backendClient.listModelReadiness).mockReset().mockResolvedValue([createReadinessEntry()]);
     vi.mocked(backendClient.createModelLabSource).mockReset();
     vi.mocked(backendClient.runModelLabScan).mockReset();
     vi.mocked(backendClient.createModelLabCollection).mockReset();
@@ -172,6 +194,7 @@ describe("useModelLabTabController", () => {
     expect(result.current.models).toHaveLength(1);
     expect(result.current.models[0].bundle.bundle_id).toBe("bundle-1");
     expect(result.current.routingMap[0].routing_allowed).toBe(true);
+    expect(result.current.readinessMap[0].routing_allowed_roles).toEqual(["MICRO_TOOL_AGENT"]);
   });
 
   it("adds a source and reloads the list", async () => {

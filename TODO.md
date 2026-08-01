@@ -90,6 +90,8 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       (`runtime_probe:<adapter>`), damit Probe-Gates in Certification/Fleet-UI weiterverwendbar sind.
 - [x] Fleet-Readiness-Map umgesetzt: `/model-lab/readiness` aggregiert Health, Probe, Benchmark,
       Evidence, Failures und Routing-Freigaben pro Bundle als grobe Gate-Uebersicht.
+- [x] Readiness-Gates in der Model-Lab-UI sichtbar gemacht: Probe/Benchmark, Evidence/Zertifikate,
+      Routing-Freigaben und Blocker erscheinen als eigene Fleet-Console-Vorstufe.
 - [x] Sicheres Probe-Gate: `probeModel` speichert ohne `allow_start` einen `skipped`-Run und startet kein
       lokales Modell.
 - [ ] `D:\Models\Agentic` als erste produktive Quelle ueber den neuen Candidate-Button registrieren/scannen
