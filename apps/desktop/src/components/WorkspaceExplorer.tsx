@@ -9,6 +9,19 @@ import { useGitStore } from "@/stores/gitStore";
 import { useToastStore } from "@/stores/toastStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { ContextMenu } from "@/components/ui/ContextMenu";
+import {
+  allFolderIds,
+  buildTree,
+  buildWorkspaceRows,
+  countFolder,
+  fileChip,
+  getUniqueExtensions,
+  parentRel,
+  siblingPath,
+  toAbsPath,
+  type WorkspaceTreeNode
+} from "@/services/workspaceTree";
+import { buildWorkspaceExplorerCommands } from "@/services/workspaceExplorerCommands";
 
 // ---------------------------------------------------------------------------
 // Storage keys
@@ -29,16 +42,7 @@ const SCAN_IGNORED = [
 // Types
 // ---------------------------------------------------------------------------
 
-interface TreeNode {
-  id: string;
-  name: string;
-  path: string;
-  depth: number;
-  type: "folder" | "file";
-  language?: string;
-  children: TreeNode[];
-  file?: WorkspaceProjectFile;
-}
+type TreeNode = WorkspaceTreeNode;
 
 interface ContextMenuState { x: number; y: number; target: TreeNode | null }
 
@@ -83,137 +87,6 @@ function saveRecent(recent: string[]): void {
 
 function loadCompact(): boolean {
   return localStorage.getItem(COMPACT_KEY) === "1";
-}
-
-// ---------------------------------------------------------------------------
-// Color by file type
-// ---------------------------------------------------------------------------
-
-const TYPE_COLOR: Record<string, string> = {
-  typescript: "text-blue-400",
-  typescriptreact: "text-blue-400",
-  javascript: "text-yellow-400",
-  javascriptreact: "text-yellow-400",
-  python: "text-green-400",
-  markdown: "text-amber-400",
-  json: "text-purple-400",
-  css: "text-pink-400",
-  scss: "text-pink-400",
-  html: "text-orange-400",
-};
-
-function fileChip(file: WorkspaceProjectFile): { label: string; color: string } {
-  const ext = file.name.split(".").at(-1)?.toLowerCase() ?? "";
-  const labels: Record<string, string> = {
-    css: "#", html: "<>", js: "JS", json: "{}", md: "MD",
-    py: "PY", ts: "TS", tsx: "TSX", jsx: "JSX", scss: "SC",
-    sh: "SH", yml: "YM", yaml: "YM", toml: "TM", rs: "RS",
-    go: "GO", rb: "RB", java: "JV", kt: "KT", cs: "C#",
-    cpp: "C+", c: "C", txt: "TX", env: "ENV",
-  };
-  return {
-    label: (labels[ext] ?? ext.slice(0, 3).toUpperCase()) || "?",
-    color: TYPE_COLOR[file.language ?? ""] ?? "text-dbzs-cyan",
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Path helpers
-// ---------------------------------------------------------------------------
-
-function toAbsPath(root: string, rel: string): string {
-  const clean = rel.trim().replace(/^([\\/])+/, "").replace(/[\\/]+/g, "/");
-  const sep = root.includes("\\") ? "\\" : "/";
-  const base = root.replace(/[\\/]$/, "");
-  return `${base}${sep}${clean.replace(/\//g, sep)}`;
-}
-
-function parentRel(rel: string): string {
-  const n = rel.replace(/[\\/]+/g, "/");
-  const i = n.lastIndexOf("/");
-  return i <= 0 ? "" : n.slice(0, i);
-}
-
-function siblingPath(rel: string, name: string): string {
-  const p = parentRel(rel);
-  return p ? `${p}/${name}` : name;
-}
-
-// ---------------------------------------------------------------------------
-// Tree builder
-// ---------------------------------------------------------------------------
-
-function buildTree(files: WorkspaceProjectFile[]): TreeNode[] {
-  const root: TreeNode[] = [];
-  const folders = new Map<string, TreeNode>();
-
-  for (const file of files) {
-    const parts = file.relativePath.split(/[\\/]/).filter(Boolean);
-    let current = root;
-    let path = "";
-
-    for (let i = 0; i < parts.length; i++) {
-      path = path ? `${path}/${parts[i]}` : parts[i];
-      const isFile = i === parts.length - 1;
-
-      if (isFile) {
-        current.push({ id: file.path, name: parts[i], path, depth: i, type: "file", language: file.language, children: [], file });
-      } else {
-        let folder = folders.get(path);
-        if (!folder) {
-          folder = { id: path, name: parts[i], path, depth: i, type: "folder", children: [] };
-          folders.set(path, folder);
-          current.push(folder);
-        }
-        current = folder.children;
-      }
-    }
-  }
-
-  const sortTree = (nodes: TreeNode[]) => {
-    nodes.sort((a, b) => a.type !== b.type ? (a.type === "folder" ? -1 : 1) : a.name.localeCompare(b.name));
-    nodes.forEach((n) => sortTree(n.children));
-  };
-  sortTree(root);
-  return root;
-}
-
-function flattenTree(nodes: TreeNode[], collapsed: Set<string>): TreeNode[] {
-  const rows: TreeNode[] = [];
-  const visit = (n: TreeNode) => {
-    rows.push(n);
-    if (n.type === "folder" && !collapsed.has(n.id)) n.children.forEach(visit);
-  };
-  nodes.forEach(visit);
-  return rows;
-}
-
-function countFolder(node: TreeNode): { files: number; folders: number } {
-  let files = 0; let folders = 0;
-  const walk = (n: TreeNode) => {
-    for (const c of n.children) {
-      if (c.type === "file") files++;
-      else { folders++; walk(c); }
-    }
-  };
-  walk(node);
-  return { files, folders };
-}
-
-function allFolderIds(nodes: TreeNode[]): string[] {
-  const ids: string[] = [];
-  const walk = (n: TreeNode) => { if (n.type === "folder") { ids.push(n.id); n.children.forEach(walk); } };
-  nodes.forEach(walk);
-  return ids;
-}
-
-function getUniqueExtensions(files: WorkspaceProjectFile[]): string[] {
-  const exts = new Set<string>();
-  for (const f of files) {
-    const e = f.name.split(".").at(-1)?.toLowerCase();
-    if (e) exts.add(e);
-  }
-  return [...exts].sort();
 }
 
 // ---------------------------------------------------------------------------
@@ -347,22 +220,10 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
     return map;
   }, [changedEntries]);
 
-  const filteredFiles = useMemo(() => {
-    let result = files;
-    if (typeFilter !== "all") {
-      result = result.filter((f) => f.name.endsWith(`.${typeFilter}`));
-    }
-    return result;
-  }, [files, typeFilter]);
-
-  const filteredTree = useMemo(() => buildTree(filteredFiles), [filteredFiles]);
-
-  const rows = useMemo(() => {
-    const base = flattenTree(filteredTree, collapsed);
-    if (!filterQuery.trim()) return base;
-    const q = filterQuery.toLowerCase();
-    return base.filter((n) => n.type === "file" && n.name.toLowerCase().includes(q));
-  }, [filteredTree, collapsed, filterQuery]);
+  const rows = useMemo(
+    () => buildWorkspaceRows(files, { collapsed, query: filterQuery, typeFilter }),
+    [collapsed, files, filterQuery, typeFilter]
+  );
 
   const pinnedRows = useMemo(() => {
     return [...pinned].map((path) => files.find((f) => f.path === path)).filter(Boolean) as WorkspaceProjectFile[];
@@ -1210,72 +1071,50 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
       {/* ---- Context menu ---- */}
       {contextMenu && (
         <ContextMenu
-          items={(() => {
-            const target = contextMenu.target;
-            const isFile = target?.type === "file";
-            const isFolder = target?.type === "folder";
-            const targetPinned = Boolean(target && target.type === "file" && target.file && pinned.has(target.file.path));
-            const folderIsCollapsed = Boolean(isFolder && target && collapsed.has(target.id));
-
-            const menuItems: Array<
-              | null
-              | { label: string; action: () => void | Promise<void>; disabled?: boolean; danger?: boolean }
-            > = [];
-
-            if (isFile || isFolder) {
-              menuItems.push({
-                label: isFile ? "Öffnen" : (folderIsCollapsed ? "Ordner aufklappen" : "Ordner einklappen"),
-                action: () => void handleOpenTarget(),
-              });
+          items={buildWorkspaceExplorerCommands(
+            {
+              target: contextMenu.target,
+              hasWorkspace: Boolean(state.projectPath),
+              targetPinned: Boolean(
+                contextMenu.target?.type === "file" &&
+                  contextMenu.target.file &&
+                  pinned.has(contextMenu.target.file.path)
+              ),
+              folderCollapsed: Boolean(
+                contextMenu.target?.type === "folder" && collapsed.has(contextMenu.target.id)
+              )
+            },
+            {
+              open: () => void handleOpenTarget(),
+              newFile: handleCreateFile,
+              newFolder: handleCreateFolder,
+              rename: handleRenamePath,
+              move: () => {
+                if (contextMenu.target) openMoveDialog(contextMenu.target);
+              },
+              duplicate: handleDuplicate,
+              delete: handleDeletePath,
+              copyRelativePath: () => {
+                if (contextMenu.target) void copyPath(contextMenu.target, false);
+              },
+              copyAbsolutePath: () => {
+                if (contextMenu.target) void copyPath(contextMenu.target, true);
+              },
+              reveal: handleOpenInExplorer,
+              pin: () => {
+                if (contextMenu.target) togglePin(contextMenu.target);
+              },
+              sendToAgent: () => {
+                if (contextMenu.target) sendToAgent(contextMenu.target);
+              },
+              preparePatch: handlePreparePatch
             }
-
-            menuItems.push(
-              { label: "Neue Datei", action: handleCreateFile, disabled: !state.projectPath },
-              { label: "Neuer Ordner", action: handleCreateFolder, disabled: !state.projectPath },
-              null
-            );
-
-            if (isFile || isFolder) {
-              menuItems.push(
-                { label: "Umbenennen (Dialog)", action: handleRenamePath, disabled: !target },
-                { label: "Verschieben nach…", action: () => target && openMoveDialog(target), disabled: !target }
-              );
-            }
-
-            if (isFile) {
-              menuItems.push(
-                { label: targetPinned ? "Lösen (unpin)" : "Anpinnen", action: () => target && togglePin(target), disabled: !target },
-                { label: "Duplizieren", action: handleDuplicate, disabled: !target }
-              );
-            }
-
-            if (isFile || isFolder) {
-              menuItems.push(
-                null,
-                { label: "Relativen Pfad kopieren", action: () => target && void copyPath(target, false), disabled: !target },
-                { label: "Absoluten Pfad kopieren", action: () => target && void copyPath(target, true), disabled: !target }
-              );
-            }
-
-            if (isFile) {
-              menuItems.push(
-                null,
-                { label: "Patch vorbereiten", action: handlePreparePatch, disabled: !target },
-                { label: "An Agent senden", action: () => target && sendToAgent(target), disabled: !target }
-              );
-            }
-
-            menuItems.push(
-              null,
-              { label: "Im Explorer öffnen", action: handleOpenInExplorer, disabled: !state.projectPath }
-            );
-
-            if (isFile || isFolder) {
-              menuItems.push({ label: "Löschen", action: handleDeletePath, disabled: !target, danger: true });
-            }
-
-            return menuItems;
-          })()}
+          ).map((command) => ({
+            label: command.label,
+            action: command.action,
+            disabled: command.disabled,
+            danger: command.danger
+          }))}
           onClose={() => setContextMenu(null)}
           x={contextMenu.x}
           y={contextMenu.y}
