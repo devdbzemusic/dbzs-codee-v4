@@ -2,6 +2,44 @@
 
 Stand: 2026-08-01
 
+## Plan 14, Phase 2: ONNX-Runtime-Adapter fuer Embeddings umgesetzt (2026-08-01)
+
+Erster Runtime-Adapter neben llama-server/Ollama (Nutzerentscheidung, obwohl in Phase 0 als "spekulativ,
+ohne konkreten Bedarf" zurueckgestellt). ONNX Runtime gewaehlt: reines pip-Paket, kein CUDA/natives Toolchain
+noetig, CPU-only auf jedem Windows-Rechner lauffaehig.
+
+**Wichtiger Befund vor der Umsetzung:** `backend/app/rag/` (Hybrid-Retrieval) hat bereits vollstaendige
+Embedding-Infrastruktur (Cache-Tabelle, Upsert/Missing-Endpunkte, Cosine-Scoring in `retrieve()`) — aber
+nichts berechnet je einen Vektor (`rag/service.py:8`: "bleibt ohne Embedding-Modell vollstaendig
+funktionsfaehig"). Der neue Adapter fuellt genau diese Luecke, statt ein neues, unverbundenes Feature zu
+bauen.
+
+**Umgesetzt:**
+- `backend/app/rag/onnx_embedding_client.py` (neu): in-process ONNX-Client (Tokenisieren -> Session-Run ->
+  Mean-Pooling -> L2-Normalisierung). Bewusst NICHT wie `chat_clients.py`s `LlamaServerChatClient`/
+  `OllamaChatClient` (HTTP-Endpoint/Chat-Message-foermig) — Embeddings laufen in-process, Text rein, Vektor
+  raus. `onnxruntime`/`tokenizers` optional importiert (Muster wie `hf_integration.py`s `HfApi`-Guard),
+  Session/Tokenizer injizierbar fuer Tests ohne echte Modelldatei.
+- `backend/app/rag/embedding_service.py` (neu): loest `AppSettings.defaultEmbeddingModelId` (neues Feld)
+  ueber `ModelLabRepository.get_model()` auf ein Bundle mit `.onnx`- und Tokenizer-Artefakt auf, cached den
+  Client pro Bundle.
+- `POST /rag/embeddings/generate` (`rag/router.py`) — einziger neuer HTTP-Endpunkt, bestehende
+  `upsert`/`missing`/`retrieve`-Endpunkte unveraendert.
+- Settings-Feld `defaultEmbeddingModelId` ist ein Text-Feld, kein `model_select`-Dropdown: dieser Control-Typ
+  ist an den Runtime-Modellindex gebunden (`SettingsNotebook.tsx`s `modelOptions`), nicht an Model Labs
+  Bundle-IDs — ein echter Model-Lab-Picker ist ein sinnvoller, aber bewusst nicht in diesem Schritt gebauter
+  Folgeschritt.
+- Nebenbei behoben: `huggingfaceApiKey` existierte seit einem frueheren Schritt dieser Session im
+  Backend-Settings-Modell, war aber nie in den gemeinsamen TS-`AppSettings`-Typ gespiegelt worden.
+
+Verifikation: voller Backend-Testlauf 501/501 (+11 neue), voller Desktop-Vitest-Lauf 1351/1351, beide
+Typechecks clean.
+
+**Noch offen:** Model-Lab-sourcierter Auswahl-Dropdown fuer das Embedding-Modell (statt Text-Feld). Reranking
+(Query+Passage -> Score, anderes Schema als Embedding) als naechste Engine-Faehigkeit. RAGs `retrieve()`
+automatisch `query_embedding` berechnen lassen, wenn ein Modell konfiguriert ist (aktuell generiert der
+Aufrufer die Vektoren selbst und speichert sie ueber die bestehenden Endpunkte).
+
 ## Plan 14, Model-Handling-Revision, Phase 0 umgesetzt (2026-08-01)
 
 Basis: `Pläne/14 DBZS_CODEE_MODEL_HANDLING_REVISION.md`. **Wichtigster Befund vor der Umsetzung:** das
