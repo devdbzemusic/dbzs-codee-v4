@@ -104,7 +104,11 @@ import {
   selectTimeoutProfile,
   TimeoutManager
 } from "@/services/timeoutConfig";
-import { classifyRuntimeChatError, formatChatErrorForUser } from "@/services/runtimeChatErrorClassifier";
+import {
+  classifyRuntimeChatError,
+  extractRuntimeBackendErrorDetail,
+  formatChatErrorForUser
+} from "@/services/runtimeChatErrorClassifier";
 import { approvalCoordinator } from "@/services/approvalCoordinator";
 import { questionCoordinator } from "@/services/questionCoordinator";
 import { clearPendingQuestion, readPendingQuestion } from "@/services/pendingQuestionPersistence";
@@ -2880,20 +2884,21 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
         "Modell-Anfrage senden",
         error instanceof Error ? error.message : "Unbekannter Fehler"
       );
+      const backendErrorDetail = extractRuntimeBackendErrorDetail(error);
       
       const runError: import("@dbzs/shared").RuntimeChatError = {
-        code: isTransientChatTransportError(error) ? "TRANSPORT_ERROR" : "UNKNOWN_ERROR",
-        message: error instanceof Error ? error.message : "Unbekannter Fehler",
-        phase: "llm-request",
+        code: backendErrorDetail?.code ?? (isTransientChatTransportError(error) ? "TRANSPORT_ERROR" : "UNKNOWN_ERROR"),
+        message: backendErrorDetail?.message ?? (error instanceof Error ? error.message : "Unbekannter Fehler"),
+        phase: backendErrorDetail?.stage ?? "llm-request",
         provider: routing?.providerId ?? undefined,
         endpoint: routing?.modelId ?? undefined,
-        requestId: undefined
+        requestId: backendErrorDetail?.diagnosticId ?? undefined
       };
 
       appendGenericRunFailure({
         updateActiveRun,
         outcome: "runtime_error",
-        summary: runError.message,
+        summary: backendErrorDetail?.code ? `${runError.message} [${backendErrorDetail.code}]` : runError.message,
         error: runError
       });
 

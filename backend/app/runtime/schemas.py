@@ -28,6 +28,8 @@ class RuntimeStatus(BaseModel):
     pid: int | None = None
     endpoint: str | None = None
     message: str = ""
+    error_code: str | None = None
+    diagnostic_context: dict[str, object] | None = None
     stderr_tail: str = ""
     stdout_tail: str = ""
     slot_id: RuntimeSlotId | None = None
@@ -166,6 +168,7 @@ class RuntimeChatRequest(BaseModel):
     fallback_policy: RuntimeFallbackPolicy | None = None
     routing_reason: str | None = None
     decision_id: str | None = None
+    request_id: str | None = None
     run_id: str | None = None
 
     def native_tools_payload(self) -> list[dict] | None:
@@ -332,6 +335,11 @@ RuntimeReadinessStage = Literal[
 ]
 
 RuntimeErrorCode = Literal[
+    "request_timeout",
+    "request_cancelled",
+    "model_not_ready",
+    "backend_unavailable",
+    "invalid_response",
     "runtime_unavailable",
     "target_slot_unavailable",
     "warmup_timeout",
@@ -339,6 +347,7 @@ RuntimeErrorCode = Literal[
     "warmup_empty_response",
     "binding_mismatch",
     "provider_request_failed",
+    "provider_template_error",
     "provider_timeout",
     "runtime_internal_error",
 ]

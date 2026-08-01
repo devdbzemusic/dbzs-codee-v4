@@ -1,6 +1,7 @@
 import type { RuntimeSlotDefinition, RuntimeSlotId, RuntimeSlotRole, RuntimeTaskType, RuntimeHardwareClass } from "./runtime/runtimeSlots.js";
 import type { DecisionMemoryEntry } from "./interaction/interactionContracts.js";
 import type { CommandRunStatus } from "./jobs/jobContracts.js";
+import type { RuntimeErrorCode } from "./runtimeErrorSchema.js";
 
 export type { RuntimeSlotDefinition, RuntimeSlotId, RuntimeSlotRole, RuntimeTaskType, RuntimeHardwareClass } from "./runtime/runtimeSlots.js";
 export { RUNTIME_SLOT_DEFINITIONS } from "./runtime/runtimeSlots.js";
@@ -565,6 +566,7 @@ export interface RuntimeChatRequest {
   fallback_policy?: RuntimeFallbackPolicy;
   routing_reason?: string | null;
   decision_id?: string | null;
+  request_id?: string | null;
   /** RuntimeChatRun.id for this turn — threaded to the backend so a crash mid-run can be correlated across logs. */
   run_id?: string | null;
 }
@@ -1310,12 +1312,21 @@ export interface IndexedModel {
   recommended_use: RecommendedModelUse;
   compatibility: string;
   runtime: ModelRuntimeHints;
+  exclusion_reasons?: ModelExclusionReason[];
   // Additive overlay from Model Lab when a matching scan entry exists for this
   // exact file path (Plan 14, Phase 0.2). Absent/empty when Model Lab has no
   // matching entry for this model.
   model_lab_health_status?: string | null;
   model_lab_tags?: string[];
 }
+
+export type ModelExclusionReason =
+  | "not_gguf"
+  | "missing_file"
+  | "unsupported_runtime"
+  | "missing_profile"
+  | "unprofiled_gpu"
+  | "health_failed";
 
 export interface ModelIndexSummary {
   models_dir: string;
@@ -1565,6 +1576,8 @@ export interface RuntimeStatus {
   pid: number | null;
   endpoint: string | null;
   message: string;
+  error_code?: RuntimeErrorCode | null;
+  diagnostic_context?: Record<string, unknown> | null;
   stderr_tail?: string;
   stdout_tail?: string;
   slot_id?: RuntimeSlotId | null;

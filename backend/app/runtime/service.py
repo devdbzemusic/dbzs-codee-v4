@@ -39,6 +39,7 @@ from app.runtime.chat_stream import (
 )
 from app.runtime.chat_clients import LlamaServerChatClient, OllamaChatClient
 from app.runtime.cloud_client import CloudRuntimeClient
+from app.runtime.errors import RuntimeProviderError
 from app.runtime.gpu_detect import GpuInfo, detect_gpu
 from app.runtime.gpu_exclusivity import other_exclusive_gpu_slot, wait_for_slot_drain
 from app.runtime.hardware_fingerprint import collect_hardware_fingerprint, fingerprint_hash
@@ -848,6 +849,13 @@ class RuntimeService:
                 self._status = status
                 return status
 
+            readiness_error = self._model_readiness_error(model_id, model, target_slot_id)
+            if readiness_error is not None:
+                self._statuses[target_slot_id] = readiness_error
+                self._last_active_slot_id = target_slot_id
+                self._status = readiness_error
+                return readiness_error
+
             requested_profile = caller_config.get("profile")
             if not isinstance(requested_profile, str):
                 requested_profile = None
@@ -1154,6 +1162,57 @@ class RuntimeService:
         self._status = status
         return status
 
+    def _model_readiness_error(
+        self,
+        model_id: str,
+        model: IndexedModel | None,
+        slot_id: str,
+    ) -> RuntimeStatus | None:
+        if model is None:
+            return RuntimeStatus(
+                state="error",
+                message=f"model_not_ready: model '{model_id}' was not found in the current model index.",
+                error_code="model_not_ready",
+                diagnostic_context={
+                    "source": "runtime-service",
+                    "stage": "start_model_preflight",
+                    "modelId": model_id,
+                    "slotId": slot_id,
+                    "reason": "missing_index_entry",
+                },
+                slot_id=slot_id,  # type: ignore[arg-type]
+            )
+
+        hard_reasons = {"missing_file", "not_gguf", "unsupported_runtime", "health_failed"}
+        reasons = set(model.exclusion_reasons or [])
+        if model.runtime_launcher == "llama-server" and not Path(model.path).exists():
+            reasons.add("missing_file")
+        blocking_reasons = sorted(reasons & hard_reasons)
+        if not blocking_reasons:
+            return None
+
+        return RuntimeStatus(
+            state="error",
+            provider=provider_for_model(model),
+            model_id=model.id,
+            model_name=model.name,
+            message=(
+                f"model_not_ready: model '{model.id}' cannot be started "
+                f"({', '.join(blocking_reasons)})."
+            ),
+            error_code="model_not_ready",
+            diagnostic_context={
+                "source": "runtime-service",
+                "stage": "start_model_preflight",
+                "modelId": model.id,
+                "slotId": slot_id,
+                "path": model.path,
+                "compatibility": model.compatibility,
+                "exclusionReasons": sorted(reasons),
+            },
+            slot_id=slot_id,  # type: ignore[arg-type]
+        )
+
     def start_model_with_config(self, model_id: str, config: dict, *, slot_id: str | None = None) -> RuntimeStatus:
         return self.start_model(
             model_id,
@@ -1321,7 +1380,12 @@ class RuntimeService:
                         fallback_payload = {key: value for key, value in payload.items() if key != "tools"}
                         content = self.chat_client.complete(current.endpoint, fallback_payload)
                     else:
-                        raise
+                        self._raise_provider_error(
+                            exc,
+                            slot_id=slot_id,
+                            stage="chat_complete",
+                            request_id=chat_request.request_id,
+                        )
                 if native_tools and not content.strip():
                     fallback_payload = {key: value for key, value in payload.items() if key != "tools"}
                     content = self.chat_client.complete(current.endpoint, fallback_payload)
@@ -1406,7 +1470,12 @@ class RuntimeService:
                         fallback_payload = {key: value for key, value in payload.items() if key != "tools"}
                         yield from self.chat_client.stream(current.endpoint, fallback_payload, on_usage=capture_usage)
                     else:
-                        raise
+                        self._raise_provider_error(
+                            exc,
+                            slot_id=slot_id,
+                            stage="chat_stream",
+                            request_id=chat_request.request_id,
+                        )
         finally:
             self.residency.end_request(slot_id)
 
@@ -1447,6 +1516,41 @@ class RuntimeService:
     def _stdout_tail(self) -> str:
         active_slot = getattr(self, "_last_active_slot_id", "quality_cpu")
         return self._stream_tail_for_slot("stdout", active_slot)
+
+    def _raise_provider_error(
+        self,
+        exc: RuntimeError,
+        *,
+        slot_id: str,
+        stage: str,
+        request_id: str | None = None,
+    ) -> None:
+        message = str(exc)
+        lowered = message.lower()
+        if "conversation roles must alternate" in lowered or "jinja exception" in lowered or "chat template" in lowered:
+            code = "provider_template_error"
+            recommended_action = "Chat-Nachrichten normalisieren und Anfrage erneut senden."
+        elif "timed out" in lowered or "timeout" in lowered:
+            code = "provider_timeout"
+            recommended_action = "Kuerzere Anfrage senden oder ein schnelleres Modell waehlen."
+        else:
+            code = "provider_request_failed"
+            recommended_action = "Provider-/Endpoint-Fehler pruefen und Anfrage erneut senden."
+
+        raise RuntimeProviderError(
+            message,
+            code=code,
+            recoverable=True,
+            diagnostic_context={
+                "source": "runtime-service",
+                "stage": stage,
+                "slotId": slot_id,
+                "requestId": request_id,
+                "stderrTail": self._stream_tail_for_slot("stderr", slot_id)[-4000:],
+                "stdoutTail": self._stream_tail_for_slot("stdout", slot_id)[-2000:],
+            },
+            recommended_action=recommended_action,
+        ) from exc
 
     def _stream_tail_for_slot(self, stream: str, slot_id: str) -> str:
         process = self._slots.get(slot_id)
@@ -1603,29 +1707,86 @@ class RuntimeService:
         return False
 
     def _build_chat_messages(self, chat_request: RuntimeChatRequest) -> list[RuntimeChatMessage]:
-        messages = [
-            RuntimeChatMessage(
-                role="system",
-                content=RUNTIME_CHAT_SYSTEM_PROMPT,
-            )
-        ]
+        system_parts = [RUNTIME_CHAT_SYSTEM_PROMPT]
 
         if chat_request.file_context:
             context = chat_request.file_context
-            messages.append(
-                RuntimeChatMessage(
-                    role="system",
-                    content=(
-                        f"Aktive Datei: {context.path}\n"
-                        f"Sprache: {context.language}\n\n"
-                        "Dateiinhalt:\n"
-                        f"```{context.language}\n{context.content}\n```"
-                    ),
+            system_parts.append(
+                (
+                    f"Aktive Datei: {context.path}\n"
+                    f"Sprache: {context.language}\n\n"
+                    "Dateiinhalt:\n"
+                    f"```{context.language}\n{context.content}\n```"
                 )
             )
 
-        messages.extend(chat_request.messages)
-        return self._merge_consecutive_same_role_messages(messages)
+        dialog_messages: list[RuntimeChatMessage] = []
+        for message in chat_request.messages:
+            if message.role == "system":
+                system_parts.append(message.content)
+            else:
+                dialog_messages.append(message)
+
+        return self._build_strict_alternating_messages(system_parts, dialog_messages)
+
+    @staticmethod
+    def _build_strict_alternating_messages(
+        system_parts: list[str],
+        dialog_messages: list[RuntimeChatMessage],
+    ) -> list[RuntimeChatMessage]:
+        """Build a llama.cpp chat-template-safe message list.
+
+        Gemma-style templates used by llama-server reject any system message
+        outside the first position and any non-alternating dialog roles. The
+        desktop client can inject system context after the user turn, so the
+        backend normalizes once at the provider boundary.
+        """
+        merged_system = "\n\n".join(part.strip() for part in system_parts if part.strip())
+        normalized: list[RuntimeChatMessage] = [
+            RuntimeChatMessage(role="system", content=merged_system or RUNTIME_CHAT_SYSTEM_PROMPT)
+        ]
+
+        pending_assistant_context: list[str] = []
+        for message in dialog_messages:
+            content = message.content.strip()
+            if not content:
+                continue
+
+            if message.role == "assistant" and len(normalized) == 1:
+                pending_assistant_context.append(content)
+                continue
+
+            if pending_assistant_context and message.role == "user":
+                normalized[0] = RuntimeChatMessage(
+                    role="system",
+                    content=(
+                        f"{normalized[0].content}\n\n"
+                        "Vorherige Assistant-Antworten vor dem ersten Nutzerturn:\n"
+                        + "\n\n".join(pending_assistant_context)
+                    ),
+                )
+                pending_assistant_context = []
+
+            candidate = RuntimeChatMessage(role=message.role, content=content)
+            if normalized[-1].role == candidate.role:
+                normalized[-1] = RuntimeChatMessage(
+                    role=normalized[-1].role,
+                    content=f"{normalized[-1].content}\n\n{candidate.content}",
+                )
+            else:
+                normalized.append(candidate)
+
+        if pending_assistant_context:
+            normalized[0] = RuntimeChatMessage(
+                role="system",
+                content=(
+                    f"{normalized[0].content}\n\n"
+                    "Vorherige Assistant-Antworten ohne folgenden Nutzerturn:\n"
+                    + "\n\n".join(pending_assistant_context)
+                ),
+            )
+
+        return normalized
 
     @staticmethod
     def _merge_consecutive_same_role_messages(

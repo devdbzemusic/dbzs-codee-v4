@@ -291,6 +291,7 @@ function delay(ms: number): Promise<void> {
  * - Runtime status: 30s (slot and llama.cpp probes can be slower while models start)
  * - Model index: 5m (large local model catalogs can take longer than the default)
  * - Runtime doctor: 60s (model index + launch plans for all models)
+ * - Model Lab scan: 30m (large local model folders can take many minutes)
  * - Chat requests: no timeout (Frontend handles timeout via AbortSignal)
  * - Benchmark/long-running: 30m (generous for heavy workloads)
  * - Default: 10s
@@ -307,6 +308,10 @@ function getEndpointTimeout(pathname: string): number {
 
   if (pathname.includes("/runtime/status")) {
     return 30_000;
+  }
+
+  if (pathname.includes("/model-lab/scan")) {
+    return 30 * 60 * 1_000;
   }
 
   // Doctor builds full model index + per-model launch plans (can be slow on large catalogs).
@@ -368,14 +373,31 @@ async function requestBackend<T>(pathname: string, init?: RequestInit): Promise<
     try {
       const text = await response.text();
       try {
-        const parsed = JSON.parse(text) as { detail?: string | { message?: string; code?: string; recommendedAction?: string } };
+        const parsed = JSON.parse(text) as {
+          detail?: string | {
+            message?: string;
+            code?: string;
+            recommendedAction?: string;
+            diagnosticContext?: Record<string, unknown>;
+          };
+        };
         if (typeof parsed.detail === "string") {
           details = parsed.detail;
         } else if (parsed.detail && typeof parsed.detail === "object") {
           const message = parsed.detail.message ?? text;
           const code = parsed.detail.code ? ` [${parsed.detail.code}]` : "";
+          const diagnosticContext = parsed.detail.diagnosticContext ?? {};
+          const diagnosticId =
+            typeof diagnosticContext.requestId === "string"
+              ? diagnosticContext.requestId
+              : typeof diagnosticContext.correlationId === "string"
+                ? diagnosticContext.correlationId
+                : "";
+          const layer = typeof diagnosticContext.source === "string" ? ` Layer: ${diagnosticContext.source}` : "";
+          const stage = typeof diagnosticContext.stage === "string" ? ` Stage: ${diagnosticContext.stage}` : "";
+          const diagnostic = diagnosticId ? ` Diagnose-ID: ${diagnosticId}` : "";
           const action = parsed.detail.recommendedAction ? ` Empfehlung: ${parsed.detail.recommendedAction}` : "";
-          details = `${message}${code}${action}`;
+          details = `${message}${code}${diagnostic}${layer}${stage}${action}`;
         } else {
           details = text;
         }

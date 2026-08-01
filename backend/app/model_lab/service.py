@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from app.model_lab.hf_integration import HuggingFaceModelService
@@ -12,6 +12,8 @@ from app.runtime.hardware_fingerprint import collect_hardware_fingerprint, finge
 
 
 class ModelLabService:
+    stale_scan_job_age = timedelta(hours=2)
+
     def __init__(
         self,
         repository: ModelLabRepository | None = None,
@@ -33,6 +35,11 @@ class ModelLabService:
 
     def run_scan(self, source_id: str | None = None) -> ScanResult:
         sources = self._scan_sources(source_id)
+        self._mark_stale_scan_jobs()
+        active_job = self.repository.get_active_scan_job(source_id)
+        if active_job is not None:
+            return ScanResult(job=active_job, artifacts=[], bundles=[])
+
         job = self.repository.create_scan_job(source_id)
         started_at = datetime.now(UTC)
         self.repository.update_scan_job(job.id, status="running", started_at=started_at)
@@ -74,6 +81,7 @@ class ModelLabService:
             return ScanResult(job=job, artifacts=all_artifacts, bundles=all_bundles)
 
     def list_jobs(self) -> list[ScanJob]:
+        self._mark_stale_scan_jobs()
         return self.repository.list_jobs()
 
     def list_models(self) -> list[ModelLabModel]:
@@ -132,4 +140,10 @@ class ModelLabService:
                 raise ValueError(f"Modellquelle nicht gefunden: {source_id}")
             return [source]
         return [source for source in self.repository.list_sources() if source.enabled]
+
+    def _mark_stale_scan_jobs(self) -> None:
+        self.repository.mark_stale_scan_jobs_failed(
+            older_than=datetime.now(UTC) - self.stale_scan_job_age,
+            error="Scan wurde vor Abschluss unterbrochen oder vom Backend nicht beendet.",
+        )
 

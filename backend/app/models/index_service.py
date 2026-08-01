@@ -125,7 +125,18 @@ class ModelIndexService:
         self.last_build_metrics = ModelIndexBuildMetrics()
         catalog_path = self.models_dir / "models.catalog.json"
         if catalog_path.exists():
-            index = self._from_catalog(catalog_path, on_progress=on_progress, on_model_error=on_model_error)
+            catalog_index = self._from_catalog(catalog_path, on_progress=on_progress, on_model_error=on_model_error)
+            catalog_metrics = self.last_build_metrics
+            filesystem_index = self._from_filesystem(on_progress=on_progress, on_model_error=on_model_error)
+            filesystem_metrics = self.last_build_metrics
+            index = self._merge_discovered_indexes(catalog_index, filesystem_index)
+            self.last_build_metrics = ModelIndexBuildMetrics(
+                scanned_file_count=catalog_metrics.scanned_file_count + filesystem_metrics.scanned_file_count,
+                candidate_count=catalog_metrics.candidate_count + filesystem_metrics.candidate_count,
+                valid_model_count=len(index.models),
+                invalid_model_count=catalog_metrics.invalid_model_count + filesystem_metrics.invalid_model_count,
+                cached_model_count=filesystem_metrics.cached_model_count,
+            )
         else:
             index = self._from_filesystem(on_progress=on_progress, on_model_error=on_model_error)
 
@@ -151,6 +162,46 @@ class ModelIndexService:
         self.last_build_metrics.valid_model_count = len(merged.models)
         self._persist_cache(merged)
         return self._enrich_with_model_lab(merged)
+
+    def _merge_discovered_indexes(self, catalog_index: ModelIndex, filesystem_index: ModelIndex) -> ModelIndex:
+        models: list[IndexedModel] = []
+        seen_ids: set[str] = set()
+        seen_paths: set[str] = set()
+
+        def add_model(model: IndexedModel) -> None:
+            normalized_path = str(Path(model.path).expanduser()).lower()
+            if model.id in seen_ids or normalized_path in seen_paths:
+                return
+            models.append(model)
+            seen_ids.add(model.id)
+            seen_paths.add(normalized_path)
+
+        for model in catalog_index.models:
+            add_model(model)
+        for model in filesystem_index.models:
+            add_model(model)
+
+        merged = _build_index(
+            generated_from=f"{catalog_index.generated_from};{filesystem_index.generated_from}",
+            models_dir=self.models_dir,
+            runtime_dir=catalog_index.summary.runtime_dir or filesystem_index.summary.runtime_dir,
+            ollama_dir=catalog_index.summary.ollama_dir or filesystem_index.summary.ollama_dir,
+            ollama_models_dir=catalog_index.summary.ollama_models_dir or filesystem_index.summary.ollama_models_dir,
+            models=models,
+        )
+        catalog_projector_ids = {
+            pair.projector_artifact_id
+            for pair in catalog_index.multimodal_pairs
+            if pair.projector_artifact_id
+        }
+        pairings_by_id = {
+            pair.id: pair
+            for pair in merged.multimodal_pairs
+            if pair.projector_artifact_id not in catalog_projector_ids
+        }
+        for pair in catalog_index.multimodal_pairs:
+            pairings_by_id[pair.id] = pair
+        return merged.model_copy(update={"multimodal_pairs": sorted(pairings_by_id.values(), key=lambda pair: pair.id)})
 
     def _enrich_with_model_lab(self, index: ModelIndex) -> ModelIndex:
         if self.model_lab_repository is None:
@@ -277,6 +328,15 @@ class ModelIndexService:
                             health_status=health_status,
                             provider=str(entry.get("backend") or "llama.cpp"),
                         ),
+                        exclusion_reasons=_model_exclusion_reasons(
+                            path=path,
+                            model_format=Path(path).suffix.lower().lstrip(".") or "unknown",
+                            artifact_type=artifact_type,
+                            launcher=launcher,
+                            health_status=health_status,
+                            runtime=runtime,
+                            server=server,
+                        ),
                     )
                 )
             except Exception as exc:  # noqa: BLE001 - one corrupt entry must not abort the whole index
@@ -396,6 +456,15 @@ class ModelIndexService:
                         preferred_port=server.get("preferred_port"),
                         health_status=health_status,
                         provider="llama.cpp",
+                    ),
+                    exclusion_reasons=_model_exclusion_reasons(
+                        path=path,
+                        model_format="gguf",
+                        artifact_type=artifact_type,
+                        launcher="llama-server",
+                        health_status=health_status,
+                        runtime=runtime,
+                        server=server,
                     ),
                 )
                 models.append(model)
@@ -712,6 +781,7 @@ class ModelIndexService:
                         health_status="ok",
                         provider="ollama",
                     ),
+                    exclusion_reasons=[],
                 )
             )
         return models
@@ -1416,6 +1486,39 @@ def _compatibility(artifact_type: str, launcher: str, health_status: str, path: 
     if normalized_launcher == "llama-server":
         return "llama_server_candidate"
     return "external_runtime_required"
+
+
+def _model_exclusion_reasons(
+    *,
+    path: str,
+    model_format: str,
+    artifact_type: str,
+    launcher: str,
+    health_status: str,
+    runtime: dict[str, Any],
+    server: dict[str, Any],
+) -> list[str]:
+    reasons: set[str] = set()
+    normalized_launcher = normalize_launcher(launcher)
+    normalized_health = str(health_status or "unknown").strip().lower()
+    normalized_format = str(model_format or "unknown").strip().lower()
+
+    if normalized_launcher == "llama-server" and normalized_format != "gguf":
+        reasons.add("not_gguf")
+    if path and not Path(path).exists():
+        reasons.add("missing_file")
+    if normalized_launcher not in {"llama-server", "ollama"}:
+        reasons.add("unsupported_runtime")
+    if normalized_launcher == "llama-server" and not bool(server.get("enabled", False)):
+        reasons.add("missing_profile")
+    if normalized_launcher == "llama-server" and runtime.get("gpu_layers") is None:
+        reasons.add("unprofiled_gpu")
+    if normalized_health not in {"ok", "unknown"}:
+        reasons.add("health_failed")
+    if artifact_type in {"adapter", "lora", "mmproj"}:
+        reasons.add("unsupported_runtime")
+
+    return sorted(reasons)
 
 
 def _priority(model: IndexedModel) -> int:

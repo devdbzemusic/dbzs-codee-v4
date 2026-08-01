@@ -72,10 +72,12 @@ export interface AppSettings {
   ollamaBaseUrl: string;
   anthropicApiKey: string;
   openaiApiKey: string;
+  huggingfaceApiKey?: string;
   defaultPlannerModelId: string;
   defaultCoderModelId: string;
   defaultReviewerModelId: string;
   defaultDebugModelId: string;
+  defaultEmbeddingModelId?: string;
   autoStartChatRuntime: boolean;
   autoStartCodingRuntime: boolean;
   autoStartVisionRuntime?: boolean;
@@ -183,10 +185,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ollamaBaseUrl: "http://127.0.0.1:11434",
   anthropicApiKey: "",
   openaiApiKey: "",
+  huggingfaceApiKey: "",
   defaultPlannerModelId: "",
   defaultCoderModelId: "",
   defaultReviewerModelId: "",
   defaultDebugModelId: "",
+  defaultEmbeddingModelId: "",
   autoStartChatRuntime: false,
   autoStartCodingRuntime: false,
   autoStartVisionRuntime: false,

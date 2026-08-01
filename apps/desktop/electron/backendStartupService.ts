@@ -124,12 +124,20 @@ export function resolveDevBackendLaunch(
 ): DevBackendLaunchSpec {
   const uvicornArgs = ["app.main:app", "--host", "127.0.0.1", "--port", String(port)];
   const venvBin = path.join(devBackendCwd, ".venv", platform === "win32" ? "Scripts" : "bin");
+  const venvPython = path.join(venvBin, platform === "win32" ? "python.exe" : "python");
+  if (platform === "win32" && pathExists(venvPython)) {
+    return {
+      executable: venvPython,
+      args: ["-m", "uvicorn", ...uvicornArgs],
+      shell: false
+    };
+  }
+
   const venvUvicorn = path.join(venvBin, platform === "win32" ? "uvicorn.exe" : "uvicorn");
   if (pathExists(venvUvicorn)) {
     return { executable: venvUvicorn, args: uvicornArgs, shell: false };
   }
 
-  const venvPython = path.join(venvBin, platform === "win32" ? "python.exe" : "python");
   if (pathExists(venvPython)) {
     return {
       executable: venvPython,

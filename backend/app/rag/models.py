@@ -54,6 +54,16 @@ class EmbeddingCacheProbeBody(BaseModel):
     entries: list[EmbeddingCacheProbe]
 
 
+class EmbeddingGenerateBody(BaseModel):
+    texts: list[str] = Field(min_length=1)
+
+
+class EmbeddingGenerateResult(BaseModel):
+    model_id: str
+    dimensions: int
+    vectors: list[list[float]]
+
+
 class TraceEventBody(BaseModel):
     id: str
     message_id: str | None = None

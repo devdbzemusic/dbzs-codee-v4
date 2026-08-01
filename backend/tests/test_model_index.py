@@ -62,6 +62,71 @@ def test_model_index_prefers_existing_catalog(tmp_path: Path) -> None:
     assert index.models[0].runtime_launcher == "llama-server"
 
 
+def test_model_index_merges_catalog_and_filesystem_discovery(tmp_path: Path) -> None:
+    runtime_dir = tmp_path / "llama.cpp-win-runtime"
+    runtime_dir.mkdir(exist_ok=True)
+    (runtime_dir / "llama-server.exe").write_bytes(b"fake")
+
+    catalog_model = tmp_path / "catalog-coder.gguf"
+    scanned_model = tmp_path / "scanned-chat.gguf"
+    catalog_model.write_bytes(b"GGUF")
+    scanned_model.write_bytes(b"GGUF")
+
+    catalog = {
+        "base_dir": str(tmp_path),
+        "runtime_dir": str(runtime_dir),
+        "models": [
+            {
+                "id": "catalog-coder",
+                "name": "Catalog Coder",
+                "artifact_type": "model",
+                "file_path": str(catalog_model),
+                "size_bytes": 4,
+                "backend": "llama.cpp",
+                "loader": {"launcher": "llama-server"},
+            }
+        ],
+    }
+    (tmp_path / "models.catalog.json").write_text(json.dumps(catalog), encoding="utf-8")
+
+    index = ModelIndexService(models_dir=tmp_path, ollama_models_dir=tmp_path / "empty-ollama").build_index()
+
+    assert index.summary.total == 2
+    assert {model.name for model in index.models} == {"Catalog Coder", "scanned-chat"}
+    assert "catalog:" in index.generated_from
+    assert "filesystem:" in index.generated_from
+
+
+def test_model_index_reports_machine_readable_exclusion_reasons(tmp_path: Path) -> None:
+    catalog = {
+        "models": [
+            {
+                "id": "missing-model",
+                "name": "Missing Model",
+                "artifact_type": "model",
+                "file_path": str(tmp_path / "missing.gguf"),
+                "size_bytes": 4,
+                "backend": "llama.cpp",
+                "loader": {"launcher": "llama-server"},
+            }
+        ],
+    }
+    (tmp_path / "models.catalog.json").write_text(json.dumps(catalog), encoding="utf-8")
+    (tmp_path / "models.state.json").write_text(
+        json.dumps({"health": {"missing-model": {"status": "failed"}}}),
+        encoding="utf-8",
+    )
+
+    index = ModelIndexService(models_dir=tmp_path, ollama_models_dir=tmp_path / "empty-ollama").build_index()
+
+    assert index.models[0].exclusion_reasons == [
+        "health_failed",
+        "missing_file",
+        "missing_profile",
+        "unprofiled_gpu",
+    ]
+
+
 def test_model_index_normalizes_llama_cpp_launcher(tmp_path: Path) -> None:
     runtime_dir = tmp_path / "llama.cpp-win-runtime"
     runtime_dir.mkdir(exist_ok=True)

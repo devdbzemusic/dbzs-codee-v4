@@ -139,9 +139,10 @@ export interface BackendBridge {
   cancelRuntimeChat?: (requestId: string) => Promise<{ status: string }>;
   streamRuntimeChat?: (
     request: RuntimeChatRequest,
-    onChunk: (payload: { delta: string; totalLength: number }) => void
+    onChunk: (payload: { delta: string; totalLength: number }) => void,
+    requestId?: string
   ) => Promise<RuntimeChatResponse>;
-  cancelRuntimeChatStream?: () => Promise<{ status: string }>;
+  cancelRuntimeChatStream?: (requestId?: string) => Promise<{ status: string }>;
   listAgents: () => Promise<AgentRecord[]>;
   getAgent: (agentId: string) => Promise<AgentRecord>;
   createAgent: (request: AgentCreateRequest) => Promise<AgentRecord>;
@@ -496,25 +497,10 @@ export const backendClient = {
   },
   sendRuntimeChat: (request: RuntimeChatRequest, signal?: AbortSignal) => {
     const requestId = crypto.randomUUID();
-
-    const endpointTimeout = 60_000;
-    let timeoutController: AbortController | undefined;
-    let timeoutSignal: AbortSignal | undefined;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-    if (endpointTimeout > 0) {
-      timeoutController = new AbortController();
-      timeoutId = setTimeout(() => {
-        timeoutController?.abort(new Error(`Runtime chat timeout after ${endpointTimeout}ms`));
-      }, endpointTimeout);
-      timeoutSignal = timeoutController.signal;
-    }
-
-    const combined = combineAbortSignals([signal, timeoutSignal]);
+    const combined = combineAbortSignals([signal]);
 
     let abortListener: ((this: AbortSignal) => void) | undefined;
     if (combined.signal.aborted) {
-      if (timeoutId) clearTimeout(timeoutId);
       combined.cleanup();
       return Promise.reject(combined.signal.reason ?? new DOMException("Aborted", "AbortError"));
     }
@@ -531,9 +517,6 @@ export const backendClient = {
         combined.signal.removeEventListener("abort", abortListener);
       }
       combined.cleanup();
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
       if (combined.signal.aborted) {
         bridge().cancelRuntimeChat?.(requestId);
       }
@@ -548,6 +531,7 @@ export const backendClient = {
     if (!method) {
       return Promise.reject(new Error("streamRuntimeChat is unavailable."));
     }
+    const requestId = crypto.randomUUID();
 
     // Requirement 4: Streaming Abort over Electron
     // If signal already aborted, reject immediately
@@ -559,27 +543,30 @@ export const backendClient = {
     let abortListener: ((this: AbortSignal) => void) | undefined;
     if (signal) {
       abortListener = function() {
-        bridge().cancelRuntimeChatStream?.();
+        bridge().cancelRuntimeChatStream?.(requestId);
       };
       signal.addEventListener("abort", abortListener);
     }
 
     // Note: Signal handling is at this level, not passed to bridge (can't serialize through IPC)
-    const promise = method(request, onChunk);
+    const promise = method(request, onChunk, requestId);
 
     // Clean up listener in finally block
     return promise.finally(() => {
       if (signal && abortListener) {
         signal.removeEventListener("abort", abortListener);
       }
+      if (signal?.aborted) {
+        bridge().cancelRuntimeChatStream?.(requestId);
+      }
     });
   },
-  cancelRuntimeChatStream: () => {
+  cancelRuntimeChatStream: (requestId?: string) => {
     const method = bridge().cancelRuntimeChatStream;
     if (!method) {
       return Promise.reject(new Error("cancelRuntimeChatStream is unavailable."));
     }
-    return method();
+    return method(requestId);
   },
   cancelRuntimeChat: (requestId: string) => {
     const method = bridge().cancelRuntimeChat;
