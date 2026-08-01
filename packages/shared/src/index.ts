@@ -1701,6 +1701,13 @@ export interface ModelLabRoleAssignment {
   updated_at: string;
 }
 
+export interface ModelLabExecutionPolicy {
+  role: ModelFleetRole;
+  max_safety_level: ModelFleetSafetyLevel;
+  required_certifications: ModelFleetCertificationKind[];
+  updated_at: string;
+}
+
 export interface ModelLabRoutingEntry {
   role: ModelFleetRole;
   bundle_id: string;

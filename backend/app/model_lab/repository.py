@@ -21,6 +21,7 @@ from app.model_lab.models import (
     ModelCertificationRequest,
     ModelCollection,
     ModelCollectionCreate,
+    ModelExecutionPolicy,
     ModelFailureRecord,
     ModelFleetRoutingEntry,
     ModelLabModel,
@@ -1006,6 +1007,11 @@ class ModelLabRepository:
             )
         return entries
 
+    def list_execution_policies(self) -> list[ModelExecutionPolicy]:
+        with sqlite_connection(self.db_path) as conn:
+            rows = conn.execute("SELECT * FROM agent_execution_policies ORDER BY role").fetchall()
+        return [_execution_policy_from_row(row) for row in rows]
+
     def list_failures(self, bundle_id: str | None = None) -> list[ModelFailureRecord]:
         with sqlite_connection(self.db_path) as conn:
             if bundle_id:
@@ -1385,6 +1391,15 @@ def _role_assignment_from_row(row: sqlite3.Row) -> ModelRoleAssignment:
         required_certifications=json.loads(row["required_certifications"] or "[]"),
         notes=str(row["notes"] or ""),
         created_at=_parse_dt(row["created_at"]),
+        updated_at=_parse_dt(row["updated_at"]),
+    )
+
+
+def _execution_policy_from_row(row: sqlite3.Row) -> ModelExecutionPolicy:
+    return ModelExecutionPolicy(
+        role=row["role"],
+        max_safety_level=row["max_safety_level"],
+        required_certifications=json.loads(row["required_certifications"] or "[]"),
         updated_at=_parse_dt(row["updated_at"]),
     )
 

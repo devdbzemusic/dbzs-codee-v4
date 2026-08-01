@@ -17,6 +17,7 @@ from app.model_lab.models import (
     ModelCertificationRequest,
     ModelCollection,
     ModelCollectionCreate,
+    ModelExecutionPolicy,
     ModelFailureRecord,
     ModelFleetRoutingEntry,
     ModelLabModel,
@@ -259,6 +260,9 @@ class ModelLabService:
 
     def list_routing_map(self, role: str | None = None) -> list[ModelFleetRoutingEntry]:
         return self.repository.list_routing_map(role=role)
+
+    def list_execution_policies(self) -> list[ModelExecutionPolicy]:
+        return self.repository.list_execution_policies()
 
     def list_probe_runs(self, bundle_id: str | None = None) -> list[ModelProbeRun]:
         return self.repository.list_probe_runs(bundle_id=bundle_id)

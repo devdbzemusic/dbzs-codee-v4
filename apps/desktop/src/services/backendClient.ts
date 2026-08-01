@@ -37,6 +37,7 @@ import type {
   ModelLabCollection,
   ModelLabCollectionCreate,
   ModelLabDuplicateGroup,
+  ModelLabExecutionPolicy,
   ModelLabFailureRecord,
   ModelLabHardwareProfile,
   ModelLabHuggingFaceRepoInfo,
@@ -159,6 +160,7 @@ export interface BackendBridge extends DesktopBridgeV1 {
   listModelCertifications?: (bundleId?: string) => Promise<ModelLabCertificationRecord[]>;
   assignModelRole?: (request: ModelLabRoleAssignmentRequest) => Promise<ModelLabRoleAssignment>;
   listModelRoleAssignments?: (role?: string) => Promise<ModelLabRoleAssignment[]>;
+  listModelExecutionPolicies?: () => Promise<ModelLabExecutionPolicy[]>;
   listModelRoutingMap?: (role?: string) => Promise<ModelLabRoutingEntry[]>;
   listModelFailures?: (bundleId?: string) => Promise<ModelLabFailureRecord[]>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
@@ -594,6 +596,13 @@ export const backendClient = {
       return Promise.reject(new Error("listModelRoleAssignments is unavailable."));
     }
     return method(role);
+  },
+  listModelExecutionPolicies: () => {
+    const method = bridge().listModelExecutionPolicies;
+    if (!method) {
+      return Promise.reject(new Error("listModelExecutionPolicies is unavailable."));
+    }
+    return method();
   },
   listModelRoutingMap: (role?: string) => {
     const method = bridge().listModelRoutingMap;

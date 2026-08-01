@@ -74,6 +74,8 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       benoetigte/bestandene/fehlende Zertifikate und `routing_allowed` als stabile UI-/Broker-Vorstufe.
 - [x] Erste Roles-&-Routing-UI umgesetzt: Model Lab laedt die Routing-Map und zeigt Rolle, Modell,
       Safety-Level, Evidence-Zaehler und Freigabestatus read-only an.
+- [x] Execution-Policies offiziell lesbar gemacht: `/model-lab/execution-policies` und Desktop-Bridge
+      liefern die geseedeten Plan-15-Rollenregeln ohne direkten SQLite-Zugriff.
 - [x] Sicheres Probe-Gate: `probeModel` speichert ohne `allow_start` einen `skipped`-Run und startet kein
       lokales Modell.
 - [ ] `D:\Models\Agentic` als erste produktive Quelle ueber den neuen Candidate-Button registrieren/scannen

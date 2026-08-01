@@ -258,6 +258,21 @@ def test_runtime_presets_are_seeded_from_plan_15_matrix(tmp_path: Path) -> None:
     assert by_profile["large_context"].config["ctx"] == 16384
 
 
+def test_execution_policies_are_seeded_from_plan_15_roles(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+
+    policies = repo.list_execution_policies()
+    by_role = {policy.role: policy for policy in policies}
+
+    assert set(by_role) >= {"MAIN_AGENT", "MICRO_TOOL_AGENT", "CODING_EXECUTOR", "REPORT_GENERATOR"}
+    assert by_role["CODING_EXECUTOR"].max_safety_level == "LEVEL_2_WORKSPACE_WRITE"
+    assert "WRITE_AGENT_VERIFIED" not in by_role["CODING_EXECUTOR"].required_certifications
+    assert by_role["MICRO_TOOL_AGENT"].required_certifications == [
+        "TOOL_CALLING_VERIFIED",
+        "READ_ONLY_AGENT_VERIFIED",
+    ]
+
+
 def test_rebuild_logical_models_groups_quantized_variants(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     source = repo.create_source(ModelSourceCreate(path=str(tmp_path)))

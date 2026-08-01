@@ -14,6 +14,7 @@ from app.model_lab.models import (
     ModelCertificationRequest,
     ModelCollection,
     ModelCollectionCreate,
+    ModelExecutionPolicy,
     ModelFailureRecord,
     ModelFleetRoutingEntry,
     ModelLabModel,
@@ -296,6 +297,13 @@ def list_routing_map(
     service: ModelLabService = Depends(get_model_lab_service),
 ) -> list[ModelFleetRoutingEntry]:
     return service.list_routing_map(role=role)
+
+
+@router.get("/execution-policies")
+def list_execution_policies(
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> list[ModelExecutionPolicy]:
+    return service.list_execution_policies()
 
 
 @router.get("/failures")

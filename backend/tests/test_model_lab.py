@@ -250,6 +250,9 @@ def test_model_lab_fleet_endpoints_record_safe_gates_and_roles(tmp_path: Path) -
     presets = client.get("/model-lab/runtime-presets")
     assert presets.status_code == 200
     assert {preset["profile"] for preset in presets.json()} >= {"safe_balanced", "cpu_fallback"}
+    policies = client.get("/model-lab/execution-policies")
+    assert policies.status_code == 200
+    assert {policy["role"] for policy in policies.json()} >= {"MAIN_AGENT", "MICRO_TOOL_AGENT"}
 
     probe = client.post("/model-lab/probe", json={"bundle_id": bundle_id})
     assert probe.status_code == 200

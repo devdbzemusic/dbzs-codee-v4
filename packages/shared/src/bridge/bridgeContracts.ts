@@ -9,6 +9,7 @@ import type {
   ModelLabCollection,
   ModelLabCollectionCreate,
   ModelLabDuplicateGroup,
+  ModelLabExecutionPolicy,
   ModelLabFailureRecord,
   ModelLabHardwareProfile,
   ModelLabHuggingFaceRepoInfo,
@@ -166,6 +167,7 @@ export interface DesktopBridgeV1 {
   listModelCertifications?: (bundleId?: string) => Promise<ModelLabCertificationRecord[]>;
   assignModelRole?: (request: ModelLabRoleAssignmentRequest) => Promise<ModelLabRoleAssignment>;
   listModelRoleAssignments?: (role?: string) => Promise<ModelLabRoleAssignment[]>;
+  listModelExecutionPolicies?: () => Promise<ModelLabExecutionPolicy[]>;
   listModelRoutingMap?: (role?: string) => Promise<ModelLabRoutingEntry[]>;
   listModelFailures?: (bundleId?: string) => Promise<ModelLabFailureRecord[]>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;

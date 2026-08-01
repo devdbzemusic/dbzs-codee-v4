@@ -145,6 +145,7 @@ export function registerModelLabIpcHandlers(options: RegisterModelLabIpcOptions)
     const params = role ? `?role=${encodeURIComponent(role)}` : "";
     return requestBackend(`/model-lab/role-assignments${params}`);
   });
+  ipcMain.handle("dbzs:model-lab:execution-policies:list", () => requestBackend("/model-lab/execution-policies"));
   ipcMain.handle("dbzs:model-lab:routing-map:list", (_event, role?: string) => {
     const params = role ? `?role=${encodeURIComponent(role)}` : "";
     return requestBackend(`/model-lab/routing-map${params}`);

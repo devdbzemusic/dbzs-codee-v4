@@ -340,6 +340,13 @@ class ModelRoleAssignment(BaseModel):
     updated_at: datetime
 
 
+class ModelExecutionPolicy(BaseModel):
+    role: ModelFleetRole
+    max_safety_level: ModelFleetSafetyLevel
+    required_certifications: list[ModelFleetCertificationKind] = Field(default_factory=list)
+    updated_at: datetime
+
+
 class ModelFleetRoutingEntry(BaseModel):
     role: ModelFleetRole
     bundle_id: str
@@ -378,6 +385,7 @@ class ModelFleetSummary(BaseModel):
     benchmark_runs: list[ModelBenchmarkRun]
     certifications: list[ModelCertificationRecord]
     role_assignments: list[ModelRoleAssignment]
+    execution_policies: list[ModelExecutionPolicy] = Field(default_factory=list)
     routing_map: list[ModelFleetRoutingEntry] = Field(default_factory=list)
     failures: list[ModelFailureRecord]
 
