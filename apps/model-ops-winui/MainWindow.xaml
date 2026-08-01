@@ -7,16 +7,21 @@
     mc:Ignorable="d"
     Title="DBZS Codee Model Operations Center">
 
-    <Grid x:Name="RootView" Background="{StaticResource DbzsBackgroundBrush}">
+    <Grid
+        x:Name="RootView"
+        Background="{StaticResource DbzsBackgroundBrush}"
+        RequestedTheme="Dark"
+        Loaded="OnRootViewLoaded">
         <NavigationView
             x:Name="ShellNavigation"
+            Background="{StaticResource DbzsBackgroundBrush}"
             IsBackButtonVisible="Collapsed"
             IsSettingsVisible="False"
             PaneDisplayMode="LeftCompact"
             SelectionChanged="OnNavigationSelectionChanged">
             <NavigationView.MenuItems>
-                <NavigationViewItem Content="Dashboard" Icon="Home" Tag="dashboard" IsSelected="True" />
-                <NavigationViewItem Content="Model Library" Icon="Library" Tag="library" />
+                <NavigationViewItem x:Name="DashboardNavItem" Content="Dashboard" Icon="Home" Tag="dashboard" IsSelected="True" />
+                <NavigationViewItem x:Name="LibraryNavItem" Content="Model Library" Icon="Library" Tag="library" />
                 <NavigationViewItem Content="Scanner" Icon="Find" Tag="scanner" />
                 <NavigationViewItem Content="Inspector" Icon="Document" Tag="inspector" />
                 <NavigationViewItem Content="Settings" Icon="Setting" Tag="settings" />
@@ -82,11 +87,32 @@
                                 </StackPanel>
                             </Border>
                         </Grid>
-                        <TextBlock Grid.Row="1" Text="{Binding HardwareSummary}" FontSize="16" Foreground="{StaticResource DbzsTextMutedBrush}" />
+                        <StackPanel Grid.Row="1" Spacing="8">
+                            <TextBlock Text="{Binding HardwareSummary}" FontSize="16" Foreground="{StaticResource DbzsTextMutedBrush}" />
+                            <TextBlock Text="{Binding CollectionSummary}" FontSize="16" Foreground="{StaticResource DbzsTextMutedBrush}" />
+                        </StackPanel>
                     </Grid>
 
-                    <Grid x:Name="LibraryView" Visibility="Collapsed">
-                        <ListView ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel, Mode=TwoWay}">
+                    <Grid x:Name="LibraryView" Visibility="Collapsed" RowSpacing="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Header="Filter" Text="{Binding ModelFilterText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Name, Typ, Capability, Tag" />
+                            <TextBox Grid.Column="1" Header="Health" Text="{Binding HealthFilterText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="healthy, incomplete" />
+                            <CheckBox Grid.Column="2" Content="Favoriten" IsChecked="{Binding FavoritesOnly, Mode=TwoWay}" VerticalAlignment="Bottom" />
+                            <Button Grid.Column="3" Command="{Binding ClearModelFiltersCommand}" VerticalAlignment="Bottom" Content="Filter zurücksetzen" />
+                        </Grid>
+                        <TextBlock Grid.Row="1" Text="{Binding ModelLibrarySummary}" Foreground="{StaticResource DbzsTextMutedBrush}" />
+                        <ListView Grid.Row="2" ItemsSource="{Binding FilteredModels}" SelectedItem="{Binding SelectedModel, Mode=TwoWay}">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Padding="12" ColumnSpacing="12">
@@ -95,14 +121,16 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
-                                    <TextBlock Text="{Binding Bundle.Name}" FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding Bundle.BundleId}" Foreground="{StaticResource DbzsTextMutedBrush}" FontSize="12" />
-                                </StackPanel>
-                                <TextBlock Grid.Column="1" Text="{Binding Bundle.Status}" />
+                                            <TextBlock Text="{Binding Bundle.Name}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Bundle.BundleId}" Foreground="{StaticResource DbzsTextMutedBrush}" FontSize="12" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="{Binding Bundle.Status}" />
                                         <TextBlock Grid.Column="2" Text="{Binding PrimaryFormat}" />
-                                        <TextBlock Grid.Column="3" Text="{Binding CapabilitySummary}" />
+                                        <TextBlock Grid.Column="3" Text="{Binding HealthSummary}" />
+                                        <TextBlock Grid.Column="4" Text="{Binding TagSummary}" />
                                     </Grid>
                                 </DataTemplate>
                             </ListView.ItemTemplate>
@@ -145,10 +173,49 @@
                     </Grid>
 
                     <Grid x:Name="InspectorView" Visibility="Collapsed">
-                        <StackPanel Spacing="8">
+                        <StackPanel Spacing="10" MaxWidth="920" HorizontalAlignment="Left">
                             <TextBlock Text="{Binding SelectedModel.Bundle.Name}" FontSize="24" FontWeight="SemiBold" />
                             <TextBlock Text="{Binding SelectedModel.Bundle.Status}" Foreground="{StaticResource DbzsTextMutedBrush}" />
                             <TextBlock Text="{Binding SelectedModel.CapabilitySummary}" />
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Style="{StaticResource CardBorderStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="Health" Foreground="{StaticResource DbzsTextMutedBrush}" />
+                                        <TextBlock Text="{Binding SelectedModel.Bundle.Health.Status}" FontSize="20" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding SelectedModel.Bundle.Health.ModelType}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="Architektur" Foreground="{StaticResource DbzsTextMutedBrush}" />
+                                        <TextBlock Text="{Binding SelectedModel.Bundle.Health.Architecture}" FontSize="20" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding SelectedContextSummary}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="Quantisierung" Foreground="{StaticResource DbzsTextMutedBrush}" />
+                                        <TextBlock Text="{Binding SelectedModel.Bundle.Health.Quantization}" FontSize="20" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding SelectedModel.PrimaryFormat}" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                            <TextBlock Text="{Binding SelectedModel.MissingSummary}" Foreground="{StaticResource DbzsTextMutedBrush}" TextWrapping="Wrap" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Header="Tags" Text="{Binding SelectedTagsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="coding, favorite, low-vram" />
+                                <CheckBox Grid.Column="1" Content="Favorit" IsChecked="{Binding SelectedIsFavorite, Mode=TwoWay}" VerticalAlignment="Bottom" />
+                            </Grid>
+                            <TextBox Header="Notizen" Text="{Binding SelectedNotes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" Height="86" />
+                            <Button Command="{Binding SaveSelectedMetadataCommand}" Content="Metadaten speichern" HorizontalAlignment="Left" />
                             <ListView ItemsSource="{Binding SelectedModel.Artifacts}">
                                 <ListView.ItemTemplate>
                                     <DataTemplate>

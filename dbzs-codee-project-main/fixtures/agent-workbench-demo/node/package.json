@@ -1,9 +1,0 @@
-{
-  "name": "agent-workbench-demo-node",
-  "version": "1.0.0",
-  "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "echo ok",
-    "build": "echo build"
-  }
-}

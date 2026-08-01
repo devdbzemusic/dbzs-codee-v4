@@ -26,6 +26,11 @@ public sealed class ModelLabApiClient
         return await GetAsync<List<ScanJobDto>>("/model-lab/jobs", cancellationToken) ?? [];
     }
 
+    public async Task<IReadOnlyList<ModelCollectionDto>> GetCollectionsAsync(CancellationToken cancellationToken)
+    {
+        return await GetOptionalAsync<List<ModelCollectionDto>>("/model-lab/collections", cancellationToken) ?? [];
+    }
+
     public async Task<HardwareProfileDto?> GetHardwareAsync(CancellationToken cancellationToken)
     {
         return await GetAsync<HardwareProfileDto>("/model-lab/hardware", cancellationToken);
@@ -39,16 +44,42 @@ public sealed class ModelLabApiClient
         return await response.Content.ReadFromJsonAsync<ModelSourceDto>(_jsonOptions, cancellationToken);
     }
 
-    public async Task<ScanResultDto?> ScanAsync(CancellationToken cancellationToken)
+    public async Task<ScanResultDto?> ScanAsync(string? sourceId, CancellationToken cancellationToken)
     {
-        using var response = await _httpClient.PostAsJsonAsync(BuildUri("/model-lab/scan"), new { }, _jsonOptions, cancellationToken);
+        object payload = string.IsNullOrWhiteSpace(sourceId) ? new { } : new { source_id = sourceId };
+        using var response = await _httpClient.PostAsJsonAsync(BuildUri("/model-lab/scan"), payload, _jsonOptions, cancellationToken);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<ScanResultDto>(_jsonOptions, cancellationToken);
+    }
+
+    public async Task<ModelBundleDto?> UpdateMetadataAsync(
+        string bundleId,
+        ModelMetadataUpdateDto metadata,
+        CancellationToken cancellationToken)
+    {
+        using var response = await _httpClient.PutAsJsonAsync(
+            BuildUri($"/model-lab/models/{bundleId}/metadata"),
+            metadata,
+            _jsonOptions,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ModelBundleDto>(_jsonOptions, cancellationToken);
     }
 
     private async Task<T?> GetAsync<T>(string path, CancellationToken cancellationToken)
     {
         using var response = await _httpClient.GetAsync(BuildUri(path), cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<T>(_jsonOptions, cancellationToken);
+    }
+
+    private async Task<T?> GetOptionalAsync<T>(string path, CancellationToken cancellationToken)
+    {
+        using var response = await _httpClient.GetAsync(BuildUri(path), cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return default;
+        }
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<T>(_jsonOptions, cancellationToken);
     }

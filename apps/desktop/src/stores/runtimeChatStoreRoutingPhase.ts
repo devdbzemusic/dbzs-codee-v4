@@ -44,6 +44,28 @@ type Setter = (
 
 type Getter = () => RuntimeChatState;
 
+function formatRoutingDetail(input: {
+  taskType: RuntimeTaskType;
+  effectiveAgent: RuntimeChatRoutingInfo["targetAgent"];
+  decision: ModelSelectionDecision;
+  canaryStage: string;
+}): string {
+  const routeParts = [
+    `Aufgabe ${input.taskType}`,
+    `Agent ${agentLabel(input.effectiveAgent)}`,
+    `Slot ${input.decision.slotId ?? "auto"}`,
+    `Modell ${input.decision.resolvedModelName ?? input.decision.resolvedModelId ?? "auto"}`
+  ];
+  const metaParts = [
+    `Quelle ${input.decision.selectionSource}`,
+    input.decision.configuredModelId ? `Rollenmodell ${input.decision.configuredModelId}` : null,
+    input.decision.fallbackReason ? `Fallback ${input.decision.fallbackReason}` : null,
+    `Rollout ${input.canaryStage}`
+  ].filter(Boolean);
+
+  return `${routeParts.join(" -> ")} (${metaParts.join(" · ")})`;
+}
+
 interface RoutingCallbacks {
   failStep: (id: string, label: string, detail: string) => void;
   finishStep: (id: string, label: string, detail?: string) => void;
@@ -191,6 +213,13 @@ export async function runRoutingPhaseAction(input: {
       }
     );
     brokerDecisionFull = decision;
+    const routingDetail = formatRoutingDetail({
+      taskType,
+      effectiveAgent,
+      decision,
+      canaryStage
+    });
+    callbacks.appendStepDetail("model-route", routingDetail);
     bindingDecision = createRuntimeBindingDecision({
       workspaceId: workspaceScopeId(runWorkspaceRoot ?? sendOptions?.workspaceRoot ?? ""),
       workspaceRoot: runWorkspaceRoot ?? sendOptions?.workspaceRoot ?? "",
@@ -224,6 +253,21 @@ export async function runRoutingPhaseAction(input: {
       settingsRevision: decision.decisionSettingsRevision,
       warmupStatus: "pending"
     };
+    callbacks.updateActiveRun((run) => ({
+      ...updateRunStatus(run, "routing"),
+      provider: decision.providerId === "llama-cpp" ? "llama-cpp" : undefined,
+      modelId: decision.resolvedModelId ?? undefined,
+      modelName: decision.resolvedModelName ?? undefined,
+      slotId: decision.slotId ?? undefined,
+      configuredModelId: decision.configuredModelId ?? undefined,
+      selectionSource: decision.selectionSource ?? undefined,
+      fallbackReason: decision.fallbackReason ?? undefined,
+      settingsRevision: decision.decisionSettingsRevision ?? undefined,
+      warmupStatus: "pending",
+      workflowLabel: activeTaskContract?.confirmedGoal ?? activeTaskContract?.workflowId ?? trimmedContent,
+      phaseLabel: bindingDecision?.phase ?? workflowAssignment.phase,
+      targetAgentLabel: bindingDecision?.targetAgent ?? decision.targetAgent
+    }));
 
     if (shadowMode) {
       const legacySelected = modelRouterService.selectModelForAgent(effectiveAgent, settings);

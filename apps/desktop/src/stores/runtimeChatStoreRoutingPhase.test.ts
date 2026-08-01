@@ -76,7 +76,7 @@ vi.mock("@/stores/runtimeChatStoreRuntimeHelpers", () => ({
 
 vi.mock("@/services/runtimeChatRunHelpers", () => ({
   appendRunEvent: (run: unknown) => run,
-  updateRunStatus: (run: unknown) => run
+  updateRunStatus: (run: unknown, status: string) => ({ ...(run as object), status })
 }));
 
 vi.mock("@/services/activeTaskContract", () => ({
@@ -266,6 +266,28 @@ describe("runRoutingPhaseAction", () => {
     expect(brokerDecisionMock.mock.calls[0]?.[2]).toMatchObject({
       hasImageInput: true,
       multimodalPairs
+    });
+    expect(callbacks.appendStepDetail).toHaveBeenCalledWith(
+      "model-route",
+      expect.stringContaining("Agent runtime_chat -> Slot quality_cpu -> Modell Vision Model")
+    );
+    expect(callbacks.appendStepDetail).toHaveBeenCalledWith(
+      "model-route",
+      expect.stringContaining("Quelle role_setting")
+    );
+    const liveRunUpdate = callbacks.updateActiveRun.mock.calls[0]?.[0];
+    expect(liveRunUpdate?.({ id: "run-1", status: "preparing", events: [] })).toMatchObject({
+      status: "routing",
+      provider: "llama-cpp",
+      modelId: "vision-model",
+      modelName: "Vision Model",
+      slotId: "quality_cpu",
+      configuredModelId: "vision-model",
+      selectionSource: "role_setting",
+      settingsRevision: 12,
+      warmupStatus: "pending",
+      phaseLabel: "implementation",
+      targetAgentLabel: "default"
     });
     expect(result.handled).toBe(false);
     expect(result.routing?.modelId).toBe("vision-model");

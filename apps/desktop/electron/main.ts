@@ -288,6 +288,8 @@ function delay(ms: number): Promise<void> {
 /**
  * P0 Phase 2: Endpoint-specific timeouts for Backend requests
  * - Status/health/info endpoints: 5s (quick checks)
+ * - Runtime status: 30s (slot and llama.cpp probes can be slower while models start)
+ * - Model index: 5m (large local model catalogs can take longer than the default)
  * - Runtime doctor: 60s (model index + launch plans for all models)
  * - Chat requests: no timeout (Frontend handles timeout via AbortSignal)
  * - Benchmark/long-running: 30m (generous for heavy workloads)
@@ -297,6 +299,14 @@ function getEndpointTimeout(pathname: string): number {
   // Chat endpoints handled via Frontend timeout, no backend timeout
   if (pathname.includes("/runtime/chat")) {
     return 0; // 0 = no timeout, Frontend controls via AbortSignal
+  }
+
+  if (pathname.includes("/models/index")) {
+    return 5 * 60 * 1_000;
+  }
+
+  if (pathname.includes("/runtime/status")) {
+    return 30_000;
   }
 
   // Doctor builds full model index + per-model launch plans (can be slow on large catalogs).

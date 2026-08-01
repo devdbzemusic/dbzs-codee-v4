@@ -1,19 +1,27 @@
 <Application
     x:Class="DBZS.Codee.ModelOps.WinUI.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    RequestedTheme="Dark">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
-            <SolidColorBrush x:Key="DbzsBackgroundBrush" Color="#101418" />
-            <SolidColorBrush x:Key="DbzsPanelBrush" Color="#161D24" />
+            <SolidColorBrush x:Key="DbzsBackgroundBrush" Color="#081018" />
+            <SolidColorBrush x:Key="DbzsSurfaceBrush" Color="#0D1720" />
+            <SolidColorBrush x:Key="DbzsPanelBrush" Color="#101C27" />
             <SolidColorBrush x:Key="DbzsAccentBrush" Color="#22D3EE" />
-            <SolidColorBrush x:Key="DbzsTextMutedBrush" Color="#9FB0C0" />
+            <SolidColorBrush x:Key="DbzsTextBrush" Color="#E7F6FF" />
+            <SolidColorBrush x:Key="DbzsTextMutedBrush" Color="#9BB4C8" />
+            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#0D1720" />
+            <SolidColorBrush x:Key="NavigationViewContentBackground" Color="#081018" />
+            <Style TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{StaticResource DbzsTextBrush}" />
+            </Style>
             <Style x:Key="CardBorderStyle" TargetType="Border">
                 <Setter Property="Background" Value="{StaticResource DbzsPanelBrush}" />
-                <Setter Property="BorderBrush" Value="#263545" />
+                <Setter Property="BorderBrush" Value="#27465A" />
                 <Setter Property="BorderThickness" Value="1" />
                 <Setter Property="CornerRadius" Value="8" />
                 <Setter Property="Padding" Value="16" />
