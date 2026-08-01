@@ -34,6 +34,7 @@ from app.model_lab.models import (
     ScanResult,
 )
 from app.model_lab.repository import ModelLabRepository
+from app.model_lab.runtime_adapters import LlamaCppModelLabAdapter
 from app.model_lab.scanner import ModelLabScanner
 from app.runtime.gpu_detect import detect_gpu
 from app.runtime.hardware_fingerprint import collect_hardware_fingerprint, fingerprint_hash
@@ -54,10 +55,12 @@ class ModelLabService:
         repository: ModelLabRepository | None = None,
         scanner: ModelLabScanner | None = None,
         hf_service: HuggingFaceModelService | None = None,
+        llama_cpp_adapter: LlamaCppModelLabAdapter | None = None,
     ) -> None:
         self.repository = repository or ModelLabRepository()
         self.scanner = scanner or ModelLabScanner()
         self.hf_service = hf_service or HuggingFaceModelService()
+        self.llama_cpp_adapter = llama_cpp_adapter or LlamaCppModelLabAdapter()
 
     def create_source(self, request: ModelSourceCreate) -> ModelSource:
         source_path = Path(request.path).expanduser()
@@ -86,8 +89,8 @@ class ModelLabService:
             )
         return candidates
 
-    def run_scan(self, source_id: str | None = None) -> ScanResult:
-        sources = self._scan_sources(source_id)
+    def run_scan(self, source_id: str | None = None, *, all_sources: bool = False) -> ScanResult:
+        sources = self._scan_sources(source_id, all_sources=all_sources)
         self._mark_stale_scan_jobs()
         active_job = self.repository.get_active_scan_job(source_id)
         if active_job is not None:
@@ -205,25 +208,37 @@ class ModelLabService:
         model = self.repository.get_model(request.bundle_id)
         if model is None:
             raise ValueError(f"Model bundle nicht gefunden: {request.bundle_id}")
-        primary = next((artifact for artifact in model.artifacts if artifact.artifact_id == model.bundle.primary_artifact_id), None)
-        if primary is None:
-            message = "Probe uebersprungen: Bundle hat kein startbares Primaerartefakt."
-            self.repository.record_failure(bundle_id=request.bundle_id, operation="probeModel", message=message)
-            return self.repository.create_probe_run(request, status="skipped", message=message)
-        if request.adapter_id == "llama.cpp" and primary.format != "gguf":
-            message = f"Probe fehlgeschlagen: llama.cpp unterstuetzt dieses Format nicht: {primary.format}"
+        if request.adapter_id != self.llama_cpp_adapter.id:
+            message = f"Probe fehlgeschlagen: RuntimeAdapter ist noch nicht implementiert: {request.adapter_id}"
             self.repository.record_failure(
                 bundle_id=request.bundle_id,
                 operation="probeModel",
                 message=message,
-                details={"format": primary.format, "artifact_id": primary.artifact_id},
+                details={"adapter_id": request.adapter_id},
             )
             return self.repository.create_probe_run(request, status="failed", message=message, error=message)
+        preview = self.llama_cpp_adapter.build_probe_preview(model, runtime_options=request.runtime_options)
+        request_with_metrics = request.model_copy(update={"runtime_options": {**request.runtime_options, **preview}})
+        blockers = preview.get("blockers") if isinstance(preview.get("blockers"), list) else []
+        if blockers:
+            message = f"Probe-Vorpruefung blockiert: {blockers[0]}"
+            self.repository.record_failure(
+                bundle_id=request.bundle_id,
+                operation="probeModel",
+                message=message,
+                details=preview,
+            )
+            return self.repository.create_probe_run(
+                request_with_metrics,
+                status="failed" if request.allow_start else "skipped",
+                message=message,
+                error=message if request.allow_start else None,
+            )
         if not request.allow_start:
             message = "Probe als sichere Vorpruefung gespeichert; Runtime-Start wurde nicht erlaubt."
-            return self.repository.create_probe_run(request, status="skipped", message=message)
+            return self.repository.create_probe_run(request_with_metrics, status="skipped", message=message)
         message = "Runtime-Start-Gate akzeptiert; Live-Probe wird in der naechsten RuntimeAdapter-Phase ausgefuehrt."
-        return self.repository.create_probe_run(request, status="queued", message=message)
+        return self.repository.create_probe_run(request_with_metrics, status="queued", message=message)
 
     def benchmark_model(self, request: ModelBenchmarkRequest) -> ModelBenchmarkRun:
         message = "Benchmark-Messung gespeichert; echte Laufzeitmessung folgt ueber RuntimeAdapter-Gate."
@@ -250,12 +265,14 @@ class ModelLabService:
     def list_failures(self, bundle_id: str | None = None) -> list[ModelFailureRecord]:
         return self.repository.list_failures(bundle_id=bundle_id)
 
-    def _scan_sources(self, source_id: str | None) -> list[ModelSource]:
+    def _scan_sources(self, source_id: str | None, *, all_sources: bool) -> list[ModelSource]:
         if source_id:
             source = self.repository.get_source(source_id)
             if source is None:
                 raise ValueError(f"Modellquelle nicht gefunden: {source_id}")
             return [source]
+        if not all_sources:
+            raise ValueError("Scan benötigt eine source_id. Für einen bewussten Vollscan all_sources=true senden.")
         return [source for source in self.repository.list_sources() if source.enabled]
 
     def _mark_stale_scan_jobs(self) -> None:

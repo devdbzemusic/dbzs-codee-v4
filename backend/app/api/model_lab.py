@@ -67,7 +67,10 @@ def run_scan(
     service: ModelLabService = Depends(get_model_lab_service),
 ) -> ScanResult:
     try:
-        return service.run_scan(source_id=request.source_id if request else None)
+        return service.run_scan(
+            source_id=request.source_id if request else None,
+            all_sources=request.all_sources if request else False,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

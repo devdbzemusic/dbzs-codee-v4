@@ -157,6 +157,7 @@ class ModelLabModel(BaseModel):
 
 class ScanRequest(BaseModel):
     source_id: str | None = None
+    all_sources: bool = False
 
 
 class ScanJob(BaseModel):

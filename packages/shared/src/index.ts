@@ -1518,6 +1518,7 @@ export interface ModelLabModel {
 
 export interface ModelLabScanRequest {
   source_id?: string | null;
+  all_sources?: boolean;
 }
 
 export interface ModelLabScanJob {

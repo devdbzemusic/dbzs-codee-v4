@@ -92,7 +92,7 @@ export function useModelLabTabController() {
       setIsScanning(true);
       setError(null);
       try {
-        await backendClient.runModelLabScan(sourceId ? { source_id: sourceId } : undefined);
+        await backendClient.runModelLabScan(sourceId ? { source_id: sourceId } : { all_sources: true });
         await loadAll();
       } catch (scanError) {
         setError(scanError instanceof Error ? scanError.message : "Scan fehlgeschlagen.");

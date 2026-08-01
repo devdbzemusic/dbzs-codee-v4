@@ -107,6 +107,27 @@ def test_model_lab_rejects_invalid_source_path(tmp_path: Path) -> None:
     assert "Modellquelle existiert nicht" in response.json()["detail"]
 
 
+def test_model_lab_scan_requires_source_or_explicit_all_sources(tmp_path: Path) -> None:
+    models_dir = tmp_path / "models"
+    models_dir.mkdir()
+    (models_dir / "tiny.gguf").write_bytes(b"GGUF-model")
+
+    app.dependency_overrides[get_model_lab_service] = lambda: _service(tmp_path / "test.sqlite3")
+    client = TestClient(app)
+    client.post("/model-lab/sources", json={"path": str(models_dir)})
+
+    implicit_response = client.post("/model-lab/scan", json={})
+    assert implicit_response.status_code == 400
+    assert "source_id" in implicit_response.json()["detail"]
+
+    explicit_response = client.post("/model-lab/scan", json={"all_sources": True})
+
+    app.dependency_overrides.clear()
+    assert explicit_response.status_code == 200
+    assert explicit_response.json()["job"]["status"] == "completed"
+    assert explicit_response.json()["job"]["artifact_count"] == 1
+
+
 def test_model_lab_source_candidates_report_existing_and_registered_paths(tmp_path: Path) -> None:
     agentic = tmp_path / "Agentic"
     agentic.mkdir()
@@ -231,6 +252,8 @@ def test_model_lab_fleet_endpoints_record_safe_gates_and_roles(tmp_path: Path) -
     assert probe.status_code == 200
     assert probe.json()["status"] == "skipped"
     assert probe.json()["allow_start"] is False
+    assert "command_preview" in probe.json()["metrics"]
+    assert probe.json()["metrics"]["adapter_id"] == "llama.cpp"
 
     role_without_evidence = client.post(
         "/model-lab/role-assignments",

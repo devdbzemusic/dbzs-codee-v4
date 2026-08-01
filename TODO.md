@@ -62,14 +62,18 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       werden aus Bundles stabil an `logical_model_id` gebunden.
 - [x] Plan-15-Source-Candidates umgesetzt: bekannte Modellpfade werden auf Existenz/Registrierung geprueft,
       `D:\Models\Agentic` ist als empfohlene Startquelle in der Model-Lab-UI uebernehmbar.
+- [x] `llama.cpp`-RuntimeAdapter-Vorstufe umgesetzt: `probeModel` erzeugt bounded Command-/Validation-
+      Preview mit Blockern/Warnungen, weiterhin ohne Live-Prozessstart.
+- [x] Vollscan-Safety umgesetzt: `/model-lab/scan` ohne `source_id` braucht explizit `all_sources=true`;
+      die UI setzt das nur beim bewussten Vollscan-Button.
 - [x] Rollen-Gate erzwingt Zertifikate: keine aktive Fleet-Rolle nur auf Basis von Dateiname/Heuristik;
       Workspace-/Write-Rollen verlangen zusaetzlich `WRITE_AGENT_VERIFIED`.
 - [x] Sicheres Probe-Gate: `probeModel` speichert ohne `allow_start` einen `skipped`-Run und startet kein
       lokales Modell.
 - [ ] `D:\Models\Agentic` als erste produktive Quelle ueber den neuen Candidate-Button registrieren/scannen
       und den veralteten lokalen Model-Katalog auf dieser Maschine neu erzeugen.
-- [ ] `llama.cpp`-RuntimeAdapter live verdrahten: detect, validate_artifact, build_command, probe_load,
-      health_check, benchmark, collect_metrics, stop.
+- [ ] `llama.cpp`-RuntimeAdapter live verdrahten: `probe_load`, `health_check`, echte Benchmark-Messung,
+      `collect_metrics` und `stop` auf Basis der vorhandenen Command-/Validation-Preview.
 - [ ] GPU-Autotuning-Matrix aus Plan 15 als Presets/Messlaeufe ausfuehren und Profile
       `best_low_latency`, `best_throughput`, `safe_balanced`, `cpu_fallback`, `large_context` persistieren.
 - [ ] Fleet Console UI ausbauen: Compatibility, Tuning Lab, Benchmarks, Certification, Roles & Routing,
