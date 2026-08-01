@@ -38,10 +38,12 @@ existierenden Endpunkten folgt, nicht Plan 11s hypothetischem Schema.
 - Tests: `ModelLabTab.controller.test.tsx` (Laden/Quelle-anlegen/Scan-Fehlerpfad/Auswahl),
   `ModelLabTab.primitives.test.ts` (formatBytes, Status-Ton-Zuordnung), `notebookStore.test.ts` angepasst
   auf die neue Tab-Reihenfolge.
+- Nachgezogen (PR #19): Collections-Verwaltung (anlegen, Modelle im Inspector-Panel zuordnen/entfernen) und
+  eine echte HuggingFace-Such-UI (`ModelLabCollectionsSection`, `ModelLabHuggingFaceSearchSection`) — beide
+  nutzen ausschliesslich bereits verdrahtete Backend-Endpunkte, keine Backend-Aenderung noetig.
 
 **Noch offen (nicht Teil dieses Schritts):** Model Inspector als vollwertiges Tab-Panel (Benchmarks/Quality/
-Certification folgen erst Phase 2+), SSE-basierter Scan-Fortschritt (aktuell synchroner Scan-Request),
-Collections-/HuggingFace-Search-UI (Backend-Endpunkte sind angebunden, aber ohne UI). Siehe
+Certification folgen erst Phase 2+), SSE-basierter Scan-Fortschritt (aktuell synchroner Scan-Request). Siehe
 `Pläne/11 DBZS_CODEE_MODEL_OPERATIONS_CENTER_IMPLEMENTIERUNGSPLAN.md`, Abschnitt 3, fuer die weiteren Phasen.
 
 ## Abnahme-Test-Playbook umgesetzt (2026-07-31)
