@@ -28,6 +28,7 @@ from app.model_lab.models import (
     ModelCollectionCreate,
     ModelExecutionPolicy,
     ModelFailureRecord,
+    ModelFleetReadinessEntry,
     ModelFleetRoutingEntry,
     ModelLabModel,
     ModelMetadataUpdate,
@@ -1119,6 +1120,52 @@ class ModelLabRepository:
             )
         return entries
 
+    def list_readiness(self, bundle_id: str | None = None) -> list[ModelFleetReadinessEntry]:
+        models = [self.get_model(bundle_id)] if bundle_id else self.list_models()
+        routing_entries = self.list_routing_map()
+        routing_by_bundle: dict[str, list[ModelFleetRoutingEntry]] = {}
+        for entry in routing_entries:
+            routing_by_bundle.setdefault(entry.bundle_id, []).append(entry)
+
+        entries: list[ModelFleetReadinessEntry] = []
+        for model in models:
+            if model is None:
+                continue
+            bundle = model.bundle
+            probes = self.list_probe_runs(bundle.bundle_id)
+            benchmarks = self.list_benchmark_runs(bundle.bundle_id)
+            certifications = self.list_certifications(bundle.bundle_id)
+            evidence = self.list_capability_evidence(bundle.bundle_id)
+            failures = self.list_failures(bundle.bundle_id)
+            routes = routing_by_bundle.get(bundle.bundle_id, [])
+            latest_probe = probes[0] if probes else None
+            latest_benchmark = benchmarks[0] if benchmarks else None
+            blockers = _readiness_blockers(
+                bundle_status=bundle.status,
+                health_status=bundle.health.status,
+                latest_probe=latest_probe,
+                failures=failures,
+                routes=routes,
+            )
+            entries.append(
+                ModelFleetReadinessEntry(
+                    bundle_id=bundle.bundle_id,
+                    bundle_name=bundle.name,
+                    status=bundle.status,
+                    health_status=bundle.health.status,
+                    latest_probe_status=latest_probe.status if latest_probe else None,
+                    latest_benchmark_status=latest_benchmark.status if latest_benchmark else None,
+                    certification_count=len([record for record in certifications if record.status == "passed"]),
+                    evidence_count=len(evidence),
+                    failure_count=len(failures),
+                    assigned_roles=[entry.role for entry in routes],
+                    routing_allowed_roles=[entry.role for entry in routes if entry.routing_allowed],
+                    blockers=blockers,
+                    updated_at=bundle.updated_at,
+                )
+            )
+        return sorted(entries, key=lambda entry: (len(entry.blockers) > 0, entry.bundle_name.lower()))
+
     def list_execution_policies(self) -> list[ModelExecutionPolicy]:
         with sqlite_connection(self.db_path) as conn:
             rows = conn.execute("SELECT * FROM agent_execution_policies ORDER BY role").fetchall()
@@ -1737,6 +1784,28 @@ def _measurement_unit(name: str) -> str:
     if normalized.endswith("_percent") or normalized.endswith("_pct"):
         return "%"
     return "value"
+
+
+def _readiness_blockers(
+    *,
+    bundle_status: str,
+    health_status: str,
+    latest_probe: ModelProbeRun | None,
+    failures: list[ModelFailureRecord],
+    routes: list[ModelFleetRoutingEntry],
+) -> list[str]:
+    blockers: list[str] = []
+    if bundle_status in {"BROKEN", "UNSUPPORTED", "QUARANTINED"}:
+        blockers.append(f"bundle_status:{bundle_status}")
+    if health_status in {"incomplete", "empty", "error"}:
+        blockers.append(f"health:{health_status}")
+    if latest_probe and latest_probe.status == "failed":
+        blockers.append("latest_probe:failed")
+    if any(failure.severity in {"error", "critical"} for failure in failures):
+        blockers.append("failures:open")
+    if routes and not any(route.routing_allowed for route in routes):
+        blockers.append("routing:no_allowed_role")
+    return blockers
 
 
 def _dt(value: datetime) -> str:

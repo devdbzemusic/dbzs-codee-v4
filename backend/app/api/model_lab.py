@@ -20,6 +20,7 @@ from app.model_lab.models import (
     ModelCollectionCreate,
     ModelExecutionPolicy,
     ModelFailureRecord,
+    ModelFleetReadinessEntry,
     ModelFleetRoutingEntry,
     ModelLabModel,
     ModelMetadataUpdate,
@@ -336,6 +337,14 @@ def list_routing_map(
     service: ModelLabService = Depends(get_model_lab_service),
 ) -> list[ModelFleetRoutingEntry]:
     return service.list_routing_map(role=role)
+
+
+@router.get("/readiness")
+def list_readiness(
+    bundle_id: str | None = None,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> list[ModelFleetReadinessEntry]:
+    return service.list_readiness(bundle_id=bundle_id)
 
 
 @router.get("/execution-policies")

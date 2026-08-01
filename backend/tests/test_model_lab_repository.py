@@ -292,6 +292,41 @@ def test_fleet_routing_map_reports_certification_gate(tmp_path: Path) -> None:
     assert allowed_entry.missing_certifications == []
 
 
+def test_fleet_readiness_aggregates_runtime_evidence_and_routing(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+    probe = repo.create_probe_run(
+        ModelProbeRequest(bundle_id=bundle.bundle_id, runtime_options={"adapter_id": "llama.cpp"}),
+        status="skipped",
+        message="safe gate",
+    )
+    repo.record_capability_evidence(
+        ModelCapabilityEvidenceRequest(
+            bundle_id=bundle.bundle_id,
+            capability="runtime_probe:llama.cpp",
+            status="observed",
+            evidence={"probe_run_id": probe.id},
+        )
+    )
+    repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="MICRO_TOOL_AGENT",
+            safety_level="LEVEL_1_READ_ONLY_TOOLS",
+            enabled=False,
+        )
+    )
+
+    readiness = repo.list_readiness(bundle.bundle_id)[0]
+
+    assert readiness.bundle_id == bundle.bundle_id
+    assert readiness.latest_probe_status == "skipped"
+    assert readiness.evidence_count == 1
+    assert readiness.assigned_roles == ["MICRO_TOOL_AGENT"]
+    assert readiness.routing_allowed_roles == []
+    assert "routing:no_allowed_role" in readiness.blockers
+
+
 def test_runtime_presets_are_seeded_from_plan_15_matrix(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
 

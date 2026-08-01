@@ -51,6 +51,7 @@ import type {
   ModelLabModel,
   ModelLabProbeRequest,
   ModelLabProbeRun,
+  ModelLabReadinessEntry,
   ModelLabRoutingEntry,
   ModelLabRoleAssignment,
   ModelLabRoleAssignmentRequest,
@@ -172,6 +173,7 @@ export interface BackendBridge extends DesktopBridgeV1 {
   listModelRoleAssignments?: (role?: string) => Promise<ModelLabRoleAssignment[]>;
   listModelExecutionPolicies?: () => Promise<ModelLabExecutionPolicy[]>;
   listModelRoutingMap?: (role?: string) => Promise<ModelLabRoutingEntry[]>;
+  listModelReadiness?: (bundleId?: string) => Promise<ModelLabReadinessEntry[]>;
   listModelFailures?: (bundleId?: string) => Promise<ModelLabFailureRecord[]>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   startRuntimeModel: (modelId: string, profile?: string) => Promise<RuntimeStatus>;
@@ -648,6 +650,13 @@ export const backendClient = {
       return Promise.reject(new Error("listModelRoutingMap is unavailable."));
     }
     return method(role);
+  },
+  listModelReadiness: (bundleId?: string) => {
+    const method = bridge().listModelReadiness;
+    if (!method) {
+      return Promise.reject(new Error("listModelReadiness is unavailable."));
+    }
+    return method(bundleId);
   },
   listModelFailures: (bundleId?: string) => {
     const method = bridge().listModelFailures;

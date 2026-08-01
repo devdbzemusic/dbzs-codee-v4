@@ -168,6 +168,10 @@ export function registerModelLabIpcHandlers(options: RegisterModelLabIpcOptions)
     const params = role ? `?role=${encodeURIComponent(role)}` : "";
     return requestBackend(`/model-lab/routing-map${params}`);
   });
+  ipcMain.handle("dbzs:model-lab:readiness:list", (_event, bundleId?: string) => {
+    const params = bundleId ? `?bundle_id=${encodeURIComponent(bundleId)}` : "";
+    return requestBackend(`/model-lab/readiness${params}`);
+  });
   ipcMain.handle("dbzs:model-lab:failures:list", (_event, bundleId?: string) => {
     const params = bundleId ? `?bundle_id=${encodeURIComponent(bundleId)}` : "";
     return requestBackend(`/model-lab/failures${params}`);

@@ -1758,6 +1758,22 @@ export interface ModelLabRoutingEntry {
   updated_at: string;
 }
 
+export interface ModelLabReadinessEntry {
+  bundle_id: string;
+  bundle_name: string;
+  status: ModelLabStatus;
+  health_status: "healthy" | "incomplete" | "empty" | "error" | "unknown";
+  latest_probe_status: ModelFleetRunStatus | null;
+  latest_benchmark_status: ModelFleetRunStatus | null;
+  certification_count: number;
+  evidence_count: number;
+  failure_count: number;
+  assigned_roles: ModelFleetRole[];
+  routing_allowed_roles: ModelFleetRole[];
+  blockers: string[];
+  updated_at: string;
+}
+
 export interface ModelLabFailureRecord {
   id: string;
   bundle_id: string | null;

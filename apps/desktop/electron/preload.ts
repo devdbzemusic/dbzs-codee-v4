@@ -551,6 +551,10 @@ const api = {
     ipcRenderer.invoke("dbzs:model-lab:routing-map:list", role) as Promise<
       import("@dbzs/shared").ModelLabRoutingEntry[]
     >,
+  listModelReadiness: (bundleId?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:readiness:list", bundleId) as Promise<
+      import("@dbzs/shared").ModelLabReadinessEntry[]
+    >,
   listModelFailures: (bundleId?: string) =>
     ipcRenderer.invoke("dbzs:model-lab:failures:list", bundleId) as Promise<
       import("@dbzs/shared").ModelLabFailureRecord[]

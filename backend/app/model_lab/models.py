@@ -397,6 +397,22 @@ class ModelFleetRoutingEntry(BaseModel):
     updated_at: datetime
 
 
+class ModelFleetReadinessEntry(BaseModel):
+    bundle_id: str
+    bundle_name: str
+    status: ModelLabStatus
+    health_status: Literal["healthy", "incomplete", "empty", "error", "unknown"]
+    latest_probe_status: ModelFleetRunStatus | None = None
+    latest_benchmark_status: ModelFleetRunStatus | None = None
+    certification_count: int = 0
+    evidence_count: int = 0
+    failure_count: int = 0
+    assigned_roles: list[ModelFleetRole] = Field(default_factory=list)
+    routing_allowed_roles: list[ModelFleetRole] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    updated_at: datetime
+
+
 class ModelFailureRecord(BaseModel):
     id: str
     bundle_id: str | None = None
@@ -421,6 +437,7 @@ class ModelFleetSummary(BaseModel):
     role_assignments: list[ModelRoleAssignment]
     execution_policies: list[ModelExecutionPolicy] = Field(default_factory=list)
     routing_map: list[ModelFleetRoutingEntry] = Field(default_factory=list)
+    readiness: list[ModelFleetReadinessEntry] = Field(default_factory=list)
     failures: list[ModelFailureRecord]
 
 

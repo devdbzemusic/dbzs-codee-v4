@@ -23,6 +23,7 @@ import type {
   ModelLabModel,
   ModelLabProbeRequest,
   ModelLabProbeRun,
+  ModelLabReadinessEntry,
   ModelLabRoutingEntry,
   ModelLabRoleAssignment,
   ModelLabRoleAssignmentRequest,
@@ -179,6 +180,7 @@ export interface DesktopBridgeV1 {
   listModelRoleAssignments?: (role?: string) => Promise<ModelLabRoleAssignment[]>;
   listModelExecutionPolicies?: () => Promise<ModelLabExecutionPolicy[]>;
   listModelRoutingMap?: (role?: string) => Promise<ModelLabRoutingEntry[]>;
+  listModelReadiness?: (bundleId?: string) => Promise<ModelLabReadinessEntry[]>;
   listModelFailures?: (bundleId?: string) => Promise<ModelLabFailureRecord[]>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   startRuntimeModel: (modelId: string, profile?: string) => Promise<RuntimeStatus>;

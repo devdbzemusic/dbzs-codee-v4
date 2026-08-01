@@ -23,6 +23,7 @@ from app.model_lab.models import (
     ModelCollectionCreate,
     ModelExecutionPolicy,
     ModelFailureRecord,
+    ModelFleetReadinessEntry,
     ModelFleetRoutingEntry,
     ModelLabModel,
     ModelMetadataUpdate,
@@ -227,7 +228,9 @@ class ModelLabService:
                 message=message,
                 details={"adapter_id": request.adapter_id},
             )
-            return self.repository.create_probe_run(request, status="failed", message=message, error=message)
+            run = self.repository.create_probe_run(request, status="failed", message=message, error=message)
+            self._record_probe_evidence(run)
+            return run
         preview = self.llama_cpp_adapter.build_probe_preview(model, runtime_options=request.runtime_options)
         request_with_metrics = request.model_copy(update={"runtime_options": {**request.runtime_options, **preview}})
         blockers = preview.get("blockers") if isinstance(preview.get("blockers"), list) else []
@@ -239,17 +242,23 @@ class ModelLabService:
                 message=message,
                 details=preview,
             )
-            return self.repository.create_probe_run(
+            run = self.repository.create_probe_run(
                 request_with_metrics,
                 status="failed" if request.allow_start else "skipped",
                 message=message,
                 error=message if request.allow_start else None,
             )
+            self._record_probe_evidence(run)
+            return run
         if not request.allow_start:
             message = "Probe als sichere Vorpruefung gespeichert; Runtime-Start wurde nicht erlaubt."
-            return self.repository.create_probe_run(request_with_metrics, status="skipped", message=message)
+            run = self.repository.create_probe_run(request_with_metrics, status="skipped", message=message)
+            self._record_probe_evidence(run)
+            return run
         message = "Runtime-Start-Gate akzeptiert; Live-Probe wird in der naechsten RuntimeAdapter-Phase ausgefuehrt."
-        return self.repository.create_probe_run(request_with_metrics, status="queued", message=message)
+        run = self.repository.create_probe_run(request_with_metrics, status="queued", message=message)
+        self._record_probe_evidence(run)
+        return run
 
     def benchmark_model(self, request: ModelBenchmarkRequest) -> ModelBenchmarkRun:
         message = "Benchmark-Messung gespeichert; echte Laufzeitmessung folgt ueber RuntimeAdapter-Gate."
@@ -295,6 +304,9 @@ class ModelLabService:
     def list_routing_map(self, role: str | None = None) -> list[ModelFleetRoutingEntry]:
         return self.repository.list_routing_map(role=role)
 
+    def list_readiness(self, bundle_id: str | None = None) -> list[ModelFleetReadinessEntry]:
+        return self.repository.list_readiness(bundle_id=bundle_id)
+
     def list_execution_policies(self) -> list[ModelExecutionPolicy]:
         return self.repository.list_execution_policies()
 
@@ -309,6 +321,30 @@ class ModelLabService:
 
     def list_failures(self, bundle_id: str | None = None) -> list[ModelFailureRecord]:
         return self.repository.list_failures(bundle_id=bundle_id)
+
+    def _record_probe_evidence(self, run: ModelProbeRun) -> None:
+        evidence_status = {
+            "passed": "verified",
+            "failed": "failed",
+            "skipped": "observed",
+            "queued": "observed",
+            "running": "observed",
+        }.get(run.status, "observed")
+        self.repository.record_capability_evidence(
+            ModelCapabilityEvidenceRequest(
+                bundle_id=run.bundle_id,
+                capability=f"runtime_probe:{run.adapter_id}",
+                status=evidence_status,
+                evidence={
+                    "probe_run_id": run.id,
+                    "probe_status": run.status,
+                    "allow_start": run.allow_start,
+                    "message": run.message,
+                    "error": run.error,
+                    "metrics": run.metrics,
+                },
+            )
+        )
 
     def _scan_sources(self, source_id: str | None, *, all_sources: bool) -> list[ModelSource]:
         if source_id:
