@@ -1,5 +1,11 @@
-import type { FormEvent } from "react";
-import type { ModelLabModel, ModelLabSource } from "@dbzs/shared";
+import { useState, type FormEvent } from "react";
+import type {
+  ModelLabCollection,
+  ModelLabCollectionCreate,
+  ModelLabHuggingFaceSearchResult,
+  ModelLabModel,
+  ModelLabSource
+} from "@dbzs/shared";
 import { formatBytes, ModelLabStatusBadge } from "./ModelLabTab.primitives";
 import { ModelBundleRow, SourceRow } from "./ModelLabTab.rows";
 
@@ -171,7 +177,17 @@ export function ModelLabModelsSection({
   );
 }
 
-export function ModelLabInspectorPanel({ model }: { model: ModelLabModel | null }) {
+export function ModelLabInspectorPanel({
+  model,
+  collections = [],
+  onAddToCollection,
+  onRemoveFromCollection
+}: {
+  model: ModelLabModel | null;
+  collections?: ModelLabCollection[];
+  onAddToCollection?: (collectionId: string) => void;
+  onRemoveFromCollection?: (collectionId: string) => void;
+}) {
   if (!model) {
     return (
       <div className="border border-dbzs-border bg-dbzs-panel p-3 text-xs text-dbzs-muted">
@@ -181,6 +197,8 @@ export function ModelLabInspectorPanel({ model }: { model: ModelLabModel | null 
   }
 
   const { bundle, artifacts } = model;
+  const memberCollections = collections.filter((collection) => bundle.collection_ids.includes(collection.id));
+  const availableCollections = collections.filter((collection) => !bundle.collection_ids.includes(collection.id));
 
   return (
     <div className="border border-dbzs-border bg-dbzs-panel p-3">
@@ -202,6 +220,46 @@ export function ModelLabInspectorPanel({ model }: { model: ModelLabModel | null 
         <dt>Modalitaeten</dt>
         <dd>{bundle.modalities.join(", ") || "-"}</dd>
       </dl>
+      <div className="mt-3">
+        <p className="text-[10px] uppercase tracking-[0.1em] text-dbzs-muted">Collections</p>
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          {memberCollections.length === 0 ? (
+            <span className="text-[11px] text-dbzs-muted">keiner Collection zugeordnet</span>
+          ) : (
+            memberCollections.map((collection) => (
+              <button
+                className="border px-1.5 py-0.5 text-[10px]"
+                key={collection.id}
+                onClick={() => onRemoveFromCollection?.(collection.id)}
+                style={{ borderColor: collection.color, color: collection.color }}
+                title="Entfernen"
+                type="button"
+              >
+                {collection.name} x
+              </button>
+            ))
+          )}
+        </div>
+        {onAddToCollection && availableCollections.length > 0 ? (
+          <select
+            className="mt-2 border border-dbzs-border bg-dbzs-bg px-1.5 py-1 text-[11px] text-dbzs-text"
+            onChange={(event) => {
+              if (event.target.value) {
+                onAddToCollection(event.target.value);
+                event.target.value = "";
+              }
+            }}
+            value=""
+          >
+            <option value="">Zu Collection hinzufuegen...</option>
+            {availableCollections.map((collection) => (
+              <option key={collection.id} value={collection.id}>
+                {collection.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
+      </div>
       {bundle.health.issues.length > 0 ? (
         <div className="mt-2">
           <p className="text-[10px] uppercase tracking-[0.1em] text-dbzs-muted">Probleme</p>
@@ -223,6 +281,149 @@ export function ModelLabInspectorPanel({ model }: { model: ModelLabModel | null 
           ))}
         </ul>
       </div>
+    </div>
+  );
+}
+
+export function ModelLabCollectionsSection({
+  collections,
+  models,
+  creatingCollection,
+  onCreateCollection
+}: {
+  collections: ModelLabCollection[];
+  models: ModelLabModel[];
+  creatingCollection: boolean;
+  onCreateCollection: (request: ModelLabCollectionCreate) => void;
+}) {
+  const [name, setName] = useState("");
+  const [color, setColor] = useState("#22D3EE");
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (name.trim()) {
+      onCreateCollection({ name: name.trim(), color });
+      setName("");
+    }
+  };
+
+  const countByCollection = (collectionId: string) =>
+    models.filter((entry) => entry.bundle.collection_ids.includes(collectionId)).length;
+
+  return (
+    <div>
+      <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-dbzs-muted">Collections</h3>
+      <form className="mb-3 flex flex-wrap items-center gap-2" onSubmit={handleSubmit}>
+        <input
+          className="min-w-[200px] flex-1 border border-dbzs-border bg-dbzs-bg px-2 py-1 text-xs text-dbzs-text"
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Neue Collection, z. B. Coding-Modelle"
+          type="text"
+          value={name}
+        />
+        <input
+          aria-label="Farbe"
+          className="h-7 w-10 border border-dbzs-border bg-dbzs-bg"
+          onChange={(event) => setColor(event.target.value)}
+          type="color"
+          value={color}
+        />
+        <button
+          className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-xs text-dbzs-muted disabled:opacity-40"
+          disabled={creatingCollection || !name.trim()}
+          type="submit"
+        >
+          {creatingCollection ? "Legt an..." : "Anlegen"}
+        </button>
+      </form>
+      {collections.length === 0 ? (
+        <p className="text-xs text-dbzs-muted">Noch keine Collection angelegt.</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {collections.map((collection) => (
+            <span
+              className="flex items-center gap-1 border px-2 py-1 text-[11px]"
+              key={collection.id}
+              style={{ borderColor: collection.color, color: collection.color }}
+            >
+              {collection.name}
+              <span className="text-dbzs-muted">({countByCollection(collection.id)})</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ModelLabHuggingFaceSearchSection({
+  query,
+  onQueryChange,
+  onSearch,
+  results,
+  searching,
+  error
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+  onSearch: () => void;
+  results: ModelLabHuggingFaceSearchResult[];
+  searching: boolean;
+  error: string | null;
+}) {
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onSearch();
+  };
+
+  return (
+    <div>
+      <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-dbzs-muted">
+        HuggingFace-Suche
+      </h3>
+      <form className="mb-3 flex flex-wrap items-center gap-2" onSubmit={handleSubmit}>
+        <input
+          className="min-w-[240px] flex-1 border border-dbzs-border bg-dbzs-bg px-2 py-1 text-xs text-dbzs-text"
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="z. B. llama-3 gguf"
+          type="text"
+          value={query}
+        />
+        <button
+          className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-xs text-dbzs-muted disabled:opacity-40"
+          disabled={searching || !query.trim()}
+          type="submit"
+        >
+          {searching ? "Sucht..." : "Suchen"}
+        </button>
+      </form>
+      {error ? <p className="mb-2 text-xs text-dbzs-red">{error}</p> : null}
+      {results.length === 0 ? (
+        <p className="text-xs text-dbzs-muted">Keine Suchergebnisse.</p>
+      ) : (
+        <table className="w-full border-collapse text-left">
+          <thead>
+            <tr className="border-b border-dbzs-border text-[10px] uppercase tracking-[0.1em] text-dbzs-muted">
+              <th className="px-2 py-1">Repo</th>
+              <th className="px-2 py-1">Pipeline</th>
+              <th className="px-2 py-1">Downloads</th>
+              <th className="px-2 py-1">Likes</th>
+              <th className="px-2 py-1">Groesse</th>
+            </tr>
+          </thead>
+          <tbody>
+            {results.map((result) => (
+              <tr className="border-b border-dbzs-border/60" key={result.id}>
+                <td className="px-2 py-1.5 text-xs text-dbzs-text">{result.id}</td>
+                <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">{result.pipeline || "-"}</td>
+                <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">{result.downloads}</td>
+                <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">{result.likes}</td>
+                <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">{formatBytes(result.size_mb * 1024 * 1024)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
