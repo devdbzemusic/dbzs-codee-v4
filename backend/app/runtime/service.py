@@ -1603,29 +1603,86 @@ class RuntimeService:
         return False
 
     def _build_chat_messages(self, chat_request: RuntimeChatRequest) -> list[RuntimeChatMessage]:
-        messages = [
-            RuntimeChatMessage(
-                role="system",
-                content=RUNTIME_CHAT_SYSTEM_PROMPT,
-            )
-        ]
+        system_parts = [RUNTIME_CHAT_SYSTEM_PROMPT]
 
         if chat_request.file_context:
             context = chat_request.file_context
-            messages.append(
-                RuntimeChatMessage(
-                    role="system",
-                    content=(
-                        f"Aktive Datei: {context.path}\n"
-                        f"Sprache: {context.language}\n\n"
-                        "Dateiinhalt:\n"
-                        f"```{context.language}\n{context.content}\n```"
-                    ),
+            system_parts.append(
+                (
+                    f"Aktive Datei: {context.path}\n"
+                    f"Sprache: {context.language}\n\n"
+                    "Dateiinhalt:\n"
+                    f"```{context.language}\n{context.content}\n```"
                 )
             )
 
-        messages.extend(chat_request.messages)
-        return self._merge_consecutive_same_role_messages(messages)
+        dialog_messages: list[RuntimeChatMessage] = []
+        for message in chat_request.messages:
+            if message.role == "system":
+                system_parts.append(message.content)
+            else:
+                dialog_messages.append(message)
+
+        return self._build_strict_alternating_messages(system_parts, dialog_messages)
+
+    @staticmethod
+    def _build_strict_alternating_messages(
+        system_parts: list[str],
+        dialog_messages: list[RuntimeChatMessage],
+    ) -> list[RuntimeChatMessage]:
+        """Build a llama.cpp chat-template-safe message list.
+
+        Gemma-style templates used by llama-server reject any system message
+        outside the first position and any non-alternating dialog roles. The
+        desktop client can inject system context after the user turn, so the
+        backend normalizes once at the provider boundary.
+        """
+        merged_system = "\n\n".join(part.strip() for part in system_parts if part.strip())
+        normalized: list[RuntimeChatMessage] = [
+            RuntimeChatMessage(role="system", content=merged_system or RUNTIME_CHAT_SYSTEM_PROMPT)
+        ]
+
+        pending_assistant_context: list[str] = []
+        for message in dialog_messages:
+            content = message.content.strip()
+            if not content:
+                continue
+
+            if message.role == "assistant" and len(normalized) == 1:
+                pending_assistant_context.append(content)
+                continue
+
+            if pending_assistant_context and message.role == "user":
+                normalized[0] = RuntimeChatMessage(
+                    role="system",
+                    content=(
+                        f"{normalized[0].content}\n\n"
+                        "Vorherige Assistant-Antworten vor dem ersten Nutzerturn:\n"
+                        + "\n\n".join(pending_assistant_context)
+                    ),
+                )
+                pending_assistant_context = []
+
+            candidate = RuntimeChatMessage(role=message.role, content=content)
+            if normalized[-1].role == candidate.role:
+                normalized[-1] = RuntimeChatMessage(
+                    role=normalized[-1].role,
+                    content=f"{normalized[-1].content}\n\n{candidate.content}",
+                )
+            else:
+                normalized.append(candidate)
+
+        if pending_assistant_context:
+            normalized[0] = RuntimeChatMessage(
+                role="system",
+                content=(
+                    f"{normalized[0].content}\n\n"
+                    "Vorherige Assistant-Antworten ohne folgenden Nutzerturn:\n"
+                    + "\n\n".join(pending_assistant_context)
+                ),
+            )
+
+        return normalized
 
     @staticmethod
     def _merge_consecutive_same_role_messages(
