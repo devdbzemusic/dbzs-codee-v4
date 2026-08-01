@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from app.models.index_service import ModelIndexService
+from app.runtime.errors import RuntimeProviderError
 from app.runtime.gpu_detect import GpuInfo
 from app.runtime.hardware_fingerprint import collect_hardware_fingerprint, fingerprint_hash
 from app.runtime.prompts import RUNTIME_CHAT_SYSTEM_PROMPT
@@ -82,6 +83,11 @@ class FakeChatClient:
             yield token
         if on_usage is not None and self.stream_usage is not None:
             on_usage(self.stream_usage)
+
+
+class FailingTemplateChatClient(FakeChatClient):
+    def complete(self, endpoint: str, payload: dict) -> str:
+        raise RuntimeError("llama-server request failed: HTTP Error 500 | chat template failed")
 
 
 class SlowEndpointChecker:
@@ -762,6 +768,31 @@ def test_runtime_service_chat_logs_without_run_id(tmp_path: Path, caplog: pytest
 
     assert response.message.role == "assistant"
     assert "run_id=None" in caplog.text
+
+
+def test_runtime_service_provider_error_diagnostics_include_request_id(tmp_path: Path) -> None:
+    write_catalog(tmp_path)
+    service = RuntimeService(
+        model_index_service=ModelIndexService(models_dir=tmp_path),
+        process_runner=FakeProcessRunner(),
+        chat_client=FailingTemplateChatClient(),
+        endpoint_checker=lambda _url: True,
+    )
+    service.start_model("coder")
+
+    with pytest.raises(RuntimeProviderError) as raised:
+        service.chat(
+            RuntimeChatRequest(
+                messages=[RuntimeChatMessage(role="user", content="Hallo")],
+                model_id="coder",
+                slot_id="fast_gpu",
+                request_id="req-provider-1",
+            )
+        )
+
+    assert raised.value.code == "provider_template_error"
+    assert raised.value.diagnostic_context["requestId"] == "req-provider-1"
+    assert raised.value.diagnostic_context["stage"] == "chat_complete"
 
 
 def test_runtime_service_chat_stream_captures_usage(tmp_path: Path) -> None:

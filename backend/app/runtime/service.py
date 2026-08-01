@@ -1380,7 +1380,12 @@ class RuntimeService:
                         fallback_payload = {key: value for key, value in payload.items() if key != "tools"}
                         content = self.chat_client.complete(current.endpoint, fallback_payload)
                     else:
-                        self._raise_provider_error(exc, slot_id=slot_id, stage="chat_complete")
+                        self._raise_provider_error(
+                            exc,
+                            slot_id=slot_id,
+                            stage="chat_complete",
+                            request_id=chat_request.request_id,
+                        )
                 if native_tools and not content.strip():
                     fallback_payload = {key: value for key, value in payload.items() if key != "tools"}
                     content = self.chat_client.complete(current.endpoint, fallback_payload)
@@ -1465,7 +1470,12 @@ class RuntimeService:
                         fallback_payload = {key: value for key, value in payload.items() if key != "tools"}
                         yield from self.chat_client.stream(current.endpoint, fallback_payload, on_usage=capture_usage)
                     else:
-                        self._raise_provider_error(exc, slot_id=slot_id, stage="chat_stream")
+                        self._raise_provider_error(
+                            exc,
+                            slot_id=slot_id,
+                            stage="chat_stream",
+                            request_id=chat_request.request_id,
+                        )
         finally:
             self.residency.end_request(slot_id)
 
@@ -1507,7 +1517,14 @@ class RuntimeService:
         active_slot = getattr(self, "_last_active_slot_id", "quality_cpu")
         return self._stream_tail_for_slot("stdout", active_slot)
 
-    def _raise_provider_error(self, exc: RuntimeError, *, slot_id: str, stage: str) -> None:
+    def _raise_provider_error(
+        self,
+        exc: RuntimeError,
+        *,
+        slot_id: str,
+        stage: str,
+        request_id: str | None = None,
+    ) -> None:
         message = str(exc)
         lowered = message.lower()
         if "conversation roles must alternate" in lowered or "jinja exception" in lowered or "chat template" in lowered:
@@ -1528,6 +1545,7 @@ class RuntimeService:
                 "source": "runtime-service",
                 "stage": stage,
                 "slotId": slot_id,
+                "requestId": request_id,
                 "stderrTail": self._stream_tail_for_slot("stderr", slot_id)[-4000:],
                 "stdoutTail": self._stream_tail_for_slot("stdout", slot_id)[-2000:],
             },

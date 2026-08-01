@@ -404,17 +404,37 @@ export async function runRoutingPhaseAction(input: {
       providerId: routing.providerId ?? undefined
     })
   );
+  const routingTraceMessage = [
+    `Workflow ${activeTaskContract?.confirmedGoal ?? activeTaskContract?.workflowId ?? trimmedContent}`,
+    `Phase ${bindingDecision?.phase ?? workflowAssignment.phase}`,
+    `Agent ${agentLabel(effectiveAgent)}`,
+    `Rolle ${bindingDecision?.targetAgent ?? brokerDecisionFull?.targetAgent ?? effectiveAgent}`,
+    `Slot ${contextSlotId}`,
+    `Modell ${displayModelLabel}`,
+    `Quelle ${routing.selectionSource ?? "default"}`,
+    routing.fallbackReason ? `Fallback ${routing.fallbackReason}` : null
+  ].filter(Boolean).join(" | ");
   callbacks.finishStep(
     "model-route",
     "Modell-Routing",
-    `Agent ${agentLabel(effectiveAgent)} → ${displayModelLabel} (${routing.providerId ?? "runtime"})`
+    routingTraceMessage
   );
   callbacks.updateActiveRun((run) => {
     const updated = appendRunEvent(
       run,
       "routing.completed",
-      `Modell gewählt: ${displayModelLabel}`,
+      `Routet: ${routingTraceMessage}`,
       {
+        workflow: activeTaskContract?.confirmedGoal ?? activeTaskContract?.workflowId ?? trimmedContent,
+        phase: bindingDecision?.phase ?? workflowAssignment.phase,
+        targetAgent: brokerDecisionFull?.targetAgent ?? effectiveAgent,
+        role: bindingDecision?.targetAgent ?? brokerDecisionFull?.targetAgent ?? effectiveAgent,
+        slotId: contextSlotId,
+        modelId: routing.modelId ?? null,
+        modelName: displayModelLabel,
+        providerId: routing.providerId ?? null,
+        selectionSource: routing.selectionSource ?? null,
+        fallbackReason: routing.fallbackReason ?? null,
         rolloutStage: routing.rolloutStage ?? null,
         routingPath: routing.routingPath ?? null,
         canaryPercent: routing.canaryPercent ?? null,

@@ -5,6 +5,7 @@
 import { describe, it, expect } from "vitest";
 import {
   classifyRuntimeChatError,
+  extractRuntimeBackendErrorDetail,
   formatChatErrorForUser,
   type ChatErrorClass,
   wasSignalAborted
@@ -76,6 +77,20 @@ describe("runtimeChatErrorClassifier", () => {
       const classification = classifyRuntimeChatError(error);
 
       expect(classification.class).toBe("runtime_error");
+    });
+
+    it("should classify structured backend runtime error codes", () => {
+      const error = new Error(
+        "Backend request failed: 409 Conflict | llama-server HTTP 500: chat template failed [provider_template_error] Diagnose-ID: req-42 Layer: runtime-service Stage: chat_stream Empfehlung: Chat-Nachrichten normalisieren."
+      );
+      const classification = classifyRuntimeChatError(error);
+
+      expect(classification.class).toBe("runtime_error");
+      expect(classification.runtimeCode).toBe("provider_template_error");
+      expect(classification.diagnosticId).toBe("req-42");
+      expect(classification.layer).toBe("runtime-service");
+      expect(classification.stage).toBe("chat_stream");
+      expect(classification.shouldRetry).toBe(false);
     });
 
     it("should classify unknown errors as fallback", () => {
@@ -158,6 +173,24 @@ describe("runtimeChatErrorClassifier", () => {
   });
 
   describe("", () => {
+    it("should format structured backend errors with diagnostic hints", () => {
+      const error = new Error(
+        "Backend request failed: 409 Conflict | Missing model [model_not_ready] Diagnose-ID: req-7 Layer: runtime-service Stage: start_model_preflight Empfehlung: Modellindex aktualisieren."
+      );
+      const detail = extractRuntimeBackendErrorDetail(error);
+      const message = formatChatErrorForUser(error);
+
+      expect(detail).toMatchObject({
+        code: "model_not_ready",
+        diagnosticId: "req-7",
+        layer: "runtime-service",
+        stage: "start_model_preflight"
+      });
+      expect(message).toContain("[model_not_ready]");
+      expect(message).toContain("Diagnose-ID: req-7");
+      expect(message).toContain("Nächster Schritt");
+    });
+
     it("should format abort error with user-friendly message", () => {
       const abortError = new DOMException("Aborted", "AbortError");
       const message = formatChatErrorForUser(abortError);
