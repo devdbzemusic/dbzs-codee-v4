@@ -435,6 +435,10 @@ const api = {
     ipcRenderer.invoke("dbzs:models:multimodal-pairings:manual", request) as Promise<MultimodalPair>,
   listModelLabSources: () =>
     ipcRenderer.invoke("dbzs:model-lab:sources:list") as Promise<import("@dbzs/shared").ModelLabSource[]>,
+  listModelLabSourceCandidates: () =>
+    ipcRenderer.invoke("dbzs:model-lab:source-candidates:list") as Promise<
+      import("@dbzs/shared").ModelLabSourceCandidate[]
+    >,
   createModelLabSource: (request: import("@dbzs/shared").ModelLabSourceCreate) =>
     ipcRenderer.invoke("dbzs:model-lab:sources:create", request) as Promise<import("@dbzs/shared").ModelLabSource>,
   runModelLabScan: (request?: import("@dbzs/shared").ModelLabScanRequest) =>
@@ -475,6 +479,86 @@ const api = {
     >,
   getModelLabHardware: () =>
     ipcRenderer.invoke("dbzs:model-lab:hardware") as Promise<import("@dbzs/shared").ModelLabHardwareProfile>,
+  listModelLabHardwareSnapshots: (limit?: number) =>
+    ipcRenderer.invoke("dbzs:model-lab:hardware-snapshots:list", limit) as Promise<
+      import("@dbzs/shared").ModelLabHardwareSnapshot[]
+    >,
+  listLogicalModels: () =>
+    ipcRenderer.invoke("dbzs:model-lab:logical-models:list") as Promise<import("@dbzs/shared").ModelLabLogicalModel[]>,
+  getLogicalModel: (logicalModelId: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:logical-models:get", logicalModelId) as Promise<
+      import("@dbzs/shared").ModelLabLogicalModel
+    >,
+  listModelVariants: (logicalModelId?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:variants:list", logicalModelId) as Promise<
+      import("@dbzs/shared").ModelLabVariant[]
+    >,
+  listModelRuntimeAdapters: () =>
+    ipcRenderer.invoke("dbzs:model-lab:runtime-adapters:list") as Promise<
+      import("@dbzs/shared").ModelLabRuntimeAdapter[]
+    >,
+  listModelRuntimePresets: () =>
+    ipcRenderer.invoke("dbzs:model-lab:runtime-presets:list") as Promise<
+      import("@dbzs/shared").ModelLabRuntimePreset[]
+    >,
+  probeModel: (request: import("@dbzs/shared").ModelLabProbeRequest) =>
+    ipcRenderer.invoke("dbzs:model-lab:probe", request) as Promise<import("@dbzs/shared").ModelLabProbeRun>,
+  listModelProbeRuns: (bundleId?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:probe-runs:list", bundleId) as Promise<
+      import("@dbzs/shared").ModelLabProbeRun[]
+    >,
+  benchmarkModel: (request: import("@dbzs/shared").ModelLabBenchmarkRequest) =>
+    ipcRenderer.invoke("dbzs:model-lab:benchmark", request) as Promise<
+      import("@dbzs/shared").ModelLabBenchmarkRun
+    >,
+  listModelBenchmarkRuns: (bundleId?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:benchmark-runs:list", bundleId) as Promise<
+      import("@dbzs/shared").ModelLabBenchmarkRun[]
+    >,
+  listModelBenchmarkMeasurements: (benchmarkRunId?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:benchmark-measurements:list", benchmarkRunId) as Promise<
+      import("@dbzs/shared").ModelLabBenchmarkMeasurement[]
+    >,
+  certifyModel: (request: import("@dbzs/shared").ModelLabCertificationRequest) =>
+    ipcRenderer.invoke("dbzs:model-lab:certifications:create", request) as Promise<
+      import("@dbzs/shared").ModelLabCertificationRecord
+    >,
+  listModelCertifications: (bundleId?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:certifications:list", bundleId) as Promise<
+      import("@dbzs/shared").ModelLabCertificationRecord[]
+    >,
+  recordModelCapabilityEvidence: (request: import("@dbzs/shared").ModelLabCapabilityEvidenceRequest) =>
+    ipcRenderer.invoke("dbzs:model-lab:capability-evidence:create", request) as Promise<
+      import("@dbzs/shared").ModelLabCapabilityEvidenceRecord
+    >,
+  listModelCapabilityEvidence: (bundleId?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:capability-evidence:list", bundleId) as Promise<
+      import("@dbzs/shared").ModelLabCapabilityEvidenceRecord[]
+    >,
+  assignModelRole: (request: import("@dbzs/shared").ModelLabRoleAssignmentRequest) =>
+    ipcRenderer.invoke("dbzs:model-lab:role-assignments:create", request) as Promise<
+      import("@dbzs/shared").ModelLabRoleAssignment
+    >,
+  listModelRoleAssignments: (role?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:role-assignments:list", role) as Promise<
+      import("@dbzs/shared").ModelLabRoleAssignment[]
+    >,
+  listModelExecutionPolicies: () =>
+    ipcRenderer.invoke("dbzs:model-lab:execution-policies:list") as Promise<
+      import("@dbzs/shared").ModelLabExecutionPolicy[]
+    >,
+  listModelRoutingMap: (role?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:routing-map:list", role) as Promise<
+      import("@dbzs/shared").ModelLabRoutingEntry[]
+    >,
+  listModelReadiness: (bundleId?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:readiness:list", bundleId) as Promise<
+      import("@dbzs/shared").ModelLabReadinessEntry[]
+    >,
+  listModelFailures: (bundleId?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:failures:list", bundleId) as Promise<
+      import("@dbzs/shared").ModelLabFailureRecord[]
+    >,
   getRuntimeStatus: () => ipcRenderer.invoke(IPC_CHANNEL.runtimeStatus) as Promise<RuntimeStatus>,
   startRuntimeModel: (modelId: string, profile?: string) =>
     ipcRenderer.invoke(IPC_CHANNEL.runtimeStart, modelId, profile) as Promise<RuntimeStatus>,

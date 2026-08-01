@@ -5,6 +5,9 @@ import {
   ModelLabHuggingFaceSearchSection,
   ModelLabInspectorPanel,
   ModelLabModelsSection,
+  ModelLabReadinessSection,
+  ModelLabRoleAssignmentSection,
+  ModelLabRoutingSection,
   ModelLabSourcesSection
 } from "./ModelLabTab.sections";
 
@@ -12,6 +15,7 @@ export function ModelLabTab() {
   const {
     backendOnline,
     sources,
+    sourceCandidates,
     models,
     isLoading,
     isScanning,
@@ -26,6 +30,12 @@ export function ModelLabTab() {
     setSelectedBundleId,
     selectedModel,
     collections,
+    routingMap,
+    readinessMap,
+    roleAssignments,
+    assigningRole,
+    assignRole,
+    settingsFieldConflicts,
     creatingCollection,
     createCollection,
     addToCollection,
@@ -58,8 +68,10 @@ export function ModelLabTab() {
               isScanning={isScanning}
               newSourcePath={newSourcePath}
               onAddSource={() => void addSource({ path: newSourcePath.trim() })}
+              onAddSuggestedSource={(path) => void addSource({ path })}
               onNewSourcePathChange={setNewSourcePath}
               onScanSource={(sourceId) => void runScan(sourceId)}
+              sourceCandidates={sourceCandidates}
               sources={sources}
             />
             <ModelLabModelsSection models={models} onSelect={setSelectedBundleId} selectedBundleId={selectedBundleId} />
@@ -68,6 +80,15 @@ export function ModelLabTab() {
               creatingCollection={creatingCollection}
               models={models}
               onCreateCollection={(request) => void createCollection(request)}
+            />
+            <ModelLabReadinessSection readinessMap={readinessMap} />
+            <ModelLabRoutingSection routingMap={routingMap} />
+            <ModelLabRoleAssignmentSection
+              assigningRole={assigningRole}
+              models={models}
+              onAssignRole={(request) => void assignRole(request)}
+              roleAssignments={roleAssignments}
+              settingsFieldConflicts={settingsFieldConflicts}
             />
             <ModelLabHuggingFaceSearchSection
               error={hfError}

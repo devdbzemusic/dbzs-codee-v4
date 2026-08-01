@@ -1,6 +1,6 @@
 # TODO
 
-Stand: 2026-07-31
+Stand: 2026-08-01
 
 ## Jetzt direkt
 
@@ -46,6 +46,90 @@ hat dieselben Punkte noch nicht bis zum Ende durchlaufen (`UI_VERIFIED` steht no
       `docs/audits/GOLDEN_PATH_MANUAL_VERIFICATION_SCRIPT.md`, Abschnitt D.1).
 - [ ] Modell-Katalog auf dieser Maschine neu scannen (veralteter `runtime_dir`, auch wenn jetzt abgefangen) —
       Rescan-Button selbst bereits `UI_VERIFIED` (364 Modelle, keine Regression)
+- [x] zwei neue Plan-Dateien eingeordnet; beide sind im aktuellen Git-Stand getrackt:
+      `Pläne/14 DBZS_CODEE_BACKEND_BRIDGE_REVIEW.md` und
+      `Pläne/Codee_Agentenmodelle_Auswahl_Liste Teil I.md`
+
+## Neu offen: Plan 15 Agentic Model Fleet Integration
+
+Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Branch:
+`codex/agentic-model-fleet-integration`.
+
+- [x] Foundation-Slice umgesetzt: Model-Lab-Schema v3, logische Modelle, Runtime-Adapter/-Presets,
+      Probe-/Benchmark-Runs, Zertifikate, Rollen-Zuweisungen, Failures, Agent-Execution-Policies,
+      neue `/model-lab`-Endpunkte und offizielle optionale Desktop-Bridge-/IPC-/Preload-Vertraege.
+- [x] `model_variants` nachgezogen: Varianten sind als eigene SQLite-/API-/Bridge-Schicht verfuegbar und
+      werden aus Bundles stabil an `logical_model_id` gebunden.
+- [x] Plan-15-Source-Candidates umgesetzt: bekannte Modellpfade werden auf Existenz/Registrierung geprueft,
+      `D:\Models\Agentic` ist als empfohlene Startquelle in der Model-Lab-UI uebernehmbar.
+- [x] `llama.cpp`-RuntimeAdapter-Vorstufe umgesetzt: `probeModel` erzeugt bounded Command-/Validation-
+      Preview mit Blockern/Warnungen, weiterhin ohne Live-Prozessstart.
+- [x] Vollscan-Safety umgesetzt: `/model-lab/scan` ohne `source_id` braucht explizit `all_sources=true`;
+      die UI setzt das nur beim bewussten Vollscan-Button.
+- [x] Plan-15-Runtime-Presets geseedet: `cpu_fallback`, `safe_balanced`, `best_low_latency`,
+      `best_throughput`, `large_context` mit GPU-/Context-/Batch-/KV-/Flash-Achsen.
+- [x] Hardware-Snapshots persistiert: `/model-lab/hardware` schreibt Snapshots, `/model-lab/hardware-snapshots`
+      liefert die Historie fuer Tuning-/Benchmark-Kontext.
+- [x] Benchmark-Measurements normalisiert: flache numerische Benchmark-Metrics werden in
+      `benchmark_measurements` gespeichert und ueber `/model-lab/benchmark-measurements` lesbar.
+- [x] Rollen-Gate erzwingt Zertifikate: keine aktive Fleet-Rolle nur auf Basis von Dateiname/Heuristik;
+      Workspace-/Write-Rollen verlangen zusaetzlich `WRITE_AGENT_VERIFIED`.
+- [x] Safety-Level-Policy erzwingen: Rollen-Zuweisungen oberhalb des geseedeten Policy-Maximums werden
+      abgelehnt, auch wenn die Zuweisung deaktiviert angelegt wuerde.
+- [x] Fleet-Routing-Map umgesetzt: `/model-lab/routing-map` liefert pro Rolle Bundle, Safety-Level,
+      benoetigte/bestandene/fehlende Zertifikate und `routing_allowed` als stabile UI-/Broker-Vorstufe.
+- [x] Erste Roles-&-Routing-UI umgesetzt: Model Lab laedt die Routing-Map und zeigt Rolle, Modell,
+      Safety-Level, Evidence-Zaehler und Freigabestatus read-only an.
+- [x] Execution-Policies offiziell lesbar gemacht: `/model-lab/execution-policies` und Desktop-Bridge
+      liefern die geseedeten Plan-15-Rollenregeln ohne direkten SQLite-Zugriff.
+- [x] Capability Evidence offiziell angebunden: `/model-lab/capability-evidence` speichert/listet
+      allgemeine Faehigkeitsnachweise pro Bundle als Basis fuer Certification, Tuning und UI.
+- [x] Zertifizierungen werden zusaetzlich als Capability Evidence getrailt
+      (`certification:<KIND>`), damit die Certification nicht nur im Zertifikats-Upsert sichtbar ist.
+- [x] Runtime-Probes werden zusaetzlich als Capability Evidence getrailt
+      (`runtime_probe:<adapter>`), damit Probe-Gates in Certification/Fleet-UI weiterverwendbar sind.
+- [x] Fleet-Readiness-Map umgesetzt: `/model-lab/readiness` aggregiert Health, Probe, Benchmark,
+      Evidence, Failures und Routing-Freigaben pro Bundle als grobe Gate-Uebersicht.
+- [x] Readiness-Gates in der Model-Lab-UI sichtbar gemacht: Probe/Benchmark, Evidence/Zertifikate,
+      Routing-Freigaben und Blocker erscheinen als eigene Fleet-Console-Vorstufe.
+- [x] Sicheres Probe-Gate: `probeModel` speichert ohne `allow_start` einen `skipped`-Run und startet kein
+      lokales Modell.
+- [x] Plan 15, Phase 3: bearbeitbare `Rollenzuordnung`-Sektion im Model-Lab-Tab (Rolle/Settings-Feld/
+      Residency pro Bundle zuweisen, Konfliktanzeige bei doppelt vergebenem Settings-Feld, Best-effort
+      "Start"-Aktion pro Zeile). `ModelSettingsFieldRole` auf alle 8 echten `AppSettings`-Rollenfelder
+      erweitert; ein urspruenglich mitgeplantes freies `taxonomy_role`-Feld wieder entfernt zugunsten des
+      bestehenden zertifizierungsgated `ModelFleetRole`-Enums.
+- [ ] `D:\Models\Agentic` als erste produktive Quelle ueber den neuen Candidate-Button registrieren/scannen
+      und den veralteten lokalen Model-Katalog auf dieser Maschine neu erzeugen.
+- [ ] `llama.cpp`-RuntimeAdapter live verdrahten: `probe_load`, `health_check`, echte Benchmark-Messung,
+      `collect_metrics` und `stop` auf Basis der vorhandenen Command-/Validation-Preview.
+- [ ] GPU-Autotuning-Matrix aus Plan 15 als echte Messlaeufe gegen die geseedeten Presets ausfuehren und
+      beste Profile pro Bundle/Hardware-Snapshot persistieren.
+- [ ] Fleet Console UI weiter ausbauen: Compatibility, Tuning Lab, Benchmarks, Certification-Aktionen,
+      Runtime, Failures, Metadata.
+- [ ] `modelSelectionBroker` produktiv an die Fleet-Routing-Map anbinden; bis dahin bleibt die Map
+      bewusst nur Model-Lab-/Bridge-Vertrag, nicht die aktive Laufzeitentscheidung.
+- [ ] manuelle Abnahme mit echten Modellen: MiniCPM5-1B, QwenPaw-Flash-2B, Agents-A1-4B,
+      AgentCPM-Explore, Nemotron-3-Nano-4B; danach DeepCoder, DeepScaleR, QwenPaw-Flash-4B,
+      AgentCPM-Report.
+- [ ] Plan-14/Runtime-Restpunkte im Fleet-Kontext weiterfuehren: `vision_gpu` mit echtem Qwen2.5-VL/MMProj
+      pruefen, GPU-Exklusivitaet mit zwei echten Modellen bestaetigen, Qwen2.5-Coder-Crash root-causen,
+      Role-Model-Fallback in echter Session bestaetigen.
+
+## Neu offen: Plan 14 RAG-/Reranking-Folgen
+
+Basis: `HANDOVER.md`, Stand 2026-08-01. `/embeddings` und `/rerank` sind umgesetzt und automatisiert
+verifiziert; offen sind die Anschlussarbeiten, die bewusst nicht in denselben Slice gehoerten:
+
+- [ ] zwei vorbestehend haengende Backend-Tests separat diagnostizieren:
+      `test_model_profiles.py::test_profile_validation` und
+      `test_residency_cache.py::test_sweep_idle_slots_evicts_utility_but_not_keep_resident`
+- [x] RAG `retrieve()` berechnet optional automatisch `query_embedding`, wenn ein
+      `defaultEmbeddingModelId` konfiguriert ist; fehlt die Konfiguration/ONNX-Unterstuetzung, bleibt
+      lexikalisches Retrieval ohne 400-Failure aktiv.
+- [ ] Frontend-seitige Modell-Auswahl in `embeddingService.ts` mit dem Model-Lab-ID-Raum versoehnen oder die
+      kosmetisch wirkungslose Client-Modellauswahl sichtbar entfernen/erklaeren; der Server ignoriert das
+      gesendete `model`-Feld aktuell bewusst und nutzt das konfigurierte Standardmodell
 
 ## Neu offen: Phase 4 manuell abnehmen
 

@@ -1,6 +1,9 @@
 # TODO
 
-Stand: 2026-07-27
+Stand: 2026-08-01
+
+> Hinweis: Dieses Dokument ist ein historischer Repair-Run-Snapshot vom 2026-07-27. Die aktive Aufgabenliste
+> liegt in der Root-Datei `TODO.md`; der aktuelle Tagesstatus liegt in `docs/STATUS_TODAY.md`.
 
 ## Jetzt direkt
 

@@ -1,6 +1,41 @@
 import type {
   AppInfo,
   BackendHealth,
+  ModelLabBenchmarkRequest,
+  ModelLabBenchmarkMeasurement,
+  ModelLabBenchmarkRun,
+  ModelLabBundle,
+  ModelLabCapabilityEvidenceRecord,
+  ModelLabCapabilityEvidenceRequest,
+  ModelLabCertificationRecord,
+  ModelLabCertificationRequest,
+  ModelLabCollection,
+  ModelLabCollectionCreate,
+  ModelLabDuplicateGroup,
+  ModelLabExecutionPolicy,
+  ModelLabFailureRecord,
+  ModelLabHardwareProfile,
+  ModelLabHardwareSnapshot,
+  ModelLabHuggingFaceRepoInfo,
+  ModelLabHuggingFaceSearchResult,
+  ModelLabLogicalModel,
+  ModelLabMetadataUpdate,
+  ModelLabModel,
+  ModelLabProbeRequest,
+  ModelLabProbeRun,
+  ModelLabReadinessEntry,
+  ModelLabRoutingEntry,
+  ModelLabRoleAssignment,
+  ModelLabRoleAssignmentRequest,
+  ModelLabRuntimeAdapter,
+  ModelLabRuntimePreset,
+  ModelLabScanJob,
+  ModelLabScanRequest,
+  ModelLabScanResult,
+  ModelLabSource,
+  ModelLabSourceCandidate,
+  ModelLabSourceCreate,
+  ModelLabVariant,
   ModelIndex,
   RuntimeChatRequest,
   RuntimeChatResponse,
@@ -104,6 +139,49 @@ export interface DesktopBridgeV1 {
   getAppInfo: () => Promise<AppInfo>;
   getBackendHealth: () => Promise<BackendHealth>;
   getModelIndex: () => Promise<ModelIndex>;
+  listModelLabSources?: () => Promise<ModelLabSource[]>;
+  listModelLabSourceCandidates?: () => Promise<ModelLabSourceCandidate[]>;
+  createModelLabSource?: (request: ModelLabSourceCreate) => Promise<ModelLabSource>;
+  runModelLabScan?: (request?: ModelLabScanRequest) => Promise<ModelLabScanResult>;
+  listModelLabJobs?: () => Promise<ModelLabScanJob[]>;
+  listModelLabModels?: () => Promise<ModelLabModel[]>;
+  getModelLabModel?: (bundleId: string) => Promise<ModelLabModel>;
+  updateModelLabMetadata?: (bundleId: string, request: ModelLabMetadataUpdate) => Promise<ModelLabBundle>;
+  listModelLabCollections?: () => Promise<ModelLabCollection[]>;
+  createModelLabCollection?: (request: ModelLabCollectionCreate) => Promise<ModelLabCollection>;
+  addModelLabCollectionMember?: (collectionId: string, bundleId: string) => Promise<{ status: string }>;
+  removeModelLabCollectionMember?: (collectionId: string, bundleId: string) => Promise<{ status: string }>;
+  findModelLabDuplicates?: () => Promise<ModelLabDuplicateGroup[]>;
+  searchModelLabHuggingFace?: (
+    query: string,
+    category?: string,
+    limit?: number
+  ) => Promise<ModelLabHuggingFaceSearchResult[]>;
+  getModelLabHuggingFaceRepo?: (repoId: string, revision?: string) => Promise<ModelLabHuggingFaceRepoInfo>;
+  getModelLabHardware?: () => Promise<ModelLabHardwareProfile>;
+  listModelLabHardwareSnapshots?: (limit?: number) => Promise<ModelLabHardwareSnapshot[]>;
+  listLogicalModels?: () => Promise<ModelLabLogicalModel[]>;
+  getLogicalModel?: (logicalModelId: string) => Promise<ModelLabLogicalModel>;
+  listModelVariants?: (logicalModelId?: string) => Promise<ModelLabVariant[]>;
+  listModelRuntimeAdapters?: () => Promise<ModelLabRuntimeAdapter[]>;
+  listModelRuntimePresets?: () => Promise<ModelLabRuntimePreset[]>;
+  probeModel?: (request: ModelLabProbeRequest) => Promise<ModelLabProbeRun>;
+  listModelProbeRuns?: (bundleId?: string) => Promise<ModelLabProbeRun[]>;
+  benchmarkModel?: (request: ModelLabBenchmarkRequest) => Promise<ModelLabBenchmarkRun>;
+  listModelBenchmarkRuns?: (bundleId?: string) => Promise<ModelLabBenchmarkRun[]>;
+  listModelBenchmarkMeasurements?: (benchmarkRunId?: string) => Promise<ModelLabBenchmarkMeasurement[]>;
+  certifyModel?: (request: ModelLabCertificationRequest) => Promise<ModelLabCertificationRecord>;
+  listModelCertifications?: (bundleId?: string) => Promise<ModelLabCertificationRecord[]>;
+  recordModelCapabilityEvidence?: (
+    request: ModelLabCapabilityEvidenceRequest
+  ) => Promise<ModelLabCapabilityEvidenceRecord>;
+  listModelCapabilityEvidence?: (bundleId?: string) => Promise<ModelLabCapabilityEvidenceRecord[]>;
+  assignModelRole?: (request: ModelLabRoleAssignmentRequest) => Promise<ModelLabRoleAssignment>;
+  listModelRoleAssignments?: (role?: string) => Promise<ModelLabRoleAssignment[]>;
+  listModelExecutionPolicies?: () => Promise<ModelLabExecutionPolicy[]>;
+  listModelRoutingMap?: (role?: string) => Promise<ModelLabRoutingEntry[]>;
+  listModelReadiness?: (bundleId?: string) => Promise<ModelLabReadinessEntry[]>;
+  listModelFailures?: (bundleId?: string) => Promise<ModelLabFailureRecord[]>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   startRuntimeModel: (modelId: string, profile?: string) => Promise<RuntimeStatus>;
   stopRuntimeModel: () => Promise<RuntimeStatus>;

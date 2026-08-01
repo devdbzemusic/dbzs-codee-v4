@@ -13,10 +13,16 @@ from pathlib import Path
 import pytest
 
 from app.model_lab.models import (
+    HardwareProfile,
     ModelArtifact,
+    ModelBenchmarkRequest,
     ModelBundle,
+    ModelCapabilityEvidenceRequest,
+    ModelCertificationRequest,
     ModelCollectionCreate,
     ModelMetadataUpdate,
+    ModelProbeRequest,
+    ModelRoleAssignmentRequest,
     ModelSourceCreate,
 )
 from app.model_lab.repository import ModelLabRepository
@@ -145,3 +151,368 @@ def test_find_duplicates_returns_empty_for_unique_models(tmp_path: Path) -> None
     _seed_bundle(repo, tmp_path)
 
     assert repo.find_duplicates() == []
+
+
+def test_fleet_repository_records_probe_certification_and_role_assignment(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    probe = repo.create_probe_run(
+        ModelProbeRequest(bundle_id=bundle.bundle_id),
+        status="skipped",
+        message="safe gate",
+    )
+    assert probe.allow_start is False
+    assert repo.list_probe_runs(bundle.bundle_id)[0].id == probe.id
+
+    with pytest.raises(ValueError, match="fehlende Zertifikate"):
+        repo.assign_model_role(
+            ModelRoleAssignmentRequest(
+                bundle_id=bundle.bundle_id,
+                role="CODING_EXECUTOR",
+                safety_level="LEVEL_2_WORKSPACE_WRITE",
+            )
+        )
+
+    for certification in ("CODING_VERIFIED", "STRUCTURED_OUTPUT_VERIFIED", "WRITE_AGENT_VERIFIED"):
+        repo.upsert_certification(
+            ModelCertificationRequest(
+                bundle_id=bundle.bundle_id,
+                certification=certification,
+                evidence={"source": "unit"},
+            )
+        )
+
+    assignment = repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="CODING_EXECUTOR",
+            safety_level="LEVEL_2_WORKSPACE_WRITE",
+        )
+    )
+
+    assert assignment.enabled is True
+    assert set(assignment.required_certifications) == {
+        "CODING_VERIFIED",
+        "STRUCTURED_OUTPUT_VERIFIED",
+        "WRITE_AGENT_VERIFIED",
+    }
+
+
+def test_assign_model_role_rejects_unknown_bundle_id(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+
+    with pytest.raises(ValueError, match="nicht gefunden"):
+        repo.assign_model_role(
+            ModelRoleAssignmentRequest(bundle_id="does-not-exist", role="MICRO_TOOL_AGENT")
+        )
+
+
+def test_assign_model_role_persists_settings_field_and_residency_intent(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    assignment = repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="MICRO_TOOL_AGENT",
+            safety_level="LEVEL_1_READ_ONLY_TOOLS",
+            enabled=False,
+            settings_field="defaultOrchestratorModelId",
+            residency_intent="keep_resident",
+        )
+    )
+
+    assert assignment.settings_field == "defaultOrchestratorModelId"
+    assert assignment.residency_intent == "keep_resident"
+
+    listed = repo.list_role_assignments("MICRO_TOOL_AGENT")[0]
+    assert listed.settings_field == "defaultOrchestratorModelId"
+    assert listed.residency_intent == "keep_resident"
+
+    default_assignment = repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="REASONING_VALIDATOR",
+            safety_level="LEVEL_1_READ_ONLY_TOOLS",
+            enabled=False,
+        )
+    )
+    assert default_assignment.settings_field is None
+    assert default_assignment.residency_intent == "manual"
+
+
+def test_assign_model_role_upserts_on_same_bundle_and_role(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    first = repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="MICRO_TOOL_AGENT",
+            safety_level="LEVEL_1_READ_ONLY_TOOLS",
+            enabled=False,
+            settings_field="defaultDebugModelId",
+            priority=10,
+            notes="first",
+        )
+    )
+    second = repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="MICRO_TOOL_AGENT",
+            safety_level="LEVEL_1_READ_ONLY_TOOLS",
+            enabled=False,
+            settings_field="defaultVisionModelId",
+            priority=20,
+            notes="second",
+        )
+    )
+
+    assert second.id == first.id
+    assignments = repo.list_role_assignments("MICRO_TOOL_AGENT")
+    assert len(assignments) == 1
+    assert assignments[0].settings_field == "defaultVisionModelId"
+    assert assignments[0].priority == 20
+    assert assignments[0].notes == "second"
+
+
+def test_fleet_repository_records_benchmark_measurements(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    run = repo.create_benchmark_run(
+        ModelBenchmarkRequest(
+            bundle_id=bundle.bundle_id,
+            metrics={
+                "tokens_per_second": 42.5,
+                "first_token_latency_ms": 120,
+                "ignored": "not numeric",
+                "warm": True,
+            },
+        ),
+        status="queued",
+        message="queued",
+    )
+
+    measurements = repo.list_benchmark_measurements(run.id)
+    by_name = {measurement.name: measurement for measurement in measurements}
+    assert set(by_name) == {"tokens_per_second", "first_token_latency_ms"}
+    assert by_name["tokens_per_second"].unit == "tokens/s"
+    assert by_name["tokens_per_second"].value == 42.5
+    assert by_name["first_token_latency_ms"].unit == "ms"
+
+
+def test_fleet_repository_records_capability_evidence(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    evidence = repo.record_capability_evidence(
+        ModelCapabilityEvidenceRequest(
+            bundle_id=bundle.bundle_id,
+            capability="tool_use",
+            status="verified",
+            evidence={"case": "json-tool-call"},
+        )
+    )
+
+    records = repo.list_capability_evidence(bundle.bundle_id)
+    assert records[0].id == evidence.id
+    assert records[0].capability == "tool_use"
+    assert records[0].status == "verified"
+    assert records[0].evidence == {"case": "json-tool-call"}
+
+    with pytest.raises(ValueError, match="Capability fehlt"):
+        repo.record_capability_evidence(ModelCapabilityEvidenceRequest(bundle_id=bundle.bundle_id, capability=" "))
+
+
+def test_fleet_routing_map_reports_certification_gate(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    disabled = repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="MICRO_TOOL_AGENT",
+            safety_level="LEVEL_1_READ_ONLY_TOOLS",
+            enabled=False,
+        )
+    )
+    blocked_entry = repo.list_routing_map("MICRO_TOOL_AGENT")[0]
+    assert blocked_entry.bundle_id == bundle.bundle_id
+    assert blocked_entry.enabled is False
+    assert blocked_entry.routing_allowed is False
+    assert set(blocked_entry.missing_certifications) == set(disabled.required_certifications)
+
+    for certification in disabled.required_certifications:
+        repo.upsert_certification(
+            ModelCertificationRequest(
+                bundle_id=bundle.bundle_id,
+                certification=certification,
+                evidence={"source": "unit"},
+            )
+        )
+
+    repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="MICRO_TOOL_AGENT",
+            safety_level="LEVEL_1_READ_ONLY_TOOLS",
+            enabled=True,
+            priority=7,
+        )
+    )
+    allowed_entry = repo.list_routing_map("MICRO_TOOL_AGENT")[0]
+    assert allowed_entry.routing_allowed is True
+    assert allowed_entry.priority == 7
+    assert allowed_entry.bundle_name == bundle.name
+    assert set(allowed_entry.passed_certifications) == set(disabled.required_certifications)
+    assert allowed_entry.missing_certifications == []
+
+
+def test_fleet_readiness_aggregates_runtime_evidence_and_routing(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+    probe = repo.create_probe_run(
+        ModelProbeRequest(bundle_id=bundle.bundle_id, runtime_options={"adapter_id": "llama.cpp"}),
+        status="skipped",
+        message="safe gate",
+    )
+    repo.record_capability_evidence(
+        ModelCapabilityEvidenceRequest(
+            bundle_id=bundle.bundle_id,
+            capability="runtime_probe:llama.cpp",
+            status="observed",
+            evidence={"probe_run_id": probe.id},
+        )
+    )
+    repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="MICRO_TOOL_AGENT",
+            safety_level="LEVEL_1_READ_ONLY_TOOLS",
+            enabled=False,
+        )
+    )
+
+    readiness = repo.list_readiness(bundle.bundle_id)[0]
+
+    assert readiness.bundle_id == bundle.bundle_id
+    assert readiness.latest_probe_status == "skipped"
+    assert readiness.evidence_count == 1
+    assert readiness.assigned_roles == ["MICRO_TOOL_AGENT"]
+    assert readiness.routing_allowed_roles == []
+    assert "routing:no_allowed_role" in readiness.blockers
+
+
+def test_runtime_presets_are_seeded_from_plan_15_matrix(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+
+    presets = repo.list_runtime_presets()
+    by_profile = {preset.profile: preset for preset in presets}
+
+    assert set(by_profile) >= {
+        "cpu_fallback",
+        "safe_balanced",
+        "best_low_latency",
+        "best_throughput",
+        "large_context",
+    }
+    assert by_profile["safe_balanced"].adapter_id == "llama.cpp"
+    assert by_profile["safe_balanced"].config["gpu_layers"] == 16
+    assert by_profile["large_context"].config["ctx"] == 16384
+
+
+def test_execution_policies_are_seeded_from_plan_15_roles(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+
+    policies = repo.list_execution_policies()
+    by_role = {policy.role: policy for policy in policies}
+
+    assert set(by_role) >= {"MAIN_AGENT", "MICRO_TOOL_AGENT", "CODING_EXECUTOR", "REPORT_GENERATOR"}
+    assert by_role["CODING_EXECUTOR"].max_safety_level == "LEVEL_2_WORKSPACE_WRITE"
+    assert "WRITE_AGENT_VERIFIED" not in by_role["CODING_EXECUTOR"].required_certifications
+    assert by_role["MICRO_TOOL_AGENT"].required_certifications == [
+        "TOOL_CALLING_VERIFIED",
+        "READ_ONLY_AGENT_VERIFIED",
+    ]
+
+
+def test_hardware_snapshots_are_persisted_for_tuning_context(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    now = datetime.now(UTC)
+    profile = HardwareProfile(
+        fingerprint_hash="hw-test",
+        os="Windows",
+        architecture="AMD64",
+        cpu_model="Unit CPU",
+        cpu_threads=8,
+        ram_bytes=32 * 1024 * 1024 * 1024,
+        gpu_name="Unit GPU",
+        gpu_vendor="NVIDIA",
+        vram_bytes=8 * 1024 * 1024 * 1024,
+        runtime_backend="cuda",
+        collected_at=now,
+    )
+
+    snapshot = repo.record_hardware_snapshot(profile)
+    snapshots = repo.list_hardware_snapshots()
+
+    assert snapshots[0].id == snapshot.id
+    assert snapshots[0].fingerprint_hash == "hw-test"
+    assert snapshots[0].payload.gpu_name == "Unit GPU"
+    assert snapshots[0].payload.collected_at == now
+
+
+def test_role_assignment_rejects_safety_above_policy_maximum(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    with pytest.raises(ValueError, match="Policy-Maximum"):
+        repo.assign_model_role(
+            ModelRoleAssignmentRequest(
+                bundle_id=bundle.bundle_id,
+                role="MICRO_TOOL_AGENT",
+                safety_level="LEVEL_4_SHELL_AND_GIT",
+                enabled=False,
+            )
+        )
+
+
+def test_rebuild_logical_models_groups_quantized_variants(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    source = repo.create_source(ModelSourceCreate(path=str(tmp_path)))
+    first = _artifact(artifact_id="a1", bundle_id="b1", source_id=source.id).model_copy(
+        update={
+            "detected_name": "qwenpaw-flash-2b-Q4_K_M",
+            "file_name": "qwenpaw-flash-2b-Q4_K_M.gguf",
+            "quantization": "Q4_K_M",
+        }
+    )
+    second = _artifact(artifact_id="a2", bundle_id="b2", source_id=source.id).model_copy(
+        update={
+            "detected_name": "qwenpaw-flash-2b-Q8_0",
+            "file_name": "qwenpaw-flash-2b-Q8_0.gguf",
+            "quantization": "Q8_0",
+        }
+    )
+    repo.save_scan_output(
+        source=source,
+        artifacts=[first, second],
+        bundles=[
+            _bundle(bundle_id="b1", source_id=source.id, artifact_id="a1").model_copy(
+                update={"name": "qwenpaw-flash-2b-Q4_K_M"}
+            ),
+            _bundle(bundle_id="b2", source_id=source.id, artifact_id="a2").model_copy(
+                update={"name": "qwenpaw-flash-2b-Q8_0"}
+            ),
+        ],
+    )
+
+    logical = repo.list_logical_models()
+    variants = repo.list_model_variants(logical[0].logical_model_id)
+
+    assert len(logical) == 1
+    assert set(logical[0].bundle_ids) == {"b1", "b2"}
+    assert {variant.bundle_id for variant in variants} == {"b1", "b2"}
+    assert {variant.quantization for variant in variants} == {"Q4_K_M", "Q8_0"}

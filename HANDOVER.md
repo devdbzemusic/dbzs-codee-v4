@@ -2,6 +2,109 @@
 
 Stand: 2026-08-01
 
+## Aktuelle Repo-/Statuslage (2026-08-01)
+
+Frisch geprueft nach `git fetch origin --prune`: `origin/main` zeigt auf `a98e070` (Merge von PR #32).
+Der lokale Branch `feature/runtime-chat-ux-overhaul` ist mit `origin/feature/runtime-chat-ux-overhaul`
+synchron und gegenueber `origin/main` nur um den Merge-Commit hinterher; die fachlichen Commits
+`b7bbd9b`, `1249e4c` und `b440763` sind in `main` enthalten.
+
+Die zuvor aufgefallenen Plan-Dateien `Pläne/14 DBZS_CODEE_BACKEND_BRIDGE_REVIEW.md` und
+`Pläne/Codee_Agentenmodelle_Auswahl_Liste Teil I.md` sind im aktuellen Git-Stand getrackt; es bleibt keine
+separate Untracked-Entscheidung fuer diese beiden Dateien offen.
+
+## Plan 15: Agentic Model Fleet Integration, Foundation-Slice gestartet (2026-08-01)
+
+Branch: `codex/agentic-model-fleet-integration`. Basis ist der aktuelle Arbeitsstand inklusive der
+Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`.
+
+**Umgesetzt:**
+- Model Lab SQLite-Schema auf Version 3 erweitert: logische Modelle, Runtime-Adapter/-Presets,
+  Hardware-Snapshots, Probe-/Benchmark-Runs, Capability Evidence, Zertifikate, Rollen-Zuweisungen,
+  Failures und Agent-Execution-Policies.
+- `model_variants` als eigene Masterplan-Schicht nachgezogen: Varianten werden stabil aus Bundles abgeleitet,
+  ueber `/model-lab/variants` abgefragt und an `logical_model_id` gebunden.
+- Plan-15-Source-Candidates umgesetzt: `/model-lab/source-candidates` prueft die bekannten Masterplan-Pfade
+  (`D:\Models\Agentic` empfohlen) auf Existenz und Registrierungsstatus; die Model-Lab-UI zeigt sie direkt
+  als uebernehmbare Quellen an, ohne automatisch produktive Pfade in die DB zu schreiben.
+- `llama.cpp`-RuntimeAdapter-Vorstufe umgesetzt: `probeModel` baut jetzt eine bounded Command-/Validation-
+  Preview mit `runtime_dir`, `endpoint`, `command_preview`, `blockers` und `warnings`, ohne breite
+  Runtime-Discovery und ohne Prozessstart.
+- Safety-Fix fuer Scans: `/model-lab/scan` ohne `source_id` verlangt jetzt explizit `all_sources=true`;
+  die Model-Lab-UI sendet dieses Flag nur beim bewussten Button "Alle Quellen scannen".
+- Plan-15-Runtime-Presets werden beim DB-Init geseedet: `cpu_fallback`, `safe_balanced`,
+  `best_low_latency`, `best_throughput`, `large_context` mit den Masterplan-Achsen fuer GPU-Layer,
+  Context, Batch/Ubatch, KV-Cache und Flash-Attention.
+- Hardware-Snapshots werden jetzt im Model Lab persistiert: `/model-lab/hardware` bleibt kompatibel,
+  schreibt aber zusaetzlich einen Snapshot; `/model-lab/hardware-snapshots` liefert die letzten Snapshots
+  als Grundlage fuer Tuning-/Benchmark-Kontext.
+- Benchmark-Runs schreiben flache numerische Metrics zusaetzlich in `benchmark_measurements`; der neue
+  Endpunkt `/model-lab/benchmark-measurements` liefert diese normalisierte Messspur fuer Tuning Lab und
+  Benchmark-UI. Echte Runtime-Messlaeufe bleiben weiterhin ein spaeteres Adapter-Gate.
+- Statuskette auf die Masterplan-Stufen erweitert (`COMPATIBLE`, `LOADABLE`, `TUNED`, `BENCHMARKED`,
+  `CERTIFIED`, `DEGRADED`, `QUARANTINED`), bestehende Altstatus bleiben kompatibel.
+- Neue Model-Lab/Fleet-Endpunkte unter `/model-lab`: logical models, runtime adapters/presets,
+  `probe`, probe-runs, benchmark-runs, certifications, role-assignments und failures.
+- `DesktopBridgeV1`, Electron-IPC, Preload und `backendClient` kennen die neuen Fleet-Operationen.
+  Die Bridge-Methoden bleiben optional, damit bestehende Test-/Mock-Teilbruecken kompatibel bleiben.
+- `probeModel` ist im ersten Slice absichtlich ein sicheres Gate: ohne `allow_start` wird ein
+  nachvollziehbarer `skipped`-Probe-Run gespeichert, aber kein lokales Modell gestartet.
+- Rollen-Zuweisungen werden nicht dateinamensbasiert freigegeben, sondern verlangen die im Masterplan
+  definierten Zertifikate; Schreib-/Workspace-Rollen verlangen zusaetzlich `WRITE_AGENT_VERIFIED`.
+- Rollen-Zuweisungen erzwingen jetzt auch das Policy-Maximum fuer Safety-Level: eine Rolle kann nicht als
+  `LEVEL_4_SHELL_AND_GIT` gespeichert werden, wenn ihre Execution-Policy maximal Read-only erlaubt.
+- Fleet-Routing-Map nachgezogen: `/model-lab/routing-map` aggregiert Rollen-Zuweisung, Bundle-Metadaten
+  und bestandene/fehlende Zertifikate zu einer broker-/UI-lesbaren Freigabekarte; `routing_allowed` ist
+  nur bei aktivierter Zuweisung und vollstaendiger Evidence wahr.
+- Model-Lab-UI laedt diese Routing-Map und zeigt sie als erste read-only `Roles & Routing`-Sektion mit
+  Rolle, Modell, Safety-Level, Evidence-Zaehler und Freigabestatus.
+- Execution-Policies sind jetzt offiziell lesbar: `/model-lab/execution-policies` plus Desktop-Bridge/
+  IPC/Preload/`backendClient` liefern die geseedeten Rollenregeln ohne direkten SQLite-Zugriff.
+- Capability Evidence ist als eigene Model-Lab-Schnittstelle verfuegbar: `/model-lab/capability-evidence`
+  kann allgemeine Faehigkeitsnachweise pro Bundle speichern/listen; Zertifikate bleiben die harte
+  Rollenfreigabe, Evidence ist die breitere Nachweisspur fuer UI, Tuning und Certification.
+- `certifyModel` schreibt jede Zertifizierung zusaetzlich als Capability Evidence
+  (`certification:<KIND>`) mit Status-Mapping `passed -> verified`, `failed -> failed`, `revoked -> revoked`.
+- `probeModel` schreibt jeden Probe-Run zusaetzlich als Capability Evidence (`runtime_probe:<adapter>`);
+  fehlgeschlagene Probes werden `failed`, sichere Vorpruefungen und queued Live-Probes `observed`.
+- Fleet-Readiness-Map ergaenzt: `/model-lab/readiness` aggregiert pro Bundle Health/Status, letzte
+  Probe/Benchmark, Zertifikats-/Evidence-/Failure-Zaehler, Rollen und Routing-Freigaben inklusive
+  Blocker-Liste. Damit muessen UI und Broker keine Tabellen-Rohdaten zusammensetzen.
+- Model-Lab-UI zeigt die Readiness-Map jetzt als `Readiness Gates`-Sektion mit Probe/Benchmark,
+  Evidence-/Zertifikatszaehlern, Routing-Freigaben und Blockern.
+- Plan 15, Phase 3 (Roles & Routing) umgesetzt: `model_role_assignments` traegt jetzt zusaetzlich
+  `settings_field` (welches der 8 echten `AppSettings`-Rollenfelder ein Bundle als Routing-Ziel
+  vorschlaegt) und `residency_intent` (`keep_resident | idle_evict | manual`). Ein urspruenglich
+  mitgeplantes freies `taxonomy_role`-Feld wurde verworfen, da das bestehende, zertifizierungsgated
+  `ModelFleetRole`-Enum (inkl. `enabled=false` fuer reine manuelle Kennzeichnung ohne Zertifikatszwang)
+  dieselben Konzepte bereits abdeckt. Neue editierbare `Rollenzuordnung`-Sektion im Model-Lab-Tab
+  (separat von der bestehenden read-only `Roles & Routing`-Sektion): pro Bundle Rolle/Settings-Feld/
+  Residency zuweisen, Konfliktanzeige bei doppelt vergebenem Settings-Feld, sowie ein Best-effort
+  "Start"-Knopf pro Zeile (funktioniert erst zuverlaessig, sobald die separate Model-Lab-Runtime-Bridge
+  aus Phase 2 aktiv ist; bis dahin zeigt er einen erklaerenden Fehler statt eines stillen Fehlschlags).
+
+**Frisch verifiziert:**
+- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab_repository.py backend/tests/test_model_lab.py -q` -> 51/52 gruen (1 vorbestehender, unabhaengiger Fehlschlag: `test_model_lab_source_candidates_report_existing_and_registered_paths`, verursacht durch die noch unfertige/unverifizierte Phase-1-Quellauto-Registrierung in `service.py`, die bewusst NICHT Teil dieses Commits ist)
+- `npx vitest run ModelLabTab` in `apps/desktop` -> 16/16 gruen
+- `npx tsc --noEmit` in `packages/shared` und `apps/desktop` -> beide gruen
+
+**Noch offen fuer die naechsten Gates:**
+- echter Scan von `D:\Models\Agentic`, Katalog-Rescan und produktive Modellreihenfolge aus Plan 15 abarbeiten
+- RuntimeAdapter-Live-Probe fuer `llama.cpp` implementieren, danach GPU-Autotuning und Benchmarks
+- Fleet Console UI ausbauen: Compatibility, Tuning Lab, Benchmarks, Certification, Roles & Routing, Failures
+- `modelSelectionBroker` an die neue Fleet-Routing-Map anbinden; aktuell ist die Map die stabile
+  Model-Lab-Schnittstelle, der Live-Broker nutzt weiterhin seine bestehende lokale Routing-Logik
+- Plan-14-Folgen im selben Themengebiet weiterfuehren: haengende Backend-Tests diagnostizieren,
+  `embeddingService.ts`/Model-Lab-ID-Raum endgueltig versoehnen und die zwei haengenden Testfaelle separat
+  root-causen
+- Plan 15, Phase 0/1/2 aus einer vorherigen Session liegen noch unfertig/unverifiziert im Arbeitsverzeichnis
+  (nicht Teil dieses Commits): Scanner-Adapter/Lora-Reihenfolge-Fix mit einem offenen, unabhaengigen
+  Testfehler (`my_tokenizer.json` -> `tokenizer` statt `config`), die oben erwaehnte Phase-1-Quellauto-
+  Registrierung, drei fehlschlagende Phase-2-Bridge-Tests in `test_model_index.py` (Implementierung fehlt
+  noch in `index_service.py`/`AppSettings`), sowie eine tote, nirgends registrierte
+  `backend/app/api/model_lab_roles.py` mit doppelten Role-Assignment-Endpunkten (die echten, verdrahteten
+  liegen in `api/model_lab.py`). Vor dem naechsten Merge aus diesem Themengebiet root-causen/entscheiden.
+
 ## Plan 14, Phase 2 Fortsetzung: `/embeddings` + `/rerank` (echten Produktionsbug behoben + Reranking) (2026-08-01)
 
 Auftrag war "Reranking-Faehigkeit hinzufuegen". Die Recherche dafuer deckte einen wichtigeren, bereits
@@ -40,9 +143,11 @@ Sandbox unabhaengig von diesem Schritt bereits einzeln auf; bewusst deselektiert
 siehe TODO unten). Voller Desktop-Vitest-Lauf 1361/1361, beide Typechecks clean.
 
 **Noch offen:** die zwei oben genannten haengenden Tests sind noch nicht diagnostiziert/gemeldet — sollten in
-einer eigenen, fokussierten Session untersucht werden (unklar ob Sandbox-spezifisch oder echter Bug). RAGs
-`retrieve()` automatisch `query_embedding` berechnen lassen (bleibt weiterhin offen, siehe Phase-2-Eintrag
-unten). Frontend-seitige Modell-Auswahl-Dropdowns in `embeddingService.ts` bleiben kosmetisch wirkungslos
+einer eigenen, fokussierten Session untersucht werden (unklar ob Sandbox-spezifisch oder echter Bug).
+**Neu erledigt im Plan-15-Integrationsbranch:** `POST /rag/retrieve` berechnet optional serverseitig
+`query_embedding`, wenn `defaultEmbeddingModelId` gesetzt ist; fehlt Konfiguration/ONNX-Unterstuetzung,
+bleibt lexikalisches Retrieval ohne 400-Failure aktiv. Frontend-seitige Modell-Auswahl-Dropdowns in
+`embeddingService.ts` bleiben kosmetisch wirkungslos
 (bestehendes, nicht neu eingefuehrtes Problem — Server ignoriert das `model`-Feld).
 
 ## Plan 14, Phase 2: ONNX-Runtime-Adapter fuer Embeddings umgesetzt (2026-08-01)
@@ -546,7 +651,7 @@ getestet.
 
 - aktiver GitHub-Remote: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
 - lokaler Ordnername bleibt aktuell `dbzs-codee-project`
-- `origin/main` zeigt auf `f909fd9` (Merge-Commit von [PR #6](https://github.com/devdbzemusic/dbzs-codee-v4/pull/6))
+- historischer Merge-Stand fuer [PR #6](https://github.com/devdbzemusic/dbzs-codee-v4/pull/6): `f909fd9`
 - offene Pull Requests im Live-Repo: keine
 - Branch Protection fuer `main`: aktuell nicht aktiv
 - der Feature-Branch `feature/runtime-chat-ux-overhaul` ist nach dem PR-#6-Merge sauber (keine losen

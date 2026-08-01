@@ -28,21 +28,42 @@ import type {
   DesktopBridgeV1,
   GpuInfo,
   ManualMultimodalPairingRequest,
+  ModelLabBenchmarkMeasurement,
+  ModelLabBenchmarkRequest,
+  ModelLabBenchmarkRun,
   ModelIndex,
   ModelLabBundle,
+  ModelLabCapabilityEvidenceRecord,
+  ModelLabCapabilityEvidenceRequest,
+  ModelLabCertificationRecord,
+  ModelLabCertificationRequest,
   ModelLabCollection,
   ModelLabCollectionCreate,
   ModelLabDuplicateGroup,
+  ModelLabExecutionPolicy,
+  ModelLabFailureRecord,
   ModelLabHardwareProfile,
+  ModelLabHardwareSnapshot,
   ModelLabHuggingFaceRepoInfo,
   ModelLabHuggingFaceSearchResult,
+  ModelLabLogicalModel,
   ModelLabMetadataUpdate,
   ModelLabModel,
+  ModelLabProbeRequest,
+  ModelLabProbeRun,
+  ModelLabReadinessEntry,
+  ModelLabRoutingEntry,
+  ModelLabRoleAssignment,
+  ModelLabRoleAssignmentRequest,
+  ModelLabRuntimeAdapter,
+  ModelLabRuntimePreset,
   ModelLabScanJob,
   ModelLabScanRequest,
   ModelLabScanResult,
   ModelLabSource,
+  ModelLabSourceCandidate,
   ModelLabSourceCreate,
+  ModelLabVariant,
   MultimodalPair,
   JobArtifact,
   JobArtifactCreateRequest,
@@ -112,6 +133,7 @@ export interface BackendBridge extends DesktopBridgeV1 {
   getModelIndex: () => Promise<ModelIndex>;
   saveManualMultimodalPairing?: (request: ManualMultimodalPairingRequest) => Promise<MultimodalPair>;
   listModelLabSources?: () => Promise<ModelLabSource[]>;
+  listModelLabSourceCandidates?: () => Promise<ModelLabSourceCandidate[]>;
   createModelLabSource?: (request: ModelLabSourceCreate) => Promise<ModelLabSource>;
   runModelLabScan?: (request?: ModelLabScanRequest) => Promise<ModelLabScanResult>;
   listModelLabJobs?: () => Promise<ModelLabScanJob[]>;
@@ -130,6 +152,29 @@ export interface BackendBridge extends DesktopBridgeV1 {
   ) => Promise<ModelLabHuggingFaceSearchResult[]>;
   getModelLabHuggingFaceRepo?: (repoId: string, revision?: string) => Promise<ModelLabHuggingFaceRepoInfo>;
   getModelLabHardware?: () => Promise<ModelLabHardwareProfile>;
+  listModelLabHardwareSnapshots?: (limit?: number) => Promise<ModelLabHardwareSnapshot[]>;
+  listLogicalModels?: () => Promise<ModelLabLogicalModel[]>;
+  getLogicalModel?: (logicalModelId: string) => Promise<ModelLabLogicalModel>;
+  listModelVariants?: (logicalModelId?: string) => Promise<ModelLabVariant[]>;
+  listModelRuntimeAdapters?: () => Promise<ModelLabRuntimeAdapter[]>;
+  listModelRuntimePresets?: () => Promise<ModelLabRuntimePreset[]>;
+  probeModel?: (request: ModelLabProbeRequest) => Promise<ModelLabProbeRun>;
+  listModelProbeRuns?: (bundleId?: string) => Promise<ModelLabProbeRun[]>;
+  benchmarkModel?: (request: ModelLabBenchmarkRequest) => Promise<ModelLabBenchmarkRun>;
+  listModelBenchmarkRuns?: (bundleId?: string) => Promise<ModelLabBenchmarkRun[]>;
+  listModelBenchmarkMeasurements?: (benchmarkRunId?: string) => Promise<ModelLabBenchmarkMeasurement[]>;
+  certifyModel?: (request: ModelLabCertificationRequest) => Promise<ModelLabCertificationRecord>;
+  listModelCertifications?: (bundleId?: string) => Promise<ModelLabCertificationRecord[]>;
+  recordModelCapabilityEvidence?: (
+    request: ModelLabCapabilityEvidenceRequest
+  ) => Promise<ModelLabCapabilityEvidenceRecord>;
+  listModelCapabilityEvidence?: (bundleId?: string) => Promise<ModelLabCapabilityEvidenceRecord[]>;
+  assignModelRole?: (request: ModelLabRoleAssignmentRequest) => Promise<ModelLabRoleAssignment>;
+  listModelRoleAssignments?: (role?: string) => Promise<ModelLabRoleAssignment[]>;
+  listModelExecutionPolicies?: () => Promise<ModelLabExecutionPolicy[]>;
+  listModelRoutingMap?: (role?: string) => Promise<ModelLabRoutingEntry[]>;
+  listModelReadiness?: (bundleId?: string) => Promise<ModelLabReadinessEntry[]>;
+  listModelFailures?: (bundleId?: string) => Promise<ModelLabFailureRecord[]>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   startRuntimeModel: (modelId: string, profile?: string) => Promise<RuntimeStatus>;
   stopRuntimeModel: () => Promise<RuntimeStatus>;
@@ -368,6 +413,13 @@ export const backendClient = {
     }
     return method();
   },
+  listModelLabSourceCandidates: () => {
+    const method = bridge().listModelLabSourceCandidates;
+    if (!method) {
+      return Promise.reject(new Error("listModelLabSourceCandidates is unavailable."));
+    }
+    return method();
+  },
   createModelLabSource: (request: ModelLabSourceCreate) => {
     const method = bridge().createModelLabSource;
     if (!method) {
@@ -465,6 +517,153 @@ export const backendClient = {
       return Promise.reject(new Error("getModelLabHardware is unavailable."));
     }
     return method();
+  },
+  listModelLabHardwareSnapshots: (limit?: number) => {
+    const method = bridge().listModelLabHardwareSnapshots;
+    if (!method) {
+      return Promise.reject(new Error("listModelLabHardwareSnapshots is unavailable."));
+    }
+    return method(limit);
+  },
+  listLogicalModels: () => {
+    const method = bridge().listLogicalModels;
+    if (!method) {
+      return Promise.reject(new Error("listLogicalModels is unavailable."));
+    }
+    return method();
+  },
+  getLogicalModel: (logicalModelId: string) => {
+    const method = bridge().getLogicalModel;
+    if (!method) {
+      return Promise.reject(new Error("getLogicalModel is unavailable."));
+    }
+    return method(logicalModelId);
+  },
+  listModelVariants: (logicalModelId?: string) => {
+    const method = bridge().listModelVariants;
+    if (!method) {
+      return Promise.reject(new Error("listModelVariants is unavailable."));
+    }
+    return method(logicalModelId);
+  },
+  listModelRuntimeAdapters: () => {
+    const method = bridge().listModelRuntimeAdapters;
+    if (!method) {
+      return Promise.reject(new Error("listModelRuntimeAdapters is unavailable."));
+    }
+    return method();
+  },
+  listModelRuntimePresets: () => {
+    const method = bridge().listModelRuntimePresets;
+    if (!method) {
+      return Promise.reject(new Error("listModelRuntimePresets is unavailable."));
+    }
+    return method();
+  },
+  probeModel: (request: ModelLabProbeRequest) => {
+    const method = bridge().probeModel;
+    if (!method) {
+      return Promise.reject(new Error("probeModel is unavailable."));
+    }
+    return method(request);
+  },
+  listModelProbeRuns: (bundleId?: string) => {
+    const method = bridge().listModelProbeRuns;
+    if (!method) {
+      return Promise.reject(new Error("listModelProbeRuns is unavailable."));
+    }
+    return method(bundleId);
+  },
+  benchmarkModel: (request: ModelLabBenchmarkRequest) => {
+    const method = bridge().benchmarkModel;
+    if (!method) {
+      return Promise.reject(new Error("benchmarkModel is unavailable."));
+    }
+    return method(request);
+  },
+  listModelBenchmarkRuns: (bundleId?: string) => {
+    const method = bridge().listModelBenchmarkRuns;
+    if (!method) {
+      return Promise.reject(new Error("listModelBenchmarkRuns is unavailable."));
+    }
+    return method(bundleId);
+  },
+  listModelBenchmarkMeasurements: (benchmarkRunId?: string) => {
+    const method = bridge().listModelBenchmarkMeasurements;
+    if (!method) {
+      return Promise.reject(new Error("listModelBenchmarkMeasurements is unavailable."));
+    }
+    return method(benchmarkRunId);
+  },
+  certifyModel: (request: ModelLabCertificationRequest) => {
+    const method = bridge().certifyModel;
+    if (!method) {
+      return Promise.reject(new Error("certifyModel is unavailable."));
+    }
+    return method(request);
+  },
+  listModelCertifications: (bundleId?: string) => {
+    const method = bridge().listModelCertifications;
+    if (!method) {
+      return Promise.reject(new Error("listModelCertifications is unavailable."));
+    }
+    return method(bundleId);
+  },
+  recordModelCapabilityEvidence: (request: ModelLabCapabilityEvidenceRequest) => {
+    const method = bridge().recordModelCapabilityEvidence;
+    if (!method) {
+      return Promise.reject(new Error("recordModelCapabilityEvidence is unavailable."));
+    }
+    return method(request);
+  },
+  listModelCapabilityEvidence: (bundleId?: string) => {
+    const method = bridge().listModelCapabilityEvidence;
+    if (!method) {
+      return Promise.reject(new Error("listModelCapabilityEvidence is unavailable."));
+    }
+    return method(bundleId);
+  },
+  assignModelRole: (request: ModelLabRoleAssignmentRequest) => {
+    const method = bridge().assignModelRole;
+    if (!method) {
+      return Promise.reject(new Error("assignModelRole is unavailable."));
+    }
+    return method(request);
+  },
+  listModelRoleAssignments: (role?: string) => {
+    const method = bridge().listModelRoleAssignments;
+    if (!method) {
+      return Promise.reject(new Error("listModelRoleAssignments is unavailable."));
+    }
+    return method(role);
+  },
+  listModelExecutionPolicies: () => {
+    const method = bridge().listModelExecutionPolicies;
+    if (!method) {
+      return Promise.reject(new Error("listModelExecutionPolicies is unavailable."));
+    }
+    return method();
+  },
+  listModelRoutingMap: (role?: string) => {
+    const method = bridge().listModelRoutingMap;
+    if (!method) {
+      return Promise.reject(new Error("listModelRoutingMap is unavailable."));
+    }
+    return method(role);
+  },
+  listModelReadiness: (bundleId?: string) => {
+    const method = bridge().listModelReadiness;
+    if (!method) {
+      return Promise.reject(new Error("listModelReadiness is unavailable."));
+    }
+    return method(bundleId);
+  },
+  listModelFailures: (bundleId?: string) => {
+    const method = bridge().listModelFailures;
+    if (!method) {
+      return Promise.reject(new Error("listModelFailures is unavailable."));
+    }
+    return method(bundleId);
   },
   getRuntimeStatus: () => bridge().getRuntimeStatus(),
   startRuntimeModel: (modelId: string, profile?: string) => bridge().startRuntimeModel(modelId, profile),
