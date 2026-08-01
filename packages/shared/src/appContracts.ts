@@ -125,6 +125,7 @@ export interface AppSettings {
   timeoutCpuSafeStreamIdleSeconds?: number;
   timeoutCpuSafeFirstTokenSeconds?: number;
   timeoutCpuSafeGenerationSeconds?: number;
+  enableModelLabRuntimeBridge?: boolean;
 }
 
 export interface BackendHealth {
@@ -235,5 +236,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   timeoutPromptEvalSeconds: 90,
   timeoutCpuSafeStreamIdleSeconds: 180,
   timeoutCpuSafeFirstTokenSeconds: 120,
-  timeoutCpuSafeGenerationSeconds: 600
+  timeoutCpuSafeGenerationSeconds: 600,
+  enableModelLabRuntimeBridge: false
 };

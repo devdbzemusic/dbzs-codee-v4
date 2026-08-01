@@ -5,8 +5,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 import hashlib
 import json
+import logging
 import re
+import time
 from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
 
 OnIndexProgress = Callable[[int, int], None]
 OnIndexModelError = Callable[[str, Exception], None]
@@ -20,6 +24,13 @@ from app.models.launcher import normalize_launcher
 from app.models.schemas import IndexedModel, ModelIndex, ModelIndexSummary, ModelRuntimeHints, MultimodalPair, RecommendedUse
 from app.models.discovery import ModelDiscoveryService
 from app.settings.models import ModelDiscoveryMode
+from app.settings.service import SettingsService
+
+# Plan 15, Phase 2: per-extra-root safety caps for the Model Lab bridge scan,
+# since Model Lab source roots can be large, user-registered directories the
+# ModelIndexService has no prior knowledge of (unlike self.models_dir).
+MODEL_LAB_BRIDGE_MAX_FILES_PER_ROOT = 500
+MODEL_LAB_BRIDGE_SCAN_BUDGET_SECONDS = 5.0
 
 
 # Mirrors .codee/functiongemma/functiongemma-model-profile.example.json's "model"
@@ -89,6 +100,7 @@ class ModelIndexService:
         cache_dir: Path | None = None,
         discovery_mode: ModelDiscoveryMode = "local_with_ollama",
         model_lab_repository: ModelLabRepository | None = None,
+        settings_service: SettingsService | None = None,
     ) -> None:
         self.models_dir = models_dir or get_models_dir()
         self.ollama_dir = ollama_dir or get_ollama_dir()
@@ -102,6 +114,11 @@ class ModelIndexService:
         # construction must not silently touch real Model Lab data. Real app
         # call sites pass an actual ModelLabRepository explicitly to enable it.
         self.model_lab_repository = model_lab_repository
+        # Plan 15, Phase 2: an optional second gate on top of `model_lab_repository`.
+        # When a settings_service is given, the bridge additionally requires
+        # `enableModelLabRuntimeBridge=True`; without a settings_service, passing a
+        # repository is sufficient (preserves the Plan 14 opt-in behavior above).
+        self.settings_service = settings_service
         self.last_build_metrics = ModelIndexBuildMetrics()
         self.discovery_service = ModelDiscoveryService(
             mode=discovery_mode,
@@ -203,8 +220,15 @@ class ModelIndexService:
             pairings_by_id[pair.id] = pair
         return merged.model_copy(update={"multimodal_pairs": sorted(pairings_by_id.values(), key=lambda pair: pair.id)})
 
-    def _enrich_with_model_lab(self, index: ModelIndex) -> ModelIndex:
+    def _model_lab_bridge_active(self) -> bool:
         if self.model_lab_repository is None:
+            return False
+        if self.settings_service is None:
+            return True
+        return bool(self.settings_service.load().enableModelLabRuntimeBridge)
+
+    def _enrich_with_model_lab(self, index: ModelIndex) -> ModelIndex:
+        if not self._model_lab_bridge_active():
             return index
         return enrich_with_model_lab_health(index, repository=self.model_lab_repository)
 
@@ -366,6 +390,38 @@ class ModelIndexService:
         )
         return built
 
+    def _scan_model_lab_extra_roots(self) -> list[Path]:
+        """Plan 15, Phase 2: bounded scan of Model Lab source roots.
+
+        Each root is capped at MODEL_LAB_BRIDGE_MAX_FILES_PER_ROOT files, and the
+        whole extra-roots scan stops early once MODEL_LAB_BRIDGE_SCAN_BUDGET_SECONDS
+        has elapsed — Model Lab roots are user-registered directories this service
+        has no prior size guarantees about, unlike self.models_dir.
+        """
+        assert self.model_lab_repository is not None
+        extra_roots = additional_scan_roots(exclude=self.models_dir, repository=self.model_lab_repository)
+        started_at = time.monotonic()
+        found: list[Path] = []
+        for root in extra_roots:
+            if time.monotonic() - started_at >= MODEL_LAB_BRIDGE_SCAN_BUDGET_SECONDS:
+                logger.warning(
+                    "Model Lab bridge scan budget exceeded (%.1fs); skipping remaining root %s",
+                    MODEL_LAB_BRIDGE_SCAN_BUDGET_SECONDS,
+                    root,
+                )
+                break
+            root_paths = [p for p in sorted(root.rglob("*.gguf")) if p.is_file()]
+            if len(root_paths) > MODEL_LAB_BRIDGE_MAX_FILES_PER_ROOT:
+                logger.warning(
+                    "Model Lab bridge root %s has %d GGUF files, capping at %d",
+                    root,
+                    len(root_paths),
+                    MODEL_LAB_BRIDGE_MAX_FILES_PER_ROOT,
+                )
+                root_paths = root_paths[:MODEL_LAB_BRIDGE_MAX_FILES_PER_ROOT]
+            found.extend(root_paths)
+        return found
+
     def _from_filesystem(
         self,
         *,
@@ -384,10 +440,8 @@ class ModelIndexService:
         cached_count = 0
 
         gguf_paths = [p for p in sorted(self.models_dir.rglob("*.gguf")) if p.is_file()]
-        if self.model_lab_repository is not None:
-            extra_roots = additional_scan_roots(exclude=self.models_dir, repository=self.model_lab_repository)
-            for root in extra_roots:
-                gguf_paths.extend(p for p in sorted(root.rglob("*.gguf")) if p.is_file())
+        if self._model_lab_bridge_active():
+            gguf_paths.extend(self._scan_model_lab_extra_roots())
         total = len(gguf_paths)
 
         for index, model_path in enumerate(gguf_paths):

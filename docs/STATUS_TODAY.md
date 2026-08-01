@@ -23,24 +23,20 @@ Repo-Wahrheit: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
 - juengster dokumentierter Plan-14-Nachweis: Backend 514/514 mit zwei bewusst deselektierten,
   vorbestehend haengenden Fremdtests; Desktop-Vitest 1361/1361; beide Typechecks fehlerfrei — siehe
   `HANDOVER.md` fuer Details je Phase
-- Plan 15 Agentic Model Fleet Integration ist auf Branch `codex/agentic-model-fleet-integration` gestartet:
-  Model-Lab-Schema v3, Fleet-Endpunkte, Zertifikats-/Rollen-Gates und optionale Desktop-Bridge-Vertraege
-  sind implementiert; `model_variants`, Plan-15-Source-Candidates (`D:\Models\Agentic` empfohlen) und eine
-  bounded `llama.cpp`-Probe-Preview sind nachgezogen; Plan-15-Runtime-Presets, Hardware-Snapshots,
-  normalisierte Benchmark-Measurements, Fleet-Routing-/Readiness-Maps, Execution-Policies mit
-  Safety-Max-Gate, Capability Evidence inklusive Zertifizierungs-/Probe-Trail und eine erste read-only
-  Roles-&-Routing-/Readiness-UI sind verfuegbar; frische Checks: Backend 34/34, Desktop-Fokus 88/88,
-  Desktop-Typecheck gruen
-- Plan-14/Fleet-RAG-Folge auf dem Integrationsbranch: `POST /rag/retrieve` erzeugt serverseitig optional
-  `query_embedding` ueber `defaultEmbeddingModelId` und faellt bei fehlender Embedding-Konfiguration weiter
-  auf lexikalisches Retrieval zurueck
-- Plan 15, Phase 3 (Roles & Routing) auf dem Integrationsbranch: bearbeitbare `Rollenzuordnung`-Sektion im
-  Model-Lab-Tab, `settings_field`/`residency_intent` an `model_role_assignments`, Konfliktanzeige und
-  Best-effort Start-Aktion; frische Checks: Backend-Model-Lab-Suite 51/52 gruen (1 vorbestehender,
-  unabhaengiger Fehlschlag aus unfertiger Phase-1-Arbeit derselben Session), Desktop-ModelLabTab 16/16
-  gruen, Shared-/Desktop-Typecheck fehlerfrei. Phase 0/1/2 (Scanner-Fix, Quellauto-Registrierung,
-  Runtime-Bridge-Toggle) bleiben unverifiziert im Arbeitsverzeichnis liegen und sind bewusst nicht Teil
-  dieses Commits.
+- PR #35 ist gemergt: Plan 15 Agentic Model Fleet Integration (Model-Lab-Schema v3, Fleet-Endpunkte,
+  Zertifikats-/Rollen-Gates, optionale Desktop-Bridge-Vertraege, `model_variants`, Plan-15-Source-Candidates,
+  bounded `llama.cpp`-Probe-Preview, Runtime-Presets, Hardware-Snapshots, normalisierte
+  Benchmark-Measurements, Fleet-Routing-/Readiness-Maps, Execution-Policies mit Safety-Max-Gate, Capability
+  Evidence, read-only Roles-&-Routing-/Readiness-UI, die Plan-14/Fleet-RAG-Folge fuer serverseitiges
+  `query_embedding` in `POST /rag/retrieve`, sowie Plan 15 Phase 3: bearbeitbare `Rollenzuordnung`-Sektion
+  im Model-Lab-Tab mit `settings_field`/`residency_intent`, Konfliktanzeige und Best-effort Start-Aktion) in `main`
+- Plan 15, Phase 0/1/2 auf Branch `codex/agentic-model-fleet-integration` nachgezogen (noch nicht gemergt):
+  Scanner-Adapter/Lora-Reihenfolge-Fix inkl. korrigiertem JSON/Tokenizer-Klassifizierungsfall; verwaiste
+  GET-mit-Seiteneffekt-Quellauto-Registrierung entfernt; tote `model_lab_roles.py` geloescht;
+  `enableModelLabRuntimeBridge`-Setting plus gedeckelter (500 Dateien/Root, 5s Budget)
+  Model-Lab-Extra-Roots-Scan in `ModelIndexService` implementiert (noch an keinem Produktions-Call-Site
+  verdrahtet); frische Checks: Backend-Model-Lab-/Model-Index-Suite 85/85, voller Backend-Lauf 553/553,
+  Desktop-Vitest 1366/1366, Shared-/Desktop-Typecheck fehlerfrei — keine bekannten Fehlschlaege mehr offen
 - Shared-, Desktop- und Backend-Kernchecks sind belastbar nachgewiesen
 - Desktop-Capability-Suite ist im Gate-Pfad mit 37/37 belegt
 - Backend-Capability-/Scenario-/Tuning-Lab-Pfad ist mit 15 bestandenen Tests belegt

@@ -1,9 +1,11 @@
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from app.model_lab.models import ModelSourceCreate
 from app.model_lab.repository import ModelLabRepository
 from app.models.index_service import ModelIndexService
+from app.settings.models import AppSettings
 
 
 def test_model_index_prefers_existing_catalog(tmp_path: Path) -> None:
@@ -297,6 +299,83 @@ def test_model_index_includes_model_lab_sources_and_health_when_opted_in(tmp_pat
 
     assert index.summary.total == 1
     assert index.models[0].name == "extra-model"
+
+
+def test_model_index_bridge_is_disabled_via_setting(tmp_path: Path) -> None:
+    """Plan 15, Phase 2: The bridge must be disabled even if a repo is present,
+    if the settings toggle is off."""
+    primary_dir = tmp_path / "primary"
+    extra_dir = tmp_path / "extra"
+    primary_dir.mkdir()
+    extra_dir.mkdir()
+    (primary_dir / "primary-model.gguf").write_bytes(b"GGUF")
+    (extra_dir / "extra-model.gguf").write_bytes(b"GGUF")
+
+    repository = ModelLabRepository(db_path=tmp_path / "model_lab.sqlite3")
+    repository.create_source(ModelSourceCreate(path=str(extra_dir)))
+
+    settings_service = MagicMock()
+    settings_service.load.return_value = AppSettings(enableModelLabRuntimeBridge=False)
+
+    service = ModelIndexService(
+        models_dir=primary_dir,
+        ollama_models_dir=tmp_path / "empty-ollama",
+        model_lab_repository=repository,
+        settings_service=settings_service,
+    )
+    index = service.build_index()
+
+    assert index.summary.total == 1
+    assert index.models[0].name == "primary-model"
+
+
+def test_model_index_bridge_is_enabled_via_setting(tmp_path: Path) -> None:
+    """Plan 15, Phase 2: The bridge is active when the setting is true."""
+    primary_dir = tmp_path / "primary"
+    extra_dir = tmp_path / "extra"
+    primary_dir.mkdir()
+    extra_dir.mkdir()
+    (extra_dir / "extra-model.gguf").write_bytes(b"GGUF")
+
+    repository = ModelLabRepository(db_path=tmp_path / "model_lab.sqlite3")
+    repository.create_source(ModelSourceCreate(path=str(extra_dir)))
+
+    settings_service = MagicMock()
+    settings_service.load.return_value = AppSettings(enableModelLabRuntimeBridge=True)
+
+    service = ModelIndexService(
+        models_dir=primary_dir,
+        ollama_models_dir=tmp_path / "empty-ollama",
+        model_lab_repository=repository,
+        settings_service=settings_service,
+    )
+    index = service.build_index()
+
+    assert index.summary.total == 1
+    assert index.models[0].name == "extra-model"
+
+
+def test_model_index_bridge_respects_scan_limits(tmp_path: Path) -> None:
+    """Plan 15, Phase 2: The file limit per extra root is respected."""
+    extra_dir = tmp_path / "extra_large"
+    extra_dir.mkdir()
+    for i in range(501):
+        (extra_dir / f"model-{i}.gguf").write_bytes(b"GGUF")
+
+    repository = ModelLabRepository(db_path=tmp_path / "model_lab.sqlite3")
+    repository.create_source(ModelSourceCreate(path=str(extra_dir)))
+    settings_service = MagicMock()
+    settings_service.load.return_value = AppSettings(enableModelLabRuntimeBridge=True)
+
+    service = ModelIndexService(
+        models_dir=tmp_path / "empty-primary",
+        ollama_models_dir=tmp_path / "empty-ollama",
+        model_lab_repository=repository,
+        settings_service=settings_service,
+    )
+    index = service.build_index()
+
+    assert index.summary.total == 500
 
 
 def test_model_index_skips_invalid_gguf_header_when_catalog_is_missing(tmp_path: Path) -> None:
