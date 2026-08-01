@@ -107,6 +107,30 @@ def test_model_lab_rejects_invalid_source_path(tmp_path: Path) -> None:
     assert "Modellquelle existiert nicht" in response.json()["detail"]
 
 
+def test_model_lab_source_candidates_report_existing_and_registered_paths(tmp_path: Path) -> None:
+    agentic = tmp_path / "Agentic"
+    agentic.mkdir()
+    service = _service(tmp_path / "test.sqlite3")
+    service.source_candidates = (
+        (str(agentic), "Agentic Model Fleet", True, "test"),
+        (str(tmp_path / "missing"), "Missing", False, "test"),
+    )
+    app.dependency_overrides[get_model_lab_service] = lambda: service
+    client = TestClient(app)
+
+    before = client.get("/model-lab/source-candidates").json()
+    assert before[0]["exists"] is True
+    assert before[0]["recommended"] is True
+    assert before[0]["already_registered"] is False
+    assert before[1]["exists"] is False
+
+    client.post("/model-lab/sources", json={"path": str(agentic)})
+    after = client.get("/model-lab/source-candidates").json()
+
+    app.dependency_overrides.clear()
+    assert after[0]["already_registered"] is True
+
+
 def test_model_lab_analyzer_classifies_model_shapes(tmp_path: Path) -> None:
     analyzer = ModelLabAnalyzer()
     gguf = tmp_path / "llm"

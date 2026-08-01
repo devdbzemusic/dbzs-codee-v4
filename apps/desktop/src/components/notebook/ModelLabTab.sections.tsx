@@ -4,7 +4,8 @@ import type {
   ModelLabCollectionCreate,
   ModelLabHuggingFaceSearchResult,
   ModelLabModel,
-  ModelLabSource
+  ModelLabSource,
+  ModelLabSourceCandidate
 } from "@dbzs/shared";
 import { formatBytes, ModelLabStatusBadge } from "./ModelLabTab.primitives";
 import { ModelBundleRow, SourceRow } from "./ModelLabTab.rows";
@@ -66,17 +67,21 @@ export function ModelLabSourcesSection({
   newSourcePath,
   onNewSourcePathChange,
   onAddSource,
+  onAddSuggestedSource,
   addingSource,
   onScanSource,
-  isScanning
+  isScanning,
+  sourceCandidates
 }: {
   sources: ModelLabSource[];
   newSourcePath: string;
   onNewSourcePathChange: (value: string) => void;
   onAddSource: () => void;
+  onAddSuggestedSource: (path: string) => void;
   addingSource: boolean;
   onScanSource: (sourceId: string) => void;
   isScanning: boolean;
+  sourceCandidates: ModelLabSourceCandidate[];
 }) {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -104,6 +109,29 @@ export function ModelLabSourcesSection({
           {addingSource ? "Fuegt hinzu..." : "Quelle hinzufuegen"}
         </button>
       </form>
+      {sourceCandidates.length > 0 ? (
+        <div className="mb-3 grid gap-2 md:grid-cols-2">
+          {sourceCandidates.map((candidate) => (
+            <button
+              className="border border-dbzs-border bg-dbzs-bg px-3 py-2 text-left text-xs text-dbzs-text disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!candidate.exists || candidate.already_registered || addingSource}
+              key={candidate.path}
+              onClick={() => onAddSuggestedSource(candidate.path)}
+              title={candidate.reason}
+              type="button"
+            >
+              <span className="block font-medium">
+                {candidate.recommended ? "* " : ""}
+                {candidate.label}
+              </span>
+              <span className="mt-1 block truncate text-[11px] text-dbzs-muted">{candidate.path}</span>
+              <span className="mt-1 block text-[11px] text-dbzs-muted">
+                {candidate.already_registered ? "Registriert" : candidate.exists ? "Bereit" : "Nicht gefunden"}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
       {sources.length === 0 ? (
         <p className="text-xs text-dbzs-muted">Noch keine Modellquelle konfiguriert.</p>
       ) : (

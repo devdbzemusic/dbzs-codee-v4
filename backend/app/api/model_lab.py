@@ -22,6 +22,7 @@ from app.model_lab.models import (
     ModelRoleAssignment,
     ModelRoleAssignmentRequest,
     ModelSource,
+    ModelSourceCandidate,
     ModelSourceCreate,
     ModelVariant,
     RuntimeAdapterRecord,
@@ -42,6 +43,11 @@ def get_model_lab_service() -> ModelLabService:
 @router.get("/sources")
 def list_sources(service: ModelLabService = Depends(get_model_lab_service)) -> list[ModelSource]:
     return service.list_sources()
+
+
+@router.get("/source-candidates")
+def list_source_candidates(service: ModelLabService = Depends(get_model_lab_service)) -> list[ModelSourceCandidate]:
+    return service.list_source_candidates()
 
 
 @router.post("/sources")

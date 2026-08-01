@@ -25,6 +25,7 @@ from app.model_lab.models import (
     ModelRoleAssignment,
     ModelRoleAssignmentRequest,
     ModelSource,
+    ModelSourceCandidate,
     ModelSourceCreate,
     ModelVariant,
     RuntimeAdapterRecord,
@@ -40,6 +41,13 @@ from app.runtime.hardware_fingerprint import collect_hardware_fingerprint, finge
 
 class ModelLabService:
     stale_scan_job_age = timedelta(hours=2)
+    source_candidates = (
+        ("D:/Models/Agentic", "Agentic Model Fleet", True, "Plan-15-Startquelle fuer produktive Agentenmodelle."),
+        ("D:/Models", "Lokale Modellbibliothek", False, "Breite lokale Modellablage."),
+        ("F:/Models", "Externe Modellbibliothek F:", False, "Optionaler externer Modellpfad."),
+        ("H:/Models", "Externe Modellbibliothek H:", False, "Optionaler externer Modellpfad."),
+        ("C:/dev/prj/models/gguf", "GGUF-Arbeitsablage", False, "Optionaler Entwicklungs-/GGUF-Pfad."),
+    )
 
     def __init__(
         self,
@@ -59,6 +67,24 @@ class ModelLabService:
 
     def list_sources(self) -> list[ModelSource]:
         return self.repository.list_sources()
+
+    def list_source_candidates(self) -> list[ModelSourceCandidate]:
+        registered = {Path(source.path).resolve() for source in self.repository.list_sources()}
+        candidates: list[ModelSourceCandidate] = []
+        for raw_path, label, recommended, reason in self.source_candidates:
+            path = Path(raw_path)
+            resolved = path.resolve()
+            candidates.append(
+                ModelSourceCandidate(
+                    path=str(resolved),
+                    label=label,
+                    exists=path.exists() and path.is_dir(),
+                    recommended=recommended,
+                    reason=reason,
+                    already_registered=resolved in registered,
+                )
+            )
+        return candidates
 
     def run_scan(self, source_id: str | None = None) -> ScanResult:
         sources = self._scan_sources(source_id)

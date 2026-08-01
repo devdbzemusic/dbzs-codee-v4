@@ -12,6 +12,7 @@ export function ModelLabTab() {
   const {
     backendOnline,
     sources,
+    sourceCandidates,
     models,
     isLoading,
     isScanning,
@@ -58,8 +59,10 @@ export function ModelLabTab() {
               isScanning={isScanning}
               newSourcePath={newSourcePath}
               onAddSource={() => void addSource({ path: newSourcePath.trim() })}
+              onAddSuggestedSource={(path) => void addSource({ path })}
               onNewSourcePathChange={setNewSourcePath}
               onScanSource={(sourceId) => void runScan(sourceId)}
+              sourceCandidates={sourceCandidates}
               sources={sources}
             />
             <ModelLabModelsSection models={models} onSelect={setSelectedBundleId} selectedBundleId={selectedBundleId} />

@@ -435,6 +435,10 @@ const api = {
     ipcRenderer.invoke("dbzs:models:multimodal-pairings:manual", request) as Promise<MultimodalPair>,
   listModelLabSources: () =>
     ipcRenderer.invoke("dbzs:model-lab:sources:list") as Promise<import("@dbzs/shared").ModelLabSource[]>,
+  listModelLabSourceCandidates: () =>
+    ipcRenderer.invoke("dbzs:model-lab:source-candidates:list") as Promise<
+      import("@dbzs/shared").ModelLabSourceCandidate[]
+    >,
   createModelLabSource: (request: import("@dbzs/shared").ModelLabSourceCreate) =>
     ipcRenderer.invoke("dbzs:model-lab:sources:create", request) as Promise<import("@dbzs/shared").ModelLabSource>,
   runModelLabScan: (request?: import("@dbzs/shared").ModelLabScanRequest) =>

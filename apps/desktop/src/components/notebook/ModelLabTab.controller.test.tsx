@@ -5,7 +5,8 @@ import {
   type ModelLabCollection,
   type ModelLabModel,
   type ModelLabScanJob,
-  type ModelLabSource
+  type ModelLabSource,
+  type ModelLabSourceCandidate
 } from "@dbzs/shared";
 import { backendClient } from "@/services/backendClient";
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -14,6 +15,7 @@ import { useModelLabTabController } from "./ModelLabTab.controller";
 vi.mock("@/services/backendClient", () => ({
   backendClient: {
     listModelLabSources: vi.fn(),
+    listModelLabSourceCandidates: vi.fn(),
     listModelLabModels: vi.fn(),
     listModelLabJobs: vi.fn(),
     listModelLabCollections: vi.fn(),
@@ -42,6 +44,18 @@ function createSource(overrides: Partial<ModelLabSource> = {}): ModelLabSource {
     last_scan_at: null,
     last_scan_status: null,
     last_error: null,
+    ...overrides
+  };
+}
+
+function createSourceCandidate(overrides: Partial<ModelLabSourceCandidate> = {}): ModelLabSourceCandidate {
+  return {
+    path: "D:/Models/Agentic",
+    label: "Agentic Model Fleet",
+    exists: true,
+    recommended: true,
+    reason: "Plan-15-Startquelle",
+    already_registered: false,
     ...overrides
   };
 }
@@ -98,6 +112,7 @@ function createCollection(overrides: Partial<ModelLabCollection> = {}): ModelLab
 describe("useModelLabTabController", () => {
   beforeEach(() => {
     vi.mocked(backendClient.listModelLabSources).mockReset().mockResolvedValue([createSource()]);
+    vi.mocked(backendClient.listModelLabSourceCandidates).mockReset().mockResolvedValue([createSourceCandidate()]);
     vi.mocked(backendClient.listModelLabModels).mockReset().mockResolvedValue([createModel()]);
     vi.mocked(backendClient.listModelLabJobs)
       .mockReset()
@@ -129,6 +144,7 @@ describe("useModelLabTabController", () => {
 
     expect(result.current.backendOnline).toBe(true);
     expect(result.current.sources).toHaveLength(1);
+    expect(result.current.sourceCandidates).toHaveLength(1);
     expect(result.current.models).toHaveLength(1);
     expect(result.current.models[0].bundle.bundle_id).toBe("bundle-1");
   });

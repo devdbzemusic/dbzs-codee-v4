@@ -100,6 +100,15 @@ class ModelSource(ModelSourceCreate):
     last_error: str | None = None
 
 
+class ModelSourceCandidate(BaseModel):
+    path: str
+    label: str
+    exists: bool
+    recommended: bool = False
+    reason: str = ""
+    already_registered: bool = False
+
+
 class ModelArtifact(BaseModel):
     artifact_id: str
     installation_id: str

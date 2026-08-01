@@ -29,6 +29,7 @@ export function registerModelLabIpcHandlers(options: RegisterModelLabIpcOptions)
   const { requestBackend } = options;
 
   ipcMain.handle("dbzs:model-lab:sources:list", () => requestBackend("/model-lab/sources"));
+  ipcMain.handle("dbzs:model-lab:source-candidates:list", () => requestBackend("/model-lab/source-candidates"));
   ipcMain.handle("dbzs:model-lab:sources:create", (_event, request: ModelLabSourceCreate) =>
     requestBackend("/model-lab/sources", {
       method: "POST",

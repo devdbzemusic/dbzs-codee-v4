@@ -26,6 +26,7 @@ import type {
   ModelLabScanRequest,
   ModelLabScanResult,
   ModelLabSource,
+  ModelLabSourceCandidate,
   ModelLabSourceCreate,
   ModelLabVariant,
   ModelIndex,
@@ -132,6 +133,7 @@ export interface DesktopBridgeV1 {
   getBackendHealth: () => Promise<BackendHealth>;
   getModelIndex: () => Promise<ModelIndex>;
   listModelLabSources?: () => Promise<ModelLabSource[]>;
+  listModelLabSourceCandidates?: () => Promise<ModelLabSourceCandidate[]>;
   createModelLabSource?: (request: ModelLabSourceCreate) => Promise<ModelLabSource>;
   runModelLabScan?: (request?: ModelLabScanRequest) => Promise<ModelLabScanResult>;
   listModelLabJobs?: () => Promise<ModelLabScanJob[]>;

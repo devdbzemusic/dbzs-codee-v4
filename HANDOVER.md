@@ -24,6 +24,9 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
   Failures und Agent-Execution-Policies.
 - `model_variants` als eigene Masterplan-Schicht nachgezogen: Varianten werden stabil aus Bundles abgeleitet,
   ueber `/model-lab/variants` abgefragt und an `logical_model_id` gebunden.
+- Plan-15-Source-Candidates umgesetzt: `/model-lab/source-candidates` prueft die bekannten Masterplan-Pfade
+  (`D:\Models\Agentic` empfohlen) auf Existenz und Registrierungsstatus; die Model-Lab-UI zeigt sie direkt
+  als uebernehmbare Quellen an, ohne automatisch produktive Pfade in die DB zu schreiben.
 - Statuskette auf die Masterplan-Stufen erweitert (`COMPATIBLE`, `LOADABLE`, `TUNED`, `BENCHMARKED`,
   `CERTIFIED`, `DEGRADED`, `QUARANTINED`), bestehende Altstatus bleiben kompatibel.
 - Neue Model-Lab/Fleet-Endpunkte unter `/model-lab`: logical models, runtime adapters/presets,
@@ -36,8 +39,9 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
   definierten Zertifikate; Schreib-/Workspace-Rollen verlangen zusaetzlich `WRITE_AGENT_VERIFIED`.
 
 **Frisch verifiziert:**
-- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab.py backend/tests/test_model_lab_repository.py backend/tests/test_model_lab_scan_jobs.py backend/tests/test_model_lab_bridge.py -q` -> 23/23 gruen
+- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab.py backend/tests/test_model_lab_repository.py backend/tests/test_model_lab_scan_jobs.py backend/tests/test_model_lab_bridge.py -q` -> 24/24 gruen
 - `npm run typecheck` in `apps/desktop` -> gruen
+- `npm run test -- src/components/notebook/ModelLabTab.controller.test.tsx` in `apps/desktop` -> 8/8 gruen
 - `npm run test -- src/components/notebook/ModelLabTab.controller.test.tsx src/components/notebook/RuntimeModelsTab.test.ts src/services/modelSelectionBroker.test.ts src/services/runtimeSlotManager.test.ts` in `apps/desktop` -> 88/88 gruen
 
 **Noch offen fuer die naechsten Gates:**

@@ -6,6 +6,7 @@ import type {
   ModelLabModel,
   ModelLabScanJob,
   ModelLabSource,
+  ModelLabSourceCandidate,
   ModelLabSourceCreate
 } from "@dbzs/shared";
 import { backendClient } from "@/services/backendClient";
@@ -16,6 +17,7 @@ export function useModelLabTabController() {
   const backendOnline = backendHealth?.status === "ok";
 
   const [sources, setSources] = useState<ModelLabSource[]>([]);
+  const [sourceCandidates, setSourceCandidates] = useState<ModelLabSourceCandidate[]>([]);
   const [models, setModels] = useState<ModelLabModel[]>([]);
   const [jobs, setJobs] = useState<ModelLabScanJob[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -35,13 +37,17 @@ export function useModelLabTabController() {
     setIsLoading(true);
     setError(null);
     try {
-      const [nextSources, nextModels, nextJobs, nextCollections] = await Promise.all([
+      const [nextSources, nextSourceCandidates, nextModels, nextJobs, nextCollections] = await Promise.all([
         backendClient.listModelLabSources ? backendClient.listModelLabSources() : Promise.resolve([]),
+        backendClient.listModelLabSourceCandidates
+          ? backendClient.listModelLabSourceCandidates()
+          : Promise.resolve([]),
         backendClient.listModelLabModels ? backendClient.listModelLabModels() : Promise.resolve([]),
         backendClient.listModelLabJobs ? backendClient.listModelLabJobs() : Promise.resolve([]),
         backendClient.listModelLabCollections ? backendClient.listModelLabCollections() : Promise.resolve([])
       ]);
       setSources(nextSources);
+      setSourceCandidates(nextSourceCandidates);
       setModels(nextModels);
       setJobs(nextJobs);
       setCollections(nextCollections);
@@ -179,6 +185,7 @@ export function useModelLabTabController() {
   return {
     backendOnline,
     sources,
+    sourceCandidates,
     models,
     jobs,
     isLoading,

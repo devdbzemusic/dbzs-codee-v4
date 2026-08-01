@@ -54,6 +54,7 @@ import type {
   ModelLabScanRequest,
   ModelLabScanResult,
   ModelLabSource,
+  ModelLabSourceCandidate,
   ModelLabSourceCreate,
   ModelLabVariant,
   MultimodalPair,
@@ -125,6 +126,7 @@ export interface BackendBridge extends DesktopBridgeV1 {
   getModelIndex: () => Promise<ModelIndex>;
   saveManualMultimodalPairing?: (request: ManualMultimodalPairingRequest) => Promise<MultimodalPair>;
   listModelLabSources?: () => Promise<ModelLabSource[]>;
+  listModelLabSourceCandidates?: () => Promise<ModelLabSourceCandidate[]>;
   createModelLabSource?: (request: ModelLabSourceCreate) => Promise<ModelLabSource>;
   runModelLabScan?: (request?: ModelLabScanRequest) => Promise<ModelLabScanResult>;
   listModelLabJobs?: () => Promise<ModelLabScanJob[]>;
@@ -392,6 +394,13 @@ export const backendClient = {
     const method = bridge().listModelLabSources;
     if (!method) {
       return Promise.reject(new Error("listModelLabSources is unavailable."));
+    }
+    return method();
+  },
+  listModelLabSourceCandidates: () => {
+    const method = bridge().listModelLabSourceCandidates;
+    if (!method) {
+      return Promise.reject(new Error("listModelLabSourceCandidates is unavailable."));
     }
     return method();
   },

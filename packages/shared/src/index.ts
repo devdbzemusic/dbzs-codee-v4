@@ -1461,6 +1461,15 @@ export interface ModelLabSource extends ModelLabSourceCreate {
   last_error: string | null;
 }
 
+export interface ModelLabSourceCandidate {
+  path: string;
+  label: string;
+  exists: boolean;
+  recommended: boolean;
+  reason: string;
+  already_registered: boolean;
+}
+
 export interface ModelLabArtifact {
   artifact_id: string;
   installation_id: string;
