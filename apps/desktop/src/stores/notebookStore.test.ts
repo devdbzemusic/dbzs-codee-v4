@@ -15,6 +15,7 @@ describe("notebookStore", () => {
       "mission-control",
       "cdee",
       "runtime",
+      "model-lab",
       "jobs",
       "agent-workbench",
       "editor"

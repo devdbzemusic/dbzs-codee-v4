@@ -9,6 +9,7 @@ const TAB_ORDER: NotebookTabId[] = [
   "mission-control",
   "cdee",
   "runtime",
+  "model-lab",
   "jobs",
   "agent-workbench",
   "editor"
@@ -18,6 +19,7 @@ export type OperationsNotebookProps = {
   missionControl: ReactNode;
   cdee: ReactNode;
   runtime: ReactNode;
+  modelLab: ReactNode;
   jobs: ReactNode;
   agentWorkbench: ReactNode;
   editor: ReactNode;
@@ -28,6 +30,7 @@ export function OperationsNotebook({
   missionControl,
   cdee,
   runtime,
+  modelLab,
   jobs,
   agentWorkbench,
   editor,
@@ -40,6 +43,7 @@ export function OperationsNotebook({
     "mission-control": missionControl,
     cdee,
     runtime,
+    "model-lab": modelLab,
     jobs,
     "agent-workbench": agentWorkbench,
     editor

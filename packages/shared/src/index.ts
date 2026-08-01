@@ -1354,6 +1354,184 @@ export interface ModelIndex {
   multimodal_pairs?: MultimodalPair[];
 }
 
+// --- Model Lab (backend/app/model_lab) ---
+
+export type ModelLabArtifactType =
+  | "model"
+  | "mmproj"
+  | "adapter"
+  | "tokenizer"
+  | "config"
+  | "model_card"
+  | "ollama_manifest"
+  | "support";
+export type ModelLabScanJobStatus = "queued" | "running" | "completed" | "failed";
+export type ModelLabStatus = "DISCOVERED" | "IDENTIFIED" | "INCOMPLETE" | "UNSUPPORTED" | "BROKEN";
+
+export interface ModelLabHealth {
+  status: "healthy" | "incomplete" | "empty" | "error" | "unknown";
+  model_type: string;
+  architecture: string | null;
+  parameters: number | null;
+  context_length: number | null;
+  quantization: string | null;
+  folder_size_bytes: number;
+  config_files: string[];
+  missing_critical: string[];
+  optional_missing: string[];
+  issues: string[];
+  config_preview: Record<string, unknown>;
+}
+
+export interface ModelLabSourceCreate {
+  name?: string | null;
+  path: string;
+  recursive?: boolean;
+  enabled?: boolean;
+  trusted?: boolean;
+  priority?: number;
+  include_patterns?: string[];
+  exclude_patterns?: string[];
+}
+
+export interface ModelLabSource extends ModelLabSourceCreate {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  last_scan_at: string | null;
+  last_scan_status: string | null;
+  last_error: string | null;
+}
+
+export interface ModelLabArtifact {
+  artifact_id: string;
+  installation_id: string;
+  source_id: string;
+  bundle_id: string | null;
+  path: string;
+  parent_path: string;
+  file_name: string;
+  detected_name: string;
+  format: string;
+  artifact_type: ModelLabArtifactType;
+  size_bytes: number;
+  sha256: string;
+  quantization: string | null;
+  capabilities: string[];
+  modalities: string[];
+  metadata: Record<string, unknown>;
+  status: ModelLabStatus;
+  discovered_at: string;
+  updated_at: string;
+}
+
+export interface ModelLabBundle {
+  bundle_id: string;
+  name: string;
+  primary_artifact_id: string | null;
+  artifact_ids: string[];
+  source_ids: string[];
+  status: ModelLabStatus;
+  capabilities: string[];
+  modalities: string[];
+  evidence: string[];
+  health: ModelLabHealth;
+  tags: string[];
+  is_favorite: boolean;
+  notes: string;
+  collection_ids: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModelLabModel {
+  bundle: ModelLabBundle;
+  artifacts: ModelLabArtifact[];
+}
+
+export interface ModelLabScanRequest {
+  source_id?: string | null;
+}
+
+export interface ModelLabScanJob {
+  id: string;
+  source_id: string | null;
+  status: ModelLabScanJobStatus;
+  total_files: number;
+  artifact_count: number;
+  bundle_count: number;
+  error: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface ModelLabScanResult {
+  job: ModelLabScanJob;
+  artifacts: ModelLabArtifact[];
+  bundles: ModelLabBundle[];
+}
+
+export interface ModelLabHardwareProfile {
+  fingerprint_hash: string;
+  os: string;
+  architecture: string;
+  cpu_model: string | null;
+  cpu_threads: number;
+  ram_bytes: number;
+  gpu_name: string | null;
+  gpu_vendor: string | null;
+  vram_bytes: number | null;
+  runtime_backend: string;
+  collected_at: string;
+}
+
+export interface ModelLabMetadataUpdate {
+  tags: string[];
+  is_favorite: boolean;
+  notes: string;
+}
+
+export interface ModelLabCollectionCreate {
+  name: string;
+  color?: string;
+  description?: string;
+}
+
+export interface ModelLabCollection extends ModelLabCollectionCreate {
+  id: string;
+  created_at: string;
+}
+
+export interface ModelLabDuplicateGroup {
+  duplicate_key: string;
+  model_count: number;
+  total_size_bytes: number;
+  bundles: ModelLabBundle[];
+}
+
+export interface ModelLabHuggingFaceSearchResult {
+  id: string;
+  pipeline: string;
+  downloads: number;
+  likes: number;
+  size_mb: number;
+  last_modified: string;
+  tags: string[];
+}
+
+export interface ModelLabHuggingFaceRepoFile {
+  name: string;
+  size_bytes: number;
+}
+
+export interface ModelLabHuggingFaceRepoInfo {
+  id: string;
+  pipeline: string;
+  tags: string[];
+  files: ModelLabHuggingFaceRepoFile[];
+}
+
 export * from "./runtime/runtimeSlots";
 
 export type RuntimeState = "stopped" | "starting" | "running" | "error";

@@ -94,6 +94,7 @@ import { buildFullDiagnosticsZip } from "./diagnosticsZipExport.js";
 import { startBootLogPersistence } from "./boot/bootLogPersistence.js";
 import { writeFileAtomic } from "./atomicFileWrite.js";
 import { registerRuntimeAndJobIpcHandlers } from "./runtimeAndJobIpc.js";
+import { registerModelLabIpcHandlers } from "./modelLabIpc.js";
 import { getActiveRunIdsSnapshot } from "./activeRunTracker.js";
 import {
   clipboardSourceFromDataUrl,
@@ -923,6 +924,7 @@ registerRuntimeAndJobIpcHandlers({
   buildRuntimeContextOverflowResponse,
   buildRuntimeChatSafeResponse
 });
+registerModelLabIpcHandlers({ requestBackend });
 ipcMain.handle("dbzs:agent-runner:status", () => requestBackend("/agent-runner/status"));
 ipcMain.handle(
   "dbzs:agent-runner:run-once",
