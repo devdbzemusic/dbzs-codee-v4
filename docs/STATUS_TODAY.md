@@ -27,8 +27,8 @@ Repo-Wahrheit: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
   Model-Lab-Schema v3, Fleet-Endpunkte, Zertifikats-/Rollen-Gates und optionale Desktop-Bridge-Vertraege
   sind implementiert; `model_variants`, Plan-15-Source-Candidates (`D:\Models\Agentic` empfohlen) und eine
   bounded `llama.cpp`-Probe-Preview sind nachgezogen; Plan-15-Runtime-Presets, Fleet-Routing-Map,
-  Execution-Policies, Capability Evidence inklusive Zertifizierungs-Trail und eine erste read-only
-  Roles-&-Routing-UI sind verfuegbar; frische Checks: Backend 29/29, Desktop-Fokus 88/88,
+  Execution-Policies mit Safety-Max-Gate, Capability Evidence inklusive Zertifizierungs-Trail und eine
+  erste read-only Roles-&-Routing-UI sind verfuegbar; frische Checks: Backend 30/30, Desktop-Fokus 88/88,
   Desktop-Typecheck gruen
 - Shared-, Desktop- und Backend-Kernchecks sind belastbar nachgewiesen
 - Desktop-Capability-Suite ist im Gate-Pfad mit 37/37 belegt

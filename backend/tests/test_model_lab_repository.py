@@ -297,6 +297,21 @@ def test_execution_policies_are_seeded_from_plan_15_roles(tmp_path: Path) -> Non
     ]
 
 
+def test_role_assignment_rejects_safety_above_policy_maximum(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    with pytest.raises(ValueError, match="Policy-Maximum"):
+        repo.assign_model_role(
+            ModelRoleAssignmentRequest(
+                bundle_id=bundle.bundle_id,
+                role="MICRO_TOOL_AGENT",
+                safety_level="LEVEL_4_SHELL_AND_GIT",
+                enabled=False,
+            )
+        )
+
+
 def test_rebuild_logical_models_groups_quantized_variants(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     source = repo.create_source(ModelSourceCreate(path=str(tmp_path)))

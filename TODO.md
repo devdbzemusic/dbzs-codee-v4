@@ -70,6 +70,8 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       `best_throughput`, `large_context` mit GPU-/Context-/Batch-/KV-/Flash-Achsen.
 - [x] Rollen-Gate erzwingt Zertifikate: keine aktive Fleet-Rolle nur auf Basis von Dateiname/Heuristik;
       Workspace-/Write-Rollen verlangen zusaetzlich `WRITE_AGENT_VERIFIED`.
+- [x] Safety-Level-Policy erzwingen: Rollen-Zuweisungen oberhalb des geseedeten Policy-Maximums werden
+      abgelehnt, auch wenn die Zuweisung deaktiviert angelegt wuerde.
 - [x] Fleet-Routing-Map umgesetzt: `/model-lab/routing-map` liefert pro Rolle Bundle, Safety-Level,
       benoetigte/bestandene/fehlende Zertifikate und `routing_allowed` als stabile UI-/Broker-Vorstufe.
 - [x] Erste Roles-&-Routing-UI umgesetzt: Model Lab laedt die Routing-Map und zeigt Rolle, Modell,

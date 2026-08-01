@@ -921,6 +921,11 @@ class ModelLabRepository:
     def assign_model_role(self, request: ModelRoleAssignmentRequest) -> ModelRoleAssignment:
         if self.get_model(request.bundle_id) is None:
             raise ValueError(f"Model bundle nicht gefunden: {request.bundle_id}")
+        max_safety = _max_safety_for_role(request.role)
+        if _safety_rank(request.safety_level) > _safety_rank(max_safety):
+            raise ValueError(
+                f"Safety-Level {request.safety_level} ueberschreitet Policy-Maximum {max_safety} fuer Rolle {request.role}"
+            )
         required = _required_certifications_for_role(request.role, request.safety_level)
         passed = self._passed_certifications(request.bundle_id)
         missing = [cert for cert in required if cert not in passed]
@@ -1611,6 +1616,21 @@ def _required_certifications_for_role(role: str, safety_level: str) -> list[str]
     if safety_level == "LEVEL_4_SHELL_AND_GIT":
         required.append("REPOSITORY_QA_VERIFIED")
     return sorted(set(required))
+
+
+def _max_safety_for_role(role: str) -> str:
+    return _ROLE_POLICY.get(role, ("LEVEL_0_CHAT_ONLY", []))[0]
+
+
+def _safety_rank(safety_level: str) -> int:
+    ranks = {
+        "LEVEL_0_CHAT_ONLY": 0,
+        "LEVEL_1_READ_ONLY_TOOLS": 1,
+        "LEVEL_2_WORKSPACE_WRITE": 2,
+        "LEVEL_3_TERMINAL_LIMITED": 3,
+        "LEVEL_4_SHELL_AND_GIT": 4,
+    }
+    return ranks.get(safety_level, 0)
 
 
 def _dt(value: datetime) -> str:
