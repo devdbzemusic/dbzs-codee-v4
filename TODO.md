@@ -99,6 +99,12 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       "Start"-Aktion pro Zeile). `ModelSettingsFieldRole` auf alle 8 echten `AppSettings`-Rollenfelder
       erweitert; ein urspruenglich mitgeplantes freies `taxonomy_role`-Feld wieder entfernt zugunsten des
       bestehenden zertifizierungsgated `ModelFleetRole`-Enums.
+- [x] Plan 15, Phase 0/1/2 nachgezogen: Scanner-Adapter/Lora-Reihenfolge-Fix inkl. korrigiertem
+      JSON/Tokenizer-Klassifizierungsfall; verwaiste GET-mit-Seiteneffekt-Quellauto-Registrierung entfernt;
+      tote `model_lab_roles.py` geloescht; `enableModelLabRuntimeBridge`-Setting plus gedeckelter
+      (500 Dateien/Root, 5s Budget) Model-Lab-Extra-Roots-Scan in `ModelIndexService` implementiert. Bridge
+      ist noch an keinem Produktions-Call-Site verdrahtet (kein `ModelIndexService(...)`-Aufruf uebergibt
+      `model_lab_repository`) — bleibt in der echten App inaktiv, bis das nachgezogen wird.
 - [ ] `D:\Models\Agentic` als erste produktive Quelle ueber den neuen Candidate-Button registrieren/scannen
       und den veralteten lokalen Model-Katalog auf dieser Maschine neu erzeugen.
 - [ ] `llama.cpp`-RuntimeAdapter live verdrahten: `probe_load`, `health_check`, echte Benchmark-Messung,

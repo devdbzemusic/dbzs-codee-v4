@@ -82,10 +82,23 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
   Residency zuweisen, Konfliktanzeige bei doppelt vergebenem Settings-Feld, sowie ein Best-effort
   "Start"-Knopf pro Zeile (funktioniert erst zuverlaessig, sobald die separate Model-Lab-Runtime-Bridge
   aus Phase 2 aktiv ist; bis dahin zeigt er einen erklaerenden Fehler statt eines stillen Fehlschlags).
+- Plan 15, Phase 0/1/2 nachgezogen: Scanner-Adapter/Lora-Reihenfolge-Fix inkl. korrigiertem
+  `_infer_artifact_type()`-JSON-Fall (`tokenizer`-benannte `.json`-Dateien zaehlen jetzt als `config`, echte
+  `.model`-Tokenizer-Dateien bleiben `tokenizer`); die verwaiste, GET-mit-Seiteneffekt-Quellauto-Registrierung
+  aus `service.py::list_source_candidates()` wurde entfernt (verletzte REST-Semantik und brach einen
+  bestehenden Test); die tote, nirgends registrierte `backend/app/api/model_lab_roles.py` wurde geloescht
+  (echte, verdrahtete Endpunkte bleiben in `api/model_lab.py`). Phase 2 (Model-Lab-Runtime-Bridge) echt
+  implementiert: neues Settings-Feld `enableModelLabRuntimeBridge` (Default `false`, `user_tunable`,
+  `restartRequirement: "runtime_restart"`) gate zusaetzlich zum bestehenden `model_lab_repository`-Opt-in
+  aus Plan 14; `ModelIndexService` bekommt einen optionalen `settings_service`-Parameter, `_from_filesystem()`
+  deckelt Model-Lab-Extra-Roots auf 500 Dateien/Root und ein 5s-Wall-Clock-Budget ueber die gesamte
+  Extra-Roots-Runde. Kein Produktions-Call-Site uebergibt aktuell `model_lab_repository` — die Bridge bleibt
+  in der echten App inaktiv, bis ein spaeterer Schritt sie an einen geteilten `ModelLabRepository` verdrahtet.
 
 **Frisch verifiziert:**
-- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab_repository.py backend/tests/test_model_lab.py -q` -> 51/52 gruen (1 vorbestehender, unabhaengiger Fehlschlag: `test_model_lab_source_candidates_report_existing_and_registered_paths`, verursacht durch die noch unfertige/unverifizierte Phase-1-Quellauto-Registrierung in `service.py`, die bewusst NICHT Teil dieses Commits ist)
-- `npx vitest run ModelLabTab` in `apps/desktop` -> 16/16 gruen
+- `backend\.venv\Scripts\python.exe -m pytest -k "model_lab or model_index" -q` -> 85/85 gruen (keine bekannten Fehlschlaege mehr offen)
+- `backend\.venv\Scripts\python.exe -m pytest -q` (voller Backend-Lauf) -> 553/553 gruen
+- `npx vitest run` in `apps/desktop` -> 1366/1366 gruen (42 bewusst uebersprungen)
 - `npx tsc --noEmit` in `packages/shared` und `apps/desktop` -> beide gruen
 
 **Noch offen fuer die naechsten Gates:**
@@ -97,13 +110,10 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
 - Plan-14-Folgen im selben Themengebiet weiterfuehren: haengende Backend-Tests diagnostizieren,
   `embeddingService.ts`/Model-Lab-ID-Raum endgueltig versoehnen und die zwei haengenden Testfaelle separat
   root-causen
-- Plan 15, Phase 0/1/2 aus einer vorherigen Session liegen noch unfertig/unverifiziert im Arbeitsverzeichnis
-  (nicht Teil dieses Commits): Scanner-Adapter/Lora-Reihenfolge-Fix mit einem offenen, unabhaengigen
-  Testfehler (`my_tokenizer.json` -> `tokenizer` statt `config`), die oben erwaehnte Phase-1-Quellauto-
-  Registrierung, drei fehlschlagende Phase-2-Bridge-Tests in `test_model_index.py` (Implementierung fehlt
-  noch in `index_service.py`/`AppSettings`), sowie eine tote, nirgends registrierte
-  `backend/app/api/model_lab_roles.py` mit doppelten Role-Assignment-Endpunkten (die echten, verdrahteten
-  liegen in `api/model_lab.py`). Vor dem naechsten Merge aus diesem Themengebiet root-causen/entscheiden.
+- Model-Lab-Runtime-Bridge (Phase 2) an einen echten Produktions-Call-Site verdrahten: aktuell uebergibt
+  kein `ModelIndexService(...)`-Aufruf im Backend `model_lab_repository`/`settings_service`, die Bridge ist
+  also nur ueber direkte Konstruktion (Tests) erreichbar. Braucht eine geteilte `ModelLabRepository`-Dependency
+  statt Pro-Aufrufstelle-Instanzierung (siehe Phase-3-Plan-Notiz zu `Grep "ModelIndexService(" backend/app`).
 
 ## Plan 14, Phase 2 Fortsetzung: `/embeddings` + `/rerank` (echten Produktionsbug behoben + Reranking) (2026-08-01)
 

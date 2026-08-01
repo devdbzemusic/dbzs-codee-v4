@@ -134,14 +134,14 @@ class ModelLabScanner:
             return "ollama_manifest"
         if suffix == ".gguf" and ("mmproj" in name or "projector" in name):
             return "mmproj"
-        if suffix in PRIMARY_MODEL_EXTENSIONS:
-            return "model"
         if "adapter" in name or "lora" in name:
             return "adapter"
+        if suffix in PRIMARY_MODEL_EXTENSIONS:
+            return "model"
+        if name.endswith(".json") and ("config" in name or "tokenizer" in name or name in {"special_tokens_map.json"}):
+            return "config"
         if "tokenizer" in name or name.endswith(".model"):
             return "tokenizer"
-        if name.endswith(".json") and ("config" in name or name in {"special_tokens_map.json"}):
-            return "config"
         if name.lower() == "readme.md":
             return "model_card"
         return "support"
