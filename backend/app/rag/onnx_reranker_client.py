@@ -1,21 +1,18 @@
 """
-In-process ONNX Runtime embedding client (Plan 14, Phase 2 - first non-llama.cpp/
-Ollama runtime adapter).
+In-process ONNX Runtime reranker (cross-encoder) client (Plan 14, Phase 2
+continuation). Structural sibling of `onnx_embedding_client.py`'s
+`OnnxEmbeddingClient`: same optional-dependency guards, same
+constructor-injectable session/tokenizer for testing without real model
+files.
 
-Unlike `app/runtime/chat_clients.py`'s `LlamaServerChatClient`/`OllamaChatClient`
-(HTTP-endpoint-shaped, chat-message-in/text-out), an embedding model runs
-in-process: no subprocess, no port, text(s) in, vectors out. This is a
-deliberately separate, simpler interface rather than a third implementation of
-the chat client shape.
-
-`onnxruntime`/`tokenizers` are optional at import time (mirrors
-`app/model_lab/hf_integration.py`'s `HfApi` guard) so importing this module
-never crashes even if the packages are somehow missing at runtime.
+A cross-encoder scores a (query, document) pair jointly - text in, a single
+relevance score out - rather than encoding texts independently like an
+embedding model. `tokenizers` supports this natively via pair-encoding
+(`tokenizer.encode(query, document)`).
 """
 from __future__ import annotations
 
 import math
-from pathlib import Path
 from typing import Any
 
 from app.rag.onnx_shared import build_input_feed
@@ -31,15 +28,15 @@ except ImportError:  # pragma: no cover - exercised when the optional dependency
     Tokenizer = None  # type: ignore[assignment]
 
 
-def onnx_embedding_backend_available() -> bool:
+def onnx_reranker_backend_available() -> bool:
     return onnxruntime is not None and Tokenizer is not None
 
 
-class OnnxEmbeddingClient:
+class OnnxRerankerClient:
     def __init__(
         self,
-        model_path: Path,
-        tokenizer_path: Path,
+        model_path: Any,
+        tokenizer_path: Any,
         *,
         session: Any | None = None,
         tokenizer: Any | None = None,
@@ -61,16 +58,15 @@ class OnnxEmbeddingClient:
                 raise RuntimeError("tokenizers ist nicht installiert.")
             self._tokenizer = Tokenizer.from_file(str(self.tokenizer_path))
 
-    def embed(self, texts: list[str]) -> list[list[float]]:
-        """Tokenizes `texts`, runs the ONNX session, mean-pools the last-hidden-
-        state output over non-padding tokens, and L2-normalizes each vector -
-        the standard sentence-embedding recipe used by BGE/MiniLM-style models.
+    def rerank(self, query: str, documents: list[str]) -> list[float]:
+        """Scores each document's relevance to `query`, one cross-encoder pass
+        per document, returned in the same order as `documents`.
         """
-        if not texts:
+        if not documents:
             return []
         self._ensure_loaded()
 
-        encodings = [self._tokenizer.encode(text) for text in texts]
+        encodings = [self._tokenizer.encode(query, document) for document in documents]
         sequence_length = min(self.max_sequence_length, max(len(encoding.ids) for encoding in encodings))
 
         input_ids: list[list[int]] = []
@@ -84,30 +80,18 @@ class OnnxEmbeddingClient:
 
         feed = build_input_feed(self._session, input_ids, attention_mask)
         outputs = self._session.run(None, feed)
-        last_hidden_state = outputs[0]  # shape: [batch, seq_len, hidden]
+        logits = outputs[0]  # shape: [batch, num_labels]
 
-        return [
-            _mean_pool_and_normalize(last_hidden_state[row_index], attention_mask[row_index])
-            for row_index in range(len(texts))
-        ]
+        return [_logits_to_score(logits[row_index]) for row_index in range(len(documents))]
 
 
-def _mean_pool_and_normalize(token_vectors: Any, mask: list[int]) -> list[float]:
-    hidden_size = len(token_vectors[0])
-    valid_count = sum(mask)
-    if valid_count == 0:
-        return [0.0] * hidden_size
-
-    summed = [0.0] * hidden_size
-    for token_index, flag in enumerate(mask):
-        if not flag:
-            continue
-        token_vector = token_vectors[token_index]
-        for dim in range(hidden_size):
-            summed[dim] += float(token_vector[dim])
-
-    pooled = [value / valid_count for value in summed]
-    norm = math.sqrt(sum(value * value for value in pooled))
-    if norm == 0:
-        return pooled
-    return [value / norm for value in pooled]
+def _logits_to_score(logits: Any) -> float:
+    values = [float(value) for value in logits]
+    if len(values) == 1:
+        return 1.0 / (1.0 + math.exp(-values[0]))
+    if len(values) == 2:
+        max_value = max(values)
+        exponents = [math.exp(value - max_value) for value in values]
+        total = sum(exponents)
+        return exponents[1] / total
+    return values[0]

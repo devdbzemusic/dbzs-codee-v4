@@ -4,15 +4,23 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.rag.embedding_service import EmbeddingService, get_embedding_service
 from app.rag.models import (
+    CohereRerankRequest,
+    CohereRerankResponse,
+    CohereRerankResult,
     EmbeddingCacheProbeBody,
     EmbeddingGenerateBody,
     EmbeddingGenerateResult,
     EmbeddingUpsertBody,
     IndexSyncRequest,
+    OpenAiEmbeddingItem,
+    OpenAiEmbeddingRequest,
+    OpenAiEmbeddingResponse,
+    OpenAiEmbeddingUsage,
     RetrievalQuery,
     TraceEventsBody,
 )
-from app.rag.service import get_rag_service
+from app.rag.reranker_service import RerankerService, get_reranker_service
+from app.rag.service import estimate_tokens, get_rag_service
 from app.rag.trace_service import TraceService
 
 router = APIRouter(tags=["rag"])
@@ -59,6 +67,48 @@ def generate_embeddings(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     dimensions = len(vectors[0]) if vectors else 0
     return EmbeddingGenerateResult(model_id=model_id, dimensions=dimensions, vectors=vectors)
+
+
+@router.post("/embeddings")
+def create_embeddings(
+    body: OpenAiEmbeddingRequest,
+    service: EmbeddingService = Depends(get_embedding_service),
+) -> OpenAiEmbeddingResponse:
+    """OpenAI-compatible embedding endpoint. Used by the desktop chat's RAG
+    flow (`embeddingService.ts`) - the `model` field is accepted but ignored,
+    the settings-configured default embedding model is always used instead
+    (see `EmbeddingService`).
+    """
+    try:
+        model_id, vectors = service.embed_texts(body.input)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    total_tokens = sum(estimate_tokens(text) for text in body.input)
+    return OpenAiEmbeddingResponse(
+        data=[OpenAiEmbeddingItem(index=index, embedding=vector) for index, vector in enumerate(vectors)],
+        model=model_id,
+        usage=OpenAiEmbeddingUsage(prompt_tokens=total_tokens, total_tokens=total_tokens),
+    )
+
+
+@router.post("/rerank")
+def rerank_documents(
+    body: CohereRerankRequest,
+    service: RerankerService = Depends(get_reranker_service),
+) -> CohereRerankResponse:
+    """Cohere-compatible rerank endpoint. Used by the desktop chat's RAG flow
+    (`embeddingService.ts`) - the `model` field is accepted but ignored, the
+    settings-configured default reranker model is always used instead (see
+    `RerankerService`).
+    """
+    try:
+        model_id, scores = service.rerank_documents(body.query, body.documents)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    ranked = sorted(range(len(scores)), key=lambda index: scores[index], reverse=True)
+    top_n = body.top_n if body.top_n is not None else len(ranked)
+    results = [CohereRerankResult(index=index, score=scores[index]) for index in ranked[:top_n]]
+    return CohereRerankResponse(results=results, model=model_id)
 
 
 @router.post("/rag/retrieve")

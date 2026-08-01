@@ -64,6 +64,56 @@ class EmbeddingGenerateResult(BaseModel):
     vectors: list[list[float]]
 
 
+class OpenAiEmbeddingRequest(BaseModel):
+    """OpenAI-compatible `/embeddings` request (`{model, input}`). `model` is
+    accepted for contract compatibility but ignored - the server always uses
+    the settings-configured default embedding model (see `EmbeddingService`).
+    """
+
+    model: str = ""
+    input: list[str] = Field(min_length=1)
+
+
+class OpenAiEmbeddingItem(BaseModel):
+    object: Literal["embedding"] = "embedding"
+    index: int
+    embedding: list[float]
+
+
+class OpenAiEmbeddingUsage(BaseModel):
+    prompt_tokens: int
+    total_tokens: int
+
+
+class OpenAiEmbeddingResponse(BaseModel):
+    object: Literal["list"] = "list"
+    data: list[OpenAiEmbeddingItem]
+    model: str
+    usage: OpenAiEmbeddingUsage
+
+
+class CohereRerankRequest(BaseModel):
+    """Cohere-compatible `/rerank` request. `model` is accepted for contract
+    compatibility but ignored - the server always uses the settings-configured
+    default reranker model (see `RerankerService`).
+    """
+
+    model: str = ""
+    query: str
+    documents: list[str] = Field(min_length=1)
+    top_n: int | None = None
+
+
+class CohereRerankResult(BaseModel):
+    index: int
+    score: float
+
+
+class CohereRerankResponse(BaseModel):
+    results: list[CohereRerankResult]
+    model: str
+
+
 class TraceEventBody(BaseModel):
     id: str
     message_id: str | None = None

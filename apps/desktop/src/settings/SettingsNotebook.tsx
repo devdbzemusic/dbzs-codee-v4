@@ -35,14 +35,18 @@ function isEmbeddingBundle(entry: ModelLabModel): boolean {
   return entry.bundle.capabilities.includes("embedding");
 }
 
-function isUsableEmbeddingBundle(entry: ModelLabModel): boolean {
+function isRerankingBundle(entry: ModelLabModel): boolean {
+  return entry.bundle.capabilities.includes("reranking");
+}
+
+function isUsableOnnxBundle(entry: ModelLabModel): boolean {
   const hasOnnxModel = entry.artifacts.some((artifact) => artifact.artifact_type === "model" && artifact.format === "onnx");
   const hasTokenizer = entry.artifacts.some((artifact) => artifact.artifact_type === "tokenizer");
   return hasOnnxModel && hasTokenizer;
 }
 
 function modelLabOptionLabel(entry: ModelLabModel): string {
-  const reason = isUsableEmbeddingBundle(entry) ? null : "kein .onnx + Tokenizer im Bundle";
+  const reason = isUsableOnnxBundle(entry) ? null : "kein .onnx + Tokenizer im Bundle";
   return [entry.bundle.name, reason].filter(Boolean).join(" · ");
 }
 
@@ -105,21 +109,45 @@ export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
       }));
   }, [modelIndex]);
 
-  const modelLabOptions = useMemo(() => {
+  const embeddingModelLabOptions = useMemo(() => {
     return modelLabModels
       .filter(isEmbeddingBundle)
       .sort((left, right) => {
-        const leftUsable = isUsableEmbeddingBundle(left) ? 0 : 1;
-        const rightUsable = isUsableEmbeddingBundle(right) ? 0 : 1;
+        const leftUsable = isUsableOnnxBundle(left) ? 0 : 1;
+        const rightUsable = isUsableOnnxBundle(right) ? 0 : 1;
         if (leftUsable !== rightUsable) return leftUsable - rightUsable;
         return left.bundle.name.localeCompare(right.bundle.name);
       })
       .map((entry) => ({
         id: entry.bundle.bundle_id,
         label: modelLabOptionLabel(entry),
-        disabled: !isUsableEmbeddingBundle(entry),
+        disabled: !isUsableOnnxBundle(entry),
       }));
   }, [modelLabModels]);
+
+  const rerankerModelLabOptions = useMemo(() => {
+    return modelLabModels
+      .filter(isRerankingBundle)
+      .sort((left, right) => {
+        const leftUsable = isUsableOnnxBundle(left) ? 0 : 1;
+        const rightUsable = isUsableOnnxBundle(right) ? 0 : 1;
+        if (leftUsable !== rightUsable) return leftUsable - rightUsable;
+        return left.bundle.name.localeCompare(right.bundle.name);
+      })
+      .map((entry) => ({
+        id: entry.bundle.bundle_id,
+        label: modelLabOptionLabel(entry),
+        disabled: !isUsableOnnxBundle(entry),
+      }));
+  }, [modelLabModels]);
+
+  const modelLabOptionsByKey = useMemo(
+    () => ({
+      defaultEmbeddingModelId: embeddingModelLabOptions,
+      defaultRerankerModelId: rerankerModelLabOptions,
+    }),
+    [embeddingModelLabOptions, rerankerModelLabOptions],
+  );
 
   const hits = useMemo(
     () =>
@@ -215,7 +243,7 @@ export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
             {activeTab === "models" && modelIndexError ? (
               <p className="text-[11px] text-dbzs-red">Modellindex: {modelIndexError}</p>
             ) : null}
-            <RegistrySettingsTab category={activeTab} modelLabOptions={modelLabOptions} modelOptions={modelOptions} />
+            <RegistrySettingsTab category={activeTab} modelLabOptionsByKey={modelLabOptionsByKey} modelOptions={modelOptions} />
           </div>
         )}
       </div>

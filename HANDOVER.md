@@ -2,6 +2,49 @@
 
 Stand: 2026-08-01
 
+## Plan 14, Phase 2 Fortsetzung: `/embeddings` + `/rerank` (echten Produktionsbug behoben + Reranking) (2026-08-01)
+
+Auftrag war "Reranking-Faehigkeit hinzufuegen". Die Recherche dafuer deckte einen wichtigeren, bereits
+realen Missstand auf: `apps/desktop/src/services/embeddingService.ts` — eine AELTERE, vom ONNX-Adapter
+(Phase 2 oben) komplett unabhaengige Implementierung — wird bereits **aktiv im Produktions-Chat-Flow**
+aufgerufen (`runtimeChatStore.ts`, hinter `hybridRetrievalEnabled`, Default `true`). Sie ruft
+`POST {backendUrl}/embeddings` (OpenAI-Vertrag) und ist fuer `POST {backendUrl}/rerank` (Cohere-Vertrag)
+vorbereitet — **beide Endpunkte existierten im Backend nicht**. Jeder RAG-Chat mit fehlenden Embeddings hat
+seit jeher lautlos auf rein lexikalisches Retrieval degradiert statt zu crashen (`rag/service.py` bleibt laut
+eigenem Kommentar "ohne Embedding-Modell vollstaendig funktionsfaehig"). Nutzerentscheidung: beides zusammen
+loesen, da strukturell dasselbe Problem und beide vom bestehenden ONNX-Adapter bedienbar.
+
+**Umgesetzt:**
+- `backend/app/rag/onnx_shared.py` (neu): `build_input_feed`/`as_int_array` aus `onnx_embedding_client.py`
+  extrahiert, plus `resolve_onnx_bundle_paths(repository, bundle_id)` — von beiden Clients/Services genutzt.
+- `backend/app/rag/onnx_reranker_client.py` (neu): `OnnxRerankerClient`, Cross-Encoder-Muster
+  (Query+Dokument als EIN Sequenzpaar tokenisiert, Logit->Score via Sigmoid bei 1 Label / Softmax-Index-1 bei
+  2 Labels), gleiches Injektions-Testmuster wie der Embedding-Client.
+- `backend/app/rag/reranker_service.py` (neu): loest `AppSettings.defaultRerankerModelId` (neues Feld) ueber
+  Model Lab auf, strukturelles Analog zu `EmbeddingService`.
+- `POST /embeddings` (OpenAI-kompatibel) und `POST /rerank` (Cohere-kompatibel) in `rag/router.py` — beide
+  ignorieren das vom Client gesendete `model`-Feld bewusst und nutzen immer das settings-konfigurierte
+  Standardmodell (Response gibt das TATSAECHLICH genutzte Modell zurueck). Grund: `embeddingService.ts`
+  waehlt Modelle ueber den Runtime-Modellindex (Dateiname-Filter) — ein anderer ID-Raum als Model Labs
+  Bundle-IDs. Reconciliation aller drei ID-Schemata war nicht Teil dieses Schritts.
+- Frontend: `defaultRerankerModelId`-Setting (neuer `model_lab_select`-Eintrag). `modelLabOptions`
+  (einzelne Liste) auf `modelLabOptionsByKey: Partial<Record<keyof AppSettings, Options[]>>` generalisiert
+  (`SettingField` -> `RegistrySettingsTab` -> `SettingsNotebook`), da jetzt zwei `model_lab_select`-Felder mit
+  unterschiedlichen Optionslisten existieren (Embedding- vs. Reranking-Bundles, gefiltert nach
+  `capabilities.includes("embedding"|"reranking")`).
+
+Verifikation: voller Backend-Testlauf 514/514 (+18 neue; zwei bereits vor diesem Schritt bestehende,
+themenfremde Tests — `test_model_profiles.py::test_profile_validation`,
+`test_residency_cache.py::test_sweep_idle_slots_evicts_utility_but_not_keep_resident` — haengen in dieser
+Sandbox unabhaengig von diesem Schritt bereits einzeln auf; bewusst deselektiert, nicht mein Regressionsschaden,
+siehe TODO unten). Voller Desktop-Vitest-Lauf 1361/1361, beide Typechecks clean.
+
+**Noch offen:** die zwei oben genannten haengenden Tests sind noch nicht diagnostiziert/gemeldet — sollten in
+einer eigenen, fokussierten Session untersucht werden (unklar ob Sandbox-spezifisch oder echter Bug). RAGs
+`retrieve()` automatisch `query_embedding` berechnen lassen (bleibt weiterhin offen, siehe Phase-2-Eintrag
+unten). Frontend-seitige Modell-Auswahl-Dropdowns in `embeddingService.ts` bleiben kosmetisch wirkungslos
+(bestehendes, nicht neu eingefuehrtes Problem — Server ignoriert das `model`-Feld).
+
 ## Plan 14, Phase 2: ONNX-Runtime-Adapter fuer Embeddings umgesetzt (2026-08-01)
 
 Erster Runtime-Adapter neben llama-server/Ollama (Nutzerentscheidung, obwohl in Phase 0 als "spekulativ,
