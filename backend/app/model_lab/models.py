@@ -17,7 +17,22 @@ ArtifactType = Literal[
     "support",
 ]
 ScanJobStatus = Literal["queued", "running", "completed", "failed"]
-ModelLabStatus = Literal["DISCOVERED", "IDENTIFIED", "INCOMPLETE", "UNSUPPORTED"]
+ModelLabStatus = Literal["DISCOVERED", "IDENTIFIED", "INCOMPLETE", "UNSUPPORTED", "BROKEN"]
+
+
+class ModelHealth(BaseModel):
+    status: Literal["healthy", "incomplete", "empty", "error", "unknown"] = "unknown"
+    model_type: str = "Unbekannt"
+    architecture: str | None = None
+    parameters: int | None = None
+    context_length: int | None = None
+    quantization: str | None = None
+    folder_size_bytes: int = 0
+    config_files: list[str] = Field(default_factory=list)
+    missing_critical: list[str] = Field(default_factory=list)
+    optional_missing: list[str] = Field(default_factory=list)
+    issues: list[str] = Field(default_factory=list)
+    config_preview: dict[str, Any] = Field(default_factory=dict)
 
 
 class ModelSourceCreate(BaseModel):
@@ -72,6 +87,11 @@ class ModelBundle(BaseModel):
     capabilities: list[str] = Field(default_factory=list)
     modalities: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
+    health: ModelHealth = Field(default_factory=ModelHealth)
+    tags: list[str] = Field(default_factory=list)
+    is_favorite: bool = False
+    notes: str = ""
+    collection_ids: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -116,4 +136,56 @@ class HardwareProfile(BaseModel):
     vram_bytes: int | None = None
     runtime_backend: str
     collected_at: datetime
+
+
+class ModelMetadataUpdate(BaseModel):
+    tags: list[str] = Field(default_factory=list)
+    is_favorite: bool = False
+    notes: str = ""
+
+
+class ModelCollectionCreate(BaseModel):
+    name: str
+    color: str = "#22D3EE"
+    description: str = ""
+
+
+class ModelCollection(ModelCollectionCreate):
+    id: str
+    created_at: datetime
+
+
+class CollectionMembershipRequest(BaseModel):
+    bundle_id: str
+
+
+class DuplicateGroup(BaseModel):
+    duplicate_key: str
+    model_count: int
+    total_size_bytes: int
+    bundles: list[ModelBundle]
+
+
+class HuggingFaceSearchResult(BaseModel):
+    id: str
+    pipeline: str = ""
+    downloads: int = 0
+    likes: int = 0
+    size_mb: int = 0
+    last_modified: str = ""
+    tags: list[str] = Field(default_factory=list)
+
+
+class HuggingFaceRepoFile(BaseModel):
+    name: str
+    size_bytes: int = 0
+
+
+class HuggingFaceRepoInfo(BaseModel):
+    id: str
+    pipeline: str = ""
+    tags: list[str] = Field(default_factory=list)
+    files: list[HuggingFaceRepoFile] = Field(default_factory=list)
+
+
 

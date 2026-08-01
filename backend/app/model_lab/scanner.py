@@ -10,6 +10,7 @@ import json
 import re
 from typing import Any
 
+from app.model_lab.analyzer import ModelLabAnalyzer
 from app.model_lab.models import ArtifactType, ModelArtifact, ModelBundle, ModelSource
 
 
@@ -37,6 +38,9 @@ class ScanOutput:
 
 
 class ModelLabScanner:
+    def __init__(self, analyzer: ModelLabAnalyzer | None = None) -> None:
+        self.analyzer = analyzer or ModelLabAnalyzer()
+
     def scan_source(self, source: ModelSource) -> ScanOutput:
         root = Path(source.path)
         paths = self._iter_candidate_paths(root, recursive=source.recursive, source=source)
@@ -156,6 +160,8 @@ class ModelLabScanner:
                 capabilities = sorted({capability for artifact in [primary, *matching_support] for capability in artifact.capabilities})
                 modalities = sorted({modality for artifact in [primary, *matching_support] for modality in artifact.modalities})
                 evidence = _bundle_evidence(primary, matching_support)
+                health = self.analyzer.analyze_directory(Path(primary.parent_path))
+                status = _bundle_status_from_health(health.status)
                 bundles.append(
                     ModelBundle(
                         bundle_id=_bundle_id(artifact_ids),
@@ -163,10 +169,11 @@ class ModelLabScanner:
                         primary_artifact_id=primary.artifact_id,
                         artifact_ids=artifact_ids,
                         source_ids=sorted({artifact.source_id for artifact in [primary, *matching_support]}),
-                        status="IDENTIFIED",
+                        status=status,
                         capabilities=capabilities,
                         modalities=modalities,
                         evidence=evidence,
+                        health=health,
                         created_at=now,
                         updated_at=now,
                     )
@@ -300,3 +307,13 @@ def _bundle_evidence(primary: ModelArtifact, support: list[ModelArtifact]) -> li
     if any(item.artifact_type == "mmproj" for item in support):
         evidence.append("same_folder_projection_model")
     return evidence
+
+
+def _bundle_status_from_health(status: str) -> str:
+    if status == "healthy":
+        return "IDENTIFIED"
+    if status in {"incomplete", "empty"}:
+        return "INCOMPLETE"
+    if status == "error":
+        return "BROKEN"
+    return "DISCOVERED"

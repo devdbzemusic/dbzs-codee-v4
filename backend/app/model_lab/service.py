@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from app.model_lab.models import HardwareProfile, ModelLabModel, ModelSource, ModelSourceCreate, ScanJob, ScanResult
+from app.model_lab.hf_integration import HuggingFaceModelService
+from app.model_lab.models import DuplicateGroup, HardwareProfile, HuggingFaceRepoInfo, HuggingFaceSearchResult, ModelBundle, ModelCollection, ModelCollectionCreate, ModelLabModel, ModelMetadataUpdate, ModelSource, ModelSourceCreate, ScanJob, ScanResult
 from app.model_lab.repository import ModelLabRepository
 from app.model_lab.scanner import ModelLabScanner
 from app.runtime.gpu_detect import detect_gpu
@@ -15,9 +16,11 @@ class ModelLabService:
         self,
         repository: ModelLabRepository | None = None,
         scanner: ModelLabScanner | None = None,
+        hf_service: HuggingFaceModelService | None = None,
     ) -> None:
         self.repository = repository or ModelLabRepository()
         self.scanner = scanner or ModelLabScanner()
+        self.hf_service = hf_service or HuggingFaceModelService()
 
     def create_source(self, request: ModelSourceCreate) -> ModelSource:
         source_path = Path(request.path).expanduser()
@@ -78,6 +81,32 @@ class ModelLabService:
 
     def get_model(self, bundle_id: str) -> ModelLabModel | None:
         return self.repository.get_model(bundle_id)
+
+    def update_model_metadata(self, bundle_id: str, update: ModelMetadataUpdate) -> ModelBundle:
+        return self.repository.update_model_metadata(bundle_id, update)
+
+    def list_collections(self) -> list[ModelCollection]:
+        return self.repository.list_collections()
+
+    def create_collection(self, request: ModelCollectionCreate) -> ModelCollection:
+        if not request.name.strip():
+            raise ValueError("Collection-Name fehlt.")
+        return self.repository.create_collection(request)
+
+    def add_to_collection(self, collection_id: str, bundle_id: str) -> None:
+        self.repository.add_to_collection(collection_id, bundle_id)
+
+    def remove_from_collection(self, collection_id: str, bundle_id: str) -> None:
+        self.repository.remove_from_collection(collection_id, bundle_id)
+
+    def find_duplicates(self) -> list[DuplicateGroup]:
+        return self.repository.find_duplicates()
+
+    def search_huggingface(self, query: str, *, category: str = "", limit: int = 25) -> list[HuggingFaceSearchResult]:
+        return self.hf_service.search_models(query, category=category, limit=limit)
+
+    def get_huggingface_repo_info(self, repo_id: str, *, revision: str | None = None) -> HuggingFaceRepoInfo | None:
+        return self.hf_service.get_repo_info(repo_id, revision=revision)
 
     def collect_hardware(self) -> HardwareProfile:
         gpu = detect_gpu()

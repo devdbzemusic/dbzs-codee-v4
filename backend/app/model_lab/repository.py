@@ -8,10 +8,11 @@ import uuid
 
 from app.core.config import get_app_data_dir
 from app.core.sqlite import sqlite_connection
-from app.model_lab.models import ModelArtifact, ModelBundle, ModelLabModel, ModelSource, ModelSourceCreate, ScanJob
+from app.model_lab.analyzer import duplicate_key
+from app.model_lab.models import DuplicateGroup, ModelArtifact, ModelBundle, ModelCollection, ModelCollectionCreate, ModelLabModel, ModelMetadataUpdate, ModelSource, ModelSourceCreate, ScanJob
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class ModelLabRepository:
@@ -87,11 +88,36 @@ class ModelLabRepository:
                     capabilities TEXT NOT NULL,
                     modalities TEXT NOT NULL,
                     evidence TEXT NOT NULL,
+                    health TEXT NOT NULL DEFAULT '{}',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS model_metadata (
+                    bundle_id TEXT PRIMARY KEY,
+                    tags TEXT NOT NULL DEFAULT '[]',
+                    is_favorite INTEGER NOT NULL DEFAULT 0,
+                    notes TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS model_collections (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL UNIQUE,
+                    color TEXT NOT NULL DEFAULT '#22D3EE',
+                    description TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS model_collection_members (
+                    collection_id TEXT NOT NULL,
+                    bundle_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (collection_id, bundle_id),
+                    FOREIGN KEY (collection_id) REFERENCES model_collections(id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_model_collection_members_bundle ON model_collection_members(bundle_id);
                 """
             )
+            _ensure_column(conn, "model_bundles", "health", "TEXT NOT NULL DEFAULT '{}'")
             conn.execute(
                 "INSERT OR REPLACE INTO schema_info (key, value) VALUES ('model_lab_schema_version', ?)",
                 (str(SCHEMA_VERSION),),
@@ -220,8 +246,8 @@ class ModelLabRepository:
                     """
                     INSERT INTO model_bundles (
                         bundle_id, name, primary_artifact_id, artifact_ids, source_ids,
-                        status, capabilities, modalities, evidence, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        status, capabilities, modalities, evidence, health, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(bundle_id) DO UPDATE SET
                         name=excluded.name,
                         primary_artifact_id=excluded.primary_artifact_id,
@@ -231,6 +257,7 @@ class ModelLabRepository:
                         capabilities=excluded.capabilities,
                         modalities=excluded.modalities,
                         evidence=excluded.evidence,
+                        health=excluded.health,
                         updated_at=excluded.updated_at
                     """,
                     _bundle_params(bundle),
@@ -289,13 +316,22 @@ class ModelLabRepository:
         with sqlite_connection(self.db_path) as conn:
             bundle_rows = conn.execute("SELECT * FROM model_bundles ORDER BY name").fetchall()
             artifact_rows = conn.execute("SELECT * FROM model_artifacts ORDER BY detected_name").fetchall()
+            metadata_by_bundle = _metadata_by_bundle(conn)
+            collections_by_bundle = _collections_by_bundle(conn)
         artifacts = [_artifact_from_row(row) for row in artifact_rows]
         by_bundle: dict[str, list[ModelArtifact]] = {}
         for artifact in artifacts:
             if artifact.bundle_id:
                 by_bundle.setdefault(artifact.bundle_id, []).append(artifact)
         return [
-            ModelLabModel(bundle=_bundle_from_row(row), artifacts=by_bundle.get(str(row["bundle_id"]), []))
+            ModelLabModel(
+                bundle=_bundle_from_row(
+                    row,
+                    metadata=metadata_by_bundle.get(str(row["bundle_id"])),
+                    collection_ids=collections_by_bundle.get(str(row["bundle_id"]), []),
+                ),
+                artifacts=by_bundle.get(str(row["bundle_id"]), []),
+            )
             for row in bundle_rows
         ]
 
@@ -308,7 +344,116 @@ class ModelLabRepository:
                 "SELECT * FROM model_artifacts WHERE bundle_id = ? ORDER BY artifact_type, detected_name",
                 (bundle_id,),
             ).fetchall()
-        return ModelLabModel(bundle=_bundle_from_row(bundle_row), artifacts=[_artifact_from_row(row) for row in artifact_rows])
+            metadata_by_bundle = _metadata_by_bundle(conn)
+            collections_by_bundle = _collections_by_bundle(conn)
+        return ModelLabModel(
+            bundle=_bundle_from_row(
+                bundle_row,
+                metadata=metadata_by_bundle.get(bundle_id),
+                collection_ids=collections_by_bundle.get(bundle_id, []),
+            ),
+            artifacts=[_artifact_from_row(row) for row in artifact_rows],
+        )
+
+    def update_model_metadata(self, bundle_id: str, update: ModelMetadataUpdate) -> ModelBundle:
+        if self.get_model(bundle_id) is None:
+            raise ValueError(f"Model bundle nicht gefunden: {bundle_id}")
+        now = datetime.now(UTC)
+        with sqlite_connection(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO model_metadata(bundle_id, tags, is_favorite, notes, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(bundle_id) DO UPDATE SET
+                    tags = excluded.tags,
+                    is_favorite = excluded.is_favorite,
+                    notes = excluded.notes,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    bundle_id,
+                    json.dumps(sorted({tag.strip() for tag in update.tags if tag.strip()}), sort_keys=True),
+                    int(update.is_favorite),
+                    update.notes,
+                    _dt(now),
+                    _dt(now),
+                ),
+            )
+        model = self.get_model(bundle_id)
+        if model is None:
+            raise ValueError(f"Model bundle nicht gefunden: {bundle_id}")
+        return model.bundle
+
+    def list_collections(self) -> list[ModelCollection]:
+        with sqlite_connection(self.db_path) as conn:
+            rows = conn.execute("SELECT * FROM model_collections ORDER BY name").fetchall()
+        return [_collection_from_row(row) for row in rows]
+
+    def create_collection(self, request: ModelCollectionCreate) -> ModelCollection:
+        now = datetime.now(UTC)
+        collection = ModelCollection(
+            id=uuid.uuid4().hex,
+            name=request.name.strip(),
+            color=request.color,
+            description=request.description,
+            created_at=now,
+        )
+        with sqlite_connection(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO model_collections(id, name, color, description, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(name) DO UPDATE SET
+                    color = excluded.color,
+                    description = excluded.description
+                """,
+                (collection.id, collection.name, collection.color, collection.description, _dt(collection.created_at)),
+            )
+            row = conn.execute("SELECT * FROM model_collections WHERE name = ?", (collection.name,)).fetchone()
+        return _collection_from_row(row)
+
+    def add_to_collection(self, collection_id: str, bundle_id: str) -> None:
+        if self.get_model(bundle_id) is None:
+            raise ValueError(f"Model bundle nicht gefunden: {bundle_id}")
+        now = datetime.now(UTC)
+        with sqlite_connection(self.db_path, foreign_keys=True) as conn:
+            collection = conn.execute("SELECT id FROM model_collections WHERE id = ?", (collection_id,)).fetchone()
+            if collection is None:
+                raise ValueError(f"Collection nicht gefunden: {collection_id}")
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO model_collection_members(collection_id, bundle_id, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (collection_id, bundle_id, _dt(now)),
+            )
+
+    def remove_from_collection(self, collection_id: str, bundle_id: str) -> None:
+        with sqlite_connection(self.db_path) as conn:
+            conn.execute(
+                "DELETE FROM model_collection_members WHERE collection_id = ? AND bundle_id = ?",
+                (collection_id, bundle_id),
+            )
+
+    def find_duplicates(self) -> list[DuplicateGroup]:
+        models = self.list_models()
+        groups: dict[str, list[ModelBundle]] = {}
+        for model in models:
+            key = duplicate_key(model.bundle.name, model.bundle.health.folder_size_bytes)
+            groups.setdefault(key, []).append(model.bundle)
+        duplicates = []
+        for key, bundles in groups.items():
+            if len(bundles) < 2:
+                continue
+            duplicates.append(
+                DuplicateGroup(
+                    duplicate_key=key,
+                    model_count=len(bundles),
+                    total_size_bytes=sum(bundle.health.folder_size_bytes for bundle in bundles),
+                    bundles=bundles,
+                )
+            )
+        return sorted(duplicates, key=lambda group: (-group.total_size_bytes, group.duplicate_key))
 
 
 def _source_from_row(row: sqlite3.Row) -> ModelSource:
@@ -369,7 +514,13 @@ def _artifact_from_row(row: sqlite3.Row) -> ModelArtifact:
     )
 
 
-def _bundle_from_row(row: sqlite3.Row) -> ModelBundle:
+def _bundle_from_row(
+    row: sqlite3.Row,
+    *,
+    metadata: dict[str, object] | None = None,
+    collection_ids: list[str] | None = None,
+) -> ModelBundle:
+    metadata = metadata or {}
     return ModelBundle(
         bundle_id=row["bundle_id"],
         name=row["name"],
@@ -380,6 +531,11 @@ def _bundle_from_row(row: sqlite3.Row) -> ModelBundle:
         capabilities=json.loads(row["capabilities"]),
         modalities=json.loads(row["modalities"]),
         evidence=json.loads(row["evidence"]),
+        health=json.loads(row["health"] or "{}"),
+        tags=list(metadata.get("tags", [])),
+        is_favorite=bool(metadata.get("is_favorite", False)),
+        notes=str(metadata.get("notes", "")),
+        collection_ids=collection_ids or [],
         created_at=_parse_dt(row["created_at"]),
         updated_at=_parse_dt(row["updated_at"]),
     )
@@ -420,9 +576,46 @@ def _bundle_params(bundle: ModelBundle) -> tuple[object, ...]:
         json.dumps(bundle.capabilities, sort_keys=True),
         json.dumps(bundle.modalities, sort_keys=True),
         json.dumps(bundle.evidence, sort_keys=True),
+        json.dumps(bundle.health.model_dump(mode="json"), sort_keys=True),
         _dt(bundle.created_at),
         _dt(bundle.updated_at),
     )
+
+
+def _metadata_by_bundle(conn: sqlite3.Connection) -> dict[str, dict[str, object]]:
+    rows = conn.execute("SELECT bundle_id, tags, is_favorite, notes FROM model_metadata").fetchall()
+    return {
+        str(row["bundle_id"]): {
+            "tags": json.loads(row["tags"] or "[]"),
+            "is_favorite": bool(row["is_favorite"]),
+            "notes": row["notes"] or "",
+        }
+        for row in rows
+    }
+
+
+def _collections_by_bundle(conn: sqlite3.Connection) -> dict[str, list[str]]:
+    rows = conn.execute("SELECT bundle_id, collection_id FROM model_collection_members").fetchall()
+    result: dict[str, list[str]] = {}
+    for row in rows:
+        result.setdefault(str(row["bundle_id"]), []).append(str(row["collection_id"]))
+    return result
+
+
+def _collection_from_row(row: sqlite3.Row) -> ModelCollection:
+    return ModelCollection(
+        id=str(row["id"]),
+        name=str(row["name"]),
+        color=str(row["color"]),
+        description=str(row["description"] or ""),
+        created_at=_parse_dt(row["created_at"]),
+    )
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {str(row["name"]) for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def _dt(value: datetime) -> str:
