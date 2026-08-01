@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IndexedModel } from "@dbzs/shared";
-import { isRunnableModel } from "./modelUtils";
+import { describeExclusionReason, isRunnableModel, isUnprofiled } from "./modelUtils";
 
 const runnableBaseModel: IndexedModel = {
   id: "coder",
@@ -43,6 +43,58 @@ describe("isRunnableModel", () => {
         compatibility: "llama_server_ready",
         capabilities: ["vision"],
         modality: ["image"]
+      })
+    ).toBe(false);
+  });
+});
+
+describe("describeExclusionReason", () => {
+  it("returns null for a runnable model", () => {
+    expect(describeExclusionReason(runnableBaseModel)).toBeNull();
+  });
+
+  it("explains a missing-file compatibility state", () => {
+    expect(
+      describeExclusionReason({ ...runnableBaseModel, compatibility: "llama_server_missing_file" })
+    ).toBe("Datei nicht mehr am erwarteten Pfad gefunden");
+  });
+
+  it("explains an unready ollama candidate", () => {
+    expect(describeExclusionReason({ ...runnableBaseModel, compatibility: "ollama_candidate" })).toBe(
+      "Ollama-Modell noch nicht als bereit erkannt (Health-Status unbekannt)"
+    );
+  });
+
+  it("explains a non-model support artifact", () => {
+    expect(
+      describeExclusionReason({ ...runnableBaseModel, artifact_type: "mmproj", compatibility: "support_artifact" })
+    ).toBe("Hilfsartefakt (kein eigenständiges Modell) - kein direkter Start möglich");
+  });
+
+  it("falls back to a generic message with the raw compatibility value", () => {
+    expect(describeExclusionReason({ ...runnableBaseModel, compatibility: "something_new" })).toBe(
+      "Nicht startbar (Kompatibilitätsstatus: something_new)"
+    );
+  });
+});
+
+describe("isUnprofiled", () => {
+  it("is false when gpu_layers is already set", () => {
+    expect(isUnprofiled(runnableBaseModel)).toBe(false);
+  });
+
+  it("is true for a runnable model with no gpu_layers recorded yet", () => {
+    expect(
+      isUnprofiled({ ...runnableBaseModel, runtime: { ...runnableBaseModel.runtime, gpu_layers: null } })
+    ).toBe(true);
+  });
+
+  it("is false for a non-runnable model even without gpu_layers", () => {
+    expect(
+      isUnprofiled({
+        ...runnableBaseModel,
+        compatibility: "external_runtime_required",
+        runtime: { ...runnableBaseModel.runtime, gpu_layers: null }
       })
     ).toBe(false);
   });

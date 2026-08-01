@@ -34,8 +34,9 @@
  *   kommen weiterhin aus den Helpern bzw. dem Controller.
  */
 
+import { useState } from "react";
 import { formatModelSizeBadge, type IndexedModel, type MultimodalPair, type RuntimeStatus } from "@dbzs/shared";
-import { isRunnableModel } from "@/utils/modelUtils";
+import { describeExclusionReason, isUnprofiled } from "@/utils/modelUtils";
 import {
   defaultPairingSelection,
   describeBaseModelSelection,
@@ -97,19 +98,27 @@ export function StartableModelRow({
   status,
   runtimeBusy,
   startModel,
-  stopModel
+  stopModel,
+  autoTuneModel,
+  tuningInProgress,
+  tuningFeedback
 }: {
   model: IndexedModel;
   multimodalPairs: MultimodalPair[];
   status: RuntimeStatus | null;
   runtimeBusy: boolean;
-  startModel: (modelId: string) => Promise<void>;
+  startModel: (modelId: string, profile?: string) => Promise<void>;
   stopModel: () => Promise<void>;
+  autoTuneModel: (modelId: string) => Promise<void>;
+  tuningInProgress: boolean;
+  tuningFeedback?: string;
 }) {
   const { canStart, canStop, isActive } = modelRowActionState(model, status, runtimeBusy);
   const rowStatus = describeModelRowStatus(model, status, runtimeBusy);
   const capabilityLabels = describeModelCapabilities(model);
   const routingReadiness = describeModelRoutingReadiness(model, multimodalPairs);
+  const [selectedProfile, setSelectedProfile] = useState("balanced");
+  const showProfileSelect = isUnprofiled(model);
 
   return (
     <tr className={`border-b border-dbzs-border/50 ${isActive ? "bg-dbzs-cyan/5" : ""}`}>
@@ -135,7 +144,14 @@ export function StartableModelRow({
         <ToneBadge tone={launcherTone(model.runtime_launcher)}>{formatLauncherLabel(model.runtime_launcher)}</ToneBadge>
       </td>
       <td className="px-2 py-2 text-dbzs-muted">
-        <ToneBadge tone={compatibilityTone(model.compatibility)}>{formatCompatibilityLabel(model.compatibility)}</ToneBadge>
+        <div className="flex flex-wrap items-center gap-1">
+          <ToneBadge tone={compatibilityTone(model.compatibility)}>{formatCompatibilityLabel(model.compatibility)}</ToneBadge>
+          {isUnprofiled(model) ? (
+            <ToneBadge title="Noch nicht getestet - laeuft standardmaessig ohne GPU-Layer (CPU-only)" tone="warn">
+              Ungetestet (GPU)
+            </ToneBadge>
+          ) : null}
+        </div>
       </td>
       <td className="px-2 py-2 text-dbzs-muted">
         <div className="flex max-w-[220px] flex-col gap-0.5">
@@ -147,25 +163,53 @@ export function StartableModelRow({
       </td>
       <td className="px-2 py-2 text-dbzs-muted">{model.size_bytes > 0 ? formatModelSizeBadge(model.size_bytes) : "-"}</td>
       <td className="px-2 py-2">
-        <div className="flex justify-end gap-1">
-          <button
-            className="border border-dbzs-cyan/50 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
-            disabled={!canStart}
-            onClick={() => void startModel(model.id)}
-            title={isRunnableModel(model) ? "Modell laden" : "Modell nicht startbar"}
-            type="button"
-          >
-            Laden
-          </button>
-          <button
-            className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-muted disabled:opacity-40"
-            disabled={!canStop}
-            onClick={() => void stopModel()}
-            title="Modell stoppen"
-            type="button"
-          >
-            Stoppen
-          </button>
+        <div className="flex flex-col items-end gap-1">
+          {showProfileSelect ? (
+            <select
+              className="border border-dbzs-border bg-dbzs-bg px-1 py-0.5 text-[9px] text-dbzs-muted"
+              onChange={(event) => setSelectedProfile(event.target.value)}
+              title="Tuning-Profil fuer den Start (Standard: balanced)"
+              value={selectedProfile}
+            >
+              <option value="balanced">Ausgewogen</option>
+              <option value="fast">Schnell (weniger Context)</option>
+              <option value="large_context">Grosser Context</option>
+              <option value="hybrid">Hybrid (CPU+GPU)</option>
+              <option value="cpu_safe">Nur CPU</option>
+            </select>
+          ) : null}
+          <div className="flex justify-end gap-1">
+            <button
+              className="border border-dbzs-cyan/50 bg-dbzs-cyan/10 px-2 py-1 text-[10px] text-dbzs-cyan disabled:opacity-40"
+              disabled={!canStart}
+              onClick={() => void startModel(model.id, showProfileSelect ? selectedProfile : undefined)}
+              title={describeExclusionReason(model) ?? "Modell laden"}
+              type="button"
+            >
+              Laden
+            </button>
+            <button
+              className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[10px] text-dbzs-muted disabled:opacity-40"
+              disabled={!canStop}
+              onClick={() => void stopModel()}
+              title="Modell stoppen"
+              type="button"
+            >
+              Stoppen
+            </button>
+          </div>
+          {showProfileSelect ? (
+            <button
+              className="border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[10px] text-amber-300 disabled:opacity-40"
+              disabled={tuningInProgress || runtimeBusy}
+              onClick={() => void autoTuneModel(model.id)}
+              title="Startet das Modell testweise, um sichere GPU-Layer-Werte zu ermitteln"
+              type="button"
+            >
+              {tuningInProgress ? "Tunt..." : "Jetzt tunen"}
+            </button>
+          ) : null}
+          {tuningFeedback ? <span className="max-w-[220px] text-right text-[9px] text-dbzs-muted">{tuningFeedback}</span> : null}
         </div>
       </td>
     </tr>

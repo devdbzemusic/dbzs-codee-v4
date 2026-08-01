@@ -280,4 +280,59 @@ describe("useRuntimeModelsTabController", () => {
       ])
     );
   });
+
+  it("autoTuneModel probes the given model without a projector and reloads the index on success", async () => {
+    const loadModelIndex = vi.fn(async () => {});
+    useModelIndexStore.setState((state) => ({ ...state, loadModelIndex }));
+    vi.mocked(backendClient.probeRuntimeModel).mockResolvedValue({
+      allowed: true,
+      message: "Probe ok",
+      stderr_tail: "",
+      stdout_tail: ""
+    });
+
+    const { result } = renderHook(() => useRuntimeModelsTabController());
+
+    await act(async () => {
+      await result.current.autoTuneModel("base-2");
+    });
+
+    expect(backendClient.probeRuntimeModel).toHaveBeenCalledWith({ allow_start: true, model_id: "base-2" });
+    expect(loadModelIndex).toHaveBeenCalledOnce();
+    expect(result.current.tuningInProgress["base-2"]).toBe(false);
+    expect(result.current.tuningFeedback["base-2"]).toBe("Tuning abgeschlossen - Modell wurde getestet.");
+  });
+
+  it("autoTuneModel surfaces the backend message without reloading when the probe disallows starting", async () => {
+    const loadModelIndex = vi.fn(async () => {});
+    useModelIndexStore.setState((state) => ({ ...state, loadModelIndex }));
+    vi.mocked(backendClient.probeRuntimeModel).mockResolvedValue({
+      allowed: false,
+      message: "Runtime slot busy",
+      stderr_tail: "",
+      stdout_tail: ""
+    });
+
+    const { result } = renderHook(() => useRuntimeModelsTabController());
+
+    await act(async () => {
+      await result.current.autoTuneModel("base-2");
+    });
+
+    expect(loadModelIndex).not.toHaveBeenCalled();
+    expect(result.current.tuningFeedback["base-2"]).toBe("Runtime slot busy");
+  });
+
+  it("autoTuneModel surfaces a message when the probe call throws", async () => {
+    vi.mocked(backendClient.probeRuntimeModel).mockRejectedValue(new Error("Netzwerkfehler"));
+
+    const { result } = renderHook(() => useRuntimeModelsTabController());
+
+    await act(async () => {
+      await result.current.autoTuneModel("base-2");
+    });
+
+    expect(result.current.tuningInProgress["base-2"]).toBe(false);
+    expect(result.current.tuningFeedback["base-2"]).toBe("Netzwerkfehler");
+  });
 });

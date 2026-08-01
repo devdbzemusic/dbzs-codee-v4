@@ -35,6 +35,8 @@ export function useRuntimeModelsTabController() {
   const [pairingFeedback, setPairingFeedback] = useState<Record<string, string>>({});
   const [pairingOutcome, setPairingOutcome] = useState<Record<string, ProbeOutcomeSummary>>({});
   const [pairingEvidence, setPairingEvidence] = useState<Record<string, ProbeEvidenceItem[]>>({});
+  const [tuningInProgress, setTuningInProgress] = useState<Record<string, boolean>>({});
+  const [tuningFeedback, setTuningFeedback] = useState<Record<string, string>>({});
   const backendOnline = backendHealth?.status === "ok";
   const models = index?.models ?? [];
   const supportArtifacts = index?.support_artifacts ?? models.filter((model) => model.artifact_type !== "model");
@@ -166,6 +168,31 @@ export function useRuntimeModelsTabController() {
     }
   };
 
+  const autoTuneModel = async (modelId: string) => {
+    if (!backendClient.probeRuntimeModel) {
+      setTuningFeedback((current) => ({ ...current, [modelId]: "Auto-Tuning ist nicht verfuegbar." }));
+      return;
+    }
+    setTuningInProgress((current) => ({ ...current, [modelId]: true }));
+    setTuningFeedback((current) => ({ ...current, [modelId]: "" }));
+    try {
+      const response = await backendClient.probeRuntimeModel({ allow_start: true, model_id: modelId });
+      if (response.allowed) {
+        await loadModelIndex();
+        setTuningFeedback((current) => ({ ...current, [modelId]: "Tuning abgeschlossen - Modell wurde getestet." }));
+      } else {
+        setTuningFeedback((current) => ({ ...current, [modelId]: response.message || "Tuning nicht moeglich." }));
+      }
+    } catch (error) {
+      setTuningFeedback((current) => ({
+        ...current,
+        [modelId]: error instanceof Error ? error.message : "Auto-Tuning fehlgeschlagen."
+      }));
+    } finally {
+      setTuningInProgress((current) => ({ ...current, [modelId]: false }));
+    }
+  };
+
   const pairingUi: PairingUiController = {
     pairingSelections,
     onSelectionChange,
@@ -179,6 +206,7 @@ export function useRuntimeModelsTabController() {
   };
 
   return {
+    autoTuneModel,
     backendOnline,
     index,
     indexError,
@@ -207,6 +235,8 @@ export function useRuntimeModelsTabController() {
     supportArtifactsById,
     modelRoleSummary,
     modelRoutingSummary,
+    tuningFeedback,
+    tuningInProgress,
     visibleSupportArtifacts
   };
 }

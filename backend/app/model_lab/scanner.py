@@ -10,6 +10,7 @@ import json
 import re
 from typing import Any
 
+from app.core.gguf_metadata import read_gguf_metadata
 from app.model_lab.analyzer import ModelLabAnalyzer
 from app.model_lab.models import ArtifactType, ModelArtifact, ModelBundle, ModelSource
 
@@ -96,6 +97,15 @@ class ModelLabScanner:
         artifact_type = self._infer_artifact_type(path)
         detected_name = _detected_name(path)
         metadata = _read_lightweight_metadata(path, artifact_type)
+        gguf_metadata = read_gguf_metadata(path) if path.suffix.lower() == ".gguf" else None
+        quantization = (gguf_metadata.quantization if gguf_metadata else None) or _infer_quantization(path.name)
+        if gguf_metadata is not None:
+            if gguf_metadata.architecture:
+                metadata["gguf_architecture"] = gguf_metadata.architecture
+            if gguf_metadata.context_length:
+                metadata["gguf_context_length"] = gguf_metadata.context_length
+            if gguf_metadata.block_count:
+                metadata["gguf_block_count"] = gguf_metadata.block_count
         return ModelArtifact(
             artifact_id=sha256,
             installation_id=_installation_id(path),
@@ -108,7 +118,7 @@ class ModelLabScanner:
             artifact_type=artifact_type,
             size_bytes=path.stat().st_size,
             sha256=sha256,
-            quantization=_infer_quantization(path.name),
+            quantization=quantization,
             capabilities=_infer_capabilities(path, artifact_type, metadata),
             modalities=_infer_modalities(path, artifact_type, metadata),
             metadata=metadata,

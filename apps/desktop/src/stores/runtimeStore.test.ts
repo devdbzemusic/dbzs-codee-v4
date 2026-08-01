@@ -71,8 +71,14 @@ describe("useRuntimeStore", () => {
   it("starts a selected runtime model", async () => {
     await useRuntimeStore.getState().startModel("coder");
 
-    expect(window.dbzs.startRuntimeModel).toHaveBeenCalledWith("coder");
+    expect(window.dbzs.startRuntimeModel).toHaveBeenCalledWith("coder", undefined);
     expect(useRuntimeStore.getState().status?.state).toBe("running");
+  });
+
+  it("forwards an explicit tuning profile when starting a model", async () => {
+    await useRuntimeStore.getState().startModel("coder", "large_context");
+
+    expect(window.dbzs.startRuntimeModel).toHaveBeenCalledWith("coder", "large_context");
   });
 
   it("stops the runtime", async () => {

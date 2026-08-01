@@ -129,10 +129,10 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
       })
   );
   ipcMain.handle("dbzs:runtime:status", () => requestBackend("/runtime/status"));
-  ipcMain.handle("dbzs:runtime:start", (_event, modelId: string) =>
+  ipcMain.handle("dbzs:runtime:start", (_event, modelId: string, profile?: string) =>
     requestBackend("/runtime/start", {
       method: "POST",
-      body: JSON.stringify({ model_id: modelId })
+      body: JSON.stringify({ model_id: modelId, ...(profile ? { profile } : {}) })
     })
   );
   ipcMain.handle("dbzs:runtime:stop", () =>

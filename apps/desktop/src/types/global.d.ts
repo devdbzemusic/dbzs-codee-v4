@@ -294,7 +294,7 @@ declare global {
       ) => Promise<import("@dbzs/shared").ModelLabHuggingFaceRepoInfo>;
       getModelLabHardware?: () => Promise<import("@dbzs/shared").ModelLabHardwareProfile>;
       getRuntimeStatus: () => Promise<RuntimeStatus>;
-      startRuntimeModel: (modelId: string) => Promise<RuntimeStatus>;
+      startRuntimeModel: (modelId: string, profile?: string) => Promise<RuntimeStatus>;
       stopRuntimeModel: () => Promise<RuntimeStatus>;
       sendRuntimeChat: (request: RuntimeChatRequest, requestId?: string) => Promise<RuntimeChatResponse>;
       streamRuntimeChat?: (

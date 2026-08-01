@@ -44,6 +44,12 @@ class IndexedModel(BaseModel):
     recommended_use: RecommendedUse
     compatibility: str
     runtime: ModelRuntimeHints
+    # Additive overlay from Model Lab (backend/app/model_lab/), when a Model Lab
+    # source/scan has richer health data for this exact file path (Plan 14,
+    # Phase 0.2). None/empty when Model Lab has no matching entry - the runtime
+    # index remains fully usable without Model Lab ever being initialized.
+    model_lab_health_status: str | None = None
+    model_lab_tags: list[str] = Field(default_factory=list)
 
 
 class MultimodalPair(BaseModel):

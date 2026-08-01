@@ -12,6 +12,9 @@ OnIndexProgress = Callable[[int, int], None]
 OnIndexModelError = Callable[[str, Exception], None]
 
 from app.core.config import get_app_data_dir, get_models_dir, get_ollama_dir, get_ollama_models_dir
+from app.core.gguf_metadata import read_gguf_metadata
+from app.model_lab.repository import ModelLabRepository
+from app.models.model_lab_bridge import additional_scan_roots, enrich_with_model_lab_health
 # from app.models.index_service import ModelIndexService  # Zirkulärer Import entfernt
 from app.models.launcher import normalize_launcher
 from app.models.schemas import IndexedModel, ModelIndex, ModelIndexSummary, ModelRuntimeHints, MultimodalPair, RecommendedUse
@@ -43,7 +46,7 @@ FUNCTIONGEMMA_DEFAULT_PROFILE: dict[str, Any] = {
 }
 
 MODEL_INDEX_CACHE_SCHEMA_VERSION = 1
-MODEL_INDEX_CACHE_METADATA_VERSION = 1
+MODEL_INDEX_CACHE_METADATA_VERSION = 2  # bumped: real GGUF header parsing (Plan 14, Phase 0.1)
 MODEL_INDEX_CACHE_HEADER_BYTES = 4096
 GGUF_MAGIC = b"GGUF"
 
@@ -85,6 +88,7 @@ class ModelIndexService:
         ollama_models_dir: Path | None = None,
         cache_dir: Path | None = None,
         discovery_mode: ModelDiscoveryMode = "local_with_ollama",
+        model_lab_repository: ModelLabRepository | None = None,
     ) -> None:
         self.models_dir = models_dir or get_models_dir()
         self.ollama_dir = ollama_dir or get_ollama_dir()
@@ -92,6 +96,12 @@ class ModelIndexService:
         self.cache_dir = cache_dir or (get_app_data_dir() / "cache")
         self.cache_path = self.cache_dir / "model-index-cache.json"
         self.discovery_mode = discovery_mode
+        # Model Lab bridge (Plan 14, Phase 0.2) is opt-in, not on-by-default:
+        # it can involve scanning additional, potentially large directories the
+        # user registered in Model Lab, so every ad-hoc/test ModelIndexService()
+        # construction must not silently touch real Model Lab data. Real app
+        # call sites pass an actual ModelLabRepository explicitly to enable it.
+        self.model_lab_repository = model_lab_repository
         self.last_build_metrics = ModelIndexBuildMetrics()
         self.discovery_service = ModelDiscoveryService(
             mode=discovery_mode,
@@ -122,12 +132,12 @@ class ModelIndexService:
         # P1 Phase 4: Filter models based on discovery mode
         if self.discovery_mode == "project_local_strict":
             # Only project-local models, no Ollama
-            return index
+            return self._enrich_with_model_lab(index)
 
         ollama_models = self._ollama_models()
         if not ollama_models:
             self._persist_cache(index)
-            return index
+            return self._enrich_with_model_lab(index)
 
         # local_with_ollama or cloud_enabled: include Ollama
         merged = _build_index(
@@ -140,7 +150,12 @@ class ModelIndexService:
         )
         self.last_build_metrics.valid_model_count = len(merged.models)
         self._persist_cache(merged)
-        return merged
+        return self._enrich_with_model_lab(merged)
+
+    def _enrich_with_model_lab(self, index: ModelIndex) -> ModelIndex:
+        if self.model_lab_repository is None:
+            return index
+        return enrich_with_model_lab_health(index, repository=self.model_lab_repository)
 
     def load_cached_index(self) -> ModelIndex | None:
         payload = self._load_cache_payload()
@@ -309,6 +324,10 @@ class ModelIndexService:
         cached_count = 0
 
         gguf_paths = [p for p in sorted(self.models_dir.rglob("*.gguf")) if p.is_file()]
+        if self.model_lab_repository is not None:
+            extra_roots = additional_scan_roots(exclude=self.models_dir, repository=self.model_lab_repository)
+            for root in extra_roots:
+                gguf_paths.extend(p for p in sorted(root.rglob("*.gguf")) if p.is_file())
         total = len(gguf_paths)
 
         for index, model_path in enumerate(gguf_paths):
@@ -340,6 +359,8 @@ class ModelIndexService:
                 size_bytes = model_path.stat().st_size
                 name = model_path.stem
                 health_status = _resolve_health_status(health, runtime_entry)
+                gguf_metadata = read_gguf_metadata(model_path)
+                quantization = (gguf_metadata.quantization if gguf_metadata else None) or _infer_quantization(name)
 
                 model = IndexedModel(
                     id=model_id,
@@ -349,7 +370,7 @@ class ModelIndexService:
                     artifact_type=artifact_type,
                     size_bytes=size_bytes,
                     size_gb=round(size_bytes / 1024**3, 3),
-                    quantization=_infer_quantization(name),
+                    quantization=quantization,
                     backend="llama.cpp",
                     runtime_launcher="llama-server",
                     capabilities=capabilities,

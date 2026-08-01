@@ -2,6 +2,65 @@
 
 Stand: 2026-08-01
 
+## Plan 14, Model-Handling-Revision, Phase 0 umgesetzt (2026-08-01)
+
+Basis: `Pläne/14 DBZS_CODEE_MODEL_HANDLING_REVISION.md`. **Wichtigster Befund vor der Umsetzung:** das
+Dokument ist gegen `dbzs-codee-project-main` geschrieben — den verschachtelten, versehentlich eingecheckten
+Repo-Snapshot, der in dieser Session als Ballast entfernt wurde (PR #28). Verifikation (3 parallele
+Explore-Agents + eigene Dateipruefung) bestaetigte: die meisten konkreten Fehlerbehauptungen sind gegen den
+aktuellen Code falsch oder bereits erledigt (`_from_filesystem()` existiert, `build_index()` merged bereits
+mit Ollama, kein UI-5-Zeilen-Limit, `--threads`-Bug existiert nicht, Tests: 70/70 statt "7 failed"). Genuine,
+verifizierte Luecken: keine echte GGUF-Header-Metadaten-Extraktion, `gpu_layers=None` faellt still auf
+CPU-only zurueck ohne Kennzeichnung, `isRunnableModel()` filtert ohne sichtbaren Grund, Model Lab und der
+Runtime-Launcher sind komplett getrennte Systeme.
+
+**Phase 0.1 - echter GGUF-Metadaten-Parser:** `backend/app/core/gguf_metadata.py` (neu) liest den binaeren
+GGUF-KV-Metadatenblock (Magic/Version/KV-Paare, STRING-Arrays wie die Tokenizer-Vokabular-Liste werden per
+Seek uebersprungen statt materialisiert) und extrahiert `general.architecture`/`general.file_type` (echte
+Quantisierung)/`<arch>.context_length`. Eingebunden in `model_lab/analyzer.py` (pro Bundle) und
+`models/index_service.py` (pro Artefakt) — Dateinamen-Heuristik bleibt Fallback bei Parse-Fehlern.
+`MODEL_INDEX_CACHE_METADATA_VERSION` auf 2 erhoeht, damit bestehende gecachte Eintraege die echten Daten beim
+naechsten Scan bekommen.
+
+**Phase 0.2 - Model Lab <-> Runtime-Bruecke:** `backend/app/models/model_lab_bridge.py` (neu) verbindet Model
+Labs bereits vorhandene Multi-Source-Registry und Health-Klassifikation additiv mit dem Runtime-Index
+(zusaetzliche Scan-Wurzeln + Health-/Tag-Overlay per Pfad-Abgleich auf `IndexedModel`). **Wichtiger Fund
+waehrend der Umsetzung:** ein Testlauf hing >15 Minuten, weil die Bruecke ungebremst `ModelLabRepository()`
+gegen den echten Produktions-DB-Pfad aufrief und ein real registriertes, potenziell grosses Verzeichnis
+rekursiv scannte — mitten im Unit-Test. Das ist kein reines Testproblem, sondern ein echtes
+Performance-/Stabilitaetsrisiko fuer jeden `build_index()`-Aufruf im echten Betrieb. Fix: die Bruecke ist
+jetzt **opt-in** (`ModelIndexService(model_lab_repository=...)`, Default `None` = komplett inaktiv) und
+bewusst noch **nicht** in die elf echten `ModelIndexService(...)`-Konstruktionsstellen
+(`api/models.py`, `api/runtime.py`, `index_startup.py`, `profile_service.py`, `runtime/doctor.py`,
+`runtime/resident_model_startup.py`, `runtime/service.py`) verdrahtet — das braucht erst eine sichere
+Aktivierungsstrategie (Hintergrund-Scan, Zeit-/Dateianzahl-Limit oder expliziter Settings-Schalter), bevor es
+im echten App-Betrieb automatisch laeuft. Modul und Tests sind fertig und funktionieren isoliert.
+
+**Phase 0.3 - UI-Transparenz + Tuning:**
+- `apps/desktop/src/utils/modelUtils.ts`: `describeExclusionReason()` ersetzt den statischen
+  "Modell nicht startbar"-Tooltip in `RuntimeModelsTab.rows.tsx` durch einen konkreten Grund
+  (Kompatibilitaetsstatus-basiert).
+- `isUnprofiled()` erkennt Modelle ohne `gpu_layers` (bisher stiller CPU-only-Fallback,
+  `runtime/launch.py:329`); UI zeigt eine "Ungetestet (GPU)"-Badge plus "Jetzt tunen"-Button, der den
+  bereits existierenden echten Probe-Pfad (`probeRuntimeModel`, startet das Modell testweise wirklich) nutzt
+  — kein neuer Tuning-Algorithmus.
+- Tuning-Profil-Auswahl an den echten Start-Pfad angebunden: stellte sich heraus, dass der urspruenglich
+  als Ziel genannte `ProfileService` NUR vom (ungenutzten) Multi-Server-Pfad angesteuert wird — der
+  tatsaechlich genutzte Single-Model-Pfad hat sein EIGENES, echtes, hardware-bewusstes Profil-System
+  (`resource_planner.py`s `fast`/`balanced`/`large_context`/`hybrid`/`cpu_safe`, bereits ueber
+  `StartModelRequest.profile` erreichbar, nur nie vom Frontend genutzt). `startModel`/`startRuntimeModel`
+  bekommen additiv ein optionales `profile`-Argument, durchgereicht bis zum bestehenden Backend-Feld — keine
+  Backend-Signaturaenderung noetig. Neues `<select>` in `RuntimeModelsTab.rows.tsx` fuer ungetestete Modelle.
+
+Verifikation: voller Backend-Testlauf 482/482 (vorher 460, +22 neue), voller Desktop-Vitest-Lauf 1346/1346
+(vorher 1324, +22 neue), beide Typechecks (`tsconfig.node.json`/`tsconfig.web.json`) clean.
+
+**Noch offen aus dem Dokument (bewusst nicht Teil dieses Schritts):** Adapter fuer weitere Runtimes
+(vLLM/ONNX/TensorRT/Diffusers/Whisper) — die App nutzt aktuell nur llama-server/Ollama, spekulativer
+Vorabaufwand ohne konkreten Bedarf. Volle GPU-Tuning-Automatik (binaere Suche ueber Batch/UBatch/KV-Cache/
+Flash-Attention). Reale VRAM-/RAM-Telemetrie im Benchmark. Zertifizierung/dynamisches Routing (Phase 6).
+Siehe `Pläne/14 DBZS_CODEE_MODEL_HANDLING_REVISION.md`, Abschnitt 12, fuer die volle Roadmap.
+
 ## Plan 12, Etappe 2, Punkte 4-7: model_lab-Testabdeckung, Sicherheits-/Konventions-Abgleich (2026-08-01)
 
 Basis: `Pläne/12 DBZS_CODEE_V4_VERBESSERUNGSPLAN_2026-07-31.md`, Etappe 2. Vorher musste erst der lange
