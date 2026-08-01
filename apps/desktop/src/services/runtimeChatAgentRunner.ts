@@ -40,6 +40,10 @@ import { useRuntimeAgentStore } from "@/stores/runtimeAgentStore";
 import { useRuntimeChatStore } from "@/stores/runtimeChatStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import type { ActiveSkillRuntimeContext } from "@/runtime/skill/skillContracts";
+import {
+  classifyUserExecutionIntent,
+  requiresWorkspaceInspectionToolAction
+} from "@/services/executionIntent";
 
 export interface AgentChatRunnerParams {
   runId: string;
@@ -219,6 +223,8 @@ export async function runAgentChatTurnLoop(params: AgentChatRunnerParams): Promi
   const toolAvailabilityContext = buildToolAvailabilityContext(params.workspaceRoot);
   const skillAllowedNames = params.allowedToolNames ?? params.activeSkill?.effectiveAllowedTools;
   const toolExposure = resolveToolExposure(params.profile, toolAvailabilityContext, skillAllowedNames);
+  const executionIntent = classifyUserExecutionIntent(params.goal);
+  const workspaceInspectionRequiresTool = requiresWorkspaceInspectionToolAction(params.goal, executionIntent);
   // Tool catalog must already be frozen into systemMessages by the budget/binding path.
   // Only inject here when missing (legacy callers / tests).
   const toolSystemMessages = messagesAlreadyIncludeToolCatalog(params.systemMessages)
@@ -256,7 +262,9 @@ export async function runAgentChatTurnLoop(params: AgentChatRunnerParams): Promi
     providerId: params.providerId,
     requireToolAction:
       params.targetAgent === "coder" ||
-      params.targetAgent === "debugger",
+      params.targetAgent === "debugger" ||
+      workspaceInspectionRequiresTool,
+    executionIntent,
     signal: params.signal,
     requestAssistant: (agent, request, onDelta, signal) => {
       // P1 Requirement 11: Agentenloop uses same broker decision (model_id, slot_id, fallback_policy)

@@ -128,6 +128,16 @@ const BUILD_PATTERNS = [
   /\bnpm\s+run\s+build\b/i
 ];
 
+const WORKSPACE_DATA_REQUEST_PATTERNS = [
+  /\berstelle\s+eine\s+liste\b/i,
+  /\bliste\s+(alle|all)\b/i,
+  /\bzeig\s+mir\s+(alle|all)\b/i,
+  /\binformationen\s+zu\s+(allen|all)\b/i,
+  /\b(file(name)?|path|rolle?n?|roles?|dateien|files|modelle|models)\b/i,
+  /\bgguf\b/i,
+  /\bschau\s+(dazu\s+)?(auch\s+)?in\b/i
+];
+
 function matchesAny(text: string, patterns: RegExp[]): boolean {
   return patterns.some((p) => p.test(text));
 }
@@ -177,6 +187,28 @@ export function isToolRequiredExecutionIntent(intent: UserExecutionIntent): bool
       return _exhaustive;
     }
   }
+}
+
+/**
+ * Read-only workspace inventory / analysis requests may be phrased like
+ * "Erstelle eine Liste ..." and therefore look like implementation, but they
+ * still require actual filesystem/search tools in the Agent Loop.
+ */
+export function requiresWorkspaceInspectionToolAction(
+  userMessage: string,
+  intent: UserExecutionIntent = classifyUserExecutionIntent(userMessage)
+): boolean {
+  const text = userMessage.trim();
+  if (!text) return false;
+
+  const asksForWorkspaceData = WORKSPACE_DATA_REQUEST_PATTERNS.filter((pattern) => pattern.test(text)).length >= 2;
+  if (!asksForWorkspaceData) return false;
+
+  return intent === "inspect" ||
+    intent === "review" ||
+    intent === "implement" ||
+    intent === "explain_only" ||
+    intent === "plan_only";
 }
 
 /** True when the user asked for explanation/hypothetical guidance, not execution. */

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyUserExecutionIntent,
   isToolRequiredExecutionIntent,
+  requiresWorkspaceInspectionToolAction,
   taskTypeForExecutionIntent
 } from "@/services/executionIntent";
 import {
@@ -51,6 +52,14 @@ describe("executionIntent", () => {
   it("routes Baue Electron ein to a coding task type", () => {
     expect(classifyTaskType("Baue Electron ein.")).toBe("large_code_change");
     expect(taskTypeForExecutionIntent("implement")).toBe("large_code_change");
+  });
+
+  it("requires tools for workspace inventory requests phrased as list creation", () => {
+    const prompt =
+      "Erstelle eine Liste mit Informationen zu allen GGUF Modellen (FileName/Path/Roles) und schau in D:\\Models\\Info.";
+
+    expect(classifyUserExecutionIntent(prompt)).toBe("implement");
+    expect(requiresWorkspaceInspectionToolAction(prompt)).toBe(true);
   });
 });
 

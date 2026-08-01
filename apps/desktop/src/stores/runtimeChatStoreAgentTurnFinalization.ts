@@ -72,6 +72,7 @@ export async function finalizeAgentTurnResult(input: {
     agentAssistantContent = gated.content;
     agentRelevanceFailed = gated.outcome === "answer_relevance_failed";
   }
+  const rawAgentContent = input.agentResult.assistantMessage.rawContent ?? agentAssistantContent;
 
   const resultMessages: RuntimeChatMessage[] = [...input.currentMessages];
   const lastIndex = resultMessages.length - 1;
@@ -79,7 +80,7 @@ export async function finalizeAgentTurnResult(input: {
   const gatedAssistantMessage = {
     ...input.agentResult.assistantMessage,
     content: agentAssistantContent,
-    rawContent: input.agentResult.assistantMessage.rawContent ?? agentAssistantContent,
+    rawContent: rawAgentContent,
     visibleContent: agentAssistantContent
   };
   if (lastIndex >= 0 && resultMessages[lastIndex]?.role === "assistant") {
@@ -161,12 +162,19 @@ export async function finalizeAgentTurnResult(input: {
     workspaceRoot: input.workspaceRoot ?? null
   });
   const terminalReason = input.agentResult.terminalReason;
-  const terminalOutcome: RuntimeRunOutcome | null =
-    terminalReason === "execution_no_action"
+  const invalidProtocolHasEvidence =
+    terminalReason === "invalid_protocol" &&
+    (Boolean(input.agentResult.protocolFailure) || /<\/?CODEE_TOOL_CALL>/i.test(rawAgentContent));
+  const normalizedTerminalReason =
+    terminalReason === "invalid_protocol" && !invalidProtocolHasEvidence && completedToolCalls === 0
       ? "execution_no_action"
-      : terminalReason === "invalid_protocol"
+      : terminalReason;
+  const terminalOutcome: RuntimeRunOutcome | null =
+    normalizedTerminalReason === "execution_no_action"
+      ? "execution_no_action"
+      : normalizedTerminalReason === "invalid_protocol"
         ? "invalid_protocol"
-        : terminalReason === "skill_tool_policy_violation"
+        : normalizedTerminalReason === "skill_tool_policy_violation"
           ? "skill_tool_policy_violation"
           : null;
   const executionRejected =
@@ -176,10 +184,10 @@ export async function finalizeAgentTurnResult(input: {
     (Boolean(terminalOutcome) || executionGate.rejectAsInvalid);
   const gatedFinalAnswer = executionRejected
     ? terminalOutcome
-      ? terminalReason === "execution_no_action"
+      ? normalizedTerminalReason === "execution_no_action"
         ? (() => {
             const recovery = analyzeNoActionRecoveryOutput(
-              input.agentResult.assistantMessage.rawContent ?? agentAssistantContent
+              rawAgentContent
             );
             return recovery.hasRecoverableOutput
               ? [
@@ -189,7 +197,7 @@ export async function finalizeAgentTurnResult(input: {
                 ].join("\n")
               : "Im Ausfuehrungsmodus wurden keine Tools, Patches oder Commands ausgefuehrt. Bitte waehle unten aus, ob CODEE erneut mit Tools starten oder das Ergebnis analysieren soll.";
           })()
-        : terminalReason === "skill_tool_policy_violation"
+        : normalizedTerminalReason === "skill_tool_policy_violation"
           ? "Der aktive Skill hat einen nicht erlaubten Tool-Aufruf blockiert."
           : "Die strukturierte Agent-Ausgabe war ungültig (Protocol Failure)."
       : (executionGate.userMessage ?? agentAssistantContent)
