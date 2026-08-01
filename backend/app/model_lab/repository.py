@@ -12,6 +12,8 @@ from app.core.sqlite import sqlite_connection
 from app.model_lab.analyzer import duplicate_key
 from app.model_lab.models import (
     DuplicateGroup,
+    HardwareProfile,
+    HardwareSnapshot,
     LogicalModel,
     ModelArtifact,
     ModelBenchmarkRequest,
@@ -777,6 +779,38 @@ class ModelLabRepository:
             rows = conn.execute("SELECT * FROM runtime_presets ORDER BY name").fetchall()
         return [_runtime_preset_from_row(row) for row in rows]
 
+    def record_hardware_snapshot(self, profile: HardwareProfile) -> HardwareSnapshot:
+        now = datetime.now(UTC)
+        snapshot = HardwareSnapshot(
+            id=uuid.uuid4().hex,
+            fingerprint_hash=profile.fingerprint_hash,
+            payload=profile,
+            created_at=now,
+        )
+        with sqlite_connection(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO hardware_snapshots(id, fingerprint_hash, payload, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    snapshot.id,
+                    snapshot.fingerprint_hash,
+                    snapshot.payload.model_dump_json(),
+                    _dt(snapshot.created_at),
+                ),
+            )
+        return snapshot
+
+    def list_hardware_snapshots(self, limit: int = 25) -> list[HardwareSnapshot]:
+        bounded_limit = max(1, min(limit, 100))
+        with sqlite_connection(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT * FROM hardware_snapshots ORDER BY created_at DESC LIMIT ?",
+                (bounded_limit,),
+            ).fetchall()
+        return [_hardware_snapshot_from_row(row) for row in rows]
+
     def create_probe_run(self, request: ModelProbeRequest, *, status: str, message: str, error: str | None = None) -> ModelProbeRun:
         if self.get_model(request.bundle_id) is None:
             raise ValueError(f"Model bundle nicht gefunden: {request.bundle_id}")
@@ -1384,6 +1418,15 @@ def _runtime_preset_from_row(row: sqlite3.Row) -> RuntimePresetRecord:
         config=json.loads(row["config"] or "{}"),
         created_at=_parse_dt(row["created_at"]),
         updated_at=_parse_dt(row["updated_at"]),
+    )
+
+
+def _hardware_snapshot_from_row(row: sqlite3.Row) -> HardwareSnapshot:
+    return HardwareSnapshot(
+        id=str(row["id"]),
+        fingerprint_hash=str(row["fingerprint_hash"]),
+        payload=HardwareProfile.model_validate_json(row["payload"]),
+        created_at=_parse_dt(row["created_at"]),
     )
 
 

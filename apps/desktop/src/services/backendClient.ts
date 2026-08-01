@@ -42,6 +42,7 @@ import type {
   ModelLabExecutionPolicy,
   ModelLabFailureRecord,
   ModelLabHardwareProfile,
+  ModelLabHardwareSnapshot,
   ModelLabHuggingFaceRepoInfo,
   ModelLabHuggingFaceSearchResult,
   ModelLabLogicalModel,
@@ -149,6 +150,7 @@ export interface BackendBridge extends DesktopBridgeV1 {
   ) => Promise<ModelLabHuggingFaceSearchResult[]>;
   getModelLabHuggingFaceRepo?: (repoId: string, revision?: string) => Promise<ModelLabHuggingFaceRepoInfo>;
   getModelLabHardware?: () => Promise<ModelLabHardwareProfile>;
+  listModelLabHardwareSnapshots?: (limit?: number) => Promise<ModelLabHardwareSnapshot[]>;
   listLogicalModels?: () => Promise<ModelLabLogicalModel[]>;
   getLogicalModel?: (logicalModelId: string) => Promise<ModelLabLogicalModel>;
   listModelVariants?: (logicalModelId?: string) => Promise<ModelLabVariant[]>;
@@ -511,6 +513,13 @@ export const backendClient = {
       return Promise.reject(new Error("getModelLabHardware is unavailable."));
     }
     return method();
+  },
+  listModelLabHardwareSnapshots: (limit?: number) => {
+    const method = bridge().listModelLabHardwareSnapshots;
+    if (!method) {
+      return Promise.reject(new Error("listModelLabHardwareSnapshots is unavailable."));
+    }
+    return method(limit);
   },
   listLogicalModels: () => {
     const method = bridge().listLogicalModels;

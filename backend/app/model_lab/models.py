@@ -195,6 +195,13 @@ class HardwareProfile(BaseModel):
     collected_at: datetime
 
 
+class HardwareSnapshot(BaseModel):
+    id: str
+    fingerprint_hash: str
+    payload: HardwareProfile
+    created_at: datetime
+
+
 class ModelFleetRequestEnvelope(BaseModel):
     request_id: str
     operation: str

@@ -35,6 +35,9 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
 - Plan-15-Runtime-Presets werden beim DB-Init geseedet: `cpu_fallback`, `safe_balanced`,
   `best_low_latency`, `best_throughput`, `large_context` mit den Masterplan-Achsen fuer GPU-Layer,
   Context, Batch/Ubatch, KV-Cache und Flash-Attention.
+- Hardware-Snapshots werden jetzt im Model Lab persistiert: `/model-lab/hardware` bleibt kompatibel,
+  schreibt aber zusaetzlich einen Snapshot; `/model-lab/hardware-snapshots` liefert die letzten Snapshots
+  als Grundlage fuer Tuning-/Benchmark-Kontext.
 - Statuskette auf die Masterplan-Stufen erweitert (`COMPATIBLE`, `LOADABLE`, `TUNED`, `BENCHMARKED`,
   `CERTIFIED`, `DEGRADED`, `QUARANTINED`), bestehende Altstatus bleiben kompatibel.
 - Neue Model-Lab/Fleet-Endpunkte unter `/model-lab`: logical models, runtime adapters/presets,
@@ -61,7 +64,7 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
   (`certification:<KIND>`) mit Status-Mapping `passed -> verified`, `failed -> failed`, `revoked -> revoked`.
 
 **Frisch verifiziert:**
-- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab.py backend/tests/test_model_lab_repository.py backend/tests/test_model_lab_scan_jobs.py backend/tests/test_model_lab_bridge.py -q` -> 30/30 gruen
+- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab.py backend/tests/test_model_lab_repository.py backend/tests/test_model_lab_scan_jobs.py backend/tests/test_model_lab_bridge.py -q` -> 32/32 gruen
 - `npm run typecheck` in `apps/desktop` -> gruen
 - `npm run test -- src/components/notebook/ModelLabTab.controller.test.tsx` in `apps/desktop` -> 8/8 gruen
 - `npm run test -- src/components/notebook/ModelLabTab.controller.test.tsx src/components/notebook/RuntimeModelsTab.test.ts src/services/modelSelectionBroker.test.ts src/services/runtimeSlotManager.test.ts` in `apps/desktop` -> 88/88 gruen

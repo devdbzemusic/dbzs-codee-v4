@@ -479,6 +479,10 @@ const api = {
     >,
   getModelLabHardware: () =>
     ipcRenderer.invoke("dbzs:model-lab:hardware") as Promise<import("@dbzs/shared").ModelLabHardwareProfile>,
+  listModelLabHardwareSnapshots: (limit?: number) =>
+    ipcRenderer.invoke("dbzs:model-lab:hardware-snapshots:list", limit) as Promise<
+      import("@dbzs/shared").ModelLabHardwareSnapshot[]
+    >,
   listLogicalModels: () =>
     ipcRenderer.invoke("dbzs:model-lab:logical-models:list") as Promise<import("@dbzs/shared").ModelLabLogicalModel[]>,
   getLogicalModel: (logicalModelId: string) =>

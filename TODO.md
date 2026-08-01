@@ -68,6 +68,8 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       die UI setzt das nur beim bewussten Vollscan-Button.
 - [x] Plan-15-Runtime-Presets geseedet: `cpu_fallback`, `safe_balanced`, `best_low_latency`,
       `best_throughput`, `large_context` mit GPU-/Context-/Batch-/KV-/Flash-Achsen.
+- [x] Hardware-Snapshots persistiert: `/model-lab/hardware` schreibt Snapshots, `/model-lab/hardware-snapshots`
+      liefert die Historie fuer Tuning-/Benchmark-Kontext.
 - [x] Rollen-Gate erzwingt Zertifikate: keine aktive Fleet-Rolle nur auf Basis von Dateiname/Heuristik;
       Workspace-/Write-Rollen verlangen zusaetzlich `WRITE_AGENT_VERIFIED`.
 - [x] Safety-Level-Policy erzwingen: Rollen-Zuweisungen oberhalb des geseedeten Policy-Maximums werden

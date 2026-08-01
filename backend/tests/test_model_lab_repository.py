@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from app.model_lab.models import (
+    HardwareProfile,
     ModelArtifact,
     ModelBundle,
     ModelCapabilityEvidenceRequest,
@@ -295,6 +296,32 @@ def test_execution_policies_are_seeded_from_plan_15_roles(tmp_path: Path) -> Non
         "TOOL_CALLING_VERIFIED",
         "READ_ONLY_AGENT_VERIFIED",
     ]
+
+
+def test_hardware_snapshots_are_persisted_for_tuning_context(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    now = datetime.now(UTC)
+    profile = HardwareProfile(
+        fingerprint_hash="hw-test",
+        os="Windows",
+        architecture="AMD64",
+        cpu_model="Unit CPU",
+        cpu_threads=8,
+        ram_bytes=32 * 1024 * 1024 * 1024,
+        gpu_name="Unit GPU",
+        gpu_vendor="NVIDIA",
+        vram_bytes=8 * 1024 * 1024 * 1024,
+        runtime_backend="cuda",
+        collected_at=now,
+    )
+
+    snapshot = repo.record_hardware_snapshot(profile)
+    snapshots = repo.list_hardware_snapshots()
+
+    assert snapshots[0].id == snapshot.id
+    assert snapshots[0].fingerprint_hash == "hw-test"
+    assert snapshots[0].payload.gpu_name == "Unit GPU"
+    assert snapshots[0].payload.collected_at == now
 
 
 def test_role_assignment_rejects_safety_above_policy_maximum(tmp_path: Path) -> None:

@@ -1556,6 +1556,13 @@ export interface ModelLabHardwareProfile {
   collected_at: string;
 }
 
+export interface ModelLabHardwareSnapshot {
+  id: string;
+  fingerprint_hash: string;
+  payload: ModelLabHardwareProfile;
+  created_at: string;
+}
+
 export interface ModelFleetRequestEnvelope {
   request_id: string;
   operation: string;

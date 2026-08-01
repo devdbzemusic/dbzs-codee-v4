@@ -96,6 +96,9 @@ export function registerModelLabIpcHandlers(options: RegisterModelLabIpcOptions)
     return requestBackend(`/model-lab/hf/repos/${encodeURIComponent(repoId)}${params}`);
   });
   ipcMain.handle("dbzs:model-lab:hardware", () => requestBackend("/model-lab/hardware"));
+  ipcMain.handle("dbzs:model-lab:hardware-snapshots:list", (_event, limit = 25) =>
+    requestBackend(`/model-lab/hardware-snapshots?limit=${encodeURIComponent(String(limit))}`)
+  );
   ipcMain.handle("dbzs:model-lab:logical-models:list", () => requestBackend("/model-lab/logical-models"));
   ipcMain.handle("dbzs:model-lab:logical-models:get", (_event, logicalModelId: string) =>
     requestBackend(`/model-lab/logical-models/${encodeURIComponent(logicalModelId)}`)

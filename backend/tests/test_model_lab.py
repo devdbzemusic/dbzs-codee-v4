@@ -43,6 +43,7 @@ def test_model_lab_registry_initializes_schema(tmp_path: Path) -> None:
     assert "logical_models" in tables
     assert "model_variants" in tables
     assert "runtime_adapters" in tables
+    assert "hardware_snapshots" in tables
     assert "probe_runs" in tables
     assert "benchmark_runs" in tables
     assert "certifications" in tables
@@ -50,6 +51,20 @@ def test_model_lab_registry_initializes_schema(tmp_path: Path) -> None:
     assert "model_failures" in tables
     assert "agent_execution_policies" in tables
     assert version == "3"
+
+
+def test_model_lab_hardware_endpoint_persists_snapshots(tmp_path: Path) -> None:
+    app.dependency_overrides[get_model_lab_service] = lambda: _service(tmp_path / "test.sqlite3")
+    client = TestClient(app)
+
+    hardware = client.get("/model-lab/hardware")
+    snapshots = client.get("/model-lab/hardware-snapshots", params={"limit": 5})
+
+    app.dependency_overrides.clear()
+    assert hardware.status_code == 200
+    assert snapshots.status_code == 200
+    assert snapshots.json()[0]["fingerprint_hash"] == hardware.json()["fingerprint_hash"]
+    assert snapshots.json()[0]["payload"]["runtime_backend"] == hardware.json()["runtime_backend"]
 
 
 def test_model_lab_source_scan_and_model_detail_api(tmp_path: Path) -> None:

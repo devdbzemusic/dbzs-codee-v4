@@ -4,6 +4,7 @@ from app.model_lab.models import (
     CollectionMembershipRequest,
     DuplicateGroup,
     HardwareProfile,
+    HardwareSnapshot,
     HuggingFaceRepoInfo,
     HuggingFaceSearchResult,
     LogicalModel,
@@ -181,6 +182,14 @@ def get_huggingface_repo_info(
 @router.get("/hardware")
 def get_hardware(service: ModelLabService = Depends(get_model_lab_service)) -> HardwareProfile:
     return service.collect_hardware()
+
+
+@router.get("/hardware-snapshots")
+def list_hardware_snapshots(
+    limit: int = 25,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> list[HardwareSnapshot]:
+    return service.list_hardware_snapshots(limit=limit)
 
 
 @router.get("/logical-models")

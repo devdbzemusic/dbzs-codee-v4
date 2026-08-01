@@ -7,6 +7,7 @@ from app.model_lab.hf_integration import HuggingFaceModelService
 from app.model_lab.models import (
     DuplicateGroup,
     HardwareProfile,
+    HardwareSnapshot,
     HuggingFaceRepoInfo,
     HuggingFaceSearchResult,
     LogicalModel,
@@ -179,7 +180,7 @@ class ModelLabService:
     def collect_hardware(self) -> HardwareProfile:
         gpu = detect_gpu()
         fingerprint = collect_hardware_fingerprint(gpu)
-        return HardwareProfile(
+        profile = HardwareProfile(
             fingerprint_hash=fingerprint_hash(fingerprint),
             os=fingerprint.os,
             architecture=fingerprint.architecture,
@@ -192,6 +193,11 @@ class ModelLabService:
             runtime_backend=fingerprint.runtime_backend,
             collected_at=datetime.now(UTC),
         )
+        self.repository.record_hardware_snapshot(profile)
+        return profile
+
+    def list_hardware_snapshots(self, limit: int = 25) -> list[HardwareSnapshot]:
+        return self.repository.list_hardware_snapshots(limit=limit)
 
     def list_logical_models(self) -> list[LogicalModel]:
         return self.repository.list_logical_models()

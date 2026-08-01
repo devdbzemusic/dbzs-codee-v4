@@ -14,6 +14,7 @@ import type {
   ModelLabExecutionPolicy,
   ModelLabFailureRecord,
   ModelLabHardwareProfile,
+  ModelLabHardwareSnapshot,
   ModelLabHuggingFaceRepoInfo,
   ModelLabHuggingFaceSearchResult,
   ModelLabLogicalModel,
@@ -156,6 +157,7 @@ export interface DesktopBridgeV1 {
   ) => Promise<ModelLabHuggingFaceSearchResult[]>;
   getModelLabHuggingFaceRepo?: (repoId: string, revision?: string) => Promise<ModelLabHuggingFaceRepoInfo>;
   getModelLabHardware?: () => Promise<ModelLabHardwareProfile>;
+  listModelLabHardwareSnapshots?: (limit?: number) => Promise<ModelLabHardwareSnapshot[]>;
   listLogicalModels?: () => Promise<ModelLabLogicalModel[]>;
   getLogicalModel?: (logicalModelId: string) => Promise<ModelLabLogicalModel>;
   listModelVariants?: (logicalModelId?: string) => Promise<ModelLabVariant[]>;

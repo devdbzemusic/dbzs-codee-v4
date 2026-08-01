@@ -26,10 +26,10 @@ Repo-Wahrheit: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
 - Plan 15 Agentic Model Fleet Integration ist auf Branch `codex/agentic-model-fleet-integration` gestartet:
   Model-Lab-Schema v3, Fleet-Endpunkte, Zertifikats-/Rollen-Gates und optionale Desktop-Bridge-Vertraege
   sind implementiert; `model_variants`, Plan-15-Source-Candidates (`D:\Models\Agentic` empfohlen) und eine
-  bounded `llama.cpp`-Probe-Preview sind nachgezogen; Plan-15-Runtime-Presets, Fleet-Routing-Map,
-  Execution-Policies mit Safety-Max-Gate, Capability Evidence inklusive Zertifizierungs-Trail und eine
-  erste read-only Roles-&-Routing-UI sind verfuegbar; frische Checks: Backend 30/30, Desktop-Fokus 88/88,
-  Desktop-Typecheck gruen
+  bounded `llama.cpp`-Probe-Preview sind nachgezogen; Plan-15-Runtime-Presets, Hardware-Snapshots,
+  Fleet-Routing-Map, Execution-Policies mit Safety-Max-Gate, Capability Evidence inklusive
+  Zertifizierungs-Trail und eine erste read-only Roles-&-Routing-UI sind verfuegbar; frische Checks:
+  Backend 32/32, Desktop-Fokus 88/88, Desktop-Typecheck gruen
 - Shared-, Desktop- und Backend-Kernchecks sind belastbar nachgewiesen
 - Desktop-Capability-Suite ist im Gate-Pfad mit 37/37 belegt
 - Backend-Capability-/Scenario-/Tuning-Lab-Pfad ist mit 15 bestandenen Tests belegt
