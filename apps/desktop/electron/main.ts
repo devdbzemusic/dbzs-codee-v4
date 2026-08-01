@@ -3,6 +3,7 @@ import { promises as fs, appendFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type MenuItemConstructorOptions } from "electron";
+import { IPC_CHANNEL } from "@dbzs/shared";
 import type {
   AgentCreateRequest,
   AgentUpdateRequest,
@@ -889,13 +890,13 @@ async function promptTextInput(request: { title: string; label: string; value: s
   return promptTextInputDialog(request, mainWindow);
 }
 
-ipcMain.handle("dbzs:app-info", () => ({
+ipcMain.handle(IPC_CHANNEL.appInfo, () => ({
   name: "DBZS Code Assistant",
   version: app.getVersion(),
   backendUrl: BACKEND_URL
 }));
 
-ipcMain.handle("dbzs:backend-health", () => requestBackend("/health"));
+ipcMain.handle(IPC_CHANNEL.backendHealth, () => requestBackend("/health"));
 ipcMain.handle("dbzs:settings:get", async () => {
   return getRendererSafeSettings();
 });

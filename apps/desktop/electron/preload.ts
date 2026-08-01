@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
+import { IPC_CHANNEL } from "@dbzs/shared";
 import type {
   BackupSummary,
   RestoreSummary,
@@ -84,8 +85,8 @@ import type {
 } from "../src/runtime/skill/skillContracts";
 
 const api = {
-  getAppInfo: () => ipcRenderer.invoke("dbzs:app-info") as Promise<AppInfo>,
-  getBackendHealth: () => ipcRenderer.invoke("dbzs:backend-health") as Promise<BackendHealth>,
+  getAppInfo: () => ipcRenderer.invoke(IPC_CHANNEL.appInfo) as Promise<AppInfo>,
+  getBackendHealth: () => ipcRenderer.invoke(IPC_CHANNEL.backendHealth) as Promise<BackendHealth>,
   getSettings: () => ipcRenderer.invoke("dbzs:settings:get") as Promise<AppSettings>,
   updateSettings: (settings: AppSettings) =>
     ipcRenderer.invoke("dbzs:settings:update", settings) as Promise<AppSettings>,
@@ -429,7 +430,7 @@ const api = {
       ipcRenderer.removeListener("dbzs:runtime-chat:context", handler);
     };
   },
-  getModelIndex: () => ipcRenderer.invoke("dbzs:models:index") as Promise<ModelIndex>,
+  getModelIndex: () => ipcRenderer.invoke(IPC_CHANNEL.modelsIndex) as Promise<ModelIndex>,
   saveManualMultimodalPairing: (request: ManualMultimodalPairingRequest) =>
     ipcRenderer.invoke("dbzs:models:multimodal-pairings:manual", request) as Promise<MultimodalPair>,
   listModelLabSources: () =>
@@ -474,12 +475,12 @@ const api = {
     >,
   getModelLabHardware: () =>
     ipcRenderer.invoke("dbzs:model-lab:hardware") as Promise<import("@dbzs/shared").ModelLabHardwareProfile>,
-  getRuntimeStatus: () => ipcRenderer.invoke("dbzs:runtime:status") as Promise<RuntimeStatus>,
+  getRuntimeStatus: () => ipcRenderer.invoke(IPC_CHANNEL.runtimeStatus) as Promise<RuntimeStatus>,
   startRuntimeModel: (modelId: string, profile?: string) =>
-    ipcRenderer.invoke("dbzs:runtime:start", modelId, profile) as Promise<RuntimeStatus>,
-  stopRuntimeModel: () => ipcRenderer.invoke("dbzs:runtime:stop") as Promise<RuntimeStatus>,
+    ipcRenderer.invoke(IPC_CHANNEL.runtimeStart, modelId, profile) as Promise<RuntimeStatus>,
+  stopRuntimeModel: () => ipcRenderer.invoke(IPC_CHANNEL.runtimeStop) as Promise<RuntimeStatus>,
   sendRuntimeChat: (request: RuntimeChatRequest, requestId?: string) =>
-    ipcRenderer.invoke("dbzs:runtime:chat", request, requestId) as Promise<RuntimeChatResponse>,
+    ipcRenderer.invoke(IPC_CHANNEL.runtimeChat, request, requestId) as Promise<RuntimeChatResponse>,
   streamRuntimeChat: (
     request: RuntimeChatRequest,
     onChunk: (payload: RuntimeStreamChunk) => void,
@@ -495,16 +496,17 @@ const api = {
       }
       onChunk(payload);
     };
-    ipcRenderer.on("dbzs:runtime:chat-stream-chunk", handler);
+    ipcRenderer.on(IPC_CHANNEL.runtimeChatStreamChunk, handler);
     return (
-      ipcRenderer.invoke("dbzs:runtime:chat-stream", request, normalizedRequestId) as Promise<RuntimeChatResponse>
+      ipcRenderer.invoke(IPC_CHANNEL.runtimeChatStream, request, normalizedRequestId) as Promise<RuntimeChatResponse>
     ).finally(() => {
-      ipcRenderer.removeListener("dbzs:runtime:chat-stream-chunk", handler);
+      ipcRenderer.removeListener(IPC_CHANNEL.runtimeChatStreamChunk, handler);
     });
   },
   cancelRuntimeChatStream: (requestId?: string) =>
-    ipcRenderer.invoke("dbzs:runtime:chat-stream:cancel", requestId) as Promise<{ status: string }>,
-  cancelRuntimeChat: (requestId: string) => ipcRenderer.invoke("dbzs:runtime:chat:cancel", requestId) as Promise<{ status: string }>,
+    ipcRenderer.invoke(IPC_CHANNEL.runtimeChatStreamCancel, requestId) as Promise<{ status: string }>,
+  cancelRuntimeChat: (requestId: string) =>
+    ipcRenderer.invoke(IPC_CHANNEL.runtimeChatCancel, requestId) as Promise<{ status: string }>,
   runBenchmark: () => ipcRenderer.invoke("dbzs:runtime:benchmark") as Promise<import("@dbzs/shared").BenchmarkResult>,
   runModelTest: () => ipcRenderer.invoke("dbzs:runtime:model-test") as Promise<import("@dbzs/shared").RuntimeModelTestReport>,
   getRuntimeDoctor: () => ipcRenderer.invoke("dbzs:runtime:doctor") as Promise<import("@dbzs/shared").RuntimeDoctorReport>,

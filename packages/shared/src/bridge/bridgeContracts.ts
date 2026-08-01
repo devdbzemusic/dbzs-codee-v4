@@ -22,18 +22,33 @@ export type IpcChannel =
   | "dbzs:runtime:chat-stream:cancel"
   | "dbzs:runtime:chat-stream-chunk";
 
-export const IPC_CHANNELS = [
-  "dbzs:app-info",
-  "dbzs:backend-health",
-  "dbzs:models:index",
-  "dbzs:runtime:status",
-  "dbzs:runtime:start",
-  "dbzs:runtime:stop",
-  "dbzs:runtime:chat",
-  "dbzs:runtime:chat:cancel",
-  "dbzs:runtime:chat-stream",
-  "dbzs:runtime:chat-stream:cancel",
-  "dbzs:runtime:chat-stream-chunk"
+export const IPC_CHANNEL = {
+  appInfo: "dbzs:app-info",
+  backendHealth: "dbzs:backend-health",
+  modelsIndex: "dbzs:models:index",
+  runtimeStatus: "dbzs:runtime:status",
+  runtimeStart: "dbzs:runtime:start",
+  runtimeStop: "dbzs:runtime:stop",
+  runtimeChat: "dbzs:runtime:chat",
+  runtimeChatCancel: "dbzs:runtime:chat:cancel",
+  runtimeChatStream: "dbzs:runtime:chat-stream",
+  runtimeChatStreamCancel: "dbzs:runtime:chat-stream:cancel",
+  runtimeChatStreamChunk: "dbzs:runtime:chat-stream-chunk"
+} as const satisfies Record<string, IpcChannel>;
+
+export const IPC_CHANNELS = Object.values(IPC_CHANNEL) as readonly IpcChannel[];
+
+export const BRIDGE_REQUEST_IPC_CHANNELS = [
+  IPC_CHANNEL.appInfo,
+  IPC_CHANNEL.backendHealth,
+  IPC_CHANNEL.modelsIndex,
+  IPC_CHANNEL.runtimeStatus,
+  IPC_CHANNEL.runtimeStart,
+  IPC_CHANNEL.runtimeStop,
+  IPC_CHANNEL.runtimeChat,
+  IPC_CHANNEL.runtimeChatCancel,
+  IPC_CHANNEL.runtimeChatStream,
+  IPC_CHANNEL.runtimeChatStreamCancel
 ] as const satisfies readonly IpcChannel[];
 
 export function isIpcChannel(value: string): value is IpcChannel {
