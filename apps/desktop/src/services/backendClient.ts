@@ -129,7 +129,7 @@ export interface BackendBridge {
   getModelLabHuggingFaceRepo?: (repoId: string, revision?: string) => Promise<ModelLabHuggingFaceRepoInfo>;
   getModelLabHardware?: () => Promise<ModelLabHardwareProfile>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
-  startRuntimeModel: (modelId: string) => Promise<RuntimeStatus>;
+  startRuntimeModel: (modelId: string, profile?: string) => Promise<RuntimeStatus>;
   stopRuntimeModel: () => Promise<RuntimeStatus>;
   getRuntimeDoctor?: () => Promise<RuntimeDoctorReport>;
   dryRunRuntimeModel?: (payload: RuntimeDryRunRequest) => Promise<RuntimeDryRunResponse>;
@@ -464,7 +464,7 @@ export const backendClient = {
     return method();
   },
   getRuntimeStatus: () => bridge().getRuntimeStatus(),
-  startRuntimeModel: (modelId: string) => bridge().startRuntimeModel(modelId),
+  startRuntimeModel: (modelId: string, profile?: string) => bridge().startRuntimeModel(modelId, profile),
   stopRuntimeModel: () => bridge().stopRuntimeModel(),
   getRuntimeDoctor: () => {
     const method = bridge().getRuntimeDoctor;

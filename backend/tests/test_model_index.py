@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+from app.model_lab.models import ModelSourceCreate
+from app.model_lab.repository import ModelLabRepository
 from app.models.index_service import ModelIndexService
 
 
@@ -188,6 +190,48 @@ def test_model_index_scans_gguf_when_catalog_is_missing(tmp_path: Path) -> None:
     assert index.models[0].name == "tiny-coder-Q4_K_M"
     assert index.models[0].format == "gguf"
     assert index.models[0].recommended_use == "coding_candidate"
+
+
+def test_model_index_ignores_model_lab_by_default(tmp_path: Path) -> None:
+    """Plan 14, Phase 0.2: the Model Lab bridge must be opt-in, not on by
+    default - an ad-hoc ModelIndexService() must never touch Model Lab's
+    (potentially large, real) registered sources unless explicitly given a
+    repository."""
+    model_path = tmp_path / "tiny-coder-Q4_K_M.gguf"
+    model_path.write_bytes(b"GGUF")
+    service = ModelIndexService(models_dir=tmp_path, ollama_models_dir=tmp_path / "empty-ollama")
+
+    assert service.model_lab_repository is None
+    index = service.build_index()
+
+    assert index.summary.total == 1
+    assert index.models[0].model_lab_health_status is None
+    assert index.models[0].model_lab_tags == []
+
+
+def test_model_index_includes_model_lab_sources_and_health_when_opted_in(tmp_path: Path) -> None:
+    """Plan 14, Phase 0.2: when a Model Lab repository is explicitly passed,
+    its enabled sources become additional scan roots and its health data is
+    overlaid on matching models."""
+    primary_dir = tmp_path / "primary"
+    extra_dir = tmp_path / "extra"
+    primary_dir.mkdir()
+    extra_dir.mkdir()
+    extra_model_path = extra_dir / "extra-model.gguf"
+    extra_model_path.write_bytes(b"GGUF")
+
+    repository = ModelLabRepository(db_path=tmp_path / "model_lab.sqlite3")
+    repository.create_source(ModelSourceCreate(path=str(extra_dir)))
+
+    service = ModelIndexService(
+        models_dir=primary_dir,
+        ollama_models_dir=tmp_path / "empty-ollama",
+        model_lab_repository=repository,
+    )
+    index = service.build_index()
+
+    assert index.summary.total == 1
+    assert index.models[0].name == "extra-model"
 
 
 def test_model_index_skips_invalid_gguf_header_when_catalog_is_missing(tmp_path: Path) -> None:

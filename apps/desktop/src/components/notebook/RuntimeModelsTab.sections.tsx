@@ -127,7 +127,10 @@ export function StartableModelsSection({
   status,
   runtimeBusy,
   startModel,
-  stopModel
+  stopModel,
+  autoTuneModel,
+  tuningInProgress,
+  tuningFeedback
 }: {
   sortedStartableModels: IndexedModel[];
   modelRoleSummary: Record<"coding" | "chat" | "vision" | "orchestrator" | "other", number>;
@@ -141,6 +144,9 @@ export function StartableModelsSection({
   runtimeBusy: boolean;
   startModel: (modelId: string) => Promise<void>;
   stopModel: () => Promise<void>;
+  autoTuneModel: (modelId: string) => Promise<void>;
+  tuningInProgress: Record<string, boolean>;
+  tuningFeedback: Record<string, string>;
 }) {
   if (sortedStartableModels.length === 0) {
     return null;
@@ -188,6 +194,7 @@ export function StartableModelsSection({
         <tbody>
           {sortedStartableModels.map((model) => (
             <StartableModelRow
+              autoTuneModel={autoTuneModel}
               key={model.id}
               model={model}
               multimodalPairs={multimodalPairs}
@@ -195,6 +202,8 @@ export function StartableModelsSection({
               startModel={startModel}
               status={status}
               stopModel={stopModel}
+              tuningFeedback={tuningFeedback[model.id]}
+              tuningInProgress={tuningInProgress[model.id] === true}
             />
           ))}
         </tbody>

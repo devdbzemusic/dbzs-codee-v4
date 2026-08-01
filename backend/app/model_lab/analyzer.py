@@ -5,6 +5,7 @@ import json
 import re
 from typing import Any
 
+from app.core.gguf_metadata import GgufMetadata, read_gguf_metadata
 from app.model_lab.models import ModelHealth
 
 
@@ -35,9 +36,10 @@ class ModelLabAnalyzer:
 
         config_preview = _read_config_preview(directory / "config.json")
         model_type = classify_model_directory(files)
-        architecture = _architecture(config_preview, files)
-        context_length = _context_length(config_preview)
-        quantization = _quantization(directory.name, files, config_preview)
+        gguf_metadata = _read_primary_gguf_metadata(directory, files)
+        architecture = (gguf_metadata.architecture if gguf_metadata else None) or _architecture(config_preview, files)
+        context_length = (gguf_metadata.context_length if gguf_metadata else None) or _context_length(config_preview)
+        quantization = (gguf_metadata.quantization if gguf_metadata else None) or _quantization(directory.name, files, config_preview)
         config_files = [name for name in CONFIG_CANDIDATES if name in files]
 
         missing_critical: list[str] = []
@@ -152,4 +154,18 @@ def _has_model_file(files: set[str]) -> bool:
     if any(name.endswith((".gguf", ".safetensors", ".bin", ".pt", ".pth", ".onnx")) for name in lower):
         return True
     return any(name.startswith("model-") and name.endswith(".safetensors") for name in lower)
+
+
+def _read_primary_gguf_metadata(directory: Path, files: set[str]) -> GgufMetadata | None:
+    """Picks the primary (non-projector) .gguf file in the folder, if any, and
+    reads its real header metadata - used to prefer authoritative architecture/
+    quantization/context-length data over the filename/config.json heuristics
+    below, which GGUF-only folders (no config.json) can't satisfy anyway."""
+    gguf_names = sorted(
+        (name for name in files if name.lower().endswith(".gguf") and "mmproj" not in name.lower() and "projector" not in name.lower()),
+        key=str.lower,
+    )
+    if not gguf_names:
+        return None
+    return read_gguf_metadata(directory / gguf_names[0])
 

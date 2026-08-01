@@ -24,7 +24,7 @@ interface RuntimeState {
   loadLogs: () => Promise<void>;
   dryRunModel: (modelId: string, profileName?: string) => Promise<void>;
   probeModel: (modelId: string) => Promise<void>;
-  startModel: (modelId: string) => Promise<void>;
+  startModel: (modelId: string, profile?: string) => Promise<void>;
   stopModel: () => Promise<void>;
 }
 
@@ -188,10 +188,10 @@ export const useRuntimeStore = create<RuntimeState>((set) => ({
       });
     }
   },
-  startModel: async (modelId) => {
+  startModel: async (modelId, profile) => {
     set({ isLoading: true, error: null, lastDoctorAction: "start" });
     try {
-      const status = await backendClient.startRuntimeModel(modelId);
+      const status = await backendClient.startRuntimeModel(modelId, profile);
       if (status.state === "error") {
         const logs = await captureFailureLogs();
         set({

@@ -21,6 +21,7 @@ export function RuntimeModelsTab() {
   const runtimeFocusSlotId = useNotebookStore((state) => state.runtimeFocusSlotId);
   const clearRuntimeSlotFocus = useNotebookStore((state) => state.clearRuntimeSlotFocus);
   const {
+    autoTuneModel,
     backendOnline,
     index,
     indexError,
@@ -49,6 +50,8 @@ export function RuntimeModelsTab() {
     supportArtifactsById,
     modelRoleSummary,
     modelRoutingSummary,
+    tuningFeedback,
+    tuningInProgress,
     visibleSupportArtifacts
   } = useRuntimeModelsTabController();
 
@@ -95,6 +98,7 @@ export function RuntimeModelsTab() {
         ) : (
           <div className="space-y-6">
             <StartableModelsSection
+              autoTuneModel={autoTuneModel}
               modelRoleSummary={modelRoleSummary}
               modelRoutingSummary={modelRoutingSummary}
               multimodalPairs={multimodalPairs}
@@ -104,6 +108,8 @@ export function RuntimeModelsTab() {
               startableModelActionSummary={startableModelActionSummary}
               status={status}
               stopModel={stopModel}
+              tuningFeedback={tuningFeedback}
+              tuningInProgress={tuningInProgress}
             />
             <MultimodalPairsSection
               modelsById={modelsById}

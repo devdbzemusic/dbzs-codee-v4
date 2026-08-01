@@ -1310,6 +1310,11 @@ export interface IndexedModel {
   recommended_use: RecommendedModelUse;
   compatibility: string;
   runtime: ModelRuntimeHints;
+  // Additive overlay from Model Lab when a matching scan entry exists for this
+  // exact file path (Plan 14, Phase 0.2). Absent/empty when Model Lab has no
+  // matching entry for this model.
+  model_lab_health_status?: string | null;
+  model_lab_tags?: string[];
 }
 
 export interface ModelIndexSummary {

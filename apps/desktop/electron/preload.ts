@@ -473,8 +473,8 @@ const api = {
   getModelLabHardware: () =>
     ipcRenderer.invoke("dbzs:model-lab:hardware") as Promise<import("@dbzs/shared").ModelLabHardwareProfile>,
   getRuntimeStatus: () => ipcRenderer.invoke("dbzs:runtime:status") as Promise<RuntimeStatus>,
-  startRuntimeModel: (modelId: string) =>
-    ipcRenderer.invoke("dbzs:runtime:start", modelId) as Promise<RuntimeStatus>,
+  startRuntimeModel: (modelId: string, profile?: string) =>
+    ipcRenderer.invoke("dbzs:runtime:start", modelId, profile) as Promise<RuntimeStatus>,
   stopRuntimeModel: () => ipcRenderer.invoke("dbzs:runtime:stop") as Promise<RuntimeStatus>,
   sendRuntimeChat: (request: RuntimeChatRequest, requestId?: string) =>
     ipcRenderer.invoke("dbzs:runtime:chat", request, requestId) as Promise<RuntimeChatResponse>,
