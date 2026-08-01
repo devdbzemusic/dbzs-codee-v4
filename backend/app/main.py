@@ -13,6 +13,7 @@ from app.api.health import router as health_router
 from app.api.health_dashboard import router as health_dashboard_router
 
 from app.api.job_spooler import router as job_spooler_router
+from app.api.model_lab import router as model_lab_router
 from app.api.models import router as models_router
 from app.api.model_profiles import router as model_profiles_router, set_services
 from app.api.orchestration import router as orchestration_router
@@ -168,6 +169,7 @@ def create_app() -> FastAPI:
 
     fastapi_app.include_router(settings_router)
     fastapi_app.include_router(models_router)
+    fastapi_app.include_router(model_lab_router)
     fastapi_app.include_router(runtime_router)
     fastapi_app.include_router(agents_router)
     fastapi_app.include_router(project_memory_router)
