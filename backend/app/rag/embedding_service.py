@@ -5,10 +5,9 @@ embedding-generation endpoint (Plan 14, Phase 2).
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 from app.model_lab.repository import ModelLabRepository
 from app.rag.onnx_embedding_client import OnnxEmbeddingClient, onnx_embedding_backend_available
+from app.rag.onnx_shared import resolve_onnx_bundle_paths
 from app.settings.service import SettingsService
 
 
@@ -39,25 +38,8 @@ class EmbeddingService:
         if cached is not None:
             return cached
 
-        model = self.model_lab_repository.get_model(bundle_id)
-        if model is None:
-            raise ValueError(f"Embedding-Modell nicht gefunden in Model Lab: {bundle_id}")
-
-        model_artifact = next(
-            (artifact for artifact in model.artifacts if artifact.artifact_type == "model" and artifact.format == "onnx"),
-            None,
-        )
-        if model_artifact is None:
-            raise ValueError(f"Bundle {bundle_id} enthaelt kein .onnx-Modellartefakt.")
-
-        tokenizer_artifact = next(
-            (artifact for artifact in model.artifacts if artifact.artifact_type == "tokenizer"),
-            None,
-        )
-        if tokenizer_artifact is None:
-            raise ValueError(f"Bundle {bundle_id} enthaelt keinen Tokenizer (tokenizer.json im selben Ordner erwartet).")
-
-        client = OnnxEmbeddingClient(model_path=Path(model_artifact.path), tokenizer_path=Path(tokenizer_artifact.path))
+        model_path, tokenizer_path = resolve_onnx_bundle_paths(self.model_lab_repository, bundle_id)
+        client = OnnxEmbeddingClient(model_path=model_path, tokenizer_path=tokenizer_path)
         self._clients[bundle_id] = client
         return client
 

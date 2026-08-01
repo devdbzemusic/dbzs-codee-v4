@@ -242,12 +242,24 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
     category: "models",
     label: "Embedding-Modell (ONNX, lokal)",
     description:
-      "In Model Lab gescanntes .onnx-Embedding-Modell fuer POST /rag/embeddings/generate - laeuft in-process, kein Runtime-Slot/Port. Nutzt Model Labs Bundle-IDs, nicht den Runtime-Modellindex der anderen Modellfelder.",
+      "In Model Lab gescanntes .onnx-Embedding-Modell fuer POST /embeddings und POST /rag/embeddings/generate - laeuft in-process, kein Runtime-Slot/Port. Nutzt Model Labs Bundle-IDs, nicht den Runtime-Modellindex der anderen Modellfelder.",
     classification: "user_tunable",
     defaultValue: d.defaultEmbeddingModelId ?? "",
     control: "model_lab_select",
     restartRequirement: "none",
     consumerDescription: "rag/embedding_service.py",
+  }),
+  def({
+    key: "defaultRerankerModelId",
+    category: "models",
+    label: "Reranking-Modell (ONNX, lokal)",
+    description:
+      "In Model Lab gescanntes .onnx-Reranking-Modell (Cross-Encoder) fuer POST /rerank - laeuft in-process, kein Runtime-Slot/Port. Nutzt Model Labs Bundle-IDs, nicht den Runtime-Modellindex der anderen Modellfelder.",
+    classification: "user_tunable",
+    defaultValue: d.defaultRerankerModelId ?? "",
+    control: "model_lab_select",
+    restartRequirement: "none",
+    consumerDescription: "rag/reranker_service.py",
   }),
   def({
     key: "defaultUtilityModelId",

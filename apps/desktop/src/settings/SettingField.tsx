@@ -8,13 +8,16 @@ import { useSettingsDraftStore } from "./settingsDraftStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { buildResetChanges, computeSettingsDiff } from "./settingsTransfer";
 
+type ModelLabOptionList = Array<{ id: string; label: string; disabled?: boolean }>;
+
 interface SettingFieldProps {
   definition: SettingDefinition;
   modelOptions?: Array<{ id: string; label: string; disabled?: boolean }>;
-  modelLabOptions?: Array<{ id: string; label: string; disabled?: boolean }>;
+  modelLabOptionsByKey?: Partial<Record<keyof AppSettings, ModelLabOptionList>>;
 }
 
-export function SettingField({ definition, modelOptions = [], modelLabOptions = [] }: SettingFieldProps) {
+export function SettingField({ definition, modelOptions = [], modelLabOptionsByKey }: SettingFieldProps) {
+  const modelLabOptions = modelLabOptionsByKey?.[definition.key] ?? [];
   const settings = useSettingsStore((state) => state.settings);
   const backendHealth = useSettingsStore((state) => state.backendHealth);
   const diagnostics = useSettingsStore((state) => state.diagnostics);

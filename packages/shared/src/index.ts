@@ -8,6 +8,7 @@ export { RUNTIME_SLOT_DEFINITIONS } from "./runtime/runtimeSlots.js";
 export * from "./context/contextContracts.js";
 export * from "./interaction/interactionContracts.js";
 export * from "./boot/index.js";
+export * from "./bridge/index.js";
 export * from "./runtime/index.js";
 export * from "./appContracts.js";
 export * from "./workspace/index.js";

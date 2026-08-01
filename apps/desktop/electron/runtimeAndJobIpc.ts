@@ -16,6 +16,7 @@
  */
 
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
+import { IPC_CHANNEL } from "@dbzs/shared";
 import type {
   JobArtifactCreateRequest,
   JobClaimRequest,
@@ -119,7 +120,7 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
     };
   }
 
-  ipcMain.handle("dbzs:models:index", () => requestBackend("/models/index"));
+  ipcMain.handle(IPC_CHANNEL.modelsIndex, () => requestBackend("/models/index"));
   ipcMain.handle(
     "dbzs:models:multimodal-pairings:manual",
     (_event, request: { base_model_id: string; projector_artifact_id: string }) =>
@@ -128,21 +129,21 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
         body: JSON.stringify(request),
       })
   );
-  ipcMain.handle("dbzs:runtime:status", () => requestBackend("/runtime/status"));
-  ipcMain.handle("dbzs:runtime:start", (_event, modelId: string, profile?: string) =>
+  ipcMain.handle(IPC_CHANNEL.runtimeStatus, () => requestBackend("/runtime/status"));
+  ipcMain.handle(IPC_CHANNEL.runtimeStart, (_event, modelId: string, profile?: string) =>
     requestBackend("/runtime/start", {
       method: "POST",
       body: JSON.stringify({ model_id: modelId, ...(profile ? { profile } : {}) })
     })
   );
-  ipcMain.handle("dbzs:runtime:stop", () =>
+  ipcMain.handle(IPC_CHANNEL.runtimeStop, () =>
     requestBackend("/runtime/stop", {
       method: "POST",
       body: JSON.stringify({})
     })
   );
 
-  ipcMain.handle("dbzs:runtime:chat", async (_event, chatRequest: RuntimeChatRequest, requestId?: string) => {
+  ipcMain.handle(IPC_CHANNEL.runtimeChat, async (_event, chatRequest: RuntimeChatRequest, requestId?: string) => {
     const normalizedRequestId =
       typeof requestId === "string" && requestId.trim().length > 0
         ? requestId.trim()
@@ -206,7 +207,7 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
     }
   });
 
-  ipcMain.handle("dbzs:runtime:chat-stream:cancel", (_event: IpcMainInvokeEvent, requestId?: string) => {
+  ipcMain.handle(IPC_CHANNEL.runtimeChatStreamCancel, (_event: IpcMainInvokeEvent, requestId?: string) => {
     const normalizedRequestId = typeof requestId === "string" ? requestId.trim() : "";
     if (!normalizedRequestId) {
       for (const controller of activeChatStreamAbortControllers.values()) {
@@ -226,7 +227,7 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
     return { status: "cancelled" };
   });
 
-  ipcMain.handle("dbzs:runtime:chat:cancel", (_event: IpcMainInvokeEvent, requestId: string) => {
+  ipcMain.handle(IPC_CHANNEL.runtimeChatCancel, (_event: IpcMainInvokeEvent, requestId: string) => {
     const normalizedRequestId = typeof requestId === "string" ? requestId.trim() : "";
     if (!normalizedRequestId) {
       return { status: "invalid_request_id" };
@@ -242,7 +243,7 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
     return { status: "cancelled" };
   });
 
-  ipcMain.handle("dbzs:runtime:chat-stream", async (event, chatRequest: RuntimeChatRequest, requestId?: string) => {
+  ipcMain.handle(IPC_CHANNEL.runtimeChatStream, async (event, chatRequest: RuntimeChatRequest, requestId?: string) => {
     const normalizedRequestId =
       typeof requestId === "string" && requestId.trim().length > 0
         ? requestId.trim()
@@ -255,7 +256,7 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
     const backendChatRequest = { ...chatRequest, request_id: normalizedRequestId };
     const sendStreamChunk = (payload: { delta: string; totalLength: number }) => {
       if (!streamSignal.aborted) {
-        event.sender.send("dbzs:runtime:chat-stream-chunk", {
+        event.sender.send(IPC_CHANNEL.runtimeChatStreamChunk, {
           requestId: normalizedRequestId,
           ...payload
         });

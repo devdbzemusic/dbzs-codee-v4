@@ -113,10 +113,12 @@ describe("SettingField", () => {
       root.render(
         <SettingField
           definition={definition}
-          modelLabOptions={[
-            { id: "bundle-1", label: "bge-small-en", disabled: false },
-            { id: "bundle-2", label: "incomplete-bundle", disabled: true }
-          ]}
+          modelLabOptionsByKey={{
+            defaultEmbeddingModelId: [
+              { id: "bundle-1", label: "bge-small-en", disabled: false },
+              { id: "bundle-2", label: "incomplete-bundle", disabled: true }
+            ]
+          }}
         />
       );
     });
@@ -139,6 +141,46 @@ describe("SettingField", () => {
       baseRevision: 0,
       changes: { defaultEmbeddingModelId: "bundle-1" }
     });
+
+    root.unmount();
+    container.remove();
+  });
+
+  it("looks up modelLabOptionsByKey per field and does not mix embedding/reranker options", () => {
+    const definition = getSettingDefinition("defaultRerankerModelId");
+    expect(definition).toBeTruthy();
+    if (!definition) {
+      return;
+    }
+    useSettingsStore.setState((state) => ({
+      ...state,
+      backendHealth: { status: "ok", app: "DBZS Code Assistant", version: "0.4.0-rc.1" }
+    }));
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <SettingField
+          definition={definition}
+          modelLabOptionsByKey={{
+            defaultEmbeddingModelId: [{ id: "embed-bundle", label: "bge-small-en", disabled: false }],
+            defaultRerankerModelId: [{ id: "rerank-bundle", label: "bge-reranker", disabled: false }]
+          }}
+        />
+      );
+    });
+
+    const select = container.querySelector("select");
+    expect(select).toBeTruthy();
+    if (!(select instanceof HTMLSelectElement)) {
+      root.unmount();
+      container.remove();
+      return;
+    }
+    expect(Array.from(select.options).map((option) => option.value)).toEqual(["", "rerank-bundle"]);
 
     root.unmount();
     container.remove();

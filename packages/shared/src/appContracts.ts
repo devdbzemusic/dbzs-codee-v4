@@ -78,6 +78,7 @@ export interface AppSettings {
   defaultReviewerModelId: string;
   defaultDebugModelId: string;
   defaultEmbeddingModelId?: string;
+  defaultRerankerModelId?: string;
   autoStartChatRuntime: boolean;
   autoStartCodingRuntime: boolean;
   autoStartVisionRuntime?: boolean;
@@ -191,6 +192,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultReviewerModelId: "",
   defaultDebugModelId: "",
   defaultEmbeddingModelId: "",
+  defaultRerankerModelId: "",
   autoStartChatRuntime: false,
   autoStartCodingRuntime: false,
   autoStartVisionRuntime: false,
