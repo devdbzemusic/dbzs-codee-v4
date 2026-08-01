@@ -11,6 +11,7 @@ from app.model_lab.models import (
     HuggingFaceRepoInfo,
     HuggingFaceSearchResult,
     LogicalModel,
+    ModelBenchmarkMeasurement,
     ModelBenchmarkRequest,
     ModelBenchmarkRun,
     ModelBundle,
@@ -302,6 +303,9 @@ class ModelLabService:
 
     def list_benchmark_runs(self, bundle_id: str | None = None) -> list[ModelBenchmarkRun]:
         return self.repository.list_benchmark_runs(bundle_id=bundle_id)
+
+    def list_benchmark_measurements(self, benchmark_run_id: str | None = None) -> list[ModelBenchmarkMeasurement]:
+        return self.repository.list_benchmark_measurements(benchmark_run_id=benchmark_run_id)
 
     def list_failures(self, bundle_id: str | None = None) -> list[ModelFailureRecord]:
         return self.repository.list_failures(bundle_id=bundle_id)

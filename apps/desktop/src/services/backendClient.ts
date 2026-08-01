@@ -28,6 +28,7 @@ import type {
   DesktopBridgeV1,
   GpuInfo,
   ManualMultimodalPairingRequest,
+  ModelLabBenchmarkMeasurement,
   ModelLabBenchmarkRequest,
   ModelLabBenchmarkRun,
   ModelIndex,
@@ -160,6 +161,7 @@ export interface BackendBridge extends DesktopBridgeV1 {
   listModelProbeRuns?: (bundleId?: string) => Promise<ModelLabProbeRun[]>;
   benchmarkModel?: (request: ModelLabBenchmarkRequest) => Promise<ModelLabBenchmarkRun>;
   listModelBenchmarkRuns?: (bundleId?: string) => Promise<ModelLabBenchmarkRun[]>;
+  listModelBenchmarkMeasurements?: (benchmarkRunId?: string) => Promise<ModelLabBenchmarkMeasurement[]>;
   certifyModel?: (request: ModelLabCertificationRequest) => Promise<ModelLabCertificationRecord>;
   listModelCertifications?: (bundleId?: string) => Promise<ModelLabCertificationRecord[]>;
   recordModelCapabilityEvidence?: (
@@ -583,6 +585,13 @@ export const backendClient = {
       return Promise.reject(new Error("listModelBenchmarkRuns is unavailable."));
     }
     return method(bundleId);
+  },
+  listModelBenchmarkMeasurements: (benchmarkRunId?: string) => {
+    const method = bridge().listModelBenchmarkMeasurements;
+    if (!method) {
+      return Promise.reject(new Error("listModelBenchmarkMeasurements is unavailable."));
+    }
+    return method(benchmarkRunId);
   },
   certifyModel: (request: ModelLabCertificationRequest) => {
     const method = bridge().certifyModel;

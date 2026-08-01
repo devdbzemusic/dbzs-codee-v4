@@ -129,6 +129,10 @@ export function registerModelLabIpcHandlers(options: RegisterModelLabIpcOptions)
     const params = bundleId ? `?bundle_id=${encodeURIComponent(bundleId)}` : "";
     return requestBackend(`/model-lab/benchmark-runs${params}`);
   });
+  ipcMain.handle("dbzs:model-lab:benchmark-measurements:list", (_event, benchmarkRunId?: string) => {
+    const params = benchmarkRunId ? `?benchmark_run_id=${encodeURIComponent(benchmarkRunId)}` : "";
+    return requestBackend(`/model-lab/benchmark-measurements${params}`);
+  });
   ipcMain.handle("dbzs:model-lab:certifications:create", (_event, request: ModelLabCertificationRequest) =>
     requestBackend("/model-lab/certifications", {
       method: "POST",

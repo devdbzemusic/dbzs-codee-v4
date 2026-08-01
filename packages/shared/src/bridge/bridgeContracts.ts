@@ -2,6 +2,7 @@ import type {
   AppInfo,
   BackendHealth,
   ModelLabBenchmarkRequest,
+  ModelLabBenchmarkMeasurement,
   ModelLabBenchmarkRun,
   ModelLabBundle,
   ModelLabCapabilityEvidenceRecord,
@@ -167,6 +168,7 @@ export interface DesktopBridgeV1 {
   listModelProbeRuns?: (bundleId?: string) => Promise<ModelLabProbeRun[]>;
   benchmarkModel?: (request: ModelLabBenchmarkRequest) => Promise<ModelLabBenchmarkRun>;
   listModelBenchmarkRuns?: (bundleId?: string) => Promise<ModelLabBenchmarkRun[]>;
+  listModelBenchmarkMeasurements?: (benchmarkRunId?: string) => Promise<ModelLabBenchmarkMeasurement[]>;
   certifyModel?: (request: ModelLabCertificationRequest) => Promise<ModelLabCertificationRecord>;
   listModelCertifications?: (bundleId?: string) => Promise<ModelLabCertificationRecord[]>;
   recordModelCapabilityEvidence?: (

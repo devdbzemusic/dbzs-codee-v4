@@ -38,6 +38,9 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
 - Hardware-Snapshots werden jetzt im Model Lab persistiert: `/model-lab/hardware` bleibt kompatibel,
   schreibt aber zusaetzlich einen Snapshot; `/model-lab/hardware-snapshots` liefert die letzten Snapshots
   als Grundlage fuer Tuning-/Benchmark-Kontext.
+- Benchmark-Runs schreiben flache numerische Metrics zusaetzlich in `benchmark_measurements`; der neue
+  Endpunkt `/model-lab/benchmark-measurements` liefert diese normalisierte Messspur fuer Tuning Lab und
+  Benchmark-UI. Echte Runtime-Messlaeufe bleiben weiterhin ein spaeteres Adapter-Gate.
 - Statuskette auf die Masterplan-Stufen erweitert (`COMPATIBLE`, `LOADABLE`, `TUNED`, `BENCHMARKED`,
   `CERTIFIED`, `DEGRADED`, `QUARANTINED`), bestehende Altstatus bleiben kompatibel.
 - Neue Model-Lab/Fleet-Endpunkte unter `/model-lab`: logical models, runtime adapters/presets,
@@ -64,7 +67,7 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
   (`certification:<KIND>`) mit Status-Mapping `passed -> verified`, `failed -> failed`, `revoked -> revoked`.
 
 **Frisch verifiziert:**
-- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab.py backend/tests/test_model_lab_repository.py backend/tests/test_model_lab_scan_jobs.py backend/tests/test_model_lab_bridge.py -q` -> 32/32 gruen
+- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab.py backend/tests/test_model_lab_repository.py backend/tests/test_model_lab_scan_jobs.py backend/tests/test_model_lab_bridge.py -q` -> 33/33 gruen
 - `npm run typecheck` in `apps/desktop` -> gruen
 - `npm run test -- src/components/notebook/ModelLabTab.controller.test.tsx` in `apps/desktop` -> 8/8 gruen
 - `npm run test -- src/components/notebook/ModelLabTab.controller.test.tsx src/components/notebook/RuntimeModelsTab.test.ts src/services/modelSelectionBroker.test.ts src/services/runtimeSlotManager.test.ts` in `apps/desktop` -> 88/88 gruen

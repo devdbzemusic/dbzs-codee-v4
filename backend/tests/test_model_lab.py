@@ -268,6 +268,18 @@ def test_model_lab_fleet_endpoints_record_safe_gates_and_roles(tmp_path: Path) -
     policies = client.get("/model-lab/execution-policies")
     assert policies.status_code == 200
     assert {policy["role"] for policy in policies.json()} >= {"MAIN_AGENT", "MICRO_TOOL_AGENT"}
+    benchmark = client.post(
+        "/model-lab/benchmark",
+        json={"bundle_id": bundle_id, "metrics": {"tokens_per_second": 12.5, "notes": "queued"}},
+    )
+    assert benchmark.status_code == 200
+    measurements = client.get(
+        "/model-lab/benchmark-measurements",
+        params={"benchmark_run_id": benchmark.json()["id"]},
+    )
+    assert measurements.status_code == 200
+    assert measurements.json()[0]["name"] == "tokens_per_second"
+    assert measurements.json()[0]["unit"] == "tokens/s"
 
     probe = client.post("/model-lab/probe", json={"bundle_id": bundle_id})
     assert probe.status_code == 200

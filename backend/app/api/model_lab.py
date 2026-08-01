@@ -8,6 +8,7 @@ from app.model_lab.models import (
     HuggingFaceRepoInfo,
     HuggingFaceSearchResult,
     LogicalModel,
+    ModelBenchmarkMeasurement,
     ModelBenchmarkRequest,
     ModelBenchmarkRun,
     ModelBundle,
@@ -262,6 +263,14 @@ def list_benchmark_runs(
     service: ModelLabService = Depends(get_model_lab_service),
 ) -> list[ModelBenchmarkRun]:
     return service.list_benchmark_runs(bundle_id=bundle_id)
+
+
+@router.get("/benchmark-measurements")
+def list_benchmark_measurements(
+    benchmark_run_id: str | None = None,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> list[ModelBenchmarkMeasurement]:
+    return service.list_benchmark_measurements(benchmark_run_id=benchmark_run_id)
 
 
 @router.post("/certifications")

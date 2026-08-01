@@ -1665,6 +1665,15 @@ export interface ModelLabBenchmarkRun {
   completed_at: string | null;
 }
 
+export interface ModelLabBenchmarkMeasurement {
+  id: string;
+  benchmark_run_id: string;
+  name: string;
+  value: number;
+  unit: string;
+  created_at: string;
+}
+
 export interface ModelLabCertificationRequest {
   bundle_id: string;
   certification: ModelFleetCertificationKind;

@@ -15,6 +15,7 @@ import pytest
 from app.model_lab.models import (
     HardwareProfile,
     ModelArtifact,
+    ModelBenchmarkRequest,
     ModelBundle,
     ModelCapabilityEvidenceRequest,
     ModelCertificationRequest,
@@ -196,6 +197,32 @@ def test_fleet_repository_records_probe_certification_and_role_assignment(tmp_pa
         "STRUCTURED_OUTPUT_VERIFIED",
         "WRITE_AGENT_VERIFIED",
     }
+
+
+def test_fleet_repository_records_benchmark_measurements(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    run = repo.create_benchmark_run(
+        ModelBenchmarkRequest(
+            bundle_id=bundle.bundle_id,
+            metrics={
+                "tokens_per_second": 42.5,
+                "first_token_latency_ms": 120,
+                "ignored": "not numeric",
+                "warm": True,
+            },
+        ),
+        status="queued",
+        message="queued",
+    )
+
+    measurements = repo.list_benchmark_measurements(run.id)
+    by_name = {measurement.name: measurement for measurement in measurements}
+    assert set(by_name) == {"tokens_per_second", "first_token_latency_ms"}
+    assert by_name["tokens_per_second"].unit == "tokens/s"
+    assert by_name["tokens_per_second"].value == 42.5
+    assert by_name["first_token_latency_ms"].unit == "ms"
 
 
 def test_fleet_repository_records_capability_evidence(tmp_path: Path) -> None:

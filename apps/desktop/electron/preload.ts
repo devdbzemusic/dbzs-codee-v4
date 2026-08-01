@@ -515,6 +515,10 @@ const api = {
     ipcRenderer.invoke("dbzs:model-lab:benchmark-runs:list", bundleId) as Promise<
       import("@dbzs/shared").ModelLabBenchmarkRun[]
     >,
+  listModelBenchmarkMeasurements: (benchmarkRunId?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:benchmark-measurements:list", benchmarkRunId) as Promise<
+      import("@dbzs/shared").ModelLabBenchmarkMeasurement[]
+    >,
   certifyModel: (request: import("@dbzs/shared").ModelLabCertificationRequest) =>
     ipcRenderer.invoke("dbzs:model-lab:certifications:create", request) as Promise<
       import("@dbzs/shared").ModelLabCertificationRecord

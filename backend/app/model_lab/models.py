@@ -304,6 +304,15 @@ class ModelBenchmarkRun(BaseModel):
     completed_at: datetime | None = None
 
 
+class ModelBenchmarkMeasurement(BaseModel):
+    id: str
+    benchmark_run_id: str
+    name: str
+    value: float
+    unit: str
+    created_at: datetime
+
+
 class ModelCertificationRequest(BaseModel):
     bundle_id: str
     certification: ModelFleetCertificationKind
@@ -406,6 +415,7 @@ class ModelFleetSummary(BaseModel):
     runtime_presets: list[RuntimePresetRecord]
     probe_runs: list[ModelProbeRun]
     benchmark_runs: list[ModelBenchmarkRun]
+    benchmark_measurements: list[ModelBenchmarkMeasurement] = Field(default_factory=list)
     capability_evidence: list[ModelCapabilityEvidenceRecord] = Field(default_factory=list)
     certifications: list[ModelCertificationRecord]
     role_assignments: list[ModelRoleAssignment]

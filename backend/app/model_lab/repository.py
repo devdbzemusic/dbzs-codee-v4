@@ -15,6 +15,7 @@ from app.model_lab.models import (
     HardwareProfile,
     HardwareSnapshot,
     LogicalModel,
+    ModelBenchmarkMeasurement,
     ModelArtifact,
     ModelBenchmarkRequest,
     ModelBenchmarkRun,
@@ -885,6 +886,21 @@ class ModelLabRepository:
                     _dt(run.completed_at) if run.completed_at else None,
                 ),
             )
+            for name, value in _numeric_measurements(run.measurements).items():
+                conn.execute(
+                    """
+                    INSERT INTO benchmark_measurements(id, benchmark_run_id, name, value, unit, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        uuid.uuid4().hex,
+                        run.id,
+                        name,
+                        value,
+                        _measurement_unit(name),
+                        _dt(now),
+                    ),
+                )
         return run
 
     def upsert_certification(self, request: ModelCertificationRequest) -> ModelCertificationRecord:
@@ -1024,6 +1040,19 @@ class ModelLabRepository:
             else:
                 rows = conn.execute("SELECT * FROM benchmark_runs ORDER BY started_at DESC").fetchall()
         return [_benchmark_run_from_row(row) for row in rows]
+
+    def list_benchmark_measurements(self, benchmark_run_id: str | None = None) -> list[ModelBenchmarkMeasurement]:
+        with sqlite_connection(self.db_path) as conn:
+            if benchmark_run_id:
+                rows = conn.execute(
+                    "SELECT * FROM benchmark_measurements WHERE benchmark_run_id = ? ORDER BY created_at DESC, name",
+                    (benchmark_run_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM benchmark_measurements ORDER BY created_at DESC, benchmark_run_id, name"
+                ).fetchall()
+        return [_benchmark_measurement_from_row(row) for row in rows]
 
     def list_certifications(self, bundle_id: str | None = None) -> list[ModelCertificationRecord]:
         with sqlite_connection(self.db_path) as conn:
@@ -1459,6 +1488,17 @@ def _benchmark_run_from_row(row: sqlite3.Row) -> ModelBenchmarkRun:
     )
 
 
+def _benchmark_measurement_from_row(row: sqlite3.Row) -> ModelBenchmarkMeasurement:
+    return ModelBenchmarkMeasurement(
+        id=str(row["id"]),
+        benchmark_run_id=str(row["benchmark_run_id"]),
+        name=str(row["name"]),
+        value=float(row["value"]),
+        unit=str(row["unit"]),
+        created_at=_parse_dt(row["created_at"]),
+    )
+
+
 def _certification_from_row(row: sqlite3.Row) -> ModelCertificationRecord:
     return ModelCertificationRecord(
         id=str(row["id"]),
@@ -1674,6 +1714,29 @@ def _safety_rank(safety_level: str) -> int:
         "LEVEL_4_SHELL_AND_GIT": 4,
     }
     return ranks.get(safety_level, 0)
+
+
+def _numeric_measurements(measurements: dict[str, object]) -> dict[str, float]:
+    numeric: dict[str, float] = {}
+    for name, value in measurements.items():
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, (int, float)):
+            numeric[str(name)] = float(value)
+    return numeric
+
+
+def _measurement_unit(name: str) -> str:
+    normalized = name.lower()
+    if "token" in normalized and ("/s" in normalized or "per_second" in normalized or "per_s" in normalized):
+        return "tokens/s"
+    if normalized.endswith("_ms") or "latency" in normalized or "duration" in normalized:
+        return "ms"
+    if "byte" in normalized or normalized.endswith("_bytes"):
+        return "bytes"
+    if normalized.endswith("_percent") or normalized.endswith("_pct"):
+        return "%"
+    return "value"
 
 
 def _dt(value: datetime) -> str:
