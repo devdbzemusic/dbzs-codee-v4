@@ -1,10 +1,46 @@
 import type { IndexedModel } from "@dbzs/shared";
 
+const hardExclusionReasons = new Set(["not_gguf", "missing_file", "unsupported_runtime", "health_failed"]);
+
+function modelExclusionReasons(model: IndexedModel): string[] {
+  return Array.isArray(model.exclusion_reasons) ? model.exclusion_reasons : [];
+}
+
 export function isRunnableModel(model: IndexedModel): boolean {
   if (model.artifact_type !== "model") {
     return false;
   }
+  if (modelExclusionReasons(model).some((reason) => hardExclusionReasons.has(reason))) {
+    return false;
+  }
   return ["llama_server_ready", "llama_server_candidate", "ollama_ready"].includes(model.compatibility);
+}
+
+export function formatModelExclusionReason(reason: string): string {
+  switch (reason) {
+    case "not_gguf":
+      return "kein GGUF";
+    case "missing_file":
+      return "Datei fehlt";
+    case "unsupported_runtime":
+      return "Runtime nicht unterstuetzt";
+    case "missing_profile":
+      return "Profil fehlt";
+    case "unprofiled_gpu":
+      return "GPU unprofiliert";
+    case "health_failed":
+      return "Health fehlgeschlagen";
+    default:
+      return reason.replaceAll("_", " ");
+  }
+}
+
+export function summarizeModelExclusionReasons(model: IndexedModel): string | null {
+  const reasons = modelExclusionReasons(model);
+  if (reasons.length === 0) {
+    return null;
+  }
+  return reasons.map(formatModelExclusionReason).join(", ");
 }
 
 /**
@@ -14,6 +50,11 @@ export function isRunnableModel(model: IndexedModel): boolean {
  * indication of *why* a model was excluded.
  */
 export function describeExclusionReason(model: IndexedModel): string | null {
+  const exclusionSummary = summarizeModelExclusionReasons(model);
+  if (exclusionSummary) {
+    const hasHardReason = modelExclusionReasons(model).some((reason) => hardExclusionReasons.has(reason));
+    return `${hasHardReason ? "Blockiert" : "Warnung"}: ${exclusionSummary}`;
+  }
   if (isRunnableModel(model)) {
     return null;
   }

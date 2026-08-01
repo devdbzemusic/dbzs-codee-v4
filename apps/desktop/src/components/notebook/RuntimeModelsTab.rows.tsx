@@ -36,7 +36,7 @@
 
 import { useState } from "react";
 import { formatModelSizeBadge, type IndexedModel, type MultimodalPair, type RuntimeStatus } from "@dbzs/shared";
-import { describeExclusionReason, isUnprofiled } from "@/utils/modelUtils";
+import { describeExclusionReason, isUnprofiled, summarizeModelExclusionReasons } from "@/utils/modelUtils";
 import {
   defaultPairingSelection,
   describeBaseModelSelection,
@@ -117,6 +117,7 @@ export function StartableModelRow({
   const rowStatus = describeModelRowStatus(model, status, runtimeBusy);
   const capabilityLabels = describeModelCapabilities(model);
   const routingReadiness = describeModelRoutingReadiness(model, multimodalPairs);
+  const exclusionSummary = summarizeModelExclusionReasons(model);
   const [selectedProfile, setSelectedProfile] = useState("balanced");
   const showProfileSelect = isUnprofiled(model);
 
@@ -149,6 +150,11 @@ export function StartableModelRow({
           {isUnprofiled(model) ? (
             <ToneBadge title="Noch nicht getestet - laeuft standardmaessig ohne GPU-Layer (CPU-only)" tone="warn">
               Ungetestet (GPU)
+            </ToneBadge>
+          ) : null}
+          {exclusionSummary ? (
+            <ToneBadge title={describeExclusionReason(model) ?? exclusionSummary} tone={canStart ? "warn" : "error"} uppercase={false}>
+              {exclusionSummary}
             </ToneBadge>
           ) : null}
         </div>
