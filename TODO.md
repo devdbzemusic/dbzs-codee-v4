@@ -326,13 +326,16 @@ Basis: `Pläne/03 04 05 DBZS_CODEE_CONSOLIDATED_MODEL_CONTROL_MM_PAIRING_PLAN.md
       Bildanhaenge nur "Kein inline lesbarer Inhalt verfuegbar." aus). Jetzt behoben: neues additives
       `RuntimeChatMessage.images`-Feld (Frontend + Backend), `_wire_chat_message()` in `service.py` uebersetzt
       es beim Request-Aufbau in OpenAI-Content-Parts (llama-server) bzw. natives `images`-Array (Ollama).
-      Details siehe `HANDOVER.md`. **Noch offen:** die eigentliche Screenshot-Coding/-Review-Pipeline
-      (Vision-Modell erzeugt einen strukturierten Vision Context Pack, ein zertifiziertes Coding-/Review-Modell
-      verarbeitet ihn) existiert weiterhin nicht — bisher nur die Routing-Klassifikation
-      ("Screenshot-bereit"-Label in `describeModelRoutingReadiness()`), kein tatsaechlicher Zwei-Modell-Turn.
-      Auch weiterhin offen: das bestehende `code_capability_missing`-Gate verlangt ein einzelnes Modell mit
-      Vision+Code, im Spannungsverhaeltnis zum geplanten Zwei-Modell-Design; manuelle Bestaetigung des neuen
-      Bildtransports in einer echten Session mit einem MMProj-verifizierten Modell steht aus.
+      Details siehe `HANDOVER.md`. **Zwei-Modell-Pipeline umgesetzt (2026-08-01):** neues
+      `visionContextPackService.ts` loest ueber `brokerDecision("image_analysis", ...)` ein verifiziertes
+      Vision-Modell auf (umgeht das `code_capability_missing`-Gate bewusst, da dieser Task-Typ nicht in
+      dessen Liste steht), startet dessen Slot bei Bedarf und analysiert das Bild einmal; `sendMessage()` in
+      `runtimeChatStore.ts` triggert das automatisch bei Bild+Coding-/Review-Intent und resended die Anfrage
+      rekursiv mit dem Analyseergebnis als Textkontext statt Rohbild. Details siehe `HANDOVER.md`.
+      **Noch offen:** manuelle Bestaetigung in einer echten Session (kein Store-Ebene-Integrationstest, siehe
+      HANDOVER); kein eigener Ladezustand in der UI waehrend der Vorstufe; keine OOM-Fallback-Kaskade fuer den
+      Vision-Sub-Call; auf geteilter GPU (fast_gpu/vision_gpu) sind sequentielle Modell-Swaps pro Turn die
+      erwartbare Folge, keine neue Regression.
 - [ ] **Phase 6 â€” Capability-Zertifizierung getrennt nachziehen:** direkte Vision-Coding-/Review-Faehigkeit nur nach expliziter
       Zertifizierung (`code_generation`, `code_review`, `structured_output`, `instruction_following`, `tool_calling`);
       Audio bewusst spaeter separat.

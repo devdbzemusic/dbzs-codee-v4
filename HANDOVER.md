@@ -2,6 +2,75 @@
 
 Stand: 2026-08-01
 
+## Vision-Context-Pack-Pipeline umgesetzt (Zwei-Modell-Turn fuer Screenshot-Coding/-Review) (2026-08-01)
+
+Basis: `Pläne/03 04 05 DBZS_CODEE_ADAPTED_MODEL_CONTROL_MM_PLAN_CURRENT_REPO.md`, Abschnitt 11
+("Coding mit Screenshot"/"Review mit Screenshot"). Baut direkt auf dem Bildtransport-Fix von heute frueher auf
+(siehe Eintrag darunter) — ohne den waere ein Vision-Modell in diesem Schritt nie an Bilddaten gekommen.
+
+**Kernproblem, das dieser Schritt loest:** `modelSelectionBroker.ts` hat ein bestehendes Single-Model-Gate
+(`code_capability_missing`), das eine Bild-Coding-/Review-Anfrage hart blockiert, wenn das geroutete
+Visionmodell keine Code-Faehigkeit im Modellindex hat — was bei einem reinen Vision-Modell (kein
+"chat"+"code"-Dual-Capability-Modell) praktisch immer der Fall ist. Der Plan sieht stattdessen ein
+Zwei-Modell-Design vor: ein verifiziertes Vision-Modell analysiert das Bild und erzeugt einen strukturierten
+Text-Kontext, ein separates, zertifiziertes Coding-/Review-Modell verarbeitet nur diesen Text (nie das Rohbild).
+
+**Umgesetzt:**
+- `apps/desktop/src/services/visionContextPackService.ts` (neu): `runVisionContextPackPreStep()` loest ueber
+  `brokerDecision("image_analysis", ...)` bewusst mit einem der vier bereits existierenden
+  Vision-Task-Typen (nicht in `taskRequiresCodingCapability()`s Liste, daher kein Treffer auf das
+  `code_capability_missing`-Gate) ein verifiziertes Vision-Modell auf, sorgt dafuer, dass dessen Slot
+  tatsaechlich laeuft (`runtimeSlotManager.getSlotStatus`/`startSlot`/`waitForSlotReady` — bewusst ohne die
+  volle OOM-Fallback-Kaskade aus `runtimeChatStoreOnDemandExecution.ts`, siehe "Noch offen"), und macht EINEN
+  Chat-Aufruf mit den Bilddaten (`agentRunService.sendChat`, ueber das neue `images`-Feld von heute frueher).
+  Gibt bei jedem Fehlerfall (kein Vision-Modell konfiguriert, Slot-Start/-Warmup fehlgeschlagen, leere Antwort)
+  strukturiert `{ ok: false, reason }` zurueck statt zu werfen — der Aufrufer kann sauber auf den
+  Normalablauf zurueckfallen, statt den Turn hart abzubrechen.
+- `apps/desktop/src/services/modelSelectionBroker.ts`: `taskRequiresCodingCapability()` exportiert (vorher
+  intern), damit der Trigger in `runtimeChatStore.ts` exakt dieselbe Liste nutzt wie das bestehende Gate,
+  ohne sie zu duplizieren.
+- `apps/desktop/src/stores/runtimeChatStore.ts`: `sendMessage()` prueft jetzt ganz am Anfang (vor
+  Preflight/Spooler/Routing), ob die Nutzeranfrage Bild + Coding-/Review-Intent kombiniert
+  (`taskRequiresCodingCapability(taskTypeForExecutionIntent(...))` plus ein echtes Bild-Attachment). Wenn ja
+  und die Vision-Vorstufe erfolgreich war: rekursiver Resend derselben Nachricht mit den Bild-Attachments
+  entfernt, `hasImageInput/requiresVision: false` und dem Kontext-Pack-Text im neuen
+  `sendOptions.visionContextPackText`-Feld — geschuetzt durch `visionContextPackApplied`, damit die Vorstufe
+  pro Nutzernachricht maximal einmal laeuft. Der Kontext-Pack-Text landet (wie schon der
+  Attachment-Prompt-Text) NUR im ausgehenden Request-Content, nicht in der angezeigten Chat-Blase — der
+  Nutzer sieht weiterhin seine eigene, unveraenderte Nachricht. Schlaegt die Vorstufe fehl, faellt die
+  Funktion einfach durch in den bestehenden Normalablauf; das existierende `code_capability_missing`-Gate
+  bleibt als Sicherheitsnetz unveraendert bestehen.
+  `set({ isSending: true })`/`set({ isSending: false })` um die Vorstufe herum verhindert, dass waehrend der
+  (potenziell langsamen: Slot-Start + Warmup + Vision-Inferenz) Vorstufe ein zweiter, unabhaengiger Send
+  startet — synchron vor dem rekursiven Aufruf zurueckgesetzt, damit dessen eigener `isSending`-Guard nicht
+  faelschlich blockiert.
+
+Verifikation: 11 neue Unit-Tests fuer `visionContextPackService.ts` (Happy Path mit bereits laufendem Modell,
+Slot-Start-Pfad, alle Fehlerpfade einzeln), beide Typechecks fehlerfrei, voller Desktop-Vitest-Lauf
+1384/1384 gruen (42 geskippt, keine Regressionen).
+
+**Noch offen:**
+- Kein Store-Ebene-Integrationstest, der den vollen rekursiven `sendMessage()`-Trigger end-to-end beweist
+  (gleiche Begruendung wie beim Bildtransport-Fix: eine neue Testinfrastruktur fuer diese riesige Funktion
+  haette den Rahmen gesprengt) — manuelle Bestaetigung in einer echten Session mit einem MMProj-verifizierten
+  Vision-Modell und einem konfigurierten Coding-Modell steht aus.
+- Waehrend die Vision-Vorstufe laeuft, zeigt die UI keinen eigenen Ladezustand/Aktivitaetsschritt (nur der
+  globale `isSending`-Schutz gegen Doppel-Sends) — bewusst vereinfacht, kein neuer Activity-Step-Typ
+  eingefuehrt.
+- Bewusst OHNE die volle OOM-Fallback-Kaskade (`handleResidentFallback`, kleineres Profil bei Speichermangel)
+  fuer den Vision-Sub-Call — schlaegt der Slot-Start/Warmup fehl, faellt die Pipeline einfach durch, statt
+  selbst einen Fallback-Modell-Swap zu versuchen.
+- Auf Hardware mit geteilter GPU (siehe `gpu_exclusivity.py`, `fast_gpu`/`vision_gpu` teilen sich eine GPU)
+  bedeutet dieses Design zwangslaeufig sequentielle Modell-Swaps: Vision-Modell laden (verdraengt ein
+  laufendes Coding-Modell auf `fast_gpu`) -> analysieren -> Coding-Modell fuer den eigentlichen Turn erneut
+  laden (verdraengt wieder das Vision-Modell). Das ist die erwartbare Konsequenz der bestehenden
+  Hardware-Beschraenkung, keine neue Regression dieses Schritts.
+- Der bestehende `code_capability_missing`-Fehlertext ("...ist fuer diese Bild-Coding-/Review-Anfrage nicht
+  freigegeben...") ist jetzt fachlich ungenau, sobald die Vorstufe greift (er suggeriert eine Sackgasse, wo
+  jetzt automatisch die Zwei-Modell-Pipeline versucht wird) — nur relevant, wenn die Vorstufe selbst
+  fehlschlaegt und der Normalablauf trotzdem denselben Bildinput mitbringt; Text nicht angepasst, da das
+  Gate im Kern weiterhin korrekt beschreibt, warum der *Einzelmodell*-Pfad blockiert ist.
+
 ## Bildtransport zum Modell repariert (Vision-Context-Pack-Vorstufe) (2026-08-01)
 
 Auftrag war urspruenglich, die im Model-Control-Center-Plan beschriebene "Vision Context Pack"-Pipeline
