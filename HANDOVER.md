@@ -2,6 +2,19 @@
 
 Stand: 2026-08-01
 
+## Plan 12, Etappe 2, Punkt 9: Dependency-Audit nachgeholt + `pnpm` in der Sandbox doch nutzbar (2026-08-01)
+
+`pnpm audit` (workspace-weit, `pnpm-lock.yaml`/`pnpm-workspace.yaml`) ergab: **keine bekannten
+Schwachstellen**. Wichtiger Nebenbefund: `pnpm` ist zwar weiterhin nicht global installiert, aber
+`npx --yes pnpm@11.7.0 <befehl>` (die in `package.json`s `packageManager`-Feld gepinnte Version) laedt und
+fuehrt echtes `pnpm` on-demand aus, ohne Installation. Das relativiert die bisherige, in mehreren frueheren
+Sessions dokumentierte Einschraenkung "pnpm/uv nicht installiert, `pnpm`-Befehle muessen durch ihre direkten
+Aequivalente ersetzt werden" — zumindest fuer `pnpm` gilt das nicht mehr uneingeschraenkt. Insbesondere der
+BLOCKED-Status von SV-02 im Abnahme-Run `docs/audits/runs/2026-07-31_21-43/` (die zusammengesetzte
+`pnpm ci:local:win`-Pruefung war blockiert, weil `pnpm` fehlte, obwohl alle Einzelschritte direkt liefen)
+sollte in einem kuenftigen Abnahme-Lauf mit `npx --yes pnpm@11.7.0 ci:local:win` erneut versucht werden. `uv`
+wurde nicht erneut getestet, die urspruengliche Einschraenkung dafuer bleibt bis auf Weiteres bestehen.
+
 ## Plan 12, Etappe 1: Session-Koordination umgesetzt, Branch Protection braucht manuellen Schritt (2026-08-01)
 
 Basis: `Pläne/12 DBZS_CODEE_V4_VERBESSERUNGSPLAN_2026-07-31.md`, Etappe 1, Punkte 2+3.
