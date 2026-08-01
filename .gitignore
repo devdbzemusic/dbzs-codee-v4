@@ -67,3 +67,8 @@ debug/*.png
 # Hinweis: Bereits getrackte Zips müssen zusätzlich per `git rm --cached <datei>.zip`
 # im echten Repo entfernt werden - das kann diese Datei-Bereinigung allein nicht leisten.
 *.zip
+
+# Session-Koordination (scripts/session-touch.mjs): live, haeufig mutierter lokaler
+# Zustand, kein Projektverlauf -- bewusst NICHT von der generellen .codee/-Versionierung
+# oben erfasst. Muss nach der "!/.codee/**"-Wiederaufnahme stehen, um zu greifen.
+/.codee/session-registry.json

@@ -1,6 +1,43 @@
 # Handover
 
-Stand: 2026-07-31
+Stand: 2026-08-01
+
+## Plan 12, Etappe 1: Session-Koordination umgesetzt, Branch Protection braucht manuellen Schritt (2026-08-01)
+
+Basis: `Pläne/12 DBZS_CODEE_V4_VERBESSERUNGSPLAN_2026-07-31.md`, Etappe 1, Punkte 2+3.
+
+**Session-Koordinationsmechanismus (Punkt 3) - umgesetzt:** `scripts/session-touch.mjs` (neu, `pnpm session:touch
+"<Aufgabe>"` bzw. `node scripts/session-touch.mjs "<Aufgabe>"`) schreibt/prueft `.codee/session-registry.json`
+(gitignored — live lokaler Zustand, kein Projektverlauf, siehe `.gitignore`-Kommentar). Meldet, falls eine
+andere Session in den letzten 6h aktiv war, insbesondere auf einem anderen Branch. Manuell aufzurufen (kein
+automatischer Hook) — am Sessionstart und vor riskanten Git-Operationen (`checkout`/`reset`/Force-Push), um
+die in dieser Session mehrfach aufgetretenen Parallel-Session-Kollisionen frueher sichtbar zu machen.
+
+**Branch Protection fuer `main` (Punkt 2) - NICHT ausgefuehrt, braucht den Nutzer:** Der Versuch, die in einer
+frueheren Session dokumentierte `gh api ... branches/main/protection`-PUT-Anfrage auszufuehren, wurde vom
+Claude-Code-Auto-Mode-Classifier blockiert (Aenderungen an GitHub-Repo-Einstellungen zaehlen als
+Berechtigung, die der Nutzer selbst erteilen/ausfuehren muss). Zusaetzlich wurde beim Versuch festgestellt,
+dass der in `HANDOVER.md` dokumentierte Befehl so nicht mehr passt: er verlangt zwei benannte
+Status-Checks (`Required gates (ubuntu-latest)`/`(windows-latest)`), aber `gh run list --workflow=ci.yml`
+zeigt **null** bisherige Laeufe dieses Workflows — die Checks haben noch nie einen Status gemeldet. Mit
+`enforce_admins=true` und diesen Required-Checks waere **main sofort fuer jeden Merge blockiert**, auch fuer
+den Repo-Owner. Empfohlener, angepasster Befehl (ohne Required-Status-Checks, bis CI/Billing-Sperre
+(Etappe 3, Punkt 16) geloest ist):
+
+```bash
+gh api -X PUT repos/devdbzemusic/dbzs-codee-v4/branches/main/protection --input - <<'EOF'
+{
+  "required_status_checks": null,
+  "enforce_admins": true,
+  "required_pull_request_reviews": { "required_approving_review_count": 0 },
+  "restrictions": null
+}
+EOF
+```
+
+Muss der Nutzer selbst ausfuehren (Terminal mit `gh`-Login) oder Claude Code explizit die Berechtigung dafuer
+erteilen. Sobald CI wieder laeuft, die beiden `required_status_checks.checks[]`-Eintraege aus dem
+urspruenglichen, weiter oben nicht mehr vorhandenen Befehl wieder ergaenzen.
 
 ## Model Lab: Electron statt WinUI entschieden, Phase 1 umgesetzt (2026-07-31)
 
