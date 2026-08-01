@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import type {
+  ModelLabCollection,
+  ModelLabCollectionCreate,
+  ModelLabHuggingFaceSearchResult,
   ModelLabModel,
   ModelLabScanJob,
   ModelLabSource,
@@ -21,19 +24,27 @@ export function useModelLabTabController() {
   const [newSourcePath, setNewSourcePath] = useState("");
   const [addingSource, setAddingSource] = useState(false);
   const [selectedBundleId, setSelectedBundleId] = useState<string | null>(null);
+  const [collections, setCollections] = useState<ModelLabCollection[]>([]);
+  const [creatingCollection, setCreatingCollection] = useState(false);
+  const [hfQuery, setHfQuery] = useState("");
+  const [hfResults, setHfResults] = useState<ModelLabHuggingFaceSearchResult[]>([]);
+  const [hfSearching, setHfSearching] = useState(false);
+  const [hfError, setHfError] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [nextSources, nextModels, nextJobs] = await Promise.all([
+      const [nextSources, nextModels, nextJobs, nextCollections] = await Promise.all([
         backendClient.listModelLabSources ? backendClient.listModelLabSources() : Promise.resolve([]),
         backendClient.listModelLabModels ? backendClient.listModelLabModels() : Promise.resolve([]),
-        backendClient.listModelLabJobs ? backendClient.listModelLabJobs() : Promise.resolve([])
+        backendClient.listModelLabJobs ? backendClient.listModelLabJobs() : Promise.resolve([]),
+        backendClient.listModelLabCollections ? backendClient.listModelLabCollections() : Promise.resolve([])
       ]);
       setSources(nextSources);
       setModels(nextModels);
       setJobs(nextJobs);
+      setCollections(nextCollections);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Model Lab konnte nicht geladen werden.");
     } finally {
@@ -86,6 +97,83 @@ export function useModelLabTabController() {
     [loadAll]
   );
 
+  const createCollection = useCallback(
+    async (request: ModelLabCollectionCreate) => {
+      if (!backendClient.createModelLabCollection) {
+        setError("createModelLabCollection ist nicht verfuegbar.");
+        return;
+      }
+      setCreatingCollection(true);
+      setError(null);
+      try {
+        await backendClient.createModelLabCollection(request);
+        await loadAll();
+      } catch (createError) {
+        setError(createError instanceof Error ? createError.message : "Collection konnte nicht angelegt werden.");
+      } finally {
+        setCreatingCollection(false);
+      }
+    },
+    [loadAll]
+  );
+
+  const addToCollection = useCallback(
+    async (collectionId: string, bundleId: string) => {
+      if (!backendClient.addModelLabCollectionMember) {
+        setError("addModelLabCollectionMember ist nicht verfuegbar.");
+        return;
+      }
+      setError(null);
+      try {
+        await backendClient.addModelLabCollectionMember(collectionId, bundleId);
+        await loadAll();
+      } catch (addError) {
+        setError(addError instanceof Error ? addError.message : "Modell konnte nicht zugeordnet werden.");
+      }
+    },
+    [loadAll]
+  );
+
+  const removeFromCollection = useCallback(
+    async (collectionId: string, bundleId: string) => {
+      if (!backendClient.removeModelLabCollectionMember) {
+        setError("removeModelLabCollectionMember ist nicht verfuegbar.");
+        return;
+      }
+      setError(null);
+      try {
+        await backendClient.removeModelLabCollectionMember(collectionId, bundleId);
+        await loadAll();
+      } catch (removeError) {
+        setError(removeError instanceof Error ? removeError.message : "Modell konnte nicht entfernt werden.");
+      }
+    },
+    [loadAll]
+  );
+
+  const searchHuggingFace = useCallback(async (query: string) => {
+    if (!backendClient.searchModelLabHuggingFace) {
+      setHfError("searchModelLabHuggingFace ist nicht verfuegbar.");
+      return;
+    }
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setHfResults([]);
+      return;
+    }
+    setHfSearching(true);
+    setHfError(null);
+    try {
+      const results = await backendClient.searchModelLabHuggingFace(trimmed);
+      setHfResults(results);
+    } catch (searchError) {
+      setHfError(searchError instanceof Error ? searchError.message : "HuggingFace-Suche fehlgeschlagen.");
+      setHfResults([]);
+    } finally {
+      setHfSearching(false);
+    }
+  }, []);
+
   const selectedModel = models.find((model) => model.bundle.bundle_id === selectedBundleId) ?? null;
 
   return {
@@ -104,6 +192,17 @@ export function useModelLabTabController() {
     loadAll,
     selectedBundleId,
     setSelectedBundleId,
-    selectedModel
+    selectedModel,
+    collections,
+    creatingCollection,
+    createCollection,
+    addToCollection,
+    removeFromCollection,
+    hfQuery,
+    setHfQuery,
+    hfResults,
+    hfSearching,
+    hfError,
+    searchHuggingFace
   };
 }

@@ -1,6 +1,12 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_SETTINGS, type ModelLabModel, type ModelLabScanJob, type ModelLabSource } from "@dbzs/shared";
+import {
+  DEFAULT_SETTINGS,
+  type ModelLabCollection,
+  type ModelLabModel,
+  type ModelLabScanJob,
+  type ModelLabSource
+} from "@dbzs/shared";
 import { backendClient } from "@/services/backendClient";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useModelLabTabController } from "./ModelLabTab.controller";
@@ -10,8 +16,13 @@ vi.mock("@/services/backendClient", () => ({
     listModelLabSources: vi.fn(),
     listModelLabModels: vi.fn(),
     listModelLabJobs: vi.fn(),
+    listModelLabCollections: vi.fn(),
     createModelLabSource: vi.fn(),
-    runModelLabScan: vi.fn()
+    runModelLabScan: vi.fn(),
+    createModelLabCollection: vi.fn(),
+    addModelLabCollectionMember: vi.fn(),
+    removeModelLabCollectionMember: vi.fn(),
+    searchModelLabHuggingFace: vi.fn()
   }
 }));
 
@@ -73,6 +84,17 @@ function createModel(overrides: Partial<ModelLabModel> = {}): ModelLabModel {
   };
 }
 
+function createCollection(overrides: Partial<ModelLabCollection> = {}): ModelLabCollection {
+  return {
+    id: "collection-1",
+    name: "Coding",
+    color: "#22D3EE",
+    description: "",
+    created_at: "2026-07-31T00:00:00Z",
+    ...overrides
+  };
+}
+
 describe("useModelLabTabController", () => {
   beforeEach(() => {
     vi.mocked(backendClient.listModelLabSources).mockReset().mockResolvedValue([createSource()]);
@@ -80,8 +102,13 @@ describe("useModelLabTabController", () => {
     vi.mocked(backendClient.listModelLabJobs)
       .mockReset()
       .mockResolvedValue([] as ModelLabScanJob[]);
+    vi.mocked(backendClient.listModelLabCollections).mockReset().mockResolvedValue([createCollection()]);
     vi.mocked(backendClient.createModelLabSource).mockReset();
     vi.mocked(backendClient.runModelLabScan).mockReset();
+    vi.mocked(backendClient.createModelLabCollection).mockReset();
+    vi.mocked(backendClient.addModelLabCollectionMember).mockReset();
+    vi.mocked(backendClient.removeModelLabCollectionMember).mockReset();
+    vi.mocked(backendClient.searchModelLabHuggingFace).mockReset();
 
     useSettingsStore.setState((state) => ({
       ...state,
@@ -145,5 +172,73 @@ describe("useModelLabTabController", () => {
     });
 
     expect(result.current.selectedModel?.bundle.bundle_id).toBe("bundle-1");
+  });
+
+  it("loads collections on mount and creates a new one", async () => {
+    vi.mocked(backendClient.createModelLabCollection).mockResolvedValue(createCollection({ id: "collection-2" }));
+
+    const { result } = renderHook(() => useModelLabTabController());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.collections).toHaveLength(1);
+
+    await act(async () => {
+      await result.current.createCollection({ name: "Vision" });
+    });
+
+    expect(backendClient.createModelLabCollection).toHaveBeenCalledWith({ name: "Vision" });
+    expect(backendClient.listModelLabCollections).toHaveBeenCalledTimes(2);
+    expect(result.current.creatingCollection).toBe(false);
+  });
+
+  it("adds and removes a model from a collection", async () => {
+    const { result } = renderHook(() => useModelLabTabController());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.addToCollection("collection-1", "bundle-1");
+    });
+    expect(backendClient.addModelLabCollectionMember).toHaveBeenCalledWith("collection-1", "bundle-1");
+
+    await act(async () => {
+      await result.current.removeFromCollection("collection-1", "bundle-1");
+    });
+    expect(backendClient.removeModelLabCollectionMember).toHaveBeenCalledWith("collection-1", "bundle-1");
+  });
+
+  it("searches HuggingFace and surfaces results, skipping empty queries", async () => {
+    vi.mocked(backendClient.searchModelLabHuggingFace).mockResolvedValue([
+      { id: "meta/llama-3", pipeline: "text-generation", downloads: 100, likes: 5, size_mb: 4096, last_modified: "", tags: [] }
+    ]);
+
+    const { result } = renderHook(() => useModelLabTabController());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.searchHuggingFace("  ");
+    });
+    expect(backendClient.searchModelLabHuggingFace).not.toHaveBeenCalled();
+    expect(result.current.hfResults).toEqual([]);
+
+    await act(async () => {
+      await result.current.searchHuggingFace("llama-3");
+    });
+    expect(backendClient.searchModelLabHuggingFace).toHaveBeenCalledWith("llama-3");
+    expect(result.current.hfResults).toHaveLength(1);
+    expect(result.current.hfSearching).toBe(false);
+  });
+
+  it("surfaces HuggingFace search errors", async () => {
+    vi.mocked(backendClient.searchModelLabHuggingFace).mockRejectedValue(new Error("HF-Fehler"));
+
+    const { result } = renderHook(() => useModelLabTabController());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.searchHuggingFace("llama-3");
+    });
+
+    expect(result.current.hfError).toBe("HF-Fehler");
+    expect(result.current.hfResults).toEqual([]);
   });
 });

@@ -1,6 +1,8 @@
 import { useModelLabTabController } from "./ModelLabTab.controller";
 import {
+  ModelLabCollectionsSection,
   ModelLabHeader,
+  ModelLabHuggingFaceSearchSection,
   ModelLabInspectorPanel,
   ModelLabModelsSection,
   ModelLabSourcesSection
@@ -22,7 +24,18 @@ export function ModelLabTab() {
     loadAll,
     selectedBundleId,
     setSelectedBundleId,
-    selectedModel
+    selectedModel,
+    collections,
+    creatingCollection,
+    createCollection,
+    addToCollection,
+    removeFromCollection,
+    hfQuery,
+    setHfQuery,
+    hfResults,
+    hfSearching,
+    hfError,
+    searchHuggingFace
   } = useModelLabTabController();
 
   return (
@@ -50,8 +63,33 @@ export function ModelLabTab() {
               sources={sources}
             />
             <ModelLabModelsSection models={models} onSelect={setSelectedBundleId} selectedBundleId={selectedBundleId} />
+            <ModelLabCollectionsSection
+              collections={collections}
+              creatingCollection={creatingCollection}
+              models={models}
+              onCreateCollection={(request) => void createCollection(request)}
+            />
+            <ModelLabHuggingFaceSearchSection
+              error={hfError}
+              onQueryChange={setHfQuery}
+              onSearch={() => void searchHuggingFace(hfQuery)}
+              query={hfQuery}
+              results={hfResults}
+              searching={hfSearching}
+            />
           </div>
-          <ModelLabInspectorPanel model={selectedModel} />
+          <ModelLabInspectorPanel
+            collections={collections}
+            model={selectedModel}
+            onAddToCollection={
+              selectedBundleId ? (collectionId) => void addToCollection(collectionId, selectedBundleId) : undefined
+            }
+            onRemoveFromCollection={
+              selectedBundleId
+                ? (collectionId) => void removeFromCollection(collectionId, selectedBundleId)
+                : undefined
+            }
+          />
         </div>
       </div>
     </div>
