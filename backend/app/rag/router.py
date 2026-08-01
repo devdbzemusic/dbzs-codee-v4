@@ -20,7 +20,7 @@ from app.rag.models import (
     TraceEventsBody,
 )
 from app.rag.reranker_service import RerankerService, get_reranker_service
-from app.rag.service import estimate_tokens, get_rag_service
+from app.rag.service import RagService, estimate_tokens, get_rag_service
 from app.rag.trace_service import TraceService
 
 router = APIRouter(tags=["rag"])
@@ -112,11 +112,28 @@ def rerank_documents(
 
 
 @router.post("/rag/retrieve")
-def retrieve(body: RetrievalQuery):
+def retrieve(
+    body: RetrievalQuery,
+    rag_service: RagService = Depends(get_rag_service),
+    embedding_service: EmbeddingService = Depends(get_embedding_service),
+):
     try:
-        return get_rag_service().retrieve(body)
+        query = _with_optional_query_embedding(body, embedding_service)
+        return rag_service.retrieve(query)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _with_optional_query_embedding(body: RetrievalQuery, service: EmbeddingService) -> RetrievalQuery:
+    if body.query_embedding or body.embedding_model_id:
+        return body
+    try:
+        model_id, vectors = service.embed_texts([body.query])
+    except ValueError:
+        return body
+    if not vectors:
+        return body
+    return body.model_copy(update={"query_embedding": vectors[0], "embedding_model_id": model_id})
 
 
 @router.post("/traces/{run_id}/events")

@@ -119,8 +119,9 @@ verifiziert; offen sind die Anschlussarbeiten, die bewusst nicht in denselben Sl
 - [ ] zwei vorbestehend haengende Backend-Tests separat diagnostizieren:
       `test_model_profiles.py::test_profile_validation` und
       `test_residency_cache.py::test_sweep_idle_slots_evicts_utility_but_not_keep_resident`
-- [ ] RAG `retrieve()` optional automatisch `query_embedding` berechnen lassen, wenn ein
-      `defaultEmbeddingModelId` konfiguriert ist
+- [x] RAG `retrieve()` berechnet optional automatisch `query_embedding`, wenn ein
+      `defaultEmbeddingModelId` konfiguriert ist; fehlt die Konfiguration/ONNX-Unterstuetzung, bleibt
+      lexikalisches Retrieval ohne 400-Failure aktiv.
 - [ ] Frontend-seitige Modell-Auswahl in `embeddingService.ts` mit dem Model-Lab-ID-Raum versoehnen oder die
       kosmetisch wirkungslose Client-Modellauswahl sichtbar entfernen/erklaeren; der Server ignoriert das
       gesendete `model`-Feld aktuell bewusst und nutzt das konfigurierte Standardmodell

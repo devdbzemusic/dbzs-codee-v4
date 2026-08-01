@@ -31,6 +31,9 @@ Repo-Wahrheit: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
   Safety-Max-Gate, Capability Evidence inklusive Zertifizierungs-/Probe-Trail und eine erste read-only
   Roles-&-Routing-/Readiness-UI sind verfuegbar; frische Checks: Backend 34/34, Desktop-Fokus 88/88,
   Desktop-Typecheck gruen
+- Plan-14/Fleet-RAG-Folge auf dem Integrationsbranch: `POST /rag/retrieve` erzeugt serverseitig optional
+  `query_embedding` ueber `defaultEmbeddingModelId` und faellt bei fehlender Embedding-Konfiguration weiter
+  auf lexikalisches Retrieval zurueck
 - Shared-, Desktop- und Backend-Kernchecks sind belastbar nachgewiesen
 - Desktop-Capability-Suite ist im Gate-Pfad mit 37/37 belegt
 - Backend-Capability-/Scenario-/Tuning-Lab-Pfad ist mit 15 bestandenen Tests belegt

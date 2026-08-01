@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.rag.embedding_service import get_embedding_service
 from app.rag.reranker_service import get_reranker_service
+from app.rag.service import get_rag_service
 
 
 class FakeEmbeddingService:
@@ -43,6 +44,24 @@ class FakeRerankerService:
         if self.error:
             raise ValueError(self.error)
         return self.model_id, self.scores
+
+
+class FakeRagService:
+    def __init__(self) -> None:
+        self.last_query = None
+
+    def retrieve(self, query):
+        self.last_query = query
+        return {
+            "candidates": [],
+            "items": [],
+            "manifest": {
+                "query_id": query.id,
+                "embedding_model_id": query.embedding_model_id,
+                "has_query_embedding": bool(query.query_embedding),
+            },
+            "source_references": [],
+        }
 
 
 def test_create_embeddings_returns_openai_shaped_response() -> None:
@@ -140,3 +159,54 @@ def test_rerank_rejects_empty_documents_list() -> None:
 
     app.dependency_overrides.clear()
     assert response.status_code == 422
+
+
+def test_retrieve_generates_query_embedding_when_default_model_available() -> None:
+    rag = FakeRagService()
+    embedding = FakeEmbeddingService(model_id="embed-bundle", vectors=[[0.5, 0.25]])
+    app.dependency_overrides[get_rag_service] = lambda: rag
+    app.dependency_overrides[get_embedding_service] = lambda: embedding
+    client = TestClient(app)
+
+    response = client.post(
+        "/rag/retrieve",
+        json={
+            "id": "q1",
+            "workspace_id": "workspace-1",
+            "query": "find vector search",
+            "intent": "coding",
+            "created_at": "2026-08-01T00:00:00Z",
+        },
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["manifest"]["embedding_model_id"] == "embed-bundle"
+    assert response.json()["manifest"]["has_query_embedding"] is True
+    assert embedding.last_texts == ["find vector search"]
+    assert rag.last_query.query_embedding == [0.5, 0.25]
+
+
+def test_retrieve_keeps_lexical_fallback_when_embedding_model_unavailable() -> None:
+    rag = FakeRagService()
+    embedding = FakeEmbeddingService(error="Kein Standard-Embedding-Modell konfiguriert (Einstellungen > Modelle).")
+    app.dependency_overrides[get_rag_service] = lambda: rag
+    app.dependency_overrides[get_embedding_service] = lambda: embedding
+    client = TestClient(app)
+
+    response = client.post(
+        "/rag/retrieve",
+        json={
+            "id": "q2",
+            "workspace_id": "workspace-1",
+            "query": "fallback only",
+            "intent": "coding",
+            "created_at": "2026-08-01T00:00:00Z",
+        },
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["manifest"]["embedding_model_id"] is None
+    assert response.json()["manifest"]["has_query_embedding"] is False
+    assert rag.last_query.query_embedding is None

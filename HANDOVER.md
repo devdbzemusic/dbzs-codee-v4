@@ -86,8 +86,8 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
 - `modelSelectionBroker` an die neue Fleet-Routing-Map anbinden; aktuell ist die Map die stabile
   Model-Lab-Schnittstelle, der Live-Broker nutzt weiterhin seine bestehende lokale Routing-Logik
 - Plan-14-Folgen im selben Themengebiet weiterfuehren: haengende Backend-Tests diagnostizieren,
-  RAG-`retrieve()` optional mit Default-Embedding berechnen lassen und `embeddingService.ts`/Model-Lab-ID-Raum
-  endgueltig versoehnen
+  `embeddingService.ts`/Model-Lab-ID-Raum endgueltig versoehnen und die zwei haengenden Testfaelle separat
+  root-causen
 
 ## Plan 14, Phase 2 Fortsetzung: `/embeddings` + `/rerank` (echten Produktionsbug behoben + Reranking) (2026-08-01)
 
@@ -127,9 +127,11 @@ Sandbox unabhaengig von diesem Schritt bereits einzeln auf; bewusst deselektiert
 siehe TODO unten). Voller Desktop-Vitest-Lauf 1361/1361, beide Typechecks clean.
 
 **Noch offen:** die zwei oben genannten haengenden Tests sind noch nicht diagnostiziert/gemeldet — sollten in
-einer eigenen, fokussierten Session untersucht werden (unklar ob Sandbox-spezifisch oder echter Bug). RAGs
-`retrieve()` automatisch `query_embedding` berechnen lassen (bleibt weiterhin offen, siehe Phase-2-Eintrag
-unten). Frontend-seitige Modell-Auswahl-Dropdowns in `embeddingService.ts` bleiben kosmetisch wirkungslos
+einer eigenen, fokussierten Session untersucht werden (unklar ob Sandbox-spezifisch oder echter Bug).
+**Neu erledigt im Plan-15-Integrationsbranch:** `POST /rag/retrieve` berechnet optional serverseitig
+`query_embedding`, wenn `defaultEmbeddingModelId` gesetzt ist; fehlt Konfiguration/ONNX-Unterstuetzung,
+bleibt lexikalisches Retrieval ohne 400-Failure aktiv. Frontend-seitige Modell-Auswahl-Dropdowns in
+`embeddingService.ts` bleiben kosmetisch wirkungslos
 (bestehendes, nicht neu eingefuehrtes Problem — Server ignoriert das `model`-Feld).
 
 ## Plan 14, Phase 2: ONNX-Runtime-Adapter fuer Embeddings umgesetzt (2026-08-01)
