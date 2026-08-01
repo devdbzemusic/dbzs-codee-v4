@@ -31,6 +31,7 @@ export type SettingControl =
   | "select"
   | "path"
   | "model_select"
+  | "model_lab_select"
   | "readonly"
   | "percent";
 
@@ -241,10 +242,10 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
     category: "models",
     label: "Embedding-Modell (ONNX, lokal)",
     description:
-      "Model-Lab-Bundle-ID eines gescannten .onnx-Embedding-Modells (aus dem Model-Lab-Tab kopieren) fuer POST /rag/embeddings/generate - laeuft in-process, kein Runtime-Slot/Port. Nutzt Model Labs Bundle-IDs, nicht die Runtime-Modellindex-IDs der anderen Modellfelder - deshalb Text statt Dropdown; ein echter Model-Lab-Picker ist ein sinnvoller Folgeschritt.",
+      "In Model Lab gescanntes .onnx-Embedding-Modell fuer POST /rag/embeddings/generate - laeuft in-process, kein Runtime-Slot/Port. Nutzt Model Labs Bundle-IDs, nicht den Runtime-Modellindex der anderen Modellfelder.",
     classification: "user_tunable",
     defaultValue: d.defaultEmbeddingModelId ?? "",
-    control: "text",
+    control: "model_lab_select",
     restartRequirement: "none",
     consumerDescription: "rag/embedding_service.py",
   }),

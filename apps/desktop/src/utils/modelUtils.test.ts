@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { IndexedModel } from "@dbzs/shared";
-import { describeExclusionReason, isRunnableModel, isUnprofiled } from "./modelUtils";
+import {
+  describeExclusionReason,
+  formatModelExclusionReason,
+  isRunnableModel,
+  isUnprofiled,
+  summarizeModelExclusionReasons
+} from "./modelUtils";
 
 const runnableBaseModel: IndexedModel = {
   id: "coder",
@@ -33,6 +39,15 @@ describe("isRunnableModel", () => {
     expect(isRunnableModel(runnableBaseModel)).toBe(true);
   });
 
+  it("blocks runnable-looking models with hard exclusion reasons", () => {
+    expect(isRunnableModel({ ...runnableBaseModel, exclusion_reasons: ["missing_file"] })).toBe(false);
+    expect(isRunnableModel({ ...runnableBaseModel, exclusion_reasons: ["health_failed"] })).toBe(false);
+  });
+
+  it("allows safe-default start for soft profile warnings", () => {
+    expect(isRunnableModel({ ...runnableBaseModel, exclusion_reasons: ["missing_profile", "unprofiled_gpu"] })).toBe(true);
+  });
+
   it("hard-blocks mmproj artifacts even if compatibility is accidentally runnable-looking", () => {
     expect(
       isRunnableModel({
@@ -59,6 +74,25 @@ describe("describeExclusionReason", () => {
     ).toBe("Datei nicht mehr am erwarteten Pfad gefunden");
   });
 
+  it("prefers machine-readable exclusion reasons over compatibility fallback", () => {
+    expect(
+      describeExclusionReason({
+        ...runnableBaseModel,
+        compatibility: "llama_server_ready",
+        exclusion_reasons: ["missing_file", "unsupported_runtime"]
+      })
+    ).toBe("Blockiert: Datei fehlt, Runtime nicht unterstuetzt");
+  });
+
+  it("surfaces soft exclusion reasons as warnings", () => {
+    expect(
+      describeExclusionReason({
+        ...runnableBaseModel,
+        exclusion_reasons: ["missing_profile", "unprofiled_gpu"]
+      })
+    ).toBe("Warnung: Profil fehlt, GPU unprofiliert");
+  });
+
   it("explains an unready ollama candidate", () => {
     expect(describeExclusionReason({ ...runnableBaseModel, compatibility: "ollama_candidate" })).toBe(
       "Ollama-Modell noch nicht als bereit erkannt (Health-Status unbekannt)"
@@ -75,6 +109,23 @@ describe("describeExclusionReason", () => {
     expect(describeExclusionReason({ ...runnableBaseModel, compatibility: "something_new" })).toBe(
       "Nicht startbar (Kompatibilitätsstatus: something_new)"
     );
+  });
+});
+
+describe("model exclusion reason labels", () => {
+  it("formats and summarizes exclusion reason labels", () => {
+    expect(formatModelExclusionReason("not_gguf")).toBe("kein GGUF");
+    expect(formatModelExclusionReason("custom_reason")).toBe("custom reason");
+    expect(
+      summarizeModelExclusionReasons({
+        ...runnableBaseModel,
+        exclusion_reasons: ["missing_file", "health_failed"]
+      })
+    ).toBe("Datei fehlt, Health fehlgeschlagen");
+  });
+
+  it("returns null when no exclusion reasons are present", () => {
+    expect(summarizeModelExclusionReasons(runnableBaseModel)).toBeNull();
   });
 });
 

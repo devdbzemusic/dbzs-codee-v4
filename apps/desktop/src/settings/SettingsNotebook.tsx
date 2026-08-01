@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import type { AppSettings, IndexedModel } from "@dbzs/shared";
+import type { AppSettings, IndexedModel, ModelLabModel } from "@dbzs/shared";
+import { backendClient } from "@/services/backendClient";
 import { useModelIndexStore } from "@/stores/modelIndexStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useSettingsDraftStore } from "./settingsDraftStore";
@@ -30,6 +31,21 @@ function modelOptionLabel(model: IndexedModel): string {
   return [modelDisplayName(model), size, model.compatibility].filter(Boolean).join(" · ");
 }
 
+function isEmbeddingBundle(entry: ModelLabModel): boolean {
+  return entry.bundle.capabilities.includes("embedding");
+}
+
+function isUsableEmbeddingBundle(entry: ModelLabModel): boolean {
+  const hasOnnxModel = entry.artifacts.some((artifact) => artifact.artifact_type === "model" && artifact.format === "onnx");
+  const hasTokenizer = entry.artifacts.some((artifact) => artifact.artifact_type === "tokenizer");
+  return hasOnnxModel && hasTokenizer;
+}
+
+function modelLabOptionLabel(entry: ModelLabModel): string {
+  const reason = isUsableEmbeddingBundle(entry) ? null : "kein .onnx + Tokenizer im Bundle";
+  return [entry.bundle.name, reason].filter(Boolean).join(" · ");
+}
+
 export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
   const [activeTab, setActiveTab] = useState<SettingsCategory>("general");
   const [query, setQuery] = useState("");
@@ -45,12 +61,33 @@ export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
   const setError = useSettingsStore((state) => state.setError);
   const { index: modelIndex, isLoading: modelIndexLoading, error: modelIndexError, loadModelIndex } = useModelIndexStore();
   const backendReady = backendHealth?.status === "ok";
+  const [modelLabModels, setModelLabModels] = useState<ModelLabModel[]>([]);
 
   useEffect(() => {
     if (backendReady && !modelIndex && !modelIndexLoading) {
       void loadModelIndex();
     }
   }, [backendReady, loadModelIndex, modelIndex, modelIndexLoading]);
+
+  useEffect(() => {
+    if (!backendReady || !backendClient.listModelLabModels) {
+      return;
+    }
+    let cancelled = false;
+    backendClient
+      .listModelLabModels()
+      .then((models) => {
+        if (!cancelled) {
+          setModelLabModels(models);
+        }
+      })
+      .catch(() => {
+        // Settings panel stays usable without Model Lab data (e.g. never scanned yet).
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [backendReady]);
 
   const modelOptions = useMemo(() => {
     return (modelIndex?.models ?? [])
@@ -67,6 +104,22 @@ export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
         disabled: !isSelectableModel(model),
       }));
   }, [modelIndex]);
+
+  const modelLabOptions = useMemo(() => {
+    return modelLabModels
+      .filter(isEmbeddingBundle)
+      .sort((left, right) => {
+        const leftUsable = isUsableEmbeddingBundle(left) ? 0 : 1;
+        const rightUsable = isUsableEmbeddingBundle(right) ? 0 : 1;
+        if (leftUsable !== rightUsable) return leftUsable - rightUsable;
+        return left.bundle.name.localeCompare(right.bundle.name);
+      })
+      .map((entry) => ({
+        id: entry.bundle.bundle_id,
+        label: modelLabOptionLabel(entry),
+        disabled: !isUsableEmbeddingBundle(entry),
+      }));
+  }, [modelLabModels]);
 
   const hits = useMemo(
     () =>
@@ -162,7 +215,7 @@ export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
             {activeTab === "models" && modelIndexError ? (
               <p className="text-[11px] text-dbzs-red">Modellindex: {modelIndexError}</p>
             ) : null}
-            <RegistrySettingsTab category={activeTab} modelOptions={modelOptions} />
+            <RegistrySettingsTab category={activeTab} modelLabOptions={modelLabOptions} modelOptions={modelOptions} />
           </div>
         )}
       </div>
