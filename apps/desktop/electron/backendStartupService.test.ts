@@ -28,7 +28,23 @@ describe("formatBackendStartupError", () => {
 });
 
 describe("resolveDevBackendLaunch", () => {
-  it("prefers backend venv uvicorn on Windows", () => {
+  it("prefers backend venv python -m uvicorn on Windows", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "dbzs-backend-"));
+    const scripts = path.join(root, ".venv", "Scripts");
+    mkdirSync(scripts, { recursive: true });
+    const uvicorn = path.join(scripts, "uvicorn.exe");
+    const python = path.join(scripts, "python.exe");
+    writeFileSync(uvicorn, "");
+    writeFileSync(python, "");
+
+    const launch = resolveDevBackendLaunch(root, 8876, {}, "win32");
+
+    expect(launch.executable).toBe(python);
+    expect(launch.args).toEqual(["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8876"]);
+    expect(launch.shell).toBe(false);
+  });
+
+  it("falls back to backend venv uvicorn on Windows when python is missing", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "dbzs-backend-"));
     const scripts = path.join(root, ".venv", "Scripts");
     mkdirSync(scripts, { recursive: true });
