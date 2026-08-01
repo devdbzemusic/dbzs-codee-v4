@@ -17,6 +17,8 @@ from app.model_lab.models import (
     ModelBenchmarkRequest,
     ModelBenchmarkRun,
     ModelBundle,
+    ModelCapabilityEvidenceRecord,
+    ModelCapabilityEvidenceRequest,
     ModelCertificationRecord,
     ModelCertificationRequest,
     ModelCollection,
@@ -885,6 +887,37 @@ class ModelLabRepository:
             ).fetchone()
         return _certification_from_row(row)
 
+    def record_capability_evidence(self, request: ModelCapabilityEvidenceRequest) -> ModelCapabilityEvidenceRecord:
+        if self.get_model(request.bundle_id) is None:
+            raise ValueError(f"Model bundle nicht gefunden: {request.bundle_id}")
+        if not request.capability.strip():
+            raise ValueError("Capability fehlt.")
+        now = datetime.now(UTC)
+        record = ModelCapabilityEvidenceRecord(
+            id=uuid.uuid4().hex,
+            bundle_id=request.bundle_id,
+            capability=request.capability.strip(),
+            status=request.status,
+            evidence=request.evidence,
+            created_at=now,
+        )
+        with sqlite_connection(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO capability_evidence(id, bundle_id, capability, evidence, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record.id,
+                    record.bundle_id,
+                    record.capability,
+                    json.dumps(record.evidence, sort_keys=True),
+                    record.status,
+                    _dt(record.created_at),
+                ),
+            )
+        return record
+
     def assign_model_role(self, request: ModelRoleAssignmentRequest) -> ModelRoleAssignment:
         if self.get_model(request.bundle_id) is None:
             raise ValueError(f"Model bundle nicht gefunden: {request.bundle_id}")
@@ -963,6 +996,17 @@ class ModelLabRepository:
             else:
                 rows = conn.execute("SELECT * FROM certifications ORDER BY bundle_id, certification").fetchall()
         return [_certification_from_row(row) for row in rows]
+
+    def list_capability_evidence(self, bundle_id: str | None = None) -> list[ModelCapabilityEvidenceRecord]:
+        with sqlite_connection(self.db_path) as conn:
+            if bundle_id:
+                rows = conn.execute(
+                    "SELECT * FROM capability_evidence WHERE bundle_id = ? ORDER BY created_at DESC",
+                    (bundle_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute("SELECT * FROM capability_evidence ORDER BY bundle_id, created_at DESC").fetchall()
+        return [_capability_evidence_from_row(row) for row in rows]
 
     def list_role_assignments(self, role: str | None = None) -> list[ModelRoleAssignment]:
         with sqlite_connection(self.db_path) as conn:
@@ -1377,6 +1421,17 @@ def _certification_from_row(row: sqlite3.Row) -> ModelCertificationRecord:
         notes=str(row["notes"] or ""),
         created_at=_parse_dt(row["created_at"]),
         updated_at=_parse_dt(row["updated_at"]),
+    )
+
+
+def _capability_evidence_from_row(row: sqlite3.Row) -> ModelCapabilityEvidenceRecord:
+    return ModelCapabilityEvidenceRecord(
+        id=str(row["id"]),
+        bundle_id=str(row["bundle_id"]),
+        capability=str(row["capability"]),
+        status=row["status"],
+        evidence=json.loads(row["evidence"] or "{}"),
+        created_at=_parse_dt(row["created_at"]),
     )
 
 

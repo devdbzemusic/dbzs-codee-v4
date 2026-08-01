@@ -317,6 +317,22 @@ class ModelCertificationRecord(BaseModel):
     updated_at: datetime
 
 
+class ModelCapabilityEvidenceRequest(BaseModel):
+    bundle_id: str
+    capability: str
+    status: Literal["observed", "verified", "failed", "revoked"] = "observed"
+    evidence: dict[str, Any] = Field(default_factory=dict)
+
+
+class ModelCapabilityEvidenceRecord(BaseModel):
+    id: str
+    bundle_id: str
+    capability: str
+    status: Literal["observed", "verified", "failed", "revoked"]
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
 class ModelRoleAssignmentRequest(BaseModel):
     bundle_id: str
     role: ModelFleetRole
@@ -383,6 +399,7 @@ class ModelFleetSummary(BaseModel):
     runtime_presets: list[RuntimePresetRecord]
     probe_runs: list[ModelProbeRun]
     benchmark_runs: list[ModelBenchmarkRun]
+    capability_evidence: list[ModelCapabilityEvidenceRecord] = Field(default_factory=list)
     certifications: list[ModelCertificationRecord]
     role_assignments: list[ModelRoleAssignment]
     execution_policies: list[ModelExecutionPolicy] = Field(default_factory=list)

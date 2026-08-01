@@ -13,6 +13,8 @@ from app.model_lab.models import (
     ModelBenchmarkRequest,
     ModelBenchmarkRun,
     ModelBundle,
+    ModelCapabilityEvidenceRecord,
+    ModelCapabilityEvidenceRequest,
     ModelCertificationRecord,
     ModelCertificationRequest,
     ModelCollection,
@@ -249,11 +251,17 @@ class ModelLabService:
     def certify_model(self, request: ModelCertificationRequest) -> ModelCertificationRecord:
         return self.repository.upsert_certification(request)
 
+    def record_capability_evidence(self, request: ModelCapabilityEvidenceRequest) -> ModelCapabilityEvidenceRecord:
+        return self.repository.record_capability_evidence(request)
+
     def assign_model_role(self, request: ModelRoleAssignmentRequest) -> ModelRoleAssignment:
         return self.repository.assign_model_role(request)
 
     def list_certifications(self, bundle_id: str | None = None) -> list[ModelCertificationRecord]:
         return self.repository.list_certifications(bundle_id=bundle_id)
+
+    def list_capability_evidence(self, bundle_id: str | None = None) -> list[ModelCapabilityEvidenceRecord]:
+        return self.repository.list_capability_evidence(bundle_id=bundle_id)
 
     def list_role_assignments(self, role: str | None = None) -> list[ModelRoleAssignment]:
         return self.repository.list_role_assignments(role=role)

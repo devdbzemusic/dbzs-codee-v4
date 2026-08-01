@@ -10,6 +10,8 @@ from app.model_lab.models import (
     ModelBenchmarkRequest,
     ModelBenchmarkRun,
     ModelBundle,
+    ModelCapabilityEvidenceRecord,
+    ModelCapabilityEvidenceRequest,
     ModelCertificationRecord,
     ModelCertificationRequest,
     ModelCollection,
@@ -270,6 +272,25 @@ def list_certifications(
     service: ModelLabService = Depends(get_model_lab_service),
 ) -> list[ModelCertificationRecord]:
     return service.list_certifications(bundle_id=bundle_id)
+
+
+@router.post("/capability-evidence")
+def record_capability_evidence(
+    request: ModelCapabilityEvidenceRequest,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> ModelCapabilityEvidenceRecord:
+    try:
+        return service.record_capability_evidence(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/capability-evidence")
+def list_capability_evidence(
+    bundle_id: str | None = None,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> list[ModelCapabilityEvidenceRecord]:
+    return service.list_capability_evidence(bundle_id=bundle_id)
 
 
 @router.post("/role-assignments")

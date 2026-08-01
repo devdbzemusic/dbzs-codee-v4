@@ -32,6 +32,8 @@ import type {
   ModelLabBenchmarkRun,
   ModelIndex,
   ModelLabBundle,
+  ModelLabCapabilityEvidenceRecord,
+  ModelLabCapabilityEvidenceRequest,
   ModelLabCertificationRecord,
   ModelLabCertificationRequest,
   ModelLabCollection,
@@ -158,6 +160,10 @@ export interface BackendBridge extends DesktopBridgeV1 {
   listModelBenchmarkRuns?: (bundleId?: string) => Promise<ModelLabBenchmarkRun[]>;
   certifyModel?: (request: ModelLabCertificationRequest) => Promise<ModelLabCertificationRecord>;
   listModelCertifications?: (bundleId?: string) => Promise<ModelLabCertificationRecord[]>;
+  recordModelCapabilityEvidence?: (
+    request: ModelLabCapabilityEvidenceRequest
+  ) => Promise<ModelLabCapabilityEvidenceRecord>;
+  listModelCapabilityEvidence?: (bundleId?: string) => Promise<ModelLabCapabilityEvidenceRecord[]>;
   assignModelRole?: (request: ModelLabRoleAssignmentRequest) => Promise<ModelLabRoleAssignment>;
   listModelRoleAssignments?: (role?: string) => Promise<ModelLabRoleAssignment[]>;
   listModelExecutionPolicies?: () => Promise<ModelLabExecutionPolicy[]>;
@@ -580,6 +586,20 @@ export const backendClient = {
     const method = bridge().listModelCertifications;
     if (!method) {
       return Promise.reject(new Error("listModelCertifications is unavailable."));
+    }
+    return method(bundleId);
+  },
+  recordModelCapabilityEvidence: (request: ModelLabCapabilityEvidenceRequest) => {
+    const method = bridge().recordModelCapabilityEvidence;
+    if (!method) {
+      return Promise.reject(new Error("recordModelCapabilityEvidence is unavailable."));
+    }
+    return method(request);
+  },
+  listModelCapabilityEvidence: (bundleId?: string) => {
+    const method = bridge().listModelCapabilityEvidence;
+    if (!method) {
+      return Promise.reject(new Error("listModelCapabilityEvidence is unavailable."));
     }
     return method(bundleId);
   },

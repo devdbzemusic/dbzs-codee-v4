@@ -13,6 +13,7 @@ import { ipcMain } from "electron";
 import type {
   ModelLabCollectionCreate,
   ModelLabBenchmarkRequest,
+  ModelLabCapabilityEvidenceRequest,
   ModelLabCertificationRequest,
   ModelLabMetadataUpdate,
   ModelLabProbeRequest,
@@ -134,6 +135,16 @@ export function registerModelLabIpcHandlers(options: RegisterModelLabIpcOptions)
   ipcMain.handle("dbzs:model-lab:certifications:list", (_event, bundleId?: string) => {
     const params = bundleId ? `?bundle_id=${encodeURIComponent(bundleId)}` : "";
     return requestBackend(`/model-lab/certifications${params}`);
+  });
+  ipcMain.handle("dbzs:model-lab:capability-evidence:create", (_event, request: ModelLabCapabilityEvidenceRequest) =>
+    requestBackend("/model-lab/capability-evidence", {
+      method: "POST",
+      body: JSON.stringify(request)
+    })
+  );
+  ipcMain.handle("dbzs:model-lab:capability-evidence:list", (_event, bundleId?: string) => {
+    const params = bundleId ? `?bundle_id=${encodeURIComponent(bundleId)}` : "";
+    return requestBackend(`/model-lab/capability-evidence${params}`);
   });
   ipcMain.handle("dbzs:model-lab:role-assignments:create", (_event, request: ModelLabRoleAssignmentRequest) =>
     requestBackend("/model-lab/role-assignments", {

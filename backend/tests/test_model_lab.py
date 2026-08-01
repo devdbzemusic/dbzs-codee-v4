@@ -275,6 +275,15 @@ def test_model_lab_fleet_endpoints_record_safe_gates_and_roles(tmp_path: Path) -
         )
         assert response.status_code == 200
 
+    evidence = client.post(
+        "/model-lab/capability-evidence",
+        json={"bundle_id": bundle_id, "capability": "tool_use", "status": "verified", "evidence": {"test": "unit"}},
+    )
+    assert evidence.status_code == 200
+    evidence_list = client.get("/model-lab/capability-evidence", params={"bundle_id": bundle_id})
+    assert evidence_list.status_code == 200
+    assert evidence_list.json()[0]["capability"] == "tool_use"
+
     role = client.post(
         "/model-lab/role-assignments",
         json={"bundle_id": bundle_id, "role": "MICRO_TOOL_AGENT", "safety_level": "LEVEL_1_READ_ONLY_TOOLS"},

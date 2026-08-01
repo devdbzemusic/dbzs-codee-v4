@@ -15,6 +15,7 @@ import pytest
 from app.model_lab.models import (
     ModelArtifact,
     ModelBundle,
+    ModelCapabilityEvidenceRequest,
     ModelCertificationRequest,
     ModelCollectionCreate,
     ModelMetadataUpdate,
@@ -194,6 +195,29 @@ def test_fleet_repository_records_probe_certification_and_role_assignment(tmp_pa
         "STRUCTURED_OUTPUT_VERIFIED",
         "WRITE_AGENT_VERIFIED",
     }
+
+
+def test_fleet_repository_records_capability_evidence(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    evidence = repo.record_capability_evidence(
+        ModelCapabilityEvidenceRequest(
+            bundle_id=bundle.bundle_id,
+            capability="tool_use",
+            status="verified",
+            evidence={"case": "json-tool-call"},
+        )
+    )
+
+    records = repo.list_capability_evidence(bundle.bundle_id)
+    assert records[0].id == evidence.id
+    assert records[0].capability == "tool_use"
+    assert records[0].status == "verified"
+    assert records[0].evidence == {"case": "json-tool-call"}
+
+    with pytest.raises(ValueError, match="Capability fehlt"):
+        repo.record_capability_evidence(ModelCapabilityEvidenceRequest(bundle_id=bundle.bundle_id, capability=" "))
 
 
 def test_fleet_routing_map_reports_certification_gate(tmp_path: Path) -> None:

@@ -76,6 +76,8 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       Safety-Level, Evidence-Zaehler und Freigabestatus read-only an.
 - [x] Execution-Policies offiziell lesbar gemacht: `/model-lab/execution-policies` und Desktop-Bridge
       liefern die geseedeten Plan-15-Rollenregeln ohne direkten SQLite-Zugriff.
+- [x] Capability Evidence offiziell angebunden: `/model-lab/capability-evidence` speichert/listet
+      allgemeine Faehigkeitsnachweise pro Bundle als Basis fuer Certification, Tuning und UI.
 - [x] Sicheres Probe-Gate: `probeModel` speichert ohne `allow_start` einen `skipped`-Run und startet kein
       lokales Modell.
 - [ ] `D:\Models\Agentic` als erste produktive Quelle ueber den neuen Candidate-Button registrieren/scannen

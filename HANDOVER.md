@@ -52,9 +52,12 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
   Rolle, Modell, Safety-Level, Evidence-Zaehler und Freigabestatus.
 - Execution-Policies sind jetzt offiziell lesbar: `/model-lab/execution-policies` plus Desktop-Bridge/
   IPC/Preload/`backendClient` liefern die geseedeten Rollenregeln ohne direkten SQLite-Zugriff.
+- Capability Evidence ist als eigene Model-Lab-Schnittstelle verfuegbar: `/model-lab/capability-evidence`
+  kann allgemeine Faehigkeitsnachweise pro Bundle speichern/listen; Zertifikate bleiben die harte
+  Rollenfreigabe, Evidence ist die breitere Nachweisspur fuer UI, Tuning und Certification.
 
 **Frisch verifiziert:**
-- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab.py backend/tests/test_model_lab_repository.py backend/tests/test_model_lab_scan_jobs.py backend/tests/test_model_lab_bridge.py -q` -> 28/28 gruen
+- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab.py backend/tests/test_model_lab_repository.py backend/tests/test_model_lab_scan_jobs.py backend/tests/test_model_lab_bridge.py -q` -> 29/29 gruen
 - `npm run typecheck` in `apps/desktop` -> gruen
 - `npm run test -- src/components/notebook/ModelLabTab.controller.test.tsx` in `apps/desktop` -> 8/8 gruen
 - `npm run test -- src/components/notebook/ModelLabTab.controller.test.tsx src/components/notebook/RuntimeModelsTab.test.ts src/services/modelSelectionBroker.test.ts src/services/runtimeSlotManager.test.ts` in `apps/desktop` -> 88/88 gruen

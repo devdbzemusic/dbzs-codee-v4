@@ -1678,6 +1678,22 @@ export interface ModelLabCertificationRecord {
   updated_at: string;
 }
 
+export interface ModelLabCapabilityEvidenceRequest {
+  bundle_id: string;
+  capability: string;
+  status?: "observed" | "verified" | "failed" | "revoked";
+  evidence?: Record<string, unknown>;
+}
+
+export interface ModelLabCapabilityEvidenceRecord {
+  id: string;
+  bundle_id: string;
+  capability: string;
+  status: "observed" | "verified" | "failed" | "revoked";
+  evidence: Record<string, unknown>;
+  created_at: string;
+}
+
 export interface ModelLabRoleAssignmentRequest {
   bundle_id: string;
   role: ModelFleetRole;

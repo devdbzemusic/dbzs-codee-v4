@@ -4,6 +4,8 @@ import type {
   ModelLabBenchmarkRequest,
   ModelLabBenchmarkRun,
   ModelLabBundle,
+  ModelLabCapabilityEvidenceRecord,
+  ModelLabCapabilityEvidenceRequest,
   ModelLabCertificationRecord,
   ModelLabCertificationRequest,
   ModelLabCollection,
@@ -165,6 +167,10 @@ export interface DesktopBridgeV1 {
   listModelBenchmarkRuns?: (bundleId?: string) => Promise<ModelLabBenchmarkRun[]>;
   certifyModel?: (request: ModelLabCertificationRequest) => Promise<ModelLabCertificationRecord>;
   listModelCertifications?: (bundleId?: string) => Promise<ModelLabCertificationRecord[]>;
+  recordModelCapabilityEvidence?: (
+    request: ModelLabCapabilityEvidenceRequest
+  ) => Promise<ModelLabCapabilityEvidenceRecord>;
+  listModelCapabilityEvidence?: (bundleId?: string) => Promise<ModelLabCapabilityEvidenceRecord[]>;
   assignModelRole?: (request: ModelLabRoleAssignmentRequest) => Promise<ModelLabRoleAssignment>;
   listModelRoleAssignments?: (role?: string) => Promise<ModelLabRoleAssignment[]>;
   listModelExecutionPolicies?: () => Promise<ModelLabExecutionPolicy[]>;

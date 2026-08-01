@@ -519,6 +519,14 @@ const api = {
     ipcRenderer.invoke("dbzs:model-lab:certifications:list", bundleId) as Promise<
       import("@dbzs/shared").ModelLabCertificationRecord[]
     >,
+  recordModelCapabilityEvidence: (request: import("@dbzs/shared").ModelLabCapabilityEvidenceRequest) =>
+    ipcRenderer.invoke("dbzs:model-lab:capability-evidence:create", request) as Promise<
+      import("@dbzs/shared").ModelLabCapabilityEvidenceRecord
+    >,
+  listModelCapabilityEvidence: (bundleId?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:capability-evidence:list", bundleId) as Promise<
+      import("@dbzs/shared").ModelLabCapabilityEvidenceRecord[]
+    >,
   assignModelRole: (request: import("@dbzs/shared").ModelLabRoleAssignmentRequest) =>
     ipcRenderer.invoke("dbzs:model-lab:role-assignments:create", request) as Promise<
       import("@dbzs/shared").ModelLabRoleAssignment
