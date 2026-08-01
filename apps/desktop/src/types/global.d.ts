@@ -262,6 +262,37 @@ declare global {
       saveManualMultimodalPairing?: (
         request: import("@dbzs/shared").ManualMultimodalPairingRequest
       ) => Promise<import("@dbzs/shared").MultimodalPair>;
+      listModelLabSources?: () => Promise<import("@dbzs/shared").ModelLabSource[]>;
+      createModelLabSource?: (
+        request: import("@dbzs/shared").ModelLabSourceCreate
+      ) => Promise<import("@dbzs/shared").ModelLabSource>;
+      runModelLabScan?: (
+        request?: import("@dbzs/shared").ModelLabScanRequest
+      ) => Promise<import("@dbzs/shared").ModelLabScanResult>;
+      listModelLabJobs?: () => Promise<import("@dbzs/shared").ModelLabScanJob[]>;
+      listModelLabModels?: () => Promise<import("@dbzs/shared").ModelLabModel[]>;
+      getModelLabModel?: (bundleId: string) => Promise<import("@dbzs/shared").ModelLabModel>;
+      updateModelLabMetadata?: (
+        bundleId: string,
+        request: import("@dbzs/shared").ModelLabMetadataUpdate
+      ) => Promise<import("@dbzs/shared").ModelLabBundle>;
+      listModelLabCollections?: () => Promise<import("@dbzs/shared").ModelLabCollection[]>;
+      createModelLabCollection?: (
+        request: import("@dbzs/shared").ModelLabCollectionCreate
+      ) => Promise<import("@dbzs/shared").ModelLabCollection>;
+      addModelLabCollectionMember?: (collectionId: string, bundleId: string) => Promise<{ status: string }>;
+      removeModelLabCollectionMember?: (collectionId: string, bundleId: string) => Promise<{ status: string }>;
+      findModelLabDuplicates?: () => Promise<import("@dbzs/shared").ModelLabDuplicateGroup[]>;
+      searchModelLabHuggingFace?: (
+        query: string,
+        category?: string,
+        limit?: number
+      ) => Promise<import("@dbzs/shared").ModelLabHuggingFaceSearchResult[]>;
+      getModelLabHuggingFaceRepo?: (
+        repoId: string,
+        revision?: string
+      ) => Promise<import("@dbzs/shared").ModelLabHuggingFaceRepoInfo>;
+      getModelLabHardware?: () => Promise<import("@dbzs/shared").ModelLabHardwareProfile>;
       getRuntimeStatus: () => Promise<RuntimeStatus>;
       startRuntimeModel: (modelId: string) => Promise<RuntimeStatus>;
       stopRuntimeModel: () => Promise<RuntimeStatus>;

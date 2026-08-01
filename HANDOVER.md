@@ -2,6 +2,48 @@
 
 Stand: 2026-07-31
 
+## Model Lab: Electron statt WinUI entschieden, Phase 1 umgesetzt (2026-07-31)
+
+**Entscheidung (verbindlich):** Das Model Operations Center (`Pläne/11 DBZS_CODEE_MODEL_OPERATIONS_CENTER_IMPLEMENTIERUNGSPLAN.md`)
+wird als Erweiterung der bestehenden Electron/React-App gebaut, nicht als WinUI3-App. `apps/model-ops-winui/`
+bleibt bewusst unangetastet (nicht geloescht, nicht weiterentwickelt) — beide Oberflaechen sprechen gegen
+dasselbe FastAPI-Backend (`/model-lab/*`, Port 8876 per Default), sodass kein Datenverlust entsteht, falls
+die WinUI-App spaeter doch noch gebraucht wird. Neue Model-Lab-Arbeit findet ab sofort ausschliesslich im
+Electron-Frontend statt.
+
+**Wichtiger Befund:** Das Backend-Modul `backend/app/model_lab/` (`models.py`, `repository.py`, `scanner.py`,
+`service.py`, `analyzer.py`, `hf_integration.py`) und der Router `backend/app/api/model_lab.py` existierten
+bereits vollstaendig und getestet (aus einer parallelen Session, urspruenglich fuer die WinUI-App gebaut) —
+Plan 11s Annahme eines komplett neu zu bauenden Backends (`registry.py`/`identity.py`) war durch die
+Zwischenzeit ueberholt. Phase 1 wurde daher als reine Frontend-Erweiterung umgesetzt, die den real
+existierenden Endpunkten folgt, nicht Plan 11s hypothetischem Schema.
+
+**Umgesetzt (Phase 1 - Inventory MVP, Frontend):**
+- `apps/desktop/electron/modelLabIpc.ts` (neu): registriert alle `/model-lab/*`-IPC-Handler
+  (`sources`, `scan`, `jobs`, `models`, `models/{id}/metadata`, `collections`, `duplicates`, `hf/search`,
+  `hf/repos/{id}`, `hardware`), analog zu `runtimeAndJobIpc.ts`. In `main.ts` per
+  `registerModelLabIpcHandlers({ requestBackend })` eingehaengt.
+- `packages/shared/src/index.ts`: TS-Typen fuer das gesamte Model-Lab-Schema (`ModelLabSource`,
+  `ModelLabArtifact`, `ModelLabBundle`, `ModelLabModel`, `ModelLabScanJob`, `ModelLabHardwareProfile`, etc.),
+  1:1 gespiegelt von `backend/app/model_lab/models.py`.
+- `preload.ts` / `global.d.ts` / `backendClient.ts`: neue Bridge-Methoden fuer alle oben genannten Endpunkte,
+  nach demselben optionalen Muster wie die uebrigen `BackendBridge`-Methoden.
+- Neue Komponentenfamilie `apps/desktop/src/components/notebook/ModelLabTab.*`
+  (`.controller.ts`, `.primitives.tsx`, `.rows.tsx`, `.sections.tsx`, `.tsx`), modularisiert nach dem Vorbild
+  von `RuntimeModelsTab.*`. Umfang: Quellenverwaltung (Ordner hinzufuegen, pro Quelle scannen), Modell-
+  Bibliothekstabelle (Status, Quantisierung, Groesse, Capabilities), einfaches Inspector-Detailpanel
+  (Health, Capabilities, Artefaktliste).
+- Neuer Notebook-Tab `model-lab` in `notebookStore.ts` / `OperationsNotebook.tsx` / `App.tsx`, neben (nicht
+  anstelle von) dem bestehenden Runtime-Models-Tab.
+- Tests: `ModelLabTab.controller.test.tsx` (Laden/Quelle-anlegen/Scan-Fehlerpfad/Auswahl),
+  `ModelLabTab.primitives.test.ts` (formatBytes, Status-Ton-Zuordnung), `notebookStore.test.ts` angepasst
+  auf die neue Tab-Reihenfolge.
+
+**Noch offen (nicht Teil dieses Schritts):** Model Inspector als vollwertiges Tab-Panel (Benchmarks/Quality/
+Certification folgen erst Phase 2+), SSE-basierter Scan-Fortschritt (aktuell synchroner Scan-Request),
+Collections-/HuggingFace-Search-UI (Backend-Endpunkte sind angebunden, aber ohne UI). Siehe
+`Pläne/11 DBZS_CODEE_MODEL_OPERATIONS_CENTER_IMPLEMENTIERUNGSPLAN.md`, Abschnitt 3, fuer die weiteren Phasen.
+
 ## Abnahme-Test-Playbook umgesetzt (2026-07-31)
 
 Basis: `Pläne/10 DBZS_CODEE_V4_ABNAHME_TEST_PLAYBOOK.md` (48 Test-IDs über `SERVICE_VERIFIED` →

@@ -430,6 +430,48 @@ const api = {
   getModelIndex: () => ipcRenderer.invoke("dbzs:models:index") as Promise<ModelIndex>,
   saveManualMultimodalPairing: (request: ManualMultimodalPairingRequest) =>
     ipcRenderer.invoke("dbzs:models:multimodal-pairings:manual", request) as Promise<MultimodalPair>,
+  listModelLabSources: () =>
+    ipcRenderer.invoke("dbzs:model-lab:sources:list") as Promise<import("@dbzs/shared").ModelLabSource[]>,
+  createModelLabSource: (request: import("@dbzs/shared").ModelLabSourceCreate) =>
+    ipcRenderer.invoke("dbzs:model-lab:sources:create", request) as Promise<import("@dbzs/shared").ModelLabSource>,
+  runModelLabScan: (request?: import("@dbzs/shared").ModelLabScanRequest) =>
+    ipcRenderer.invoke("dbzs:model-lab:scan", request) as Promise<import("@dbzs/shared").ModelLabScanResult>,
+  listModelLabJobs: () =>
+    ipcRenderer.invoke("dbzs:model-lab:jobs:list") as Promise<import("@dbzs/shared").ModelLabScanJob[]>,
+  listModelLabModels: () =>
+    ipcRenderer.invoke("dbzs:model-lab:models:list") as Promise<import("@dbzs/shared").ModelLabModel[]>,
+  getModelLabModel: (bundleId: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:models:get", bundleId) as Promise<import("@dbzs/shared").ModelLabModel>,
+  updateModelLabMetadata: (bundleId: string, request: import("@dbzs/shared").ModelLabMetadataUpdate) =>
+    ipcRenderer.invoke("dbzs:model-lab:models:update-metadata", bundleId, request) as Promise<
+      import("@dbzs/shared").ModelLabBundle
+    >,
+  listModelLabCollections: () =>
+    ipcRenderer.invoke("dbzs:model-lab:collections:list") as Promise<import("@dbzs/shared").ModelLabCollection[]>,
+  createModelLabCollection: (request: import("@dbzs/shared").ModelLabCollectionCreate) =>
+    ipcRenderer.invoke("dbzs:model-lab:collections:create", request) as Promise<
+      import("@dbzs/shared").ModelLabCollection
+    >,
+  addModelLabCollectionMember: (collectionId: string, bundleId: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:collections:add-member", collectionId, bundleId) as Promise<{
+      status: string;
+    }>,
+  removeModelLabCollectionMember: (collectionId: string, bundleId: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:collections:remove-member", collectionId, bundleId) as Promise<{
+      status: string;
+    }>,
+  findModelLabDuplicates: () =>
+    ipcRenderer.invoke("dbzs:model-lab:duplicates") as Promise<import("@dbzs/shared").ModelLabDuplicateGroup[]>,
+  searchModelLabHuggingFace: (query: string, category?: string, limit?: number) =>
+    ipcRenderer.invoke("dbzs:model-lab:hf-search", query, category, limit) as Promise<
+      import("@dbzs/shared").ModelLabHuggingFaceSearchResult[]
+    >,
+  getModelLabHuggingFaceRepo: (repoId: string, revision?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:hf-repo", repoId, revision) as Promise<
+      import("@dbzs/shared").ModelLabHuggingFaceRepoInfo
+    >,
+  getModelLabHardware: () =>
+    ipcRenderer.invoke("dbzs:model-lab:hardware") as Promise<import("@dbzs/shared").ModelLabHardwareProfile>,
   getRuntimeStatus: () => ipcRenderer.invoke("dbzs:runtime:status") as Promise<RuntimeStatus>,
   startRuntimeModel: (modelId: string) =>
     ipcRenderer.invoke("dbzs:runtime:start", modelId) as Promise<RuntimeStatus>,

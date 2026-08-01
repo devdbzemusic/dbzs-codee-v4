@@ -1,6 +1,13 @@
 import { create } from "zustand";
 
-export type NotebookTabId = "mission-control" | "cdee" | "runtime" | "jobs" | "agent-workbench" | "editor";
+export type NotebookTabId =
+  | "mission-control"
+  | "cdee"
+  | "runtime"
+  | "model-lab"
+  | "jobs"
+  | "agent-workbench"
+  | "editor";
 
 const STORAGE_KEY = "dbzs-operations-notebook-tab";
 
@@ -8,6 +15,7 @@ const NOTEBOOK_TABS: NotebookTabId[] = [
   "mission-control",
   "cdee",
   "runtime",
+  "model-lab",
   "jobs",
   "agent-workbench",
   "editor"
@@ -79,6 +87,7 @@ export const NOTEBOOK_TAB_LABELS: Record<NotebookTabId, string> = {
   "mission-control": "Mission Control",
   cdee: "C@dee",
   runtime: "Runtime",
+  "model-lab": "Model Lab",
   jobs: "Jobs",
   "agent-workbench": "Agent Workbench",
   editor: "Editor"

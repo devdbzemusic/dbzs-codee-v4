@@ -28,6 +28,20 @@ import type {
   GpuInfo,
   ManualMultimodalPairingRequest,
   ModelIndex,
+  ModelLabBundle,
+  ModelLabCollection,
+  ModelLabCollectionCreate,
+  ModelLabDuplicateGroup,
+  ModelLabHardwareProfile,
+  ModelLabHuggingFaceRepoInfo,
+  ModelLabHuggingFaceSearchResult,
+  ModelLabMetadataUpdate,
+  ModelLabModel,
+  ModelLabScanJob,
+  ModelLabScanRequest,
+  ModelLabScanResult,
+  ModelLabSource,
+  ModelLabSourceCreate,
   MultimodalPair,
   JobArtifact,
   JobArtifactCreateRequest,
@@ -95,6 +109,25 @@ export interface BackendBridge {
   onRuntimeChatContext?: (listener: (context: RuntimeChatContextSnapshot | null) => void) => () => void;
   getModelIndex: () => Promise<ModelIndex>;
   saveManualMultimodalPairing?: (request: ManualMultimodalPairingRequest) => Promise<MultimodalPair>;
+  listModelLabSources?: () => Promise<ModelLabSource[]>;
+  createModelLabSource?: (request: ModelLabSourceCreate) => Promise<ModelLabSource>;
+  runModelLabScan?: (request?: ModelLabScanRequest) => Promise<ModelLabScanResult>;
+  listModelLabJobs?: () => Promise<ModelLabScanJob[]>;
+  listModelLabModels?: () => Promise<ModelLabModel[]>;
+  getModelLabModel?: (bundleId: string) => Promise<ModelLabModel>;
+  updateModelLabMetadata?: (bundleId: string, request: ModelLabMetadataUpdate) => Promise<ModelLabBundle>;
+  listModelLabCollections?: () => Promise<ModelLabCollection[]>;
+  createModelLabCollection?: (request: ModelLabCollectionCreate) => Promise<ModelLabCollection>;
+  addModelLabCollectionMember?: (collectionId: string, bundleId: string) => Promise<{ status: string }>;
+  removeModelLabCollectionMember?: (collectionId: string, bundleId: string) => Promise<{ status: string }>;
+  findModelLabDuplicates?: () => Promise<ModelLabDuplicateGroup[]>;
+  searchModelLabHuggingFace?: (
+    query: string,
+    category?: string,
+    limit?: number
+  ) => Promise<ModelLabHuggingFaceSearchResult[]>;
+  getModelLabHuggingFaceRepo?: (repoId: string, revision?: string) => Promise<ModelLabHuggingFaceRepoInfo>;
+  getModelLabHardware?: () => Promise<ModelLabHardwareProfile>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   startRuntimeModel: (modelId: string) => Promise<RuntimeStatus>;
   stopRuntimeModel: () => Promise<RuntimeStatus>;
@@ -324,6 +357,111 @@ export const backendClient = {
       return Promise.reject(new Error("saveManualMultimodalPairing is unavailable."));
     }
     return method(request);
+  },
+  listModelLabSources: () => {
+    const method = bridge().listModelLabSources;
+    if (!method) {
+      return Promise.reject(new Error("listModelLabSources is unavailable."));
+    }
+    return method();
+  },
+  createModelLabSource: (request: ModelLabSourceCreate) => {
+    const method = bridge().createModelLabSource;
+    if (!method) {
+      return Promise.reject(new Error("createModelLabSource is unavailable."));
+    }
+    return method(request);
+  },
+  runModelLabScan: (request?: ModelLabScanRequest) => {
+    const method = bridge().runModelLabScan;
+    if (!method) {
+      return Promise.reject(new Error("runModelLabScan is unavailable."));
+    }
+    return method(request);
+  },
+  listModelLabJobs: () => {
+    const method = bridge().listModelLabJobs;
+    if (!method) {
+      return Promise.reject(new Error("listModelLabJobs is unavailable."));
+    }
+    return method();
+  },
+  listModelLabModels: () => {
+    const method = bridge().listModelLabModels;
+    if (!method) {
+      return Promise.reject(new Error("listModelLabModels is unavailable."));
+    }
+    return method();
+  },
+  getModelLabModel: (bundleId: string) => {
+    const method = bridge().getModelLabModel;
+    if (!method) {
+      return Promise.reject(new Error("getModelLabModel is unavailable."));
+    }
+    return method(bundleId);
+  },
+  updateModelLabMetadata: (bundleId: string, request: ModelLabMetadataUpdate) => {
+    const method = bridge().updateModelLabMetadata;
+    if (!method) {
+      return Promise.reject(new Error("updateModelLabMetadata is unavailable."));
+    }
+    return method(bundleId, request);
+  },
+  listModelLabCollections: () => {
+    const method = bridge().listModelLabCollections;
+    if (!method) {
+      return Promise.reject(new Error("listModelLabCollections is unavailable."));
+    }
+    return method();
+  },
+  createModelLabCollection: (request: ModelLabCollectionCreate) => {
+    const method = bridge().createModelLabCollection;
+    if (!method) {
+      return Promise.reject(new Error("createModelLabCollection is unavailable."));
+    }
+    return method(request);
+  },
+  addModelLabCollectionMember: (collectionId: string, bundleId: string) => {
+    const method = bridge().addModelLabCollectionMember;
+    if (!method) {
+      return Promise.reject(new Error("addModelLabCollectionMember is unavailable."));
+    }
+    return method(collectionId, bundleId);
+  },
+  removeModelLabCollectionMember: (collectionId: string, bundleId: string) => {
+    const method = bridge().removeModelLabCollectionMember;
+    if (!method) {
+      return Promise.reject(new Error("removeModelLabCollectionMember is unavailable."));
+    }
+    return method(collectionId, bundleId);
+  },
+  findModelLabDuplicates: () => {
+    const method = bridge().findModelLabDuplicates;
+    if (!method) {
+      return Promise.reject(new Error("findModelLabDuplicates is unavailable."));
+    }
+    return method();
+  },
+  searchModelLabHuggingFace: (query: string, category?: string, limit?: number) => {
+    const method = bridge().searchModelLabHuggingFace;
+    if (!method) {
+      return Promise.reject(new Error("searchModelLabHuggingFace is unavailable."));
+    }
+    return method(query, category, limit);
+  },
+  getModelLabHuggingFaceRepo: (repoId: string, revision?: string) => {
+    const method = bridge().getModelLabHuggingFaceRepo;
+    if (!method) {
+      return Promise.reject(new Error("getModelLabHuggingFaceRepo is unavailable."));
+    }
+    return method(repoId, revision);
+  },
+  getModelLabHardware: () => {
+    const method = bridge().getModelLabHardware;
+    if (!method) {
+      return Promise.reject(new Error("getModelLabHardware is unavailable."));
+    }
+    return method();
   },
   getRuntimeStatus: () => bridge().getRuntimeStatus(),
   startRuntimeModel: (modelId: string) => bridge().startRuntimeModel(modelId),

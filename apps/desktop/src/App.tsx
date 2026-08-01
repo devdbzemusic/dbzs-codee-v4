@@ -39,6 +39,7 @@ const EditorTabPanel = lazy(() =>
   import("@/components/notebook/EditorTabPanel").then((module) => ({ default: module.EditorTabPanel }))
 );
 import { RuntimeModelsTab } from "@/components/notebook/RuntimeModelsTab";
+import { ModelLabTab } from "@/components/notebook/ModelLabTab";
 import { JobsNotebookTab } from "@/components/notebook/JobsNotebookTab";
 import { PlatformDiagnosticsPanel } from "@/components/PlatformDiagnosticsPanel";
 import { ReviewGatePanel } from "@/components/ReviewGatePanel";
@@ -901,6 +902,7 @@ function AppShell() {
                 />
               </div>
             }
+            modelLab={<ModelLabTab />}
             runtime={<RuntimeModelsTab />}
           />
 
