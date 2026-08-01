@@ -1,8 +1,8 @@
 import type { IndexedModel, MultimodalPair, RuntimeStatus } from "@dbzs/shared";
 import type { PairingUiController } from "./RuntimeModelsTab.pairing";
-import { canStopRuntime } from "./RuntimeModelsTab.helpers";
+import { canStopRuntime, summarizeDiagnosticsIssues, type DiagnosticsIssue } from "./RuntimeModelsTab.helpers";
 import { StartableModelRow, MultimodalPairRow, SupportArtifactRow } from "./RuntimeModelsTab.rows";
-import { SummaryBadge } from "./RuntimeModelsTab.primitives";
+import { SummaryBadge, ToneBadge } from "./RuntimeModelsTab.primitives";
 
 export function RuntimeModelsHeader({
   backendOnline,
@@ -115,6 +115,42 @@ export function RuntimeModelsEmptyState({
         ? "Modellindex konnte nicht geladen werden - siehe Fehlermeldung oben."
         : "Keine Modelle im Index gefunden."}
     </p>
+  );
+}
+
+export function DiagnosticsSection({ issues }: { issues: DiagnosticsIssue[] }) {
+  if (issues.length === 0) {
+    return null;
+  }
+
+  const { errors, warnings } = summarizeDiagnosticsIssues(issues);
+
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <h3 className="text-xs font-medium uppercase tracking-[0.18em] text-dbzs-muted">Diagnose</h3>
+        {errors > 0 ? <SummaryBadge tone="error">Blockiert {errors}</SummaryBadge> : null}
+        {warnings > 0 ? <SummaryBadge tone="warn">Hinweise {warnings}</SummaryBadge> : null}
+      </div>
+      <ul className="space-y-1">
+        {issues.map((issue) => (
+          <li
+            className="flex items-start gap-2 border border-dbzs-border/50 bg-dbzs-panel px-2 py-1.5 text-[11px]"
+            key={issue.id}
+          >
+            <ToneBadge fit tone={issue.severity === "error" ? "error" : "warn"}>
+              {issue.area}
+            </ToneBadge>
+            <div className="min-w-0">
+              <div className="truncate font-medium text-dbzs-text" title={issue.title}>
+                {issue.title}
+              </div>
+              <div className="text-dbzs-muted">{issue.detail}</div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

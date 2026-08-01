@@ -6,7 +6,7 @@ import type {
   RuntimeStatus
 } from "@dbzs/shared";
 import { modelRequiresVisionProjector, modelSupportsTextOnly } from "@/services/modelSelectionBroker";
-import { isRunnableModel } from "@/utils/modelUtils";
+import { describeExclusionReason, isRunnableModel } from "@/utils/modelUtils";
 import type { ProbeEvidenceItem, ProbeOutcomeSummary } from "./RuntimeModelsTab.primitives";
 
 function parentDirectoryLabel(filePath: string): string {
@@ -1070,4 +1070,88 @@ export function describeMultimodalPairRouting(
     return { label: "Blockiert", tone: "error" };
   }
   return { label: "Gesperrt", tone: "info" };
+}
+
+export interface DiagnosticsIssue {
+  id: string;
+  severity: "error" | "warn";
+  area: "Modell" | "MM-Paar" | "Hilfsartefakt";
+  title: string;
+  detail: string;
+}
+
+/**
+ * Buendelt Blocker aus Modellen, multimodalen Paaren und Hilfsartefakten in eine
+ * einzige Diagnoseliste (Phase 4 des Model-Control-Center-Plans). Zeigt bewusst nur
+ * echte Blocker/offene Zuordnungen, keine bereits normal actionable Zustaende
+ * (z.B. "Probe bereit" bleibt in der MM-Paare-Sektion, nicht hier verdoppelt).
+ */
+export function collectDiagnosticsIssues(
+  models: IndexedModel[],
+  multimodalPairs: MultimodalPair[],
+  supportArtifacts: IndexedModel[]
+): DiagnosticsIssue[] {
+  const issues: DiagnosticsIssue[] = [];
+
+  for (const model of models) {
+    const reason = describeExclusionReason(model);
+    if (!reason) {
+      continue;
+    }
+    issues.push({
+      id: `model:${model.id}`,
+      severity: isRunnableModel(model) ? "warn" : "error",
+      area: "Modell",
+      title: model.name,
+      detail: reason
+    });
+  }
+
+  for (const pair of multimodalPairs) {
+    if (pair.routing_allowed || (pair.status !== "ambiguous" && pair.status !== "missing_base")) {
+      continue;
+    }
+    const status = describeMultimodalPairStatus(pair);
+    issues.push({
+      id: `pair:${pair.id}`,
+      severity: "error",
+      area: "MM-Paar",
+      title: pair.projector_artifact_id,
+      detail: status.hint
+    });
+  }
+
+  for (const artifact of supportArtifacts) {
+    const description = describeSupportArtifact(artifact, multimodalPairs);
+    if (description.statusLabel !== "orphan") {
+      continue;
+    }
+    issues.push({
+      id: `artifact:${artifact.id}`,
+      severity: "warn",
+      area: "Hilfsartefakt",
+      title: artifact.name,
+      detail: description.hint
+    });
+  }
+
+  return issues.sort((left, right) => {
+    if (left.severity !== right.severity) {
+      return left.severity === "error" ? -1 : 1;
+    }
+    return left.title.localeCompare(right.title);
+  });
+}
+
+export function summarizeDiagnosticsIssues(issues: DiagnosticsIssue[]): { errors: number; warnings: number } {
+  let errors = 0;
+  let warnings = 0;
+  for (const issue of issues) {
+    if (issue.severity === "error") {
+      errors += 1;
+    } else {
+      warnings += 1;
+    }
+  }
+  return { errors, warnings };
 }
