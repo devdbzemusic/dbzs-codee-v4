@@ -22,8 +22,8 @@ public sealed partial class MainWindow : Window
         }
 
         _loadedOnce = true;
-        await viewModel.RefreshCommand.ExecuteAsync(null);
-        if (viewModel.ModelCount > 0)
+        var initialized = await viewModel.InitializeAsync();
+        if (initialized && viewModel.ModelCount > 0)
         {
             ShellNavigation.SelectedItem = LibraryNavItem;
             ShowView("library");

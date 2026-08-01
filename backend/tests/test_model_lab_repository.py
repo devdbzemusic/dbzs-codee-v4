@@ -196,6 +196,50 @@ def test_fleet_repository_records_probe_certification_and_role_assignment(tmp_pa
     }
 
 
+def test_fleet_routing_map_reports_certification_gate(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    disabled = repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="MICRO_TOOL_AGENT",
+            safety_level="LEVEL_1_READ_ONLY_TOOLS",
+            enabled=False,
+        )
+    )
+    blocked_entry = repo.list_routing_map("MICRO_TOOL_AGENT")[0]
+    assert blocked_entry.bundle_id == bundle.bundle_id
+    assert blocked_entry.enabled is False
+    assert blocked_entry.routing_allowed is False
+    assert set(blocked_entry.missing_certifications) == set(disabled.required_certifications)
+
+    for certification in disabled.required_certifications:
+        repo.upsert_certification(
+            ModelCertificationRequest(
+                bundle_id=bundle.bundle_id,
+                certification=certification,
+                evidence={"source": "unit"},
+            )
+        )
+
+    repo.assign_model_role(
+        ModelRoleAssignmentRequest(
+            bundle_id=bundle.bundle_id,
+            role="MICRO_TOOL_AGENT",
+            safety_level="LEVEL_1_READ_ONLY_TOOLS",
+            enabled=True,
+            priority=7,
+        )
+    )
+    allowed_entry = repo.list_routing_map("MICRO_TOOL_AGENT")[0]
+    assert allowed_entry.routing_allowed is True
+    assert allowed_entry.priority == 7
+    assert allowed_entry.bundle_name == bundle.name
+    assert set(allowed_entry.passed_certifications) == set(disabled.required_certifications)
+    assert allowed_entry.missing_certifications == []
+
+
 def test_runtime_presets_are_seeded_from_plan_15_matrix(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
 

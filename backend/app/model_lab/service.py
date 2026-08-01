@@ -18,6 +18,7 @@ from app.model_lab.models import (
     ModelCollection,
     ModelCollectionCreate,
     ModelFailureRecord,
+    ModelFleetRoutingEntry,
     ModelLabModel,
     ModelMetadataUpdate,
     ModelProbeRequest,
@@ -255,6 +256,9 @@ class ModelLabService:
 
     def list_role_assignments(self, role: str | None = None) -> list[ModelRoleAssignment]:
         return self.repository.list_role_assignments(role=role)
+
+    def list_routing_map(self, role: str | None = None) -> list[ModelFleetRoutingEntry]:
+        return self.repository.list_routing_map(role=role)
 
     def list_probe_runs(self, bundle_id: str | None = None) -> list[ModelProbeRun]:
         return self.repository.list_probe_runs(bundle_id=bundle_id)

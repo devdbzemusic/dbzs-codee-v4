@@ -22,6 +22,7 @@ from app.model_lab.models import (
     ModelCollection,
     ModelCollectionCreate,
     ModelFailureRecord,
+    ModelFleetRoutingEntry,
     ModelLabModel,
     ModelMetadataUpdate,
     ModelProbeRequest,
@@ -974,6 +975,36 @@ class ModelLabRepository:
                     "SELECT * FROM model_role_assignments ORDER BY role, enabled DESC, priority"
                 ).fetchall()
         return [_role_assignment_from_row(row) for row in rows]
+
+    def list_routing_map(self, role: str | None = None) -> list[ModelFleetRoutingEntry]:
+        assignments = self.list_role_assignments(role=role)
+        entries: list[ModelFleetRoutingEntry] = []
+        for assignment in assignments:
+            model = self.get_model(assignment.bundle_id)
+            if model is None:
+                continue
+            passed = self._passed_certifications(assignment.bundle_id)
+            missing = [cert for cert in assignment.required_certifications if cert not in passed]
+            entries.append(
+                ModelFleetRoutingEntry(
+                    role=assignment.role,
+                    bundle_id=assignment.bundle_id,
+                    bundle_name=model.bundle.name,
+                    safety_level=assignment.safety_level,
+                    enabled=assignment.enabled,
+                    priority=assignment.priority,
+                    bundle_status=model.bundle.status,
+                    capabilities=model.bundle.capabilities,
+                    modalities=model.bundle.modalities,
+                    required_certifications=assignment.required_certifications,
+                    passed_certifications=[cert for cert in assignment.required_certifications if cert in passed],
+                    missing_certifications=missing,
+                    routing_allowed=assignment.enabled and not missing,
+                    notes=assignment.notes,
+                    updated_at=assignment.updated_at,
+                )
+            )
+        return entries
 
     def list_failures(self, bundle_id: str | None = None) -> list[ModelFailureRecord]:
         with sqlite_connection(self.db_path) as conn:

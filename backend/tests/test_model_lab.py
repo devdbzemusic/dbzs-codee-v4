@@ -276,10 +276,15 @@ def test_model_lab_fleet_endpoints_record_safe_gates_and_roles(tmp_path: Path) -
         "/model-lab/role-assignments",
         json={"bundle_id": bundle_id, "role": "MICRO_TOOL_AGENT", "safety_level": "LEVEL_1_READ_ONLY_TOOLS"},
     )
+    routing_map = client.get("/model-lab/routing-map", params={"role": "MICRO_TOOL_AGENT"})
     app.dependency_overrides.clear()
     assert role.status_code == 200
     assert role.json()["enabled"] is True
     assert set(role.json()["required_certifications"]) == {"TOOL_CALLING_VERIFIED", "READ_ONLY_AGENT_VERIFIED"}
+    assert routing_map.status_code == 200
+    assert routing_map.json()[0]["bundle_id"] == bundle_id
+    assert routing_map.json()[0]["routing_allowed"] is True
+    assert routing_map.json()[0]["missing_certifications"] == []
 
 
 def test_huggingface_search_uses_category_filter_without_network() -> None:

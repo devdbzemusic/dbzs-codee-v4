@@ -3,12 +3,14 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DBZS.Codee.ModelOps.WinUI.Models;
 using DBZS.Codee.ModelOps.WinUI.Services;
+using Microsoft.UI.Xaml;
 
 namespace DBZS.Codee.ModelOps.WinUI.ViewModels;
 
 public sealed partial class MainViewModel : ObservableObject
 {
     private readonly ModelLabApiClient _apiClient = new();
+    private readonly BackendProcessService _backendProcessService = new();
 
     public ObservableCollection<ModelSourceDto> Sources { get; } = [];
     public ObservableCollection<ModelLabModelDto> Models { get; } = [];
@@ -25,8 +27,13 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _selectedIsFavorite;
     private string _statusText = "Bereit. Verbinde mit lokalem Codee Backend.";
     private string _scanStatusText = "Quelle eintragen oder gespeicherte Quellen scannen.";
+    private string _latestScanSummary = "Noch kein Scan aus der Registry geladen.";
+    private bool _isStartupOverlayVisible = true;
+    private string _startupStatusText = "Codee Backend wird verbunden...";
+    private string _startupDetailText = "Warte auf http://127.0.0.1:8876.";
     private HardwareProfileDto? _hardware;
     private ModelLabModelDto? _selectedModel;
+    private ModelSourceDto? _selectedSource;
 
     public string BackendUrl
     {
@@ -112,6 +119,38 @@ public sealed partial class MainViewModel : ObservableObject
         set => SetProperty(ref _scanStatusText, value);
     }
 
+    public string LatestScanSummary
+    {
+        get => _latestScanSummary;
+        set => SetProperty(ref _latestScanSummary, value);
+    }
+
+    public bool IsStartupOverlayVisible
+    {
+        get => _isStartupOverlayVisible;
+        set
+        {
+            if (SetProperty(ref _isStartupOverlayVisible, value))
+            {
+                OnPropertyChanged(nameof(StartupOverlayVisibility));
+            }
+        }
+    }
+
+    public Visibility StartupOverlayVisibility => IsStartupOverlayVisible ? Visibility.Visible : Visibility.Collapsed;
+
+    public string StartupStatusText
+    {
+        get => _startupStatusText;
+        set => SetProperty(ref _startupStatusText, value);
+    }
+
+    public string StartupDetailText
+    {
+        get => _startupDetailText;
+        set => SetProperty(ref _startupDetailText, value);
+    }
+
     public HardwareProfileDto? Hardware
     {
         get => _hardware;
@@ -137,9 +176,32 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    public ModelSourceDto? SelectedSource
+    {
+        get => _selectedSource;
+        set => SetProperty(ref _selectedSource, value);
+    }
+
     public int ModelCount => Models.Count;
     public int FilteredModelCount => FilteredModels.Count;
     public string ModelLibrarySummary => $"{FilteredModelCount} von {ModelCount} Modellen angezeigt";
+    public string ModelLibraryHint
+    {
+        get
+        {
+            if (ModelCount == 0)
+            {
+                return "Keine Modelle in der Registry. Bitte im Scanner eine Quelle speichern und scannen.";
+            }
+
+            if (FilteredModelCount == 0)
+            {
+                return "Keine Treffer mit den aktuellen Filtern. Filter zurücksetzen zeigt die geladene Registry.";
+            }
+
+            return "Modelle sind geladen. Auswahl öffnet Details im Inspector.";
+        }
+    }
     public int SourceCount => Sources.Count;
     public int JobCount { get; private set; }
     public int CollectionCount => Collections.Count;
@@ -162,40 +224,95 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    public async Task<bool> InitializeAsync()
+    {
+        IsStartupOverlayVisible = true;
+        _apiClient.BackendUrl = BackendUrl;
+        StartupStatusText = "Backend-Start wird vorbereitet...";
+        StartupDetailText = "Pruefe lokalen Codee-Backend-Port 8876.";
+        await _backendProcessService.EnsureBackendStartedAsync(
+            message => StartupDetailText = message,
+            CancellationToken.None);
+
+        for (var attempt = 1; attempt <= 60; attempt++)
+        {
+            try
+            {
+                StartupStatusText = "Codee Backend wird gesucht...";
+                StartupDetailText = $"Versuch {attempt}/60: {BackendUrl}";
+                await _apiClient.GetSourcesAsync(CancellationToken.None);
+
+                StartupStatusText = "Backend antwortet. Lade Model Registry...";
+                StartupDetailText = "Quellen, Jobs, Collections, Hardwareprofil und Modellliste werden synchronisiert.";
+                await RefreshCoreAsync();
+
+                StartupStatusText = "Model Operations Center bereit.";
+                StartupDetailText = ModelLibrarySummary;
+                IsStartupOverlayVisible = false;
+                return true;
+            }
+            catch (Exception exc)
+            {
+                StartupStatusText = "Backend startet oder ist noch nicht erreichbar.";
+                StartupDetailText = $"{exc.Message} - neuer Versuch in 1 Sekunde.";
+                await Task.Delay(1000);
+            }
+        }
+
+        StartupStatusText = "Backend nicht erreichbar.";
+        StartupDetailText = $"Bitte Codee Backend auf {BackendUrl} starten und Refresh verwenden.";
+        StatusText = StartupStatusText;
+        return false;
+    }
+
     [RelayCommand]
     private async Task RefreshAsync()
     {
         try
         {
-            StatusText = "Lade Model-Lab-Daten...";
-            _apiClient.BackendUrl = BackendUrl;
-            var sourcesTask = _apiClient.GetSourcesAsync(CancellationToken.None);
-            var modelsTask = _apiClient.GetModelsAsync(CancellationToken.None);
-            var jobsTask = _apiClient.GetJobsAsync(CancellationToken.None);
-            var collectionsTask = _apiClient.GetCollectionsAsync(CancellationToken.None);
-            var hardwareTask = _apiClient.GetHardwareAsync(CancellationToken.None);
-            await Task.WhenAll(sourcesTask, modelsTask, jobsTask, collectionsTask, hardwareTask);
-
-            Replace(Sources, sourcesTask.Result);
-            Replace(Models, modelsTask.Result);
-            Replace(Collections, collectionsTask.Result);
-            ApplyModelFilters();
-            JobCount = jobsTask.Result.Count;
-            Hardware = hardwareTask.Result;
-            SelectedModel ??= FilteredModels.FirstOrDefault();
-            StatusText = "Model Lab synchronisiert.";
-            OnPropertyChanged(nameof(ModelCount));
-            OnPropertyChanged(nameof(FilteredModelCount));
-            OnPropertyChanged(nameof(ModelLibrarySummary));
-            OnPropertyChanged(nameof(SourceCount));
-            OnPropertyChanged(nameof(CollectionCount));
-            OnPropertyChanged(nameof(CollectionSummary));
-            OnPropertyChanged(nameof(HardwareSummary));
+            await RefreshCoreAsync();
+            IsStartupOverlayVisible = false;
         }
         catch (Exception exc)
         {
             StatusText = $"Backend nicht erreichbar: {exc.Message}";
+            StartupStatusText = "Backend nicht erreichbar.";
+            StartupDetailText = exc.Message;
+            IsStartupOverlayVisible = true;
         }
+    }
+
+    private async Task RefreshCoreAsync()
+    {
+        StatusText = "Lade Model-Lab-Daten...";
+        _apiClient.BackendUrl = BackendUrl;
+        var sourcesTask = _apiClient.GetSourcesAsync(CancellationToken.None);
+        var modelsTask = _apiClient.GetModelsAsync(CancellationToken.None);
+        var jobsTask = _apiClient.GetJobsAsync(CancellationToken.None);
+        var collectionsTask = _apiClient.GetCollectionsAsync(CancellationToken.None);
+        var hardwareTask = _apiClient.GetHardwareAsync(CancellationToken.None);
+        await Task.WhenAll(sourcesTask, modelsTask, jobsTask, collectionsTask, hardwareTask);
+
+        Replace(Sources, sourcesTask.Result);
+        Replace(Models, modelsTask.Result);
+        Replace(Collections, collectionsTask.Result);
+        ApplyModelFilters();
+        var jobs = jobsTask.Result;
+        JobCount = jobs.Count;
+        LatestScanSummary = BuildLatestScanSummary(jobs.FirstOrDefault(job => job.Status == "completed") ?? jobs.FirstOrDefault());
+        Hardware = hardwareTask.Result;
+        SelectedSource ??= PickDefaultSource(Sources);
+        SelectedModel ??= FilteredModels.FirstOrDefault();
+        StatusText = "Model Lab synchronisiert.";
+        OnPropertyChanged(nameof(ModelCount));
+        OnPropertyChanged(nameof(FilteredModelCount));
+        OnPropertyChanged(nameof(ModelLibrarySummary));
+        OnPropertyChanged(nameof(ModelLibraryHint));
+        OnPropertyChanged(nameof(SourceCount));
+        OnPropertyChanged(nameof(JobCount));
+        OnPropertyChanged(nameof(CollectionCount));
+        OnPropertyChanged(nameof(CollectionSummary));
+        OnPropertyChanged(nameof(HardwareSummary));
     }
 
     [RelayCommand]
@@ -257,6 +374,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (source is not null)
             {
                 Sources.Add(source);
+                SelectedSource = source;
                 NewSourcePath = "";
                 ScanStatusText = "Quelle gespeichert.";
                 OnPropertyChanged(nameof(SourceCount));
@@ -283,20 +401,24 @@ public sealed partial class MainViewModel : ObservableObject
                     Sources.Add(source);
                     OnPropertyChanged(nameof(SourceCount));
                 }
+                SelectedSource = source;
             }
 
-            if (source is null && Sources.Count == 0)
+            source ??= SelectedSource ?? PickDefaultSource(Sources);
+            if (source is null)
             {
                 ScanStatusText = "Keine Modellquelle gespeichert. Bitte zuerst einen Modellordner eintragen.";
                 return;
             }
 
-            var result = await _apiClient.ScanAsync(source?.Id, CancellationToken.None);
+            ScanStatusText = $"Scan läuft: {source.Path}";
+            var result = await _apiClient.ScanAsync(source.Id, CancellationToken.None);
             if (result is not null)
             {
                 ScanStatusText = result.Job.Error is null
                     ? $"Scan abgeschlossen: {result.Job.ArtifactCount} Artefakte, {result.Job.BundleCount} Bundles."
                     : $"Scan fehlgeschlagen: {result.Job.Error}";
+                LatestScanSummary = BuildLatestScanSummary(result.Job);
                 OnPropertyChanged(nameof(JobCount));
             }
             await RefreshAsync();
@@ -357,6 +479,31 @@ public sealed partial class MainViewModel : ObservableObject
         }
         OnPropertyChanged(nameof(FilteredModelCount));
         OnPropertyChanged(nameof(ModelLibrarySummary));
+        OnPropertyChanged(nameof(ModelLibraryHint));
+    }
+
+    private static string BuildLatestScanSummary(ScanJobDto? job)
+    {
+        if (job is null)
+        {
+            return "Noch kein Scan-Job vorhanden.";
+        }
+
+        if (!string.IsNullOrWhiteSpace(job.Error))
+        {
+            return $"Letzter Scan: {job.Status}, Fehler: {job.Error}";
+        }
+
+        return $"Letzter Scan: {job.Status}, {job.ArtifactCount} Artefakte, {job.BundleCount} Bundles.";
+    }
+
+    private static ModelSourceDto? PickDefaultSource(IEnumerable<ModelSourceDto> sources)
+    {
+        var sourceList = sources.ToList();
+        return sourceList.FirstOrDefault(source => source.Path.Equals(@"D:\Models", StringComparison.OrdinalIgnoreCase))
+            ?? sourceList.FirstOrDefault(source => source.Name?.Equals("Models", StringComparison.OrdinalIgnoreCase) == true)
+            ?? sourceList.FirstOrDefault(source => source.Path.Contains(@"\Models", StringComparison.OrdinalIgnoreCase))
+            ?? sourceList.FirstOrDefault();
     }
 
     private void SyncSelectedMetadataFields()

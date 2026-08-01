@@ -1701,6 +1701,24 @@ export interface ModelLabRoleAssignment {
   updated_at: string;
 }
 
+export interface ModelLabRoutingEntry {
+  role: ModelFleetRole;
+  bundle_id: string;
+  bundle_name: string;
+  safety_level: ModelFleetSafetyLevel;
+  enabled: boolean;
+  priority: number;
+  bundle_status: ModelLabStatus;
+  capabilities: string[];
+  modalities: string[];
+  required_certifications: ModelFleetCertificationKind[];
+  passed_certifications: ModelFleetCertificationKind[];
+  missing_certifications: ModelFleetCertificationKind[];
+  routing_allowed: boolean;
+  notes: string;
+  updated_at: string;
+}
+
 export interface ModelLabFailureRecord {
   id: string;
   bundle_id: string | null;

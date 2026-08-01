@@ -527,6 +527,10 @@ const api = {
     ipcRenderer.invoke("dbzs:model-lab:role-assignments:list", role) as Promise<
       import("@dbzs/shared").ModelLabRoleAssignment[]
     >,
+  listModelRoutingMap: (role?: string) =>
+    ipcRenderer.invoke("dbzs:model-lab:routing-map:list", role) as Promise<
+      import("@dbzs/shared").ModelLabRoutingEntry[]
+    >,
   listModelFailures: (bundleId?: string) =>
     ipcRenderer.invoke("dbzs:model-lab:failures:list", bundleId) as Promise<
       import("@dbzs/shared").ModelLabFailureRecord[]

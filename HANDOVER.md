@@ -45,9 +45,12 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
   nachvollziehbarer `skipped`-Probe-Run gespeichert, aber kein lokales Modell gestartet.
 - Rollen-Zuweisungen werden nicht dateinamensbasiert freigegeben, sondern verlangen die im Masterplan
   definierten Zertifikate; Schreib-/Workspace-Rollen verlangen zusaetzlich `WRITE_AGENT_VERIFIED`.
+- Fleet-Routing-Map nachgezogen: `/model-lab/routing-map` aggregiert Rollen-Zuweisung, Bundle-Metadaten
+  und bestandene/fehlende Zertifikate zu einer broker-/UI-lesbaren Freigabekarte; `routing_allowed` ist
+  nur bei aktivierter Zuweisung und vollstaendiger Evidence wahr.
 
 **Frisch verifiziert:**
-- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab.py backend/tests/test_model_lab_repository.py backend/tests/test_model_lab_scan_jobs.py backend/tests/test_model_lab_bridge.py -q` -> 26/26 gruen
+- `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab.py backend/tests/test_model_lab_repository.py backend/tests/test_model_lab_scan_jobs.py backend/tests/test_model_lab_bridge.py -q` -> 27/27 gruen
 - `npm run typecheck` in `apps/desktop` -> gruen
 - `npm run test -- src/components/notebook/ModelLabTab.controller.test.tsx` in `apps/desktop` -> 8/8 gruen
 - `npm run test -- src/components/notebook/ModelLabTab.controller.test.tsx src/components/notebook/RuntimeModelsTab.test.ts src/services/modelSelectionBroker.test.ts src/services/runtimeSlotManager.test.ts` in `apps/desktop` -> 88/88 gruen
@@ -56,6 +59,8 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
 - echter Scan von `D:\Models\Agentic`, Katalog-Rescan und produktive Modellreihenfolge aus Plan 15 abarbeiten
 - RuntimeAdapter-Live-Probe fuer `llama.cpp` implementieren, danach GPU-Autotuning und Benchmarks
 - Fleet Console UI ausbauen: Compatibility, Tuning Lab, Benchmarks, Certification, Roles & Routing, Failures
+- `modelSelectionBroker` an die neue Fleet-Routing-Map anbinden; aktuell ist die Map die stabile
+  Model-Lab-Schnittstelle, der Live-Broker nutzt weiterhin seine bestehende lokale Routing-Logik
 - Plan-14-Folgen im selben Themengebiet weiterfuehren: haengende Backend-Tests diagnostizieren,
   RAG-`retrieve()` optional mit Default-Embedding berechnen lassen und `embeddingService.ts`/Model-Lab-ID-Raum
   endgueltig versoehnen

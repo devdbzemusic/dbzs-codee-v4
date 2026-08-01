@@ -340,6 +340,24 @@ class ModelRoleAssignment(BaseModel):
     updated_at: datetime
 
 
+class ModelFleetRoutingEntry(BaseModel):
+    role: ModelFleetRole
+    bundle_id: str
+    bundle_name: str
+    safety_level: ModelFleetSafetyLevel
+    enabled: bool
+    priority: int
+    bundle_status: ModelLabStatus
+    capabilities: list[str] = Field(default_factory=list)
+    modalities: list[str] = Field(default_factory=list)
+    required_certifications: list[ModelFleetCertificationKind] = Field(default_factory=list)
+    passed_certifications: list[ModelFleetCertificationKind] = Field(default_factory=list)
+    missing_certifications: list[ModelFleetCertificationKind] = Field(default_factory=list)
+    routing_allowed: bool
+    notes: str = ""
+    updated_at: datetime
+
+
 class ModelFailureRecord(BaseModel):
     id: str
     bundle_id: str | None = None
@@ -360,6 +378,7 @@ class ModelFleetSummary(BaseModel):
     benchmark_runs: list[ModelBenchmarkRun]
     certifications: list[ModelCertificationRecord]
     role_assignments: list[ModelRoleAssignment]
+    routing_map: list[ModelFleetRoutingEntry] = Field(default_factory=list)
     failures: list[ModelFailureRecord]
 
 

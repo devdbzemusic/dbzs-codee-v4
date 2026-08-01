@@ -90,6 +90,7 @@
                         <StackPanel Grid.Row="1" Spacing="8">
                             <TextBlock Text="{Binding HardwareSummary}" FontSize="16" Foreground="{StaticResource DbzsTextMutedBrush}" />
                             <TextBlock Text="{Binding CollectionSummary}" FontSize="16" Foreground="{StaticResource DbzsTextMutedBrush}" />
+                            <TextBlock Text="{Binding LatestScanSummary}" FontSize="16" Foreground="{StaticResource DbzsTextMutedBrush}" />
                         </StackPanel>
                     </Grid>
 
@@ -111,7 +112,10 @@
                             <CheckBox Grid.Column="2" Content="Favoriten" IsChecked="{Binding FavoritesOnly, Mode=TwoWay}" VerticalAlignment="Bottom" />
                             <Button Grid.Column="3" Command="{Binding ClearModelFiltersCommand}" VerticalAlignment="Bottom" Content="Filter zurücksetzen" />
                         </Grid>
-                        <TextBlock Grid.Row="1" Text="{Binding ModelLibrarySummary}" Foreground="{StaticResource DbzsTextMutedBrush}" />
+                        <StackPanel Grid.Row="1" Spacing="4">
+                            <TextBlock Text="{Binding ModelLibrarySummary}" Foreground="{StaticResource DbzsTextMutedBrush}" />
+                            <TextBlock Text="{Binding ModelLibraryHint}" Foreground="{StaticResource DbzsTextMutedBrush}" />
+                        </StackPanel>
                         <ListView Grid.Row="2" ItemsSource="{Binding FilteredModels}" SelectedItem="{Binding SelectedModel, Mode=TwoWay}">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
@@ -153,8 +157,12 @@
                             <Button Grid.Column="1" Command="{Binding AddSourceCommand}" VerticalAlignment="Bottom" Content="Quelle speichern" />
                             <Button Grid.Column="2" Command="{Binding ScanCommand}" VerticalAlignment="Bottom" Content="Scan starten" />
                         </Grid>
-                        <TextBlock Grid.Row="1" Text="{Binding ScanStatusText}" Foreground="{StaticResource DbzsTextMutedBrush}" />
-                        <ListView Grid.Row="2" ItemsSource="{Binding Sources}">
+                        <StackPanel Grid.Row="1" Spacing="4">
+                            <TextBlock Text="{Binding ScanStatusText}" Foreground="{StaticResource DbzsTextMutedBrush}" />
+                            <TextBlock Text="{Binding LatestScanSummary}" Foreground="{StaticResource DbzsTextMutedBrush}" />
+                            <TextBlock Text="{Binding SelectedSource.Path}" Foreground="{StaticResource DbzsTextMutedBrush}" />
+                        </StackPanel>
+                        <ListView Grid.Row="2" ItemsSource="{Binding Sources}" SelectedItem="{Binding SelectedSource, Mode=TwoWay}">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Padding="12" ColumnSpacing="12">
@@ -242,5 +250,34 @@
                 </Grid>
             </Grid>
         </NavigationView>
+        <Grid
+            Background="#E6081018"
+            Visibility="{Binding StartupOverlayVisibility}">
+            <Border
+                Width="520"
+                Padding="28"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{StaticResource DbzsPanelBrush}"
+                BorderBrush="#27465A"
+                BorderThickness="1"
+                CornerRadius="8">
+                <StackPanel Spacing="16">
+                    <StackPanel Orientation="Horizontal" Spacing="14">
+                        <ProgressRing
+                            Width="36"
+                            Height="36"
+                            IsActive="True" />
+                        <StackPanel>
+                            <TextBlock Text="DBZS Codee Model Operations Center" FontSize="18" FontWeight="SemiBold" />
+                            <TextBlock Text="Backend Start" Foreground="{StaticResource DbzsTextMutedBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+                    <TextBlock Text="{Binding StartupStatusText}" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding StartupDetailText}" Foreground="{StaticResource DbzsTextMutedBrush}" TextWrapping="Wrap" />
+                    <Button Command="{Binding RefreshCommand}" HorizontalAlignment="Left" Content="Erneut verbinden" />
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

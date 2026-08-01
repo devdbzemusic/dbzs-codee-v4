@@ -15,6 +15,7 @@ from app.model_lab.models import (
     ModelCollection,
     ModelCollectionCreate,
     ModelFailureRecord,
+    ModelFleetRoutingEntry,
     ModelLabModel,
     ModelMetadataUpdate,
     ModelProbeRequest,
@@ -287,6 +288,14 @@ def list_role_assignments(
     service: ModelLabService = Depends(get_model_lab_service),
 ) -> list[ModelRoleAssignment]:
     return service.list_role_assignments(role=role)
+
+
+@router.get("/routing-map")
+def list_routing_map(
+    role: str | None = None,
+    service: ModelLabService = Depends(get_model_lab_service),
+) -> list[ModelFleetRoutingEntry]:
+    return service.list_routing_map(role=role)
 
 
 @router.get("/failures")

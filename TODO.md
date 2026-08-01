@@ -70,6 +70,8 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       `best_throughput`, `large_context` mit GPU-/Context-/Batch-/KV-/Flash-Achsen.
 - [x] Rollen-Gate erzwingt Zertifikate: keine aktive Fleet-Rolle nur auf Basis von Dateiname/Heuristik;
       Workspace-/Write-Rollen verlangen zusaetzlich `WRITE_AGENT_VERIFIED`.
+- [x] Fleet-Routing-Map umgesetzt: `/model-lab/routing-map` liefert pro Rolle Bundle, Safety-Level,
+      benoetigte/bestandene/fehlende Zertifikate und `routing_allowed` als stabile UI-/Broker-Vorstufe.
 - [x] Sicheres Probe-Gate: `probeModel` speichert ohne `allow_start` einen `skipped`-Run und startet kein
       lokales Modell.
 - [ ] `D:\Models\Agentic` als erste produktive Quelle ueber den neuen Candidate-Button registrieren/scannen
@@ -80,6 +82,8 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       beste Profile pro Bundle/Hardware-Snapshot persistieren.
 - [ ] Fleet Console UI ausbauen: Compatibility, Tuning Lab, Benchmarks, Certification, Roles & Routing,
       Runtime, Failures, Metadata.
+- [ ] `modelSelectionBroker` produktiv an die Fleet-Routing-Map anbinden; bis dahin bleibt die Map
+      bewusst nur Model-Lab-/Bridge-Vertrag, nicht die aktive Laufzeitentscheidung.
 - [ ] manuelle Abnahme mit echten Modellen: MiniCPM5-1B, QwenPaw-Flash-2B, Agents-A1-4B,
       AgentCPM-Explore, Nemotron-3-Nano-4B; danach DeepCoder, DeepScaleR, QwenPaw-Flash-4B,
       AgentCPM-Report.

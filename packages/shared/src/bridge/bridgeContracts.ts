@@ -18,6 +18,7 @@ import type {
   ModelLabModel,
   ModelLabProbeRequest,
   ModelLabProbeRun,
+  ModelLabRoutingEntry,
   ModelLabRoleAssignment,
   ModelLabRoleAssignmentRequest,
   ModelLabRuntimeAdapter,
@@ -165,6 +166,7 @@ export interface DesktopBridgeV1 {
   listModelCertifications?: (bundleId?: string) => Promise<ModelLabCertificationRecord[]>;
   assignModelRole?: (request: ModelLabRoleAssignmentRequest) => Promise<ModelLabRoleAssignment>;
   listModelRoleAssignments?: (role?: string) => Promise<ModelLabRoleAssignment[]>;
+  listModelRoutingMap?: (role?: string) => Promise<ModelLabRoutingEntry[]>;
   listModelFailures?: (bundleId?: string) => Promise<ModelLabFailureRecord[]>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   startRuntimeModel: (modelId: string, profile?: string) => Promise<RuntimeStatus>;
