@@ -11,9 +11,10 @@ import { buildResetChanges, computeSettingsDiff } from "./settingsTransfer";
 interface SettingFieldProps {
   definition: SettingDefinition;
   modelOptions?: Array<{ id: string; label: string; disabled?: boolean }>;
+  modelLabOptions?: Array<{ id: string; label: string; disabled?: boolean }>;
 }
 
-export function SettingField({ definition, modelOptions = [] }: SettingFieldProps) {
+export function SettingField({ definition, modelOptions = [], modelLabOptions = [] }: SettingFieldProps) {
   const settings = useSettingsStore((state) => state.settings);
   const backendHealth = useSettingsStore((state) => state.backendHealth);
   const diagnostics = useSettingsStore((state) => state.diagnostics);
@@ -67,7 +68,8 @@ export function SettingField({ definition, modelOptions = [] }: SettingFieldProp
       backendReady &&
       (definition.control === "toggle" ||
         definition.control === "select" ||
-        definition.control === "model_select")
+        definition.control === "model_select" ||
+        definition.control === "model_lab_select")
     ) {
       void patchSettings({ [key]: next } as Partial<AppSettings>);
       return;
@@ -182,6 +184,25 @@ export function SettingField({ definition, modelOptions = [] }: SettingFieldProp
         >
           <option value="">Automatisch / erben</option>
           {modelOptions.map((option) => (
+            <option disabled={option.disabled} key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      );
+      break;
+    case "model_lab_select":
+      control = (
+        <select
+          className={inputClass}
+          disabled={!editable}
+          onChange={(event) =>
+            commitImmediate(event.currentTarget.value as AppSettings[typeof key])
+          }
+          value={String(value ?? "")}
+        >
+          <option value="">Keines ausgewaehlt</option>
+          {modelLabOptions.map((option) => (
             <option disabled={option.disabled} key={option.id} value={option.id}>
               {option.label}
             </option>

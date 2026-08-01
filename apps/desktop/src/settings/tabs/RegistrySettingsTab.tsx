@@ -5,9 +5,11 @@ import { settingsByCategory, type SettingsCategory } from "../settingsRegistry";
 export function RegistrySettingsTab({
   category,
   modelOptions = [],
+  modelLabOptions = [],
 }: {
   category: SettingsCategory;
   modelOptions?: Array<{ id: string; label: string; disabled?: boolean }>;
+  modelLabOptions?: Array<{ id: string; label: string; disabled?: boolean }>;
 }) {
   const entries = settingsByCategory(category);
   if (entries.length === 0) {
@@ -21,6 +23,7 @@ export function RegistrySettingsTab({
         <SettingField
           definition={entry}
           key={String(entry.key)}
+          modelLabOptions={entry.control === "model_lab_select" ? modelLabOptions : undefined}
           modelOptions={entry.control === "model_select" ? modelOptions : undefined}
         />
       ))}

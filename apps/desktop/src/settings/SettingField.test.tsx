@@ -93,4 +93,54 @@ describe("SettingField", () => {
     root.unmount();
     container.remove();
   });
+
+  it("renders model_lab_select options and commits immediately on change", () => {
+    const definition = getSettingDefinition("defaultEmbeddingModelId");
+    expect(definition).toBeTruthy();
+    if (!definition) {
+      return;
+    }
+    useSettingsStore.setState((state) => ({
+      ...state,
+      backendHealth: { status: "ok", app: "DBZS Code Assistant", version: "0.4.0-rc.1" }
+    }));
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <SettingField
+          definition={definition}
+          modelLabOptions={[
+            { id: "bundle-1", label: "bge-small-en", disabled: false },
+            { id: "bundle-2", label: "incomplete-bundle", disabled: true }
+          ]}
+        />
+      );
+    });
+
+    const select = container.querySelector("select");
+    expect(select).toBeTruthy();
+    if (!(select instanceof HTMLSelectElement)) {
+      root.unmount();
+      container.remove();
+      return;
+    }
+    expect(Array.from(select.options).map((option) => option.value)).toEqual(["", "bundle-1", "bundle-2"]);
+
+    act(() => {
+      select.value = "bundle-1";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(window.dbzs.patchSettings).toHaveBeenCalledWith({
+      baseRevision: 0,
+      changes: { defaultEmbeddingModelId: "bundle-1" }
+    });
+
+    root.unmount();
+    container.remove();
+  });
 });
