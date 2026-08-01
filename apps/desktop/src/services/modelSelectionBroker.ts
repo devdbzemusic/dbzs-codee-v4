@@ -1070,6 +1070,38 @@ export function isDecisionStillValid(
 }
 
 /**
+ * Re-derive the role-setting-based configuredModelId a decision would get
+ * with the *current* settings, and compare it against the value the decision
+ * was actually bound with. Used as a targeted alternative to a raw
+ * settingsRevision comparison: with "Lazy Runtime" (routing happens before
+ * the work model is actually started - see runtimeChatStore.ts), a slow
+ * model warmup can leave a routing decision pending for minutes, during
+ * which the settingsRevision counter can bump for entirely unrelated reasons
+ * (theme, editor font size, ...). A raw revision mismatch there would throw
+ * away an already-in-flight request even though nothing routing-relevant
+ * changed. This only returns true when the specific settings field that fed
+ * this decision's model selection actually changed.
+ */
+export function hasRoutingRelevantSettingsChanged(
+  decision: Pick<ModelSelectionDecision, "taskType" | "targetAgent" | "modelRole" | "configuredModelId">,
+  settings: {
+    defaultModelId: string;
+    defaultChatModelId?: string;
+    defaultPlannerModelId?: string;
+    defaultCoderModelId?: string;
+    defaultReviewerModelId?: string;
+    defaultDebugModelId?: string;
+    defaultVisionModelId?: string;
+  },
+): boolean {
+  const currentConfiguredModelId =
+    (decision.modelRole
+      ? selectModelForRole(decision.modelRole, settings, decision.targetAgent)
+      : selectModelForTask(decision.taskType, settings, decision.targetAgent)) ?? "";
+  return currentConfiguredModelId !== decision.configuredModelId;
+}
+
+/**
  * Utility: Format decision for logging/diagnostics.
  */
 export function formatDecision(decision: ModelSelectionDecision): string {

@@ -114,7 +114,12 @@ import { questionCoordinator } from "@/services/questionCoordinator";
 import { clearPendingQuestion, readPendingQuestion } from "@/services/pendingQuestionPersistence";
 import { buildRuntimeAgentActionRegistry } from "@/services/runtimeAgentActions";
 import { attachFollowUpActionsToMessages } from "@/services/runtimeChatFollowUpActions";
-import { brokerDecision, formatModelDisplayLabel, BindingModelError } from "@/services/modelSelectionBroker";
+import {
+  brokerDecision,
+  formatModelDisplayLabel,
+  hasRoutingRelevantSettingsChanged,
+  BindingModelError
+} from "@/services/modelSelectionBroker";
 import {
   answeredFieldIds,
   appendContractFieldAnswer,
@@ -2037,7 +2042,10 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
         if (!brokerDecisionFull || !bindingDecision) {
           throw new Error("request_binding_mismatch: binding_decision_missing");
         }
-        if (bindingDecision.settingsRevision !== settingsState.settingsRevision) {
+        if (
+          bindingDecision.settingsRevision !== settingsState.settingsRevision &&
+          hasRoutingRelevantSettingsChanged(brokerDecisionFull, settingsState.settings)
+        ) {
           throw new Error(
             `request_binding_mismatch: settings_revision_changed old=${bindingDecision.settingsRevision} new=${settingsState.settingsRevision}`
           );

@@ -111,6 +111,13 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       `general.architecture == "clip"` aus den ohnehin gelesenen GGUF-Metadaten als primaeres Signal.
       Bekannte Einschraenkung: bestehende `model-index-cache.json`-Eintraege mit alter Klassifizierung
       brauchen einen frischen Scan, um den Fix zu sehen.
+- [x] Bugfix: `request_binding_mismatch: settings_revision_changed` warf lange Warmup-Waits unnoetig weg.
+      `runtimeChatStore.ts` verglich die rohe Settings-Revision (bumpt bei jeder beliebigen Aenderung) statt
+      nur der routing-relevanten. Neue Funktion `hasRoutingRelevantSettingsChanged()` in
+      `modelSelectionBroker.ts` leitet das aktuell relevante Settings-Feld gezielt neu ab und vergleicht nur
+      das; eine Theme-Aenderung waehrend eines minutenlangen Modell-Warmups bricht den Request nicht mehr ab.
+      Die eigentliche Langsamkeit (7 Minuten Runtime-Check + Kontextvorbereitung) ist plausibel echte
+      Modell-Ladezeit auf schwacher Hardware, kein Code-Bug — nicht veraendert.
 - [ ] `D:\Models\Agentic` als erste produktive Quelle ueber den neuen Candidate-Button registrieren/scannen
       und den veralteten lokalen Model-Katalog auf dieser Maschine neu erzeugen.
 - [ ] `llama.cpp`-RuntimeAdapter live verdrahten: `probe_load`, `health_check`, echte Benchmark-Messung,
