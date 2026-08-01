@@ -6,10 +6,28 @@ namespace DBZS.Codee.ModelOps.WinUI;
 
 public sealed partial class MainWindow : Window
 {
+    private bool _loadedOnce;
+
     public MainWindow()
     {
         InitializeComponent();
         RootView.DataContext = new MainViewModel();
+    }
+
+    private async void OnRootViewLoaded(object sender, RoutedEventArgs e)
+    {
+        if (_loadedOnce || RootView.DataContext is not MainViewModel viewModel)
+        {
+            return;
+        }
+
+        _loadedOnce = true;
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+        if (viewModel.ModelCount > 0)
+        {
+            ShellNavigation.SelectedItem = LibraryNavItem;
+            ShowView("library");
+        }
     }
 
     private void OnNavigationSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
@@ -19,6 +37,11 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        ShowView(tag);
+    }
+
+    private void ShowView(string tag)
+    {
         DashboardView.Visibility = tag == "dashboard" ? Visibility.Visible : Visibility.Collapsed;
         LibraryView.Visibility = tag == "library" ? Visibility.Visible : Visibility.Collapsed;
         ScannerView.Visibility = tag == "scanner" ? Visibility.Visible : Visibility.Collapsed;
