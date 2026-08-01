@@ -2,6 +2,45 @@
 
 Stand: 2026-08-01
 
+## Plan 12, Etappe 2, Punkte 4-7: model_lab-Testabdeckung, Sicherheits-/Konventions-Abgleich (2026-08-01)
+
+Basis: `Pläne/12 DBZS_CODEE_V4_VERBESSERUNGSPLAN_2026-07-31.md`, Etappe 2. Vorher musste erst der lange
+uncommittete `backend/app/model_lab/`-Stand committet werden (separater Commit/PR #26) - siehe unten.
+
+**Punkt 4 (Testabdeckung erhoeht) - umgesetzt:** `backend/tests/test_model_lab_repository.py` (neu, 7 Tests)
+prueft die Repository-Schicht direkt (ohne echtes Datei-Scanning, dadurch <1s statt ~250s): Re-Scan
+aktualisiert bestehende Bundles/Artefakte in-place statt sie zu duplizieren (ON-CONFLICT-Upsert-Verhalten),
+`mark_source_failed` setzt Status/Fehler korrekt, `update_model_metadata`/`add_to_collection` lehnen unbekannte
+IDs mit `ValueError` ab, `create_collection` mit doppeltem Namen aktualisiert die bestehende Zeile statt eine
+zweite anzulegen, `remove_from_collection` entfernt die Mitgliedschaft tatsaechlich, `find_duplicates` liefert
+bei eindeutigen Modellen eine leere Liste.
+
+**Punkt 5+6 (Sicherheitsregeln / Konventions-Abgleich) - umgesetzt, aber bewusst anders als im Original-Entwurf
+formuliert:** Der Entwurf verlangt "API-Tokens nur im Windows Credential Manager" - **so ein Mechanismus
+existiert nirgendwo im Backend**, waere komplett neue Infrastruktur. Stattdessen: `hf_integration.py`s
+HuggingFace-Token folgt jetzt demselben, bereits etablierten Muster wie `openaiApiKey`/`anthropicApiKey`
+(`runtime/cloud_client.py`): neues `AppSettings.huggingfaceApiKey`-Feld, in `SettingsService.SECRET_KEYS`
+aufgenommen (also in `/settings/diagnostics` redigiert wie die anderen Cloud-Keys), Aufloesung via
+`_resolve_hf_token()` in `hf_integration.py`: Settings zuerst, `HF_TOKEN`-Env-Var als Fallback - genau die
+Prioritaet, die `cloud_client.py` fuer OpenAI/Anthropic bereits nutzt. Das erfuellt Punkt 6 (Konventions-
+Abgleich) direkt und adressiert den Kern von Punkt 5 (Token nicht mehr nur als nackte, unredigierte
+Env-Variable) ohne eine Parallel-Infrastruktur zu bauen, die sonst niemand im Projekt verwendet.
+Die zweite Entwurfsregel ("externe Metadaten nie ungeprueft uebernehmen") ist fuer den aktuellen Umfang
+(Suche/Anzeige only) bereits erfuellt - `hf_integration.py` gibt nur typisierte Pydantic-Modelle zurueck, keine
+Stelle nutzt Suchergebnisse als Pfad-/Shell-Parameter. Bei Phase 2+ ("Download & direkt laden") erneut pruefen.
+
+**Punkt 7 (Migrations-Frameworks konsolidieren) - NICHT umgesetzt, bewusst zurueckgestellt:** `repository.py`s
+`_init_db()` ist bestaetigt ein drittes, Ad-hoc-Migrationsmuster (eigener `SCHEMA_VERSION`-Zaehler + manueller
+`_ensure_column()`-Helfer fuer ALTER TABLE), unabhaengig von `app/core/migrations.py`s `MigrationManager` und
+`app/settings/migrations.py`s Dict-Ansatz - der von Plan 12 befuerchtete Fall ist eingetreten. Eine Umstellung
+auf `MigrationManager` waere aber ein invasiver Umbau der Schema-Init-Logik in einer aktiven, gerade erst
+stabilisierten ~800-Zeilen-Datei - das verdient einen eigenen, dedizierten Durchlauf mit voller Testabdeckung
+vorher/nachher, nicht einen Seitenschritt hier. Empfehlung fuer die naechste Session: erst `repository.py`
+weiter stabil laufen lassen, dann gezielt migrieren.
+
+Verifikation: `pytest tests/test_model_lab.py tests/test_model_lab_repository.py` (13/13), voller Backend-Lauf
+`pytest` (467/467, vorher 460 + 7 neue).
+
 ## Plan 12, Etappe 4, Punkt 17: Pläne/-Nummern-Kollisionschecker (2026-08-01)
 
 `scripts/check-plaene-numbering.mjs` (`pnpm docs:check-plaene-numbering` bzw.

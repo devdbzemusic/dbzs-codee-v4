@@ -35,6 +35,7 @@ class AppSettings(BaseModel):
     ollamaBaseUrl: str = Field(default="http://127.0.0.1:11434", max_length=260)
     anthropicApiKey: str = Field(default="", max_length=260)
     openaiApiKey: str = Field(default="", max_length=260)
+    huggingfaceApiKey: str = Field(default="", max_length=260)
     defaultPlannerModelId: str = Field(default="", max_length=120)
     defaultCoderModelId: str = Field(default="", max_length=120)
     defaultReviewerModelId: str = Field(default="", max_length=120)
