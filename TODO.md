@@ -78,6 +78,8 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       liefern die geseedeten Plan-15-Rollenregeln ohne direkten SQLite-Zugriff.
 - [x] Capability Evidence offiziell angebunden: `/model-lab/capability-evidence` speichert/listet
       allgemeine Faehigkeitsnachweise pro Bundle als Basis fuer Certification, Tuning und UI.
+- [x] Zertifizierungen werden zusaetzlich als Capability Evidence getrailt
+      (`certification:<KIND>`), damit die Certification nicht nur im Zertifikats-Upsert sichtbar ist.
 - [x] Sicheres Probe-Gate: `probeModel` speichert ohne `allow_start` einen `skipped`-Run und startet kein
       lokales Modell.
 - [ ] `D:\Models\Agentic` als erste produktive Quelle ueber den neuen Candidate-Button registrieren/scannen

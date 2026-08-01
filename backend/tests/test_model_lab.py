@@ -282,7 +282,9 @@ def test_model_lab_fleet_endpoints_record_safe_gates_and_roles(tmp_path: Path) -
     assert evidence.status_code == 200
     evidence_list = client.get("/model-lab/capability-evidence", params={"bundle_id": bundle_id})
     assert evidence_list.status_code == 200
-    assert evidence_list.json()[0]["capability"] == "tool_use"
+    evidence_capabilities = {entry["capability"] for entry in evidence_list.json()}
+    assert "tool_use" in evidence_capabilities
+    assert "certification:TOOL_CALLING_VERIFIED" in evidence_capabilities
 
     role = client.post(
         "/model-lab/role-assignments",

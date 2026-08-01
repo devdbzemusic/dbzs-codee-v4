@@ -249,7 +249,26 @@ class ModelLabService:
         return self.repository.create_benchmark_run(request, status="queued", message=message)
 
     def certify_model(self, request: ModelCertificationRequest) -> ModelCertificationRecord:
-        return self.repository.upsert_certification(request)
+        record = self.repository.upsert_certification(request)
+        evidence_status = {
+            "passed": "verified",
+            "failed": "failed",
+            "revoked": "revoked",
+        }[record.status]
+        self.repository.record_capability_evidence(
+            ModelCapabilityEvidenceRequest(
+                bundle_id=record.bundle_id,
+                capability=f"certification:{record.certification}",
+                status=evidence_status,
+                evidence={
+                    **record.evidence,
+                    "certification": record.certification,
+                    "certification_record_id": record.id,
+                    "certification_status": record.status,
+                },
+            )
+        )
+        return record
 
     def record_capability_evidence(self, request: ModelCapabilityEvidenceRequest) -> ModelCapabilityEvidenceRecord:
         return self.repository.record_capability_evidence(request)

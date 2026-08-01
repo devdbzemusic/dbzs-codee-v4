@@ -55,6 +55,8 @@ Statusdokumente und `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTER
 - Capability Evidence ist als eigene Model-Lab-Schnittstelle verfuegbar: `/model-lab/capability-evidence`
   kann allgemeine Faehigkeitsnachweise pro Bundle speichern/listen; Zertifikate bleiben die harte
   Rollenfreigabe, Evidence ist die breitere Nachweisspur fuer UI, Tuning und Certification.
+- `certifyModel` schreibt jede Zertifizierung zusaetzlich als Capability Evidence
+  (`certification:<KIND>`) mit Status-Mapping `passed -> verified`, `failed -> failed`, `revoked -> revoked`.
 
 **Frisch verifiziert:**
 - `backend\.venv\Scripts\python.exe -m pytest backend/tests/test_model_lab.py backend/tests/test_model_lab_repository.py backend/tests/test_model_lab_scan_jobs.py backend/tests/test_model_lab_bridge.py -q` -> 29/29 gruen
