@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from app.api.runtime import get_runtime_service
 from app.main import app
+from app.runtime.errors import RuntimeProviderError
 from app.runtime.schemas import (
     RuntimeChatMessage,
     RuntimeChatRequest,
@@ -115,6 +116,33 @@ def test_runtime_api_maps_chat_runtime_error_to_409() -> None:
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "provider_timeout"
     assert "timed out" in response.json()["detail"]["message"]
+
+
+def test_runtime_api_preserves_structured_provider_error_detail() -> None:
+    class TemplateFailingRuntimeService(FakeRuntimeService):
+        def chat(self, request: RuntimeChatRequest) -> RuntimeChatResponse:
+            raise RuntimeProviderError(
+                "llama-server HTTP 500: chat template: Conversation roles must alternate",
+                code="provider_template_error",
+                recoverable=True,
+                diagnostic_context={"stage": "chat_complete", "stderrTail": "jinja exception"},
+                recommended_action="Chat-Nachrichten normalisieren und Anfrage erneut senden.",
+            )
+
+    app.dependency_overrides[get_runtime_service] = lambda: TemplateFailingRuntimeService()
+    client = TestClient(app)
+
+    response = client.post(
+        "/runtime/chat",
+        json={"messages": [{"role": "user", "content": "Hallo Runtime"}], "request_id": "req-1"},
+    )
+
+    app.dependency_overrides.clear()
+    detail = response.json()["detail"]
+    assert response.status_code == 409
+    assert detail["code"] == "provider_template_error"
+    assert detail["diagnosticContext"]["stage"] == "chat_complete"
+    assert detail["diagnosticContext"]["stderrTail"] == "jinja exception"
 
 
 def test_runtime_api_returns_doctor_report() -> None:

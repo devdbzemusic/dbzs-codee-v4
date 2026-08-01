@@ -91,7 +91,7 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
   } = options;
 
   const activeRuntimeChatAbortControllers = new Map<string, AbortController>();
-  let activeChatStreamAbortController: AbortController | null = null;
+  const activeChatStreamAbortControllers = new Map<string, AbortController>();
 
   function buildRuntimeChatFallbackRequest(chatRequest: RuntimeChatRequest): RuntimeChatRequest {
     return buildToolFreeRuntimeChatFallbackRequest(chatRequest);
@@ -150,10 +150,11 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
     const abortController = new AbortController();
     activeRuntimeChatAbortControllers.set(normalizedRequestId, abortController);
     markRunActive(chatRequest.run_id);
+    const backendChatRequest = { ...chatRequest, request_id: normalizedRequestId };
     try {
       return await requestBackend("/runtime/chat", {
         method: "POST",
-        body: JSON.stringify(chatRequest),
+        body: JSON.stringify(backendChatRequest),
         signal: abortController.signal
       });
     } catch (error) {
@@ -175,7 +176,7 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
       try {
         return await requestBackend("/runtime/chat", {
           method: "POST",
-          body: JSON.stringify(fallbackRequest),
+          body: JSON.stringify({ ...fallbackRequest, request_id: normalizedRequestId }),
           signal: abortController.signal
         });
       } catch {
@@ -187,7 +188,7 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
           const minimalRequest = buildRuntimeChatMinimalRequest(chatRequest);
           return await requestBackend("/runtime/chat", {
             method: "POST",
-            body: JSON.stringify(minimalRequest),
+            body: JSON.stringify({ ...minimalRequest, request_id: normalizedRequestId }),
             signal: abortController.signal
           });
         } catch (minimalError) {
@@ -205,12 +206,24 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
     }
   });
 
-  ipcMain.handle("dbzs:runtime:chat-stream:cancel", () => {
-    if (activeChatStreamAbortController) {
-      activeChatStreamAbortController.abort();
-      activeChatStreamAbortController = null;
+  ipcMain.handle("dbzs:runtime:chat-stream:cancel", (_event: IpcMainInvokeEvent, requestId?: string) => {
+    const normalizedRequestId = typeof requestId === "string" ? requestId.trim() : "";
+    if (!normalizedRequestId) {
+      for (const controller of activeChatStreamAbortControllers.values()) {
+        controller.abort();
+      }
+      activeChatStreamAbortControllers.clear();
+      return { status: "cancelled_all" };
     }
-    return { status: "ok" };
+
+    const active = activeChatStreamAbortControllers.get(normalizedRequestId);
+    if (!active) {
+      return { status: "not_found" };
+    }
+
+    active.abort();
+    activeChatStreamAbortControllers.delete(normalizedRequestId);
+    return { status: "cancelled" };
   });
 
   ipcMain.handle("dbzs:runtime:chat:cancel", (_event: IpcMainInvokeEvent, requestId: string) => {
@@ -229,22 +242,30 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
     return { status: "cancelled" };
   });
 
-  ipcMain.handle("dbzs:runtime:chat-stream", async (event, chatRequest: RuntimeChatRequest) => {
-    if (activeChatStreamAbortController) {
-      activeChatStreamAbortController.abort();
-    }
-    activeChatStreamAbortController = new AbortController();
+  ipcMain.handle("dbzs:runtime:chat-stream", async (event, chatRequest: RuntimeChatRequest, requestId?: string) => {
+    const normalizedRequestId =
+      typeof requestId === "string" && requestId.trim().length > 0
+        ? requestId.trim()
+        : `runtime-stream-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    activeChatStreamAbortControllers.get(normalizedRequestId)?.abort();
+    activeChatStreamAbortControllers.delete(normalizedRequestId);
+    const activeChatStreamAbortController = new AbortController();
+    activeChatStreamAbortControllers.set(normalizedRequestId, activeChatStreamAbortController);
     const streamSignal = activeChatStreamAbortController.signal;
+    const backendChatRequest = { ...chatRequest, request_id: normalizedRequestId };
     const sendStreamChunk = (payload: { delta: string; totalLength: number }) => {
       if (!streamSignal.aborted) {
-        event.sender.send("dbzs:runtime:chat-stream-chunk", payload);
+        event.sender.send("dbzs:runtime:chat-stream-chunk", {
+          requestId: normalizedRequestId,
+          ...payload
+        });
       }
     };
 
     markRunActive(chatRequest.run_id);
     try {
       try {
-        const result = await streamRuntimeChatViaBackend(backendUrl, chatRequest, (chunk) => {
+        const result = await streamRuntimeChatViaBackend(backendUrl, backendChatRequest, (chunk) => {
           sendStreamChunk(chunk);
         }, streamSignal);
         return result;
@@ -286,7 +307,7 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
               model_name: string | null;
             }>("/runtime/chat", {
               method: "POST",
-              body: JSON.stringify(fallbackRequest),
+              body: JSON.stringify({ ...fallbackRequest, request_id: normalizedRequestId }),
               signal: streamSignal
             });
 
@@ -318,8 +339,8 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
         );
       }
     } finally {
-      if (activeChatStreamAbortController?.signal === streamSignal) {
-        activeChatStreamAbortController = null;
+      if (activeChatStreamAbortControllers.get(normalizedRequestId)?.signal === streamSignal) {
+        activeChatStreamAbortControllers.delete(normalizedRequestId);
       }
       markRunInactive(chatRequest.run_id);
     }

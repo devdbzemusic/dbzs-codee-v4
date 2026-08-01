@@ -36,6 +36,7 @@ from app.runtime.schemas import (
     WarmupSlotRequest,
 )
 from app.runtime.service import RuntimeService
+from app.runtime.errors import RuntimeProviderError
 from app.runtime.gpu_detect import GpuInfo, detect_gpu
 from app.runtime.benchmark import run_benchmark, BenchmarkResult
 from app.runtime.model_test import run_model_test
@@ -68,6 +69,17 @@ def _runtime_error_detail(exc: RuntimeError) -> dict[str, object]:
     message = str(exc)
     lowered = message.lower()
     code = "runtime_internal_error"
+    diagnostic_context: dict[str, object] = {"source": "runtime-api"}
+
+    if isinstance(exc, RuntimeProviderError):
+        payload = RuntimeErrorContractModel(
+            code=exc.code,  # type: ignore[arg-type]
+            message=message,
+            recoverable=exc.recoverable,
+            diagnosticContext={**diagnostic_context, **exc.diagnostic_context},
+            recommendedAction=exc.recommended_action,
+        )
+        return payload.model_dump()
     recoverable = False
     recommended_action = "Diagnose prüfen und Runtime-Konfiguration kontrollieren."
 
@@ -75,6 +87,26 @@ def _runtime_error_detail(exc: RuntimeError) -> dict[str, object]:
         code = "target_slot_unavailable"
         recoverable = True
         recommended_action = "Runtime-Slot starten oder kompatiblen Fallback verwenden."
+    elif "model_not_ready" in lowered or "model not ready" in lowered:
+        code = "model_not_ready"
+        recoverable = True
+        recommended_action = "Modellpfad, Runtime-Profil und Modellindex prüfen, danach Runtime erneut starten."
+    elif "backend_unavailable" in lowered or "backend unavailable" in lowered:
+        code = "backend_unavailable"
+        recoverable = True
+        recommended_action = "Backend neu starten und Health-Check prüfen."
+    elif "request_cancelled" in lowered or "operation was aborted" in lowered:
+        code = "request_cancelled"
+        recoverable = True
+        recommended_action = "Anfrage bei Bedarf erneut senden."
+    elif "invalid_response" in lowered or "invalid response" in lowered:
+        code = "invalid_response"
+        recoverable = True
+        recommended_action = "Provider-Antwort und Diagnoseprotokoll prüfen."
+    elif "conversation roles must alternate" in lowered or "jinja exception" in lowered or "chat template" in lowered:
+        code = "provider_template_error"
+        recoverable = True
+        recommended_action = "Chat-Nachrichten normalisieren und Anfrage erneut senden."
     elif "timed out" in lowered or "timeout" in lowered:
         code = "provider_timeout"
         recoverable = True
@@ -104,7 +136,7 @@ def _runtime_error_detail(exc: RuntimeError) -> dict[str, object]:
         code=code,
         message=message,
         recoverable=recoverable,
-        diagnosticContext={"source": "runtime-api"},
+        diagnosticContext=diagnostic_context,
         recommendedAction=recommended_action,
     )
     return payload.model_dump()

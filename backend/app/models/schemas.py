@@ -17,6 +17,15 @@ RecommendedUse = Literal[
     "unsupported",
 ]
 
+ModelExclusionReason = Literal[
+    "not_gguf",
+    "missing_file",
+    "unsupported_runtime",
+    "missing_profile",
+    "unprofiled_gpu",
+    "health_failed",
+]
+
 
 class ModelRuntimeHints(BaseModel):
     ctx: int | None = None
@@ -44,6 +53,7 @@ class IndexedModel(BaseModel):
     recommended_use: RecommendedUse
     compatibility: str
     runtime: ModelRuntimeHints
+    exclusion_reasons: list[ModelExclusionReason] = Field(default_factory=list)
     # Additive overlay from Model Lab (backend/app/model_lab/), when a Model Lab
     # source/scan has richer health data for this exact file path (Plan 14,
     # Phase 0.2). None/empty when Model Lab has no matching entry - the runtime

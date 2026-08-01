@@ -204,6 +204,29 @@ def test_runtime_service_starts_llama_server_for_indexed_model(tmp_path: Path) -
     assert "--gpu-layers" in runner.commands[0]
 
 
+def test_runtime_service_blocks_missing_model_before_process_start(tmp_path: Path) -> None:
+    write_catalog(tmp_path)
+    (tmp_path / "coder.gguf").unlink()
+    catalog_path = tmp_path / "models.catalog.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    catalog["artifacts"][0]["file_path"] = str(tmp_path / "missing.gguf")
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+    runner = FakeProcessRunner()
+    service = RuntimeService(
+        model_index_service=ModelIndexService(models_dir=tmp_path),
+        process_runner=runner,
+        endpoint_checker=lambda _url: True,
+    )
+
+    status = service.start_model("coder", slot_id="fast_gpu")
+
+    assert status.state == "error"
+    assert status.error_code == "model_not_ready"
+    assert status.diagnostic_context is not None
+    assert "missing_file" in status.diagnostic_context["exclusionReasons"]
+    assert runner.commands == []
+
+
 def _add_second_model_to_catalog(models_dir: Path, model_id: str) -> None:
     """GPU-exclusivity tests need two distinct models — reusing the same model_id
     across both slots would trigger the unrelated shared-slot-binding reuse path

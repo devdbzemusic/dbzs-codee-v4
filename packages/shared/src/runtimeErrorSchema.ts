@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 export const RuntimeErrorCodeSchema = z.enum([
+  "request_timeout",
+  "request_cancelled",
+  "model_not_ready",
+  "backend_unavailable",
+  "invalid_response",
   "runtime_unavailable",
   "target_slot_unavailable",
   "warmup_timeout",
@@ -8,6 +13,7 @@ export const RuntimeErrorCodeSchema = z.enum([
   "warmup_empty_response",
   "binding_mismatch",
   "provider_request_failed",
+  "provider_template_error",
   "provider_timeout",
   "runtime_internal_error",
 ]);

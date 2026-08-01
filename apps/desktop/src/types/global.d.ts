@@ -299,9 +299,10 @@ declare global {
       sendRuntimeChat: (request: RuntimeChatRequest, requestId?: string) => Promise<RuntimeChatResponse>;
       streamRuntimeChat?: (
         request: RuntimeChatRequest,
-        onChunk: (payload: { delta: string; totalLength: number }) => void
+        onChunk: (payload: { delta: string; totalLength: number }) => void,
+        requestId?: string
       ) => Promise<RuntimeChatResponse>;
-      cancelRuntimeChatStream?: () => Promise<{ status: string }>;
+      cancelRuntimeChatStream?: (requestId?: string) => Promise<{ status: string }>;
       runBenchmark?: () => Promise<import("@dbzs/shared").BenchmarkResult>;
       runModelTest?: () => Promise<import("@dbzs/shared").RuntimeModelTestReport>;
       listOrchestrationTools?: () => Promise<unknown>;

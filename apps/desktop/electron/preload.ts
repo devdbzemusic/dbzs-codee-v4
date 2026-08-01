@@ -480,19 +480,28 @@ const api = {
     ipcRenderer.invoke("dbzs:runtime:chat", request, requestId) as Promise<RuntimeChatResponse>,
   streamRuntimeChat: (
     request: RuntimeChatRequest,
-    onChunk: (payload: { delta: string; totalLength: number }) => void
+    onChunk: (payload: { delta: string; totalLength: number }) => void,
+    requestId?: string
   ) => {
-    const handler = (_event: IpcRendererEvent, payload: { delta: string; totalLength: number }) => {
+    const normalizedRequestId =
+      typeof requestId === "string" && requestId.trim().length > 0
+        ? requestId.trim()
+        : `runtime-stream-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const handler = (_event: IpcRendererEvent, payload: { requestId?: string; delta: string; totalLength: number }) => {
+      if (payload.requestId !== normalizedRequestId) {
+        return;
+      }
       onChunk(payload);
     };
     ipcRenderer.on("dbzs:runtime:chat-stream-chunk", handler);
     return (
-      ipcRenderer.invoke("dbzs:runtime:chat-stream", request) as Promise<RuntimeChatResponse>
+      ipcRenderer.invoke("dbzs:runtime:chat-stream", request, normalizedRequestId) as Promise<RuntimeChatResponse>
     ).finally(() => {
       ipcRenderer.removeListener("dbzs:runtime:chat-stream-chunk", handler);
     });
   },
-  cancelRuntimeChatStream: () => ipcRenderer.invoke("dbzs:runtime:chat-stream:cancel") as Promise<{ status: string }>,
+  cancelRuntimeChatStream: (requestId?: string) =>
+    ipcRenderer.invoke("dbzs:runtime:chat-stream:cancel", requestId) as Promise<{ status: string }>,
   cancelRuntimeChat: (requestId: string) => ipcRenderer.invoke("dbzs:runtime:chat:cancel", requestId) as Promise<{ status: string }>,
   runBenchmark: () => ipcRenderer.invoke("dbzs:runtime:benchmark") as Promise<import("@dbzs/shared").BenchmarkResult>,
   runModelTest: () => ipcRenderer.invoke("dbzs:runtime:model-test") as Promise<import("@dbzs/shared").RuntimeModelTestReport>,
