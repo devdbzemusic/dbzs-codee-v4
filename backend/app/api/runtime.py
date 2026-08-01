@@ -22,6 +22,7 @@ from app.runtime.schemas import (
     RuntimeChatRequest,
     RuntimeChatResponse,
     RuntimeLogsResponse,
+    RuntimeRamPressureStatus,
     RuntimeResidencyEntry,
     RuntimeResourcePlan,
     RuntimeSlotId,
@@ -40,16 +41,27 @@ from app.runtime.errors import RuntimeProviderError
 from app.runtime.gpu_detect import GpuInfo, detect_gpu
 from app.runtime.benchmark import run_benchmark, BenchmarkResult
 from app.runtime.model_test import run_model_test
+from app.model_lab.repository import get_shared_model_lab_repository
 from app.models.discovery_mode import get_model_discovery_mode
 from app.models.index_service import ModelIndexService
+from app.settings.service import get_settings_service
 import json
 
 
 router = APIRouter(prefix="/runtime", tags=["runtime"])
 
+
+def _build_model_index_service(discovery_mode: str) -> ModelIndexService:
+    return ModelIndexService(
+        discovery_mode=discovery_mode,
+        model_lab_repository=get_shared_model_lab_repository,
+        settings_service=get_settings_service(),
+    )
+
+
 _runtime_service_discovery_mode = get_model_discovery_mode()
 _runtime_service = RuntimeService(
-    model_index_service=ModelIndexService(discovery_mode=_runtime_service_discovery_mode)
+    model_index_service=_build_model_index_service(_runtime_service_discovery_mode)
 )
 
 
@@ -59,7 +71,7 @@ def get_runtime_service() -> RuntimeService:
     if discovery_mode != _runtime_service_discovery_mode:
         _runtime_service.stop_model()
         _runtime_service = RuntimeService(
-            model_index_service=ModelIndexService(discovery_mode=discovery_mode)
+            model_index_service=_build_model_index_service(discovery_mode)
         )
         _runtime_service_discovery_mode = discovery_mode
     return _runtime_service
@@ -147,6 +159,14 @@ def get_runtime_status(
     service: RuntimeService = Depends(get_runtime_service),
 ) -> RuntimeStatus:
     return service.status()
+
+
+@router.get("/system/ram-pressure")
+def get_ram_pressure(
+    service: RuntimeService = Depends(get_runtime_service),
+) -> RuntimeRamPressureStatus:
+    percent_used, tier = service.get_ram_pressure()
+    return RuntimeRamPressureStatus(percent_used=percent_used, tier=tier)
 
 
 def _build_slot_status(service: RuntimeService, slot_id: str, status: RuntimeStatus) -> RuntimeSlotStatus:

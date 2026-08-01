@@ -1,14 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.model_lab.repository import get_shared_model_lab_repository
 from app.models.discovery_mode import get_model_discovery_mode
 from app.models.index_service import ModelIndexService
 from app.models.schemas import ManualMultimodalPairingRequest, ModelIndex, MultimodalPair
+from app.settings.service import get_settings_service
 
 router = APIRouter(prefix="/models", tags=["models"])
 
 
 def get_model_index_service() -> ModelIndexService:
-    return ModelIndexService(discovery_mode=get_model_discovery_mode())
+    return ModelIndexService(
+        discovery_mode=get_model_discovery_mode(),
+        model_lab_repository=get_shared_model_lab_repository,
+        settings_service=get_settings_service(),
+    )
 
 
 @router.get("/index")

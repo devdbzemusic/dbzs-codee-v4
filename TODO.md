@@ -102,9 +102,20 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
 - [x] Plan 15, Phase 0/1/2 nachgezogen: Scanner-Adapter/Lora-Reihenfolge-Fix inkl. korrigiertem
       JSON/Tokenizer-Klassifizierungsfall; verwaiste GET-mit-Seiteneffekt-Quellauto-Registrierung entfernt;
       tote `model_lab_roles.py` geloescht; `enableModelLabRuntimeBridge`-Setting plus gedeckelter
-      (500 Dateien/Root, 5s Budget) Model-Lab-Extra-Roots-Scan in `ModelIndexService` implementiert. Bridge
-      ist noch an keinem Produktions-Call-Site verdrahtet (kein `ModelIndexService(...)`-Aufruf uebergibt
-      `model_lab_repository`) — bleibt in der echten App inaktiv, bis das nachgezogen wird.
+      (500 Dateien/Root, 5s Budget) Model-Lab-Extra-Roots-Scan in `ModelIndexService` implementiert.
+- [x] Model-Lab-Runtime-Bridge produktiv verdrahtet: 10 von 11 `ModelIndexService(...)`-Call-Sites uebergeben
+      jetzt `model_lab_repository`/`settings_service` (Ausnahme bewusst: `RuntimeService`s Default-Fallback,
+      wegen ~19 Tests, die sich auf dessen Isolationsgarantie verlassen). `model_lab_repository` akzeptiert
+      jetzt auch eine Factory (`get_shared_model_lab_repository`, `@lru_cache`) statt nur einer fertigen
+      Instanz, damit `ModelLabRepository()`s echte Disk-I/O (Schema-Migrationen) nur laeuft, wenn die Bruecke
+      tatsaechlich aktiv ist — die urspruengliche eager Variante hat beim reinen Modul-Import bereits die
+      echte App-Daten-sqlite beschrieben, jetzt per mtime-Check bestaetigt behoben.
+- [x] Plan 15, Phase 4 (RAM-Prozentschwellen-Schutz) fertiggestellt: `classify_ram_pressure()` in
+      `residency.py`, `RuntimeService.get_ram_pressure()`/`_ram_pressure_sweep()`/`_evict_for_ram_pressure()`
+      (IDLE_EVICT sofort ab 85%, aeltester KEEP_RESIDENT-Slot zusaetzlich ab 90%, alle ausser Floor-Slot ab
+      95%, Drain vor jedem Evict), neuer `GET /runtime/system/ram-pressure`-Diagnose-Endpoint. War als
+      kaputter, unvollstaendiger Code (Syntaxfehler, blockierte jede Testsammlung) von einer parallel auf
+      demselben Branch laufenden Gemini-Session vorgefunden — repariert und fertiggestellt statt verworfen.
 - [x] Bugfix: CLIP-Vision-Projector-GGUF-Dateien (z. B. `phi4-mm-vision-q8.gguf`) wurden mangels
       `"mmproj"`/`"projector"` im Dateinamen faelschlich als Hauptmodell eingestuft und stuerzten beim Start
       ab (`CLIP cannot be used as main model`). `_infer_artifact_type()` nutzt jetzt

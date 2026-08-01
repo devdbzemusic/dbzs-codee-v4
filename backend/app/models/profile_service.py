@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
+from app.model_lab.repository import get_shared_model_lab_repository
 from app.models.index_service import ModelIndexService
 from app.models.schemas import IndexedModel
 from app.models.profiles import (
@@ -22,6 +23,7 @@ from app.models.profiles import (
     get_default_profiles,
 )
 from app.runtime.schemas import RuntimeStatus, RuntimeState
+from app.settings.service import get_settings_service
 
 
 class ProfileService:
@@ -30,7 +32,10 @@ class ProfileService:
     def __init__(self, config_dir: Path):
         self.config_dir = config_dir
         self.config_file = config_dir / "model_profiles.json"
-        self.model_index_service = ModelIndexService()
+        self.model_index_service = ModelIndexService(
+            model_lab_repository=get_shared_model_lab_repository,
+            settings_service=get_settings_service(),
+        )
         self.active_profile: Optional[ServerProfile] = None
         self.model_instances: dict[str, RuntimeStatus] = {}
         self._load_or_create_config()

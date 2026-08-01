@@ -1,10 +1,18 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from app.models.index_service import ModelIndexService
 from app.models.schemas import IndexedModel, ModelRuntimeHints
 from app.runtime.gpu_detect import GpuInfo
-from app.runtime.residency import DEFAULT_SLOT_POLICY, ResidencyPolicy, RuntimeResidencyRegistry, compute_launch_fingerprint
+from app.runtime.residency import (
+    DEFAULT_SLOT_POLICY,
+    ResidencyPolicy,
+    RuntimeResidencyRegistry,
+    classify_ram_pressure,
+    compute_launch_fingerprint,
+)
 from app.runtime.resource_planner import RuntimeResourcePlanner
 from app.runtime.schemas import RuntimeChatMessage, RuntimeChatRequest
 from app.runtime.service import RuntimeService
@@ -272,3 +280,104 @@ def test_sweep_idle_slots_evicts_utility_but_not_keep_resident(tmp_path: Path) -
     assert service.residency.entry_for_slot("utility") is None
     assert service.residency.entry_for_slot("fast_gpu") is not None
     assert service.status_for_slot("fast_gpu").state == "running"
+
+
+@pytest.mark.parametrize(
+    ("percent_used", "expected_tier"),
+    [
+        (0.0, "none"),
+        (79.9, "none"),
+        (80.0, "warn"),
+        (84.9, "warn"),
+        (85.0, "evict_idle"),
+        (89.9, "evict_idle"),
+        (90.0, "evict_resident"),
+        (94.9, "evict_resident"),
+        (95.0, "evict_all_but_floor"),
+        (100.0, "evict_all_but_floor"),
+    ],
+)
+def test_classify_ram_pressure_boundaries(percent_used: float, expected_tier: str) -> None:
+    assert classify_ram_pressure(percent_used) == expected_tier
+
+
+class _FakeVirtualMemory:
+    def __init__(self, percent: float) -> None:
+        self.percent = percent
+
+
+class _FakePsutil:
+    def __init__(self, percent: float) -> None:
+        self._percent = percent
+
+    def virtual_memory(self) -> _FakeVirtualMemory:
+        return _FakeVirtualMemory(self._percent)
+
+
+def test_get_ram_pressure_reports_none_tier_without_psutil(tmp_path: Path, monkeypatch) -> None:
+    service, _runner = _new_service(tmp_path)
+    monkeypatch.setattr("app.runtime.service.psutil", None)
+
+    percent_used, tier = service.get_ram_pressure()
+
+    assert percent_used is None
+    assert tier == "none"
+
+
+def test_get_ram_pressure_classifies_current_usage(tmp_path: Path, monkeypatch) -> None:
+    service, _runner = _new_service(tmp_path)
+    monkeypatch.setattr("app.runtime.service.psutil", _FakePsutil(92.0))
+
+    percent_used, tier = service.get_ram_pressure()
+
+    assert percent_used == 92.0
+    assert tier == "evict_resident"
+
+
+def test_ram_pressure_sweep_evicts_idle_evict_slots_regardless_of_idle_timer(tmp_path: Path, monkeypatch) -> None:
+    """evict_idle tier must evict utility (IDLE_EVICT) even while busy/fresh -
+    unlike sweep_idle_slots()'s own idle-timeout check, RAM pressure is
+    urgent enough to not wait for the individual slot's idle timer."""
+    service, _runner = _new_service(tmp_path)
+    service.start_model("coder", slot_id="fast_gpu")
+    service.start_model("coder", slot_id="utility")
+    monkeypatch.setattr("app.runtime.service.psutil", _FakePsutil(85.0))
+
+    evicted = service._evict_for_ram_pressure("evict_idle")
+
+    assert evicted == ["utility"]
+    assert service.residency.entry_for_slot("utility") is None
+    assert service.residency.entry_for_slot("fast_gpu") is not None
+
+
+def test_ram_pressure_evict_resident_also_evicts_oldest_keep_resident_slot(tmp_path: Path) -> None:
+    service, _runner = _new_service(tmp_path)
+    service.start_model("coder", slot_id="fast_gpu")
+    service.start_model("coder", slot_id="quality_cpu")
+    service.start_model("coder", slot_id="utility")
+
+    fast_gpu_entry = service.residency.entry_for_slot("fast_gpu")
+    quality_cpu_entry = service.residency.entry_for_slot("quality_cpu")
+    assert fast_gpu_entry is not None and quality_cpu_entry is not None
+    fast_gpu_entry.last_used_at = "2000-01-01T00:00:00+00:00"
+    quality_cpu_entry.last_used_at = "2020-01-01T00:00:00+00:00"
+
+    evicted = service._evict_for_ram_pressure("evict_resident")
+
+    assert set(evicted) == {"utility", "fast_gpu"}
+    assert service.residency.entry_for_slot("fast_gpu") is None
+    assert service.residency.entry_for_slot("quality_cpu") is not None
+
+
+def test_ram_pressure_evict_all_but_floor_keeps_only_floor_slot(tmp_path: Path) -> None:
+    service, _runner = _new_service(tmp_path)
+    service.start_model("coder", slot_id="fast_gpu")
+    service.start_model("coder", slot_id="orchestrator_cpu")
+    service.start_model("coder", slot_id="utility")
+
+    evicted = service._evict_for_ram_pressure("evict_all_but_floor")
+
+    assert set(evicted) == {"fast_gpu", "utility"}
+    assert service.residency.entry_for_slot("orchestrator_cpu") is not None
+    assert service.residency.entry_for_slot("fast_gpu") is None
+    assert service.residency.entry_for_slot("utility") is None

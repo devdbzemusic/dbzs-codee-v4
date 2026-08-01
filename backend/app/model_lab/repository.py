@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 import json
 import re
@@ -1288,6 +1289,17 @@ class ModelLabRepository:
                 """,
                 (role, max_safety, json.dumps(required, sort_keys=True), now),
             )
+
+
+@lru_cache(maxsize=1)
+def get_shared_model_lab_repository() -> ModelLabRepository:
+    """Process-wide singleton for call sites that need a cheap ModelLabRepository
+    reference without re-running schema setup on every construction (Plan 15,
+    Phase 2 bridge wiring). Request-scoped consumers (e.g. api/model_lab.py's
+    get_model_lab_service) intentionally keep constructing their own instance —
+    this is only for the ModelIndexService(...) call sites, which are on hotter
+    paths (resident-model startup, boot) than a manual Model Lab UI action."""
+    return ModelLabRepository()
 
 
 def _source_from_row(row: sqlite3.Row) -> ModelSource:

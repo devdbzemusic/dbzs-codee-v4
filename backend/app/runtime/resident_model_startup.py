@@ -36,9 +36,10 @@ def _resident_model_data(model_id: str, status) -> dict[str, object]:
 
 async def run_resident_model_startup(store: BootStateStore) -> None:
     from app.api.runtime import get_runtime_service
+    from app.model_lab.repository import get_shared_model_lab_repository
     from app.models.discovery_mode import get_model_discovery_mode
     from app.models.index_service import FUNCTIONGEMMA_DEFAULT_PROFILE, ModelIndexService
-    from app.settings.service import SettingsService
+    from app.settings.service import SettingsService, get_settings_service
 
     try:
         settings = SettingsService().load()
@@ -52,7 +53,11 @@ async def run_resident_model_startup(store: BootStateStore) -> None:
 
     await store.set_component("residentModel", "running", message="Resolving resident model...")
 
-    model_index_service = ModelIndexService(discovery_mode=get_model_discovery_mode())
+    model_index_service = ModelIndexService(
+        discovery_mode=get_model_discovery_mode(),
+        model_lab_repository=get_shared_model_lab_repository,
+        settings_service=get_settings_service(),
+    )
     model_id = settings.defaultOrchestratorModelId or None
     had_explicit_default = model_id is not None
     candidates: list[str] = []

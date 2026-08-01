@@ -11,10 +11,19 @@ from urllib import error, request
 from pydantic import BaseModel, Field
 
 from app.core.config import get_models_dir, get_ollama_dir, get_ollama_models_dir
+from app.model_lab.repository import get_shared_model_lab_repository
 from app.models.discovery_mode import get_model_discovery_mode
 from app.models.index_service import ModelIndexService
 from app.runtime.launch import build_launch_plan, config_override_from_preset
 from app.runtime.service import RuntimeService
+from app.settings.service import get_settings_service
+
+
+def _model_lab_bridge_kwargs() -> dict[str, object]:
+    return {
+        "model_lab_repository": get_shared_model_lab_repository,
+        "settings_service": get_settings_service(),
+    }
 
 
 CheckStatus = Literal["ok", "warn", "error"]
@@ -311,6 +320,7 @@ def build_runtime_doctor(
         ollama_dir=ollama_path,
         ollama_models_dir=ollama_models_path,
         discovery_mode=discovery_mode,
+        **_model_lab_bridge_kwargs(),
     )
     index = index_service.build_index()
     model_entries: list[ModelDoctorEntry] = []
@@ -384,6 +394,7 @@ def build_dry_run(
         ollama_dir=ollama_path,
         ollama_models_dir=ollama_models_path,
         discovery_mode=get_model_discovery_mode(),
+        **_model_lab_bridge_kwargs(),
     )
     model = next((item for item in index_service.build_index().models if item.id == model_id), None)
     if model is None:
@@ -443,6 +454,7 @@ def probe_runtime(
             ollama_dir=ollama_dir or get_ollama_dir(),
             ollama_models_dir=ollama_models_dir or get_ollama_models_dir(),
             discovery_mode=get_model_discovery_mode(),
+            **_model_lab_bridge_kwargs(),
         )
         index = index_service.build_index()
         pair = next(
@@ -475,6 +487,7 @@ def probe_runtime(
             ollama_dir=ollama_dir or get_ollama_dir(),
             ollama_models_dir=ollama_models_dir or get_ollama_models_dir(),
             discovery_mode=get_model_discovery_mode(),
+            **_model_lab_bridge_kwargs(),
         ),
         ollama_dir=ollama_dir or get_ollama_dir(),
         ollama_models_dir=ollama_models_dir or get_ollama_models_dir(),

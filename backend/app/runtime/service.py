@@ -45,7 +45,13 @@ from app.runtime.gpu_exclusivity import other_exclusive_gpu_slot, wait_for_slot_
 from app.runtime.hardware_fingerprint import collect_hardware_fingerprint, fingerprint_hash
 from app.runtime.process_runner import CapturingSubprocessRunner
 from app.runtime.prompts import RUNTIME_CHAT_SYSTEM_PROMPT
-from app.runtime.residency import RuntimeResidencyRegistry, compute_launch_fingerprint
+from app.runtime.residency import (
+    RamPressureTier,
+    ResidencyPolicy,
+    RuntimeResidencyRegistry,
+    classify_ram_pressure,
+    compute_launch_fingerprint,
+)
 from app.runtime.resource_planner import RuntimeResourcePlanner
 from app.runtime.service_persistence import (
     provider_for_model,
@@ -1901,7 +1907,84 @@ class RuntimeService:
                 self.residency.mark_evicting(slot_id)
                 self.stop_model_for_slot(slot_id)
                 evicted.append(slot_id)
+        self._ram_pressure_sweep()
         return evicted
+
+    def get_ram_pressure(self) -> tuple[float | None, RamPressureTier]:
+        """Current system RAM usage percentage and its classified tier (Plan 15,
+        Phase 4). Returns (None, "none") if psutil isn't installed — RAM
+        pressure protection degrades gracefully rather than crashing.
+        """
+        if psutil is None:
+            return None, "none"
+        percent_used = psutil.virtual_memory().percent
+        return percent_used, classify_ram_pressure(percent_used)
+
+    def _ram_pressure_sweep(self) -> RamPressureTier:
+        """Evict slots under RAM pressure, called from sweep_idle_slots() so
+        periodic callers get both idle- and pressure-driven eviction from one
+        entry point. "warn" and below never evict — only 85%+ does.
+        """
+        _percent_used, tier = self.get_ram_pressure()
+        if tier in ("evict_idle", "evict_resident", "evict_all_but_floor"):
+            self._evict_for_ram_pressure(tier)
+        return tier
+
+    def _evict_for_ram_pressure(self, tier: RamPressureTier) -> list[str]:
+        """Stop slots per the tier's rule. Never touches a slot mid-request
+        (waits for in-flight requests to drain first, best-effort, via the
+        same wait_for_slot_drain() GPU exclusivity already uses) and never
+        evicts everything at once even at the worst tier, to avoid flapping —
+        a floor slot (default orchestrator_cpu, smallest CPU footprint) always
+        survives.
+        """
+        floor_slot = os.getenv("DBZS_RAM_PRESSURE_FLOOR_SLOT", "orchestrator_cpu")
+        evicted: list[str] = []
+
+        def running_slots(policy: ResidencyPolicy | None = None) -> list[str]:
+            slots = []
+            for slot_id in list(self._statuses.keys()):
+                entry = self.residency.entry_for_slot(slot_id)
+                if entry is None:
+                    continue
+                if policy is not None and self.residency.policy_for_slot(slot_id) != policy:
+                    continue
+                slots.append(slot_id)
+            return slots
+
+        def evict(slot_id: str) -> None:
+            wait_for_slot_drain(lambda sid: self._active_requests_for_slot(sid), slot_id)
+            self.residency.mark_evicting(slot_id)
+            self.stop_model_for_slot(slot_id)
+            evicted.append(slot_id)
+
+        for slot_id in running_slots(ResidencyPolicy.IDLE_EVICT):
+            evict(slot_id)
+
+        if tier == "evict_resident":
+            keep_resident_slots = running_slots(ResidencyPolicy.KEEP_RESIDENT)
+            oldest = self._oldest_by_last_used(keep_resident_slots)
+            if oldest is not None:
+                evict(oldest)
+
+        if tier == "evict_all_but_floor":
+            for slot_id in running_slots():
+                if slot_id == floor_slot or slot_id in evicted:
+                    continue
+                evict(slot_id)
+
+        return evicted
+
+    def _active_requests_for_slot(self, slot_id: str) -> int:
+        entry = self.residency.entry_for_slot(slot_id)
+        return entry.active_requests if entry is not None else 0
+
+    def _oldest_by_last_used(self, slot_ids: list[str]) -> str | None:
+        entries = [(slot_id, self.residency.entry_for_slot(slot_id)) for slot_id in slot_ids]
+        entries = [(slot_id, entry) for slot_id, entry in entries if entry is not None]
+        if not entries:
+            return None
+        return min(entries, key=lambda item: item[1].last_used_at)[0]
 
     def get_hardware_fingerprint(self):
         return collect_hardware_fingerprint(self._gpu_detector())
