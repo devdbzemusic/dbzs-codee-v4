@@ -38,6 +38,7 @@ class AppSettings(BaseModel):
     huggingfaceApiKey: str = Field(default="", max_length=260)
     defaultPlannerModelId: str = Field(default="", max_length=120)
     defaultCoderModelId: str = Field(default="", max_length=120)
+    defaultEmbeddingModelId: str = Field(default="", max_length=120)
     defaultReviewerModelId: str = Field(default="", max_length=120)
     defaultDebugModelId: str = Field(default="", max_length=120)
     defaultUtilityModelId: str = Field(default="", max_length=120)

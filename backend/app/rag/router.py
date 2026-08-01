@@ -1,8 +1,17 @@
 """DBZS – FastAPI-Endpunkte für RAG-Index, Retrieval und sichere Traces."""
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.rag.models import EmbeddingCacheProbeBody, EmbeddingUpsertBody, IndexSyncRequest, RetrievalQuery, TraceEventsBody
+from app.rag.embedding_service import EmbeddingService, get_embedding_service
+from app.rag.models import (
+    EmbeddingCacheProbeBody,
+    EmbeddingGenerateBody,
+    EmbeddingGenerateResult,
+    EmbeddingUpsertBody,
+    IndexSyncRequest,
+    RetrievalQuery,
+    TraceEventsBody,
+)
 from app.rag.service import get_rag_service
 from app.rag.trace_service import TraceService
 
@@ -37,6 +46,19 @@ def upsert_embeddings(body: EmbeddingUpsertBody):
 @router.post("/rag/embeddings/missing")
 def missing_embeddings(body: EmbeddingCacheProbeBody):
     return {"missing_source_ids": get_rag_service().missing_embeddings(body.embedding_model_id, body.entries)}
+
+
+@router.post("/rag/embeddings/generate")
+def generate_embeddings(
+    body: EmbeddingGenerateBody,
+    service: EmbeddingService = Depends(get_embedding_service),
+) -> EmbeddingGenerateResult:
+    try:
+        model_id, vectors = service.embed_texts(body.texts)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    dimensions = len(vectors[0]) if vectors else 0
+    return EmbeddingGenerateResult(model_id=model_id, dimensions=dimensions, vectors=vectors)
 
 
 @router.post("/rag/retrieve")

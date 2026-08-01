@@ -237,6 +237,18 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
     consumerDescription: "modelSelectionBroker",
   }),
   def({
+    key: "defaultEmbeddingModelId",
+    category: "models",
+    label: "Embedding-Modell (ONNX, lokal)",
+    description:
+      "Model-Lab-Bundle-ID eines gescannten .onnx-Embedding-Modells (aus dem Model-Lab-Tab kopieren) fuer POST /rag/embeddings/generate - laeuft in-process, kein Runtime-Slot/Port. Nutzt Model Labs Bundle-IDs, nicht die Runtime-Modellindex-IDs der anderen Modellfelder - deshalb Text statt Dropdown; ein echter Model-Lab-Picker ist ein sinnvoller Folgeschritt.",
+    classification: "user_tunable",
+    defaultValue: d.defaultEmbeddingModelId ?? "",
+    control: "text",
+    restartRequirement: "none",
+    consumerDescription: "rag/embedding_service.py",
+  }),
+  def({
     key: "defaultUtilityModelId",
     category: "models",
     label: "Utility-Modell",
