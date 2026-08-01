@@ -72,3 +72,10 @@ debug/*.png
 # Zustand, kein Projektverlauf -- bewusst NICHT von der generellen .codee/-Versionierung
 # oben erfasst. Muss nach der "!/.codee/**"-Wiederaufnahme stehen, um zu greifen.
 /.codee/session-registry.json
+
+# Diagnose-Protokolle pro Lauf (Plan 12, Etappe 2, Punkt 8): wachsen unbegrenzt und sind
+# lokale Diagnosedaten, kein Projektverlauf. Die Zeile 58 (`codee-run-run-*.json`) wollte
+# das schon frueher ausschliessen, wurde aber von der "!/.codee/**"-Wiederaufnahme
+# ueberschrieben (spaeteres Pattern gewinnt) -- hier explizit nach der Wiederaufnahme
+# wiederholt, damit es tatsaechlich greift.
+/.codee/diag-protokolle/
