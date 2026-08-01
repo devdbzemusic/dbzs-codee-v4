@@ -35,11 +35,18 @@ Repo-Wahrheit: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
   `model_lab_roles.py` geloescht; `enableModelLabRuntimeBridge`-Setting plus gedeckelter (500 Dateien/Root, 5s
   Budget) Model-Lab-Extra-Roots-Scan in `ModelIndexService`, noch an keinem Produktions-Call-Site verdrahtet)
   in `main`
-- Bugfix auf Branch `codex/agentic-model-fleet-integration` nachgezogen (noch nicht gemergt): CLIP-Vision-
-  Projector-GGUF-Dateien (z. B. `phi4-mm-vision-q8.gguf`) wurden mangels `"mmproj"`/`"projector"` im
-  Dateinamen faelschlich als Hauptmodell eingestuft und stuerzten beim Start ab; `_infer_artifact_type()`
-  nutzt jetzt `general.architecture == "clip"` aus den ohnehin gelesenen GGUF-Metadaten als primaeres,
-  autoritatives Signal; frische Checks: `test_model_index.py` 28/28 (2 neu), voller Backend-Lauf 555/555
+- PR #37 ist gemergt: CLIP-Vision-Projector-GGUF-Dateien (z. B. `phi4-mm-vision-q8.gguf`) wurden mangels
+  `"mmproj"`/`"projector"` im Dateinamen faelschlich als Hauptmodell eingestuft und stuerzten beim Start ab;
+  `_infer_artifact_type()` nutzt jetzt `general.architecture == "clip"` aus den ohnehin gelesenen
+  GGUF-Metadaten als primaeres, autoritatives Signal; frische Checks: `test_model_index.py` 28/28 (2 neu),
+  voller Backend-Lauf 555/555
+- Bugfix auf Branch `codex/agentic-model-fleet-integration` nachgezogen (noch nicht gemergt):
+  `request_binding_mismatch: settings_revision_changed` warf lange Modell-Warmup-Waits unnoetig weg, weil
+  eine rohe, bei jeder beliebigen Settings-Aenderung bumpende Revision verglichen wurde statt nur der
+  routing-relevanten; neue `hasRoutingRelevantSettingsChanged()` in `modelSelectionBroker.ts` vergleicht
+  gezielt nur das Feld, das die aktuelle Modellwahl tatsaechlich speist; frische Checks:
+  `modelSelectionBroker`-Suite 53/53 (4 neu), `runtimeChatStore`-Suite 52/52, voller Desktop-Lauf 1370/1370,
+  Desktop-Typecheck fehlerfrei
 - Shared-, Desktop- und Backend-Kernchecks sind belastbar nachgewiesen
 - Desktop-Capability-Suite ist im Gate-Pfad mit 37/37 belegt
 - Backend-Capability-/Scenario-/Tuning-Lab-Pfad ist mit 15 bestandenen Tests belegt

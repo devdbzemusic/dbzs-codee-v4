@@ -13,6 +13,47 @@ Die zuvor aufgefallenen Plan-Dateien `Pläne/14 DBZS_CODEE_BACKEND_BRIDGE_REVIEW
 `Pläne/Codee_Agentenmodelle_Auswahl_Liste Teil I.md` sind im aktuellen Git-Stand getrackt; es bleibt keine
 separate Untracked-Entscheidung fuer diese beiden Dateien offen.
 
+## Bugfix: `request_binding_mismatch` warf lange Warmup-Waits unnoetig weg (2026-08-01)
+
+**Auftrag:** Nutzer meldete per echtem Run-Log einen zweiten Live-Absturz aus der gebauten App: ein
+Chat-Turn brauchte 7 Minuten (Runtime-Check 246s, Kontextvorbereitung 174s — beides plausibel echte
+`llama.cpp`-Modell-Warmup-Latenz auf der 4-GB-VRAM-Karte, `warmupStatus: "pending"` bestaetigt das) und
+brach direkt vor dem Senden ab mit `request_binding_mismatch: settings_revision_changed old=202 new=204`.
+
+**Untersuchung Punkt 1 (warum so langsam?):** `ensureBackendReachable()`
+(`runtimeChatStoreExecutionHelpers.ts:288-301`) selbst ist schnell (max. 3 Versuche, kurze Sleeps) — die
+eigentliche Wartezeit steckt in den echten Backend-Calls (`getRuntimeStatus()`/Slot-Status), waehrend
+`llama-server` ein Modell laedt. Das ist **kein Code-Bug**, sondern erwartete Cold-Start-Latenz fuer ein
+3B-Vision-Modell auf bescheidener Hardware — passend zum bewussten "Lazy Runtime"-Entwurf
+(`runtimeChatStore.ts:946`: Arbeitsmodelle starten erst NACH Routing+Budget, nicht davor). Keine Aenderung
+vorgenommen; als Hardware-/UX-Erwartung dokumentiert statt als Bug behandelt.
+
+**Root Cause Punkt 2 (der eigentliche Bug):** `runtimeChatStore.ts:2040` verglich vor dem Senden die rohe
+`settingsRevision` (bumpt bei *jeder* Settings-Aenderung, auch Theme/Editor-Schriftgroesse) gegen die beim
+Routing gebundene Revision — bei jeder Abweichung wurde der komplette, bereits Minuten gelaufene Request
+verworfen. Wegen des "Lazy Runtime"-Entwurfs kann zwischen Routing und tatsaechlichem Senden legitim viel
+Zeit liegen (hier 3 Minuten), in der der Nutzer voellig unabhaengige Einstellungen aendern kann. Ein
+bereits vorhandener, aber nie produktiv verdrahteter Helper `isDecisionStillValid()`
+(`modelSelectionBroker.ts:1051`, nur in `bindingWorkflowGrounding.test.ts` benutzt) haette dasselbe Problem
+gehabt (5s-Freshness plus derselbe rohe Revisionsvergleich) — fuer minutenlange Warmups ungeeignet.
+
+**Fix:** neue, gezielte Funktion `hasRoutingRelevantSettingsChanged()` (`modelSelectionBroker.ts`, nach
+`isDecisionStillValid`) leitet mit den bereits auf der Entscheidung gespeicherten Feldern
+(`taskType`/`targetAgent`/`modelRole`/`configuredModelId`) per den existierenden reinen Funktionen
+`selectModelForRole`/`selectModelForTask` erneut ab, welches Settings-Feld die Modellwahl aktuell liefern
+wuerde, und vergleicht nur dieses eine Feld gegen den beim Binding gespeicherten Wert. `runtimeChatStore.ts`
+wirft den `request_binding_mismatch`-Fehler jetzt nur noch, wenn die Revision UND dieser gezielte Vergleich
+eine echte Aenderung zeigen — eine Theme-Aenderung waehrend eines Warmups bricht den Request nicht mehr ab,
+eine echte Modell-/Rollen-Umstellung weiterhin schon.
+
+**Verifiziert:**
+- `npx vitest run modelSelectionBroker` in `apps/desktop` -> 53/53 gruen (4 neu fuer
+  `hasRoutingRelevantSettingsChanged`: unveraendert, irrelevantes Rollenfeld geaendert, relevantes Feld
+  geaendert (Chat + Coding))
+- `npx vitest run runtimeChatStore` -> 52/52 gruen (keine Regression)
+- `npx vitest run` (voller Desktop-Lauf) -> 1370/1370 gruen (42 bewusst uebersprungen)
+- `npx tsc --noEmit` in `apps/desktop` -> gruen
+
 ## Bugfix: CLIP-Vision-Projector-Dateien faelschlich als Hauptmodell gestartet (2026-08-01)
 
 **Auftrag:** Nutzer hat die echte gebaute App auf einem anderen Projekt laufen lassen und einen konkreten

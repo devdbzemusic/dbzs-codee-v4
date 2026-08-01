@@ -10,6 +10,7 @@ import {
   matchesReviewIntent,
   deriveModelDisplayName,
   formatModelDisplayLabel,
+  hasRoutingRelevantSettingsChanged,
   looksLikeOpaqueModelId,
   BindingModelError
 } from "@/services/modelSelectionBroker";
@@ -705,6 +706,31 @@ describe("modelSelectionBroker", () => {
     it("falls back to defaultChatModelId for vision task types when defaultVisionModelId is unset", () => {
       const decision = brokerDecision("image_analysis", mockSettings, { hasImageInput: true });
       expect(decision.modelId).toBe(mockSettings.defaultChatModelId);
+    });
+  });
+
+  describe("hasRoutingRelevantSettingsChanged", () => {
+    it("returns false when settings are unchanged", () => {
+      const decision = brokerDecision("normal_chat", mockSettings);
+      expect(hasRoutingRelevantSettingsChanged(decision, mockSettings)).toBe(false);
+    });
+
+    it("returns false when an unrelated role's setting changes (e.g. coder while routed to chat)", () => {
+      const decision = brokerDecision("normal_chat", mockSettings);
+      const laterSettings = { ...mockSettings, defaultCoderModelId: "llm/new-coder-model.gguf" };
+      expect(hasRoutingRelevantSettingsChanged(decision, laterSettings)).toBe(false);
+    });
+
+    it("returns true when the setting that fed this decision's model selection changes", () => {
+      const decision = brokerDecision("normal_chat", mockSettings);
+      const laterSettings = { ...mockSettings, defaultChatModelId: "llm/new-chat-model.gguf" };
+      expect(hasRoutingRelevantSettingsChanged(decision, laterSettings)).toBe(true);
+    });
+
+    it("returns true when the relevant role setting changes for a coding task", () => {
+      const decision = brokerDecision("large_code_change", mockSettings, { preferPlannerFirst: false });
+      const laterSettings = { ...mockSettings, defaultCoderModelId: "llm/new-coder-model.gguf" };
+      expect(hasRoutingRelevantSettingsChanged(decision, laterSettings)).toBe(true);
     });
   });
 });
