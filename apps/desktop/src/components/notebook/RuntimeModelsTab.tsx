@@ -1,6 +1,7 @@
 import { useRuntimeModelsTabController } from "./RuntimeModelsTab.controller";
 import { useNotebookStore } from "@/stores/notebookStore";
 import {
+  DiagnosticsSection,
   MultimodalPairsSection,
   RuntimeModelsEmptyState,
   RuntimeModelsHeader,
@@ -23,6 +24,7 @@ export function RuntimeModelsTab() {
   const {
     autoTuneModel,
     backendOnline,
+    diagnosticsIssues,
     index,
     indexError,
     indexLoading,
@@ -97,6 +99,7 @@ export function RuntimeModelsTab() {
           <RuntimeModelsEmptyState hasAnyEntries={true} indexError={indexError} indexLoading={false} />
         ) : (
           <div className="space-y-6">
+            <DiagnosticsSection issues={diagnosticsIssues} />
             <StartableModelsSection
               autoTuneModel={autoTuneModel}
               modelRoleSummary={modelRoleSummary}

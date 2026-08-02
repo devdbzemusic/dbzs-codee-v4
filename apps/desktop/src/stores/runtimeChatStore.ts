@@ -60,7 +60,7 @@ import {
   RUNTIME_TOOLS_SYSTEM_HINT
 } from "@/services/runtimeChatToolParser";
 import { loadToolProfile, saveToolProfile, shouldUseAgentTurnLoop } from "@/services/runtimeChatAgentConfig";
-import { classifyUserExecutionIntent } from "@/services/executionIntent";
+import { classifyUserExecutionIntent, taskTypeForExecutionIntent } from "@/services/executionIntent";
 import { gateExecutionFinalAnswer } from "@/services/executionAnswerValidation";
 import {
   buildExecutionHandoff,
@@ -118,8 +118,12 @@ import {
   brokerDecision,
   formatModelDisplayLabel,
   hasRoutingRelevantSettingsChanged,
-  BindingModelError
+  BindingModelError,
+  taskRequiresCodingCapability,
+  type RunningModelSnapshot
 } from "@/services/modelSelectionBroker";
+import { runVisionContextPackPreStep, formatVisionContextPackBlock } from "@/services/visionContextPackService";
+import { useModelIndexStore } from "@/stores/modelIndexStore";
 import {
   answeredFieldIds,
   appendContractFieldAnswer,
@@ -206,7 +210,11 @@ import { runtimeSlotManager } from "@/services/runtimeSlotManager";
 import { modelRouterService } from "@/services/modelRouterService";
 import { classifyTaskForSend } from "@/services/runtimeChat/taskClassificationPhase";
 import { resolveWorkflowContinuationForSend } from "@/services/runtimeChat/workflowContinuationPhase";
-import { buildRuntimeChatAttachmentPrompt } from "@/services/runtimeChatAttachments";
+import {
+  attachmentRequiresVision,
+  buildRuntimeChatAttachmentPrompt,
+  collectAttachmentImageDataUrls
+} from "@/services/runtimeChatAttachments";
 import { runReviewRemediationPhase } from "@/services/runtimeChat/reviewRemediationPhase";
 import { mapBrokerAgentToShared, mapWorkflowAgentToShared } from "@/services/runtimeChat/agentMapping";
 import { isClarificationFieldBlockedInMessages } from "@/services/runtimeChat/clarificationGuards";
@@ -403,6 +411,14 @@ export interface RuntimeChatSendOptions {
   runtimeProfileOverride?: "cpu_safe" | "hybrid" | "balanced" | "large_context" | "fast";
   /** Explicit user choice: continue with the currently resident slot model. */
   forceUseResidentModel?: boolean;
+  /**
+   * Set on the internal recursive resend after the Vision Context Pack pre-step ran
+   * (see sendMessage) - guards against re-triggering the pre-step and marks the images
+   * as already analyzed, so the real turn routes as a normal text coding/review request.
+   */
+  visionContextPackApplied?: boolean;
+  /** Text produced by the Vision Context Pack pre-step, folded into the outgoing request only (not the displayed user message). */
+  visionContextPackText?: string;
 }
 function resolveContextSlotId(
   taskType: string,
@@ -786,6 +802,102 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
       return false;
     }
     const executionIntentForTurn = classifyUserExecutionIntent(trimmedContent);
+
+    // Vision Context Pack pre-step (Model Control Center Plan, "Coding/Review mit
+    // Screenshot"): a coding/review turn with an image attachment must not hand the raw
+    // image to the coding model - it never needs vision capability for this. Instead a
+    // verified vision model analyzes the image once, and the turn is resent as a normal
+    // text request with that analysis folded in. Guarded by visionContextPackApplied to
+    // run at most once per user message.
+    if (
+      sendOptions?.visionContextPackApplied !== true &&
+      taskRequiresCodingCapability(taskTypeForExecutionIntent(executionIntentForTurn))
+    ) {
+      const attachmentsForVisionCheck = sendOptions?.attachments ?? [];
+      const visionImages = collectAttachmentImageDataUrls(attachmentsForVisionCheck);
+      if (
+        visionImages.length > 0 &&
+        (sendOptions?.hasImageInput === true || attachmentRequiresVision(attachmentsForVisionCheck))
+      ) {
+        const modelIndexState = useModelIndexStore.getState();
+        const visionSettings = useSettingsStore.getState().settings;
+        const catalog = modelIndexState.index?.models.map((model) => ({
+          id: model.id,
+          name: model.name,
+          artifact_type: model.artifact_type,
+          capabilities: model.capabilities,
+          recommended_use: model.recommended_use,
+          supportsVision: model.capabilities?.includes("vision"),
+          supportsTextOnly:
+            model.capabilities?.includes("chat") && model.capabilities?.includes("vision") ? true : undefined
+        }));
+        const multimodalPairs = modelIndexState.index?.multimodal_pairs;
+        let runningModels: RunningModelSnapshot[] | undefined;
+        try {
+          const slotStatuses = await runtimeSlotManager.getAllSlotsStatus();
+          runningModels = slotStatuses
+            .filter((status) => status.state === "running" && status.model_id)
+            .map((status) => ({ slotId: status.slot_id, modelId: status.model_id as string }));
+        } catch {
+          runningModels = undefined;
+        }
+
+        // The recursive resend below re-enters sendMessage's own `isSending` guard, so this
+        // must be reset to false again right before that call (same synchronous tick, no
+        // await in between - no window for a real race) rather than left set for the caller
+        // to clear. It only exists to stop a second, unrelated send from starting while this
+        // (potentially slow: slot start + warmup + vision inference) pre-step is in flight.
+        set({ isSending: true });
+        const preStepResult = await runVisionContextPackPreStep({
+          goal: trimmedContent,
+          images: visionImages,
+          settings: {
+            defaultModelId: visionSettings.defaultModelId,
+            defaultChatModelId: visionSettings.defaultChatModelId,
+            defaultModelName: visionSettings.defaultModelName || "Default Model",
+            defaultPlannerModelId: visionSettings.defaultPlannerModelId,
+            defaultCoderModelId: visionSettings.defaultCoderModelId,
+            defaultReviewerModelId: visionSettings.defaultReviewerModelId,
+            defaultDebugModelId: visionSettings.defaultDebugModelId,
+            defaultVisionModelId: visionSettings.defaultVisionModelId,
+            localOnlyModels: visionSettings.modelDiscoveryMode === "project_local_strict"
+          },
+          catalog,
+          multimodalPairs,
+          runningModels
+        });
+        set({ isSending: false });
+
+        if (preStepResult.ok) {
+          const nonImageAttachments = attachmentsForVisionCheck.filter((attachment) => attachment.kind !== "image");
+          const contextPackBlock = formatVisionContextPackBlock({
+            contextPack: preStepResult.contextPack,
+            visionModelName: preStepResult.visionModelName,
+            visionModelId: preStepResult.visionModelId
+          });
+          return get().sendMessage(
+            content,
+            runtimeStatus,
+            activeFile,
+            workspaceContext,
+            contextHint,
+            targetAgent,
+            {
+              ...sendOptions,
+              attachments: nonImageAttachments,
+              hasImageInput: false,
+              requiresVision: false,
+              visionContextPackApplied: true,
+              visionContextPackText: contextPackBlock
+            }
+          );
+        }
+        // Pre-step could not run (no verified vision model, slot start failed, ...):
+        // fall through to the normal flow, whose existing code_capability_missing gate
+        // remains the safety net and will surface a clear, actionable error.
+      }
+    }
+
     const contextMentionsForTurn = parseContextMentions(trimmedContent);
     const contextMentionPathsForTurn = contextMentionsForTurn.map((mention) => mention.path);
 
@@ -902,9 +1014,10 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
       agentMode: sendOptions?.agentMode ?? "auto"
     });
     const attachmentPrompt = buildRuntimeChatAttachmentPrompt(sendOptions?.attachments ?? []);
-    const requestUserContent = attachmentPrompt
-      ? `${trimmedContent}\n\n${attachmentPrompt}`
-      : trimmedContent;
+    const requestUserContent = [trimmedContent, attachmentPrompt, sendOptions?.visionContextPackText]
+      .filter((part): part is string => Boolean(part))
+      .join("\n\n");
+    const requestUserImages = collectAttachmentImageDataUrls(sendOptions?.attachments ?? []);
     let activity = initialActivity;
     let ragResult: RagRetrievalResponse | null = null;
     runsAbortControllers[initialRun.id] = runAbortController;
@@ -1813,7 +1926,11 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
 
       requestMessages = requestMessages.map((message) =>
         message.id === latestUserMessage?.id
-          ? { ...message, content: requestUserContent }
+          ? {
+              ...message,
+              content: requestUserContent,
+              images: requestUserImages.length > 0 ? requestUserImages : undefined
+            }
           : message
       );
 
@@ -1934,7 +2051,11 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
         ];
         requestMessages = nextMessages.slice(-4).map((message) =>
           message.id === latestUserMessage?.id
-            ? { ...message, content: requestUserContent }
+            ? {
+                ...message,
+                content: requestUserContent,
+                images: requestUserImages.length > 0 ? requestUserImages : undefined
+              }
             : message
         );
         messagesForRequest =

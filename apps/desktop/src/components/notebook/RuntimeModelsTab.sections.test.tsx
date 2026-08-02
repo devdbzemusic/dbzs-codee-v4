@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { RuntimeStatus } from "@dbzs/shared";
-import { RuntimeModelsEmptyState, RuntimeModelsHeader } from "./RuntimeModelsTab.sections";
+import type { DiagnosticsIssue } from "./RuntimeModelsTab.helpers";
+import { DiagnosticsSection, RuntimeModelsEmptyState, RuntimeModelsHeader } from "./RuntimeModelsTab.sections";
 
 describe("RuntimeModelsHeader", () => {
   it("renders backend, runtime and summary information", () => {
@@ -82,6 +83,31 @@ describe("RuntimeModelsHeader", () => {
     expect(stopModel).toHaveBeenCalled();
     expect(screen.getByText("Modellindex: Indexfehler")).toBeInTheDocument();
     expect(screen.getByText("Runtimefehler")).toBeInTheDocument();
+  });
+});
+
+describe("DiagnosticsSection", () => {
+  it("renders nothing when there are no issues", () => {
+    const { container } = render(<DiagnosticsSection issues={[]} />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("renders blocker and hint counts plus each issue's area and detail", () => {
+    const issues: DiagnosticsIssue[] = [
+      { id: "model:m1", severity: "error", area: "Modell", title: "broken.gguf", detail: "Datei fehlt" },
+      { id: "artifact:a1", severity: "warn", area: "Hilfsartefakt", title: "mmproj-orphan.gguf", detail: "Kein Basismodell" }
+    ];
+
+    render(<DiagnosticsSection issues={issues} />);
+
+    expect(screen.getByText("Diagnose")).toBeInTheDocument();
+    expect(screen.getByText("Blockiert 1")).toBeInTheDocument();
+    expect(screen.getByText("Hinweise 1")).toBeInTheDocument();
+    expect(screen.getByText("broken.gguf")).toBeInTheDocument();
+    expect(screen.getByText("Datei fehlt")).toBeInTheDocument();
+    expect(screen.getByText("mmproj-orphan.gguf")).toBeInTheDocument();
+    expect(screen.getByText("Kein Basismodell")).toBeInTheDocument();
   });
 });
 
