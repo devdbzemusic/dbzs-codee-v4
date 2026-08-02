@@ -5,18 +5,23 @@ Stand: 2026-08-02
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
 
-## UI-Feedback aus laufender App (Nutzer-Screenshots, 2026-08-02) — BEIDE BLÖCKE ERLEDIGT
+## UI-Feedback aus laufender App (Nutzer-Screenshots, 2026-08-02) — ERLEDIGT, LIVE VERIFIZIERT
 
-1) Settings-Feldlayout überarbeitet (gleiches Notebook, Feld-Boxen + gestapelte Toggles statt dichter Liste).
-2) Rechtes Panel bekam Modus-Umschalter "Agents"/"Debug Log" (`App.tsx`, `rightSidebarMode`-State); im
-Debug-Modus füllt `DebugLogPanel.tsx` das ganze Panel mit einem live-scrollenden Event-Stream aus
-`runtimeChatStore`s `activeRun.events` UND `ObservabilityService.onEvent()` (dessen Pub/Sub vorher 0
-Abonnenten hatte — jetzt der erste). Auto-Scroll mit Pause-bei-manuellem-Scroll + "Zum Ende springen".
+1) Settings-Feldlayout überarbeitet (Feld-Boxen + gestapelte Toggles). 2) Rechtes Panel bekam Modus-Umschalter
+"Agents"/"Debug Log" mit live-scrollendem Event-Stream (`DebugLogPanel.tsx`, `ObservabilityService.onEvent()`
+zum ersten Mal abonniert). Ursprünglich als "nicht visuell verifizierbar" markiert — Ursache war
+`ELECTRON_RUN_AS_NODE=1` in der Session-Umgebung (kein Sandbox-Limit). Mit `env -u ELECTRON_RUN_AS_NODE`
+liess sich die App echt starten und per Playwright screenshotten.
 
-**Beide Blöcke NICHT visuell verifiziert** — Electron-GUI-Start in dieser Sandbox nicht möglich (Playwright
-und direkter `electron.exe`-Aufruf liefern beide `electron.ipcMain === undefined`, spricht für fehlende
-Display-Fähigkeit der Umgebung, kein Code-Fehler). **Bitte im laufenden System selbst ansehen**, ob beide
-Layouts wie gewünscht wirken, bevor dieses Thema als abgeschlossen gilt. Details siehe HANDOVER.md.
+**Dabei echten, eigenständigen Bug gefunden + behoben:** `SettingsNotebook.tsx`s Sidebar-Modus (`compact`)
+hatte eine gebrochene Flex-Height-Kette — der Feld-Body kollabierte auf **0px Höhe**, weil der Chrome
+oberhalb (Warnbanner, Suche, 9 Kategorie-Tabs) bei ~360px Breite mehr Platz brauchte als verfügbar. Die
+Einstellungsfelder waren dadurch im Sidebar-Modus komplett unsichtbar — das war der eigentliche Kern der
+ursprünglichen Nutzerbeobachtung ("2/15 bereit", leere Dropdowns), nicht nur ein Abstandsproblem. Fix: Compact-
+Modus flieszt jetzt natürlich statt eigenes internes Scrolling zu erzwingen, verlässt sich auf das bereits
+funktionierende äuszere Sidebar-Scrolling. Live per Screenshot bestätigt: Modus-Umschalter sichtbar, Felder
+sichtbar mit Box-Layout, Debug-Log-Modus füllt das Panel korrekt. Details + Praxis-Notiz zu
+`ELECTRON_RUN_AS_NODE` siehe HANDOVER.md.
 
 ## Workflow Authority & Safety Sprint
 

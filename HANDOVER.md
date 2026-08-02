@@ -2,6 +2,48 @@
 
 Stand: 2026-08-02
 
+## Live-Verifikation der letzten beiden UI-Aenderungen + echter Settings-Bug gefunden und behoben (2026-08-02)
+
+**Auftrag:** Nutzer bat "starte App mit Trace". Grund fuer den fehlgeschlagenen Verifikationsversuch der
+letzten beiden Eintraege gefunden: `ELECTRON_RUN_AS_NODE=1` war in der Session-Umgebung gesetzt — Electron
+laeuft dann als reines Node.js ohne GUI-Runtime (`electron.ipcMain` bleibt `undefined`), kein Sandbox-Limit.
+Mit `env -u ELECTRON_RUN_AS_NODE` liess sich die echte App real starten (inkl. echtem Backend-Subprozess,
+Playwright `_electron` gegen den gebauten `out/main/main.js`).
+
+**Dabei ein echter, eigenstaendiger Bug gefunden** (nicht durch die vorherigen Aenderungen verursacht, aber
+durch die Feld-Box-Aenderung aus dem vorletzten Eintrag erst *sichtbar* geworden): Im Sidebar-Modus
+(`compact`) hatte `SettingsNotebook.tsx`s Wurzel-`<section>` `flex h-full min-h-0 flex-col`, mit dem
+Feld-Body als `min-h-0 flex-1 overflow-auto`-Kind. Der "Chrome" oberhalb des Feld-Bodys (Backend-Warnbanner,
+Suche, Export/Import/Reset-Buttons, 9 Kategorie-Tabs, die bei ~360px Breite auf mehrere Zeilen umbrechen)
+beanspruchte allein schon mehr Hoehe, als die Section insgesamt zur Verfuegung hatte — mit
+`flex-basis: 0%` bekam der Feld-Body dadurch **0px Hoehe**, DOM-Messung bestaetigt (`h: 0` trotz
+`scrollHeight` von 2523px Inhalt). Die Einstellungsfelder waren im Sidebar-Modus also nicht nur eng, sondern
+**komplett unsichtbar und unerreichbar** — das war der eigentliche Kern der urspruenglichen Nutzerbeobachtung
+("2/15 bereit", leere Dropdowns), nicht nur ein Abstandsproblem.
+
+**Fix:** `compact`-Modus bekommt jetzt bewusst *keine* eigene `h-full`/`flex-1 overflow-auto`-Struktur mehr —
+Section und Feld-Body flieszen stattdessen natuerlich (wie alle anderen 12 Karten in der Sidebar) und
+verlassen sich auf das bereits funktionierende, aeuszere Sidebar-Scrolling (`AppShellRightSidebar`s
+`.panel-scroll`, live per DOM-Test bestaetigt, dass es scrollt). Nur der `compact=false`-Vollfenster-Modus
+behaelt das interne Fixed-Height-Scroll-Layout, wo es wegen fehlendem aeuszeren Scroll-Container weiterhin
+noetig ist.
+
+**Live bestaetigt (Screenshots, nicht nur DOM-Messung):**
+
+- Modus-Umschalter "Agents"/"Debug Log" sichtbar und funktional im rechten Panel.
+- Settings-Felder (z. B. "Model-Lab-Runtime-Bridge", "Nur lokale Modelle") jetzt tatsaechlich sichtbar mit
+  Box-Rahmen, Toggle-Layout gestapelt wie gebaut.
+- Debug-Log-Modus fuellt das ganze Panel, zeigt "0 Eintraege"/"Leeren"/"Auto-Scroll aktiv" und den
+  Platzhaltertext — UI-seitig korrekt, es kamen in dieser kurzen Boot-Phase (Backend noch nicht bereit) noch
+  keine echten Events zum Anzeigen.
+
+**Verifiziert:** `tsc --noEmit` sauber, 142 Frontend-Tests (`src/settings` + `src/components/notebook`) weiterhin
+gruen. Der eigentliche Fix wurde durch echten App-Start bestaetigt, nicht nur durch Tests.
+
+**Praktische Notiz fuer kuenftige Sessions in dieser Umgebung:** `ELECTRON_RUN_AS_NODE` vor jedem
+Electron-Start pruefen/entfernen (`env -u ELECTRON_RUN_AS_NODE ...` oder `Remove-Item Env:ELECTRON_RUN_AS_NODE`
+in PowerShell) — echte GUI-Verifikation ist in dieser Sandbox moeglich, wenn diese Variable nicht gesetzt ist.
+
 ## Rechtes Panel: Debug-Log-Modus mit Live-Event-Stream (2026-08-02)
 
 **Auftrag:** Nutzerwunsch nach Screenshot-Feedback: "Panel Rechts Umgestaltung zum extrem detaillierten Debug
