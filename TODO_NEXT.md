@@ -28,9 +28,17 @@ laufen. **Noch nicht live verifiziert** (siehe HANDOVER.md) — vor dem nächste
 gestopptem Ziel-Slot einen Review anstoßen und pruefen. WF-10 ist über Teil B bereits weitgehend abgedeckt
 (Model-Lab-Routing-Map als bevorzugte Fallback-Quelle).
 
-**Teil C / WF-07 — NÄCHSTER SCHRITT:** `DegradationLedger` einführen, damit stille Fallbacks (z.B. Lexical-RAG
-statt semantischer Suche, fehlgeschlagene Context-Orchestrierung) im Run-Ergebnis sichtbar werden statt
-unbemerkt zu bleiben.
+**Teil C / WF-07 — TEILWEISE ERLEDIGT:** stille Fallbacks (Kontext-Orchestrierung fehlgeschlagen,
+Embedding-Suche fehlgeschlagen → lexikalisches RAG, RAG insgesamt fehlgeschlagen) setzen jetzt
+`RuntimeChatRun.degraded`/`degradedReason` (bereits bestehende, UI-verdrahtete Felder) statt nur `console.info`
+zu loggen. **Noch offen:** `RuntimeRunOutcome` bekommt keinen `"success_degraded"`-Wert — dafür müsste die
+zentrale `runtimeRunFinalization.ts` plus mindestens zwei weitere Completion-Stellen in `runtimeChatStore.ts`
+(~Zeile 2531 Agent-Turn-Loop, ~Zeile 2827 Streaming-Pfad) angefasst werden, bewusst nicht blind versucht (siehe
+HANDOVER.md für Details). Kein dedizierter Test für die 3 `markRunDegraded()`-Aufrufe selbst (liegen hinter
+real-service-abhängigen, in `runtimeChatStore.test.ts` bisher ungemockten Bedingungen) — nur per breitem
+Regressionslauf abgesichert.
+
+**Danach Teil D:** Usecase-Maßnahmenkatalog, 8 eigene Phasen, siehe Plan-Datei.
 
 **Danach Teil D:** Usecase-Maßnahmenkatalog (`Pläne/check/DBZS_CODEE_WORKFLOW_USECASE_MASSNAHMENKATALOG.md`,
 M-001…M-702), 8 eigene Phasen, bewusst nur grob sequenziert — mehrmonatiges Programm, siehe Plan-Datei Teil D.

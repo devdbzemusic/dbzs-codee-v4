@@ -931,6 +931,20 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
       }));
     };
 
+    // WF-07 (Workflow-Bruch-Audit): several preflight steps intentionally fall back
+    // to a lesser pipeline on failure (e.g. lexical RAG instead of semantic retrieval)
+    // instead of hard-failing the turn — good for robustness, but the final response
+    // used to look identical to a full-context one. Mark the run as degraded (reusing
+    // the existing degraded/degradedReason fields already rendered in the UI, e.g.
+    // resident-model fallback) so the reduced quality stays visible instead of silent.
+    const markRunDegraded = (reason: string) => {
+      updateActiveRun((run) => ({
+        ...run,
+        degraded: true,
+        degradedReason: run.degradedReason ? `${run.degradedReason} · ${reason}` : reason
+      }));
+    };
+
     const buildRunTurnSnapshot = (input: {
       turnNumber: number;
       prompt: string;
@@ -1635,6 +1649,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
           const detail = error instanceof Error ? error.message : "Kontext-Orchestrierung nicht verfügbar";
           safeTraceEvents.push(createTraceEvent(initialRun.id, "context_pack_failed", "Kontext-Orchestrierung fehlgeschlagen", detail, "failed"));
           failStep("context-orchestrator", "Kontext-Orchestrierung", detail);
+          markRunDegraded(`Kontext-Orchestrierung nicht verfügbar: ${detail}`);
           console.info("Context orchestrator unavailable; continuing with existing retrieval pipeline:", error);
         }
       }
@@ -1691,6 +1706,8 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
                 });
               }
             } catch (error) {
+              const embeddingDetail = error instanceof Error ? error.message : "Embedding-Suche nicht verfügbar";
+              markRunDegraded(`Semantische Suche nicht verfügbar, lexikalisches RAG aktiv: ${embeddingDetail}`);
               console.info("Embedding retrieval unavailable; lexical RAG remains active:", error);
             }
           }
@@ -1701,6 +1718,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
           const detail = error instanceof Error ? error.message : "RAG nicht verfügbar";
           safeTraceEvents[safeTraceEvents.length - 1] = createTraceEvent(initialRun.id, "retrieval_completed", "RAG-Fallback", detail, "failed");
           failStep("rag-retrieval", "Repository-Kontext suchen", detail);
+          markRunDegraded(`Repository-Kontextsuche fehlgeschlagen, Antwort ohne RAG-Kontext: ${detail}`);
         }
       }
 

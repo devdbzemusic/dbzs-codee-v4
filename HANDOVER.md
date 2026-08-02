@@ -2,6 +2,44 @@
 
 Stand: 2026-08-02
 
+## Workflow Authority & Safety Sprint — Teil C (WF-07, Teilumsetzung): stille Degradation wird sichtbar (2026-08-02)
+
+**Auftrag:** Fortsetzung von Teil A/B/WF-03 (siehe Einträge darunter).
+
+**Fund:** Mehrere Stellen im Chat-Preflight fangen Fehler ab und machen robust weiter, ohne dass das im
+finalen Antwortstatus sichtbar wird (Intensivaudit WF-07): Kontext-Orchestrierung fehlgeschlagen → bestehende
+Retrieval-Pipeline; Embedding-Suche fehlgeschlagen → lexikalisches RAG bleibt aktiv (nur `console.info`);
+RAG insgesamt fehlgeschlagen → Chat läuft ohne Repository-Kontext weiter.
+
+**Entscheidung zum Umfang:** Der Intensivaudit schlägt eine neue `DegradationLedger`-Datenstruktur vor. Beim
+genaueren Hinsehen existiert dafür aber bereits eine funktionierende, UI-verdrahtete Infrastruktur:
+`RuntimeChatRun.degraded`/`degradedReason` (bisher nur für residenten Modell-Fallback gesetzt,
+`fallbackHandler.ts`) wird bereits korrekt in `CodeeRunLiveBlock.tsx` (Degraded-Badge + Grund) und
+`RuntimeChatConversationFeed.tsx` gerendert. Diese Teilumsetzung erweitert die bestehende, getestete
+Infrastruktur auf die beiden oben genannten stillen Fallbacks, statt eine parallele neue Ledger-Struktur
+einzuführen, die erst noch durch die UI gezogen werden müsste — kleinerer, risikoärmerer Schnitt.
+
+**Fix:** neuer kleiner Helper `markRunDegraded(reason)` in `runtimeChatStore.ts` (setzt `degraded: true` und
+hängt `reason` an einen ggf. bereits vorhandenen `degradedReason` an, statt ihn zu überschreiben — mehrere
+Degradationen in einem Run bleiben so alle sichtbar). Aufgerufen an den drei identifizierten Stellen:
+Kontext-Orchestrierung fehlgeschlagen, Embedding-Suche fehlgeschlagen (lexikalischer Fallback), RAG insgesamt
+fehlgeschlagen.
+
+**Verifiziert:** `tsc --noEmit` sauber. Voller Regressionslauf `src/stores` + `src/services` (112 Dateien, 723
+Tests) weiterhin grün. **Kein dedizierter neuer Test** für die drei `markRunDegraded()`-Aufrufe selbst — sie
+liegen hinter mehreren real-service-abhängigen Bedingungen (`bootstrapRuntimeLayer`, `getRuntimeKernel`,
+`ragClient`, `embeddingService`), die in `runtimeChatStore.test.ts` bisher nicht gemockt sind; das dafür
+nötige Mock-Setup war gegenüber der Größe der Änderung (3 Zeilen, ruft eine bereits durch obigen
+Regressionslauf abgedeckte kleine Funktion auf) nicht verhältnismäßig.
+
+**Bewusst NICHT Teil dieser Teilumsetzung** (Folgearbeit): das Overall-`outcome`-Feld
+(`RuntimeRunOutcome`) bekommt noch keinen `"success_degraded"`-Wert — die finale Erfolgs-/Fehl-Entscheidung
+läuft über das zentrale, eigenständig getestete `runtimeRunFinalization.ts` plus mindestens zwei weitere
+Completion-Stellen in `runtimeChatStore.ts` (Agent-Turn-Loop bei Zeile ~2531, Streaming-Pfad bei ~2827); das
+dort einzuweben haette denselben Umfang wie WF-03 gehabt und wurde bewusst nicht blind versucht. `degraded`/
+`degradedReason` sind aber bereits die Felder, die die UI für genau diesen Zweck rendert — die Sichtbarkeit
+ist also real vorhanden, nur noch nicht bis in den High-Level-`outcome`-Wert durchgezogen.
+
 ## Workflow Authority & Safety Sprint — Teil C (WF-03): Repository Review läuft nicht mehr gegen unfertige Runtime (2026-08-02)
 
 **Auftrag:** Fortsetzung von Teil A/B (siehe Einträge darunter). Nutzer wollte den vollen Reorder trotz
