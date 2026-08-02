@@ -181,8 +181,14 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
       pollIntervalMs: 2_000,
       maxRetries: 2,
       retryDelayMs: 2_000,
-      extendDeadlineOnProgress: false,
-      maxDeadlineExtensionMs: 0
+      // Scan duration scales with the real models directory's file count
+      // (hundreds of GGUF files legitimately take longer than a fixed
+      // 60s budget to hash/validate) -- unlike the other fixed-cost boot
+      // phases, this one must extend its deadline as long as the backend
+      // keeps reporting real checked/total progress, or a large but
+      // healthy catalog gets hard-timed-out before it ever finishes.
+      extendDeadlineOnProgress: true,
+      maxDeadlineExtensionMs: 300_000
     }
   },
   {

@@ -2,6 +2,42 @@
 
 Stand: 2026-08-02
 
+## Splashscreen-Hang behoben: Model-Lab-Quelle scannte das ganze Benutzerprofil + Boot-Phase ohne Progress-Verlaengerung (2026-08-02)
+
+**Auftrag:** Nach dem Resident-Model-Fix (siehe Eintrag darunter) meldete der Nutzer weiterhin Probleme:
+"Jetzt startet gar nichts mehr", dann "Mit dem Modelkatalog haut was nicht hin" (Boot haengt bei 27%
+"Lade Modellkatalog"), zuletzt "Ich komme nicht ueber den SplashScreen hinaus".
+
+**Zwei unabhaengige Ursachen gefunden, beide live am echten Prozess verifiziert (nicht nur vermutet):**
+
+1. **Frontend-Bug:** die `model-index`-Boot-Phase (`apps/desktop/electron/boot/bootPhaseDefinitions.ts`)
+   hatte ein fixes 60s-Timeout mit `extendDeadlineOnProgress: false` — obwohl das Backend echten
+   inkrementellen Scan-Fortschritt (`checked`/`total`) genau dafuer liefert und der Orchestrator
+   (`bootOrchestrator.ts`) die Verlaengerung bereits vollstaendig implementiert hatte, war sie fuer genau
+   diese eine Phase abgeschaltet. Bei hunderten echten GGUF-Dateien im konfigurierten Modelle-Verzeichnis
+   dauert der Scan legitim laenger als 60s. Fix: `extendDeadlineOnProgress: true`,
+   `maxDeadlineExtensionMs: 300_000`.
+2. **Eigentliche Root Cause (schwerwiegender):** In Model Lab war eine Quelle registriert mit Pfad
+   `C:\Users\ralle` (das komplette Benutzerprofil, rekursiv aktiviert) — vermutlich versehentlich frueher
+   angelegt. Jeder `build_index()`-Aufruf (Boot-Warmup UND jeder normale `/models/index`-Request) durchsucht
+   dadurch AppData, node_modules, pnpm-Store etc. komplett nach `.gguf`-Dateien, bevor ueberhaupt der erste
+   Fortschritts-Tick gemeldet werden kann — das erklaert auch die zuvor beobachteten falschen "invaliden
+   GGUF"-Eintraege aus `AppData\Local\pnpm\store\...\backend\tests\.pytest-local-tmp\...`. Live gemessen:
+   `GET /models/index` brauchte vorher 90s+ (haengt teils ganz), danach **2.7s**. Es gibt aktuell keine
+   API/UI zum Entfernen einer Model-Lab-Quelle (echte Produktluecke) — auf Nutzerwunsch direkt per SQL
+   geloescht (`DELETE FROM model_sources WHERE id = '7908121230fb462c9fb27638bf41fba5'` in
+   `%LOCALAPPDATA%\DBZS\CodeAssistant\model_lab.sqlite3`), keine Code-Aenderung noetig fuer diesen Teil.
+
+**Verifiziert per echtem Playwright-`_electron`-Launch** (nicht nur Log-Lesen): App zeigt ab Sekunde 0 die
+volle Haupt-UI (Workspace/Explorer/Semantic-Search sichtbar), kein Splash-Hang mehr. Vorher haengengebliebene
+Alt-Prozesse aus der Diagnose (mehrere `electron.exe`/`python.exe`, teils weil Git-Bash `kill` native
+Windows-Prozesse oft nicht erreicht — `Stop-Process` in PowerShell nutzen, nicht `kill`) sauber beendet.
+
+**Noch offen (bewusst nicht in diesem Fix):** Model Lab hat kein Delete/Disable-Endpoint fuer Quellen
+(`backend/app/api/model_lab.py` hat nur `GET`/`POST /sources`, `ModelLabRepository` keine
+`delete_source`/`update_source`-Methode) — sollte nachgezogen werden, damit sowas wie die `C:\Users\ralle`-
+Quelle kuenftig ueber die UI korrigierbar ist statt manueller DB-Chirurgie.
+
 ## Backend-Boot-Hang behoben: Resident-Model-Autostart blockierte den kompletten Event-Loop (2026-08-02)
 
 **Auftrag:** Nutzer bat erneut "starte App mit Trace", danach "schau" zu Screenshots eines Boot-Fehlers

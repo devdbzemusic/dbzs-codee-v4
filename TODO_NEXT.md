@@ -5,6 +5,21 @@ Stand: 2026-08-02
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
 
+## Splashscreen-Hang (Model-Lab-Quelle scannte ganzes Benutzerprofil) — BEHOBEN, LIVE VERIFIZIERT
+
+Zwei Ursachen: `model-index`-Boot-Phase hatte `extendDeadlineOnProgress: false` trotz echtem
+Fortschritts-Signal vom Backend (jetzt `true`, `maxDeadlineExtensionMs: 300_000`); vor allem aber war in
+Model Lab eine Quelle `C:\Users\ralle` (ganzes Benutzerprofil) registriert, die jeden Modell-Scan auf 90s+
+aufblies. Quelle per SQL geloescht (Nutzerwunsch), `GET /models/index` jetzt 2.7s statt 90s+. Per echtem
+Playwright-`_electron`-Launch verifiziert: App zeigt sofort die Haupt-UI, kein Splash-Hang mehr. Details
+siehe HANDOVER.md.
+
+**Noch offen:** Model Lab hat keinen Delete/Disable-Endpoint fuer Quellen (`backend/app/api/model_lab.py`
+nur `GET`/`POST /sources`) — sollte ergaenzt werden, damit sowas kuenftig ueber die UI korrigierbar ist statt
+manueller DB-Chirurgie. Ausserdem: beim naechsten Diagnose-Lauf `Stop-Process` (PowerShell) statt `kill`
+(Git Bash) fuer native Windows-Prozesse nutzen — `kill` erreicht sie oft nicht zuverlaessig und hinterlaesst
+Prozess-Muell.
+
 ## Backend-Boot-Hang (Resident-Model-Autostart blockiert Event-Loop) — BEHOBEN
 
 `run_resident_model_startup()` rief `build_index()`/`start_model()` synchron statt per `asyncio.to_thread`
