@@ -88,15 +88,19 @@ export function SettingField({ definition, modelOptions = [], modelLabOptionsByK
   switch (definition.control) {
     case "toggle":
       control = (
-        <input
-          checked={Boolean(value)}
-          className="h-4 w-4 accent-dbzs-cyan"
-          disabled={!editable}
-          onChange={(event) =>
-            commitImmediate(event.currentTarget.checked as AppSettings[typeof key])
-          }
-          type="checkbox"
-        />
+        <span className="mt-2 flex items-center gap-2">
+          <input
+            checked={Boolean(value)}
+            className="h-4 w-4 accent-dbzs-cyan"
+            disabled={!editable}
+            id={`setting-${String(key)}-input`}
+            onChange={(event) =>
+              commitImmediate(event.currentTarget.checked as AppSettings[typeof key])
+            }
+            type="checkbox"
+          />
+          <span className="text-[11px] text-dbzs-muted">{value ? "Aktiviert" : "Deaktiviert"}</span>
+        </span>
       );
       break;
     case "range":
@@ -252,19 +256,13 @@ export function SettingField({ definition, modelOptions = [], modelLabOptionsByK
       break;
   }
 
-  const layoutToggle = definition.control === "toggle";
-
   return (
     <label
-      className={
-        layoutToggle
-          ? "flex items-center justify-between gap-3 text-xs text-dbzs-muted"
-          : "block text-xs text-dbzs-muted"
-      }
+      className="block text-xs text-dbzs-muted"
       data-setting-key={String(key)}
       id={`setting-${String(key)}`}
     >
-      <span className={layoutToggle ? "max-w-[70%]" : "block"}>
+      <span className="block">
         <span className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-dbzs-text">{definition.label}</span>
           {definition.experimental ? (
@@ -289,10 +287,12 @@ export function SettingField({ definition, modelOptions = [], modelLabOptionsByK
             </button>
           ) : null}
         </span>
-        <span className="mt-0.5 block text-[10px] leading-4 text-dbzs-muted">{definition.description}</span>
+        <span className="mt-1 block text-[10px] leading-4 text-dbzs-muted">{definition.description}</span>
       </span>
       {control}
-      <SettingStatusBadge status={status} />
+      <span className="mt-2 flex flex-wrap items-center gap-2">
+        <SettingStatusBadge status={status} />
+      </span>
       {error ? <span className="mt-1 block text-[10px] text-dbzs-red">{error}</span> : null}
     </label>
   );

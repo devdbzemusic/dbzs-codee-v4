@@ -2,6 +2,36 @@
 
 Stand: 2026-08-02
 
+## Settings-Panel-Feldlayout: Boxen + gestapelte Toggles statt dichter Liste (2026-08-02)
+
+**Auftrag:** Fortsetzung des Nutzerfeedbacks aus dem vorigen Eintrag ("Settingspanel umbauen"). Nutzerentscheidung
+nach Rückfrage: gleiches `SettingsNotebook` an beiden Renderstellen (Vollfenster + rechte Sidebar) beibehalten,
+aber das Feld-Layout überarbeiten — Label über Control statt daneben, mehr Abstand.
+
+**Fund:** `SettingsNotebook.tsx` ist buchstäblich dieselbe Komponente an beiden Stellen (Vollfenster
+`max-w-4xl` via `openSettingsWindow`/`App.tsx:566`, UND eingebettet als eine von ~13 Karten in der
+`AppShellRightSidebar` bei 220–520px Breite, `App.tsx:1056`) — keine responsive Anpassung, nur ein kosmetischer
+Text-Unterschied über den `compact`-Prop. `SettingField.tsx` layoutete Toggle-Felder mit
+`flex justify-between` (Label links, Checkbox rechts, Label auf 70% Breite begrenzt) — bei schmaler Breite
+wirkt das gequetscht. Alle Felder standen ohne visuelle Trennung in einer durchgehenden `space-y-3`-Liste.
+
+**Fix:**
+
+- `RegistrySettingsTab.tsx`: jedes Feld bekommt eine eigene Box (`border border-dbzs-border/40 bg-dbzs-panel/40
+  px-3 py-3`), Abstand zwischen Feldern `space-y-3` → `space-y-4`.
+- `SettingField.tsx`: Toggle-Layout vereinheitlicht mit allen anderen Control-Typen (kein `flex
+  justify-between` mehr) — Checkbox + "Aktiviert"/"Deaktiviert"-Text stehen jetzt wie jeder andere Control
+  unterhalb von Label/Beschreibung, nicht mehr daneben gequetscht. Etwas mehr vertikaler Abstand
+  (`mt-0.5` → `mt-1` für die Beschreibung, Status-Badge in eigene Zeile mit `mt-2`).
+
+**Verifiziert:** `tsc --noEmit` sauber, 142 Frontend-Tests (`src/settings` + `src/components/notebook`) grün.
+**Nicht visuell verifiziert:** Versuch, die echte Electron-App zu bauen (`pnpm build` lief durch) und per
+Playwright (`_electron`) oder direktem `electron.exe`-Aufruf (auch via PowerShell) zu starten, um einen
+Screenshot zu machen, ist an der Sandbox gescheitert — `electron.ipcMain` kommt selbst beim direkten Start der
+echten `electron.exe` als `undefined` zurück, was auf eine fehlende GUI-/Display-Fähigkeit in dieser Umgebung
+hindeutet, nicht auf einen Code-Fehler. **Bitte vor Abschluss dieses Themas einmal selbst im laufenden System
+ansehen**, ob das Layout wie gewünscht wirkt.
+
 ## Model Lab -> Settings: fehlenden "scan zu nutzbar"-Workflow geschlossen (2026-08-02)
 
 **Auftrag:** Nutzer schickte Screenshots der laufenden App (Model Lab bei "2/15 bereit", Settings-Panel) mit

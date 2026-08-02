@@ -5,6 +5,15 @@ Stand: 2026-08-02
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
 
+## UI-Feedback aus laufender App (Nutzer-Screenshots, 2026-08-02)
+
+Zwei Blöcke, Nutzerentscheidung: 1) Settings-Feldlayout überarbeiten (gleiches Notebook, responsiveres Feld-Layout)
+— **ERLEDIGT, aber nicht visuell verifiziert** (Electron-GUI-Start in dieser Sandbox nicht möglich, siehe
+HANDOVER.md — bitte einmal selbst ansehen). 2) Rechtes Panel bekommt Modus-Umschalter Agents/Debug-Log, im
+Debug-Modus füllt ein Live-Log (Auto-Scroll) das ganze Panel — **NÄCHSTER SCHRITT**. Bereits vorhandene Bausteine
+dafür: `runtimeChatStore`s `activeRun.events` (reaktiv, live), `ObservabilityService.onEvent()` (fertiges
+Pub/Sub, aktuell 0 Abonnenten).
+
 ## Workflow Authority & Safety Sprint
 
 Plan: `C:\Users\ralle\.claude\plans\zazzy-kindling-duckling.md` (Teil A-D). Nutzerauflage: nach jedem Block
