@@ -18,6 +18,8 @@ const ROLE_MODEL_KEYS = [
   "defaultDebugModelId",
   "defaultUtilityModelId",
   "defaultOrchestratorModelId",
+  "defaultWorkflowRoutingModelId",
+  "defaultDocumentationModelId",
 ] as const;
 
 function roleModelsChanged(previous: AppSettings, next: AppSettings): boolean {

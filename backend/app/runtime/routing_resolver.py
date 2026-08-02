@@ -138,9 +138,21 @@ class FleetRoutingResolver:
         slot_id = "quality_cpu"
 
         task = request.task_type
-        if task in ["small_code_change", "large_code_change", "debugging", "refactoring"]:
+        if task in ["small_code_change", "large_code_change", "refactoring"]:
             target_agent = "coder"
             if settings.defaultCoderModelId:
+                configured_model_id = settings.defaultCoderModelId
+            slot_id = "fast_gpu"
+        elif task == "debugging":
+            # Previously fell into the coder branch above and silently used
+            # defaultCoderModelId -- defaultDebugModelId existed in settings
+            # but nothing ever routed to it. Falls back to the coder model
+            # (not the bare default) when unset, since debugging still needs
+            # code capability.
+            target_agent = "debugger"
+            if settings.defaultDebugModelId:
+                configured_model_id = settings.defaultDebugModelId
+            elif settings.defaultCoderModelId:
                 configured_model_id = settings.defaultCoderModelId
             slot_id = "fast_gpu"
         elif task == "review":
@@ -162,6 +174,27 @@ class FleetRoutingResolver:
             if settings.defaultCoderModelId:  # Fallback to coder for tester
                 configured_model_id = settings.defaultCoderModelId
             slot_id = "fast_gpu"
+        elif task in ["intent_routing", "workflow_routing", "function_calling", "clarification_detection"]:
+            # These task types already existed in RuntimeTaskType (matching
+            # FunctionGemma-class models' own declared capabilities) and the
+            # orchestrator_cpu slot recommendation already existed client-side,
+            # but the resolver itself never had a branch for them -- they fell
+            # through to the bare default/quality_cpu. Falls back to the
+            # orchestrator model (closely related concept) before the generic
+            # default.
+            target_agent = "router"
+            if settings.defaultWorkflowRoutingModelId:
+                configured_model_id = settings.defaultWorkflowRoutingModelId
+            elif settings.defaultOrchestratorModelId:
+                configured_model_id = settings.defaultOrchestratorModelId
+            slot_id = "orchestrator_cpu"
+        elif task == "documentation":
+            target_agent = "documentation"
+            if settings.defaultDocumentationModelId:
+                configured_model_id = settings.defaultDocumentationModelId
+            elif settings.defaultChatModelId:
+                configured_model_id = settings.defaultChatModelId
+            slot_id = "quality_cpu"
 
         # 2. Vision override
         allow_vision = bool(request.has_image_input or request.requires_vision)

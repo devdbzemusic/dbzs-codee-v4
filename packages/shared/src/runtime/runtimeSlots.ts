@@ -20,7 +20,8 @@ export type RuntimeTaskType =
   | "image_analysis"
   | "ui_analysis"
   | "visual_debugging"
-  | "document_vision";
+  | "document_vision"
+  | "documentation";
 
 export type RuntimeSlotRole =
   | "chat"
@@ -45,7 +46,7 @@ export const RUNTIME_SLOT_DEFINITIONS = {
     purpose: "chat",
     hardwareClass: "cpu",
     port: 8081,
-    supportedTasks: ["casual_chat", "normal_chat"],
+    supportedTasks: ["casual_chat", "normal_chat", "documentation"],
     allowImplicitFallback: false
   },
   fast_gpu: {

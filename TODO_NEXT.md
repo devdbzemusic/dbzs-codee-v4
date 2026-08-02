@@ -5,6 +5,22 @@ Stand: 2026-08-03
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
 
+## Rollenmatrix verdrahtet, 3 tote Routing-Felder repariert, 9 Modelle zertifiziert — BEHOBEN
+
+Rollen-/Workflow-/Modellmatrix aus `Pläne/check/01 DBZS_CODEE_V4_ROLLE_WORKFLOW_MODELL_MATRIX_2026-08-03.md`
+umgesetzt. Dabei gefunden: `defaultDebugModelId` und `defaultOrchestratorModelId` waren im
+`FleetRoutingResolver` nie tatsaechlich angeschlossen (debugging nutzte still den Coder, Orchestrator nur
+beim Boot), kein "documentation"-Task-Type existierte. Alle drei jetzt repariert/neu, plus zwei neue Felder
+`defaultWorkflowRoutingModelId`/`defaultDocumentationModelId` durchgaengig ergaenzt (Backend-Settings,
+Shared-Types, Settings-UI, 6 neue Backend-Tests). Alle 9 zugewiesenen Modelle in Model Lab zertifiziert.
+Live-Rauchtest gegen echten Backend-Prozess bestaetigt. Details siehe HANDOVER.md.
+
+**Nebenbefund, bewusst nicht behoben:** Model-Lab-Vollscan haengt bei grossen Modellbestaenden minutenlang,
+weil `ModelLabScanner._artifact_from_path()` jede Kandidatendatei komplett per SHA-256 hasht ohne Progress-
+Reporting — kein Deadlock, sondern eine inhaerent teure Operation ohne Feedback. Root Cause dokumentiert,
+echte Behebung (inkrementelles Progress-Reporting / schnellerer Fingerprint) waere ein groesserer,
+tradeoff-behafteter Eingriff — auf Nutzerentscheidung warten, bevor das angegangen wird.
+
 ## Chat schlug bei kalter Rolle fehl ("Ziel-Slot nicht bereit") — BEHOBEN
 
 Der allgemeine Chat-Sendepfad hatte bereits eine funktionierende On-Demand-Start-Pipeline, aber ein frueherer,

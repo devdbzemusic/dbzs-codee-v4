@@ -44,6 +44,8 @@ class AppSettings(BaseModel):
     defaultDebugModelId: str = Field(default="", max_length=120)
     defaultUtilityModelId: str = Field(default="", max_length=120)
     defaultVisionModelId: str = Field(default="", max_length=120)
+    defaultWorkflowRoutingModelId: str = Field(default="", max_length=120)
+    defaultDocumentationModelId: str = Field(default="", max_length=120)
     autoStartChatRuntime: bool = False
     autoStartCodingRuntime: bool = False
     autoStartVisionRuntime: bool = False

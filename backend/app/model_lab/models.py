@@ -80,6 +80,8 @@ ModelSettingsFieldRole = Literal[
     "defaultDebugModelId",
     "defaultVisionModelId",
     "defaultOrchestratorModelId",
+    "defaultWorkflowRoutingModelId",
+    "defaultDocumentationModelId",
 ]
 ModelFleetRunStatus = Literal["queued", "running", "passed", "failed", "skipped"]
 

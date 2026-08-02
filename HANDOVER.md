@@ -2,6 +2,31 @@
 
 Stand: 2026-08-03
 
+## Rollenmatrix vollstaendig verdrahtet: 2 neue Settings-Felder + 3 tote Routing-Felder repariert, Modelle zertifiziert (2026-08-03)
+
+**Auftrag:** Nutzer gab eine Rollen-/Workflow-/Modellmatrix vor (`Pläne/check/01 DBZS_CODEE_V4_ROLLE_WORKFLOW_MODELL_MATRIX_2026-08-03.md`), zunaechst eine 9-Zeilen-, dann eine ueberarbeitete 9-Zeilen-Tabelle (Chat/Orchestrator/Workflow Routing/Planung/Coding/Debugging/Review/Dokumentation/Kontroll-Fallback). Bat anschliessend explizit um Zertifizierung der zugewiesenen Modelle und danach "mach das so" zur Bestaetigung, die fehlenden Settings-Felder + Routing-Verdrahtung zu ergaenzen.
+
+**Modell-Matching:** alle 9 Modellnamen per Model-Index (`GET /models/index`, 211 Modelle) und Model-Lab-Katalog (`GET /model-lab/models`, per exaktem Datei-Pfad statt nur Namens-Fuzzy-Match) aufgeloest — Qwen3.5-4B, MiniCPM5-1B, QwenPaw-Flash-2B, AgentCPM-Explore, InternScience_Agents-A1-4B, DeepScaleR-1.5B, Nemotron-3-Nano-4B, AgentCPM-Report, Qwen2.5-Coder-7B.
+
+**Wichtiger Zusatzfund beim Verdrahten:** 3 der 10 bereits existierenden `default*ModelId`-Settings-Felder waren im `FleetRoutingResolver` (Backend-Routing-Autoritaet) nie tatsaechlich angeschlossen:
+- `defaultDebugModelId` existierte, aber "debugging" fiel in denselben Branch wie `small_code_change`/`large_code_change`/`refactoring` und nutzte still `defaultCoderModelId`.
+- `defaultOrchestratorModelId` wurde nur beim Boot-Autostart (`resident_model_startup.py`) verwendet — im per-Request-Routing (`resolve()`) gab es dafuer ueberhaupt keinen Branch; `intent_routing`/`workflow_routing`/`function_calling`/`clarification_detection` (bereits als `RuntimeTaskType`-Werte vorhanden, FunctionGemma listet sie sogar als eigene Capabilities) fielen ungenutzt auf den bloßen Default zurueck.
+- Kein "documentation"-Task-Type existierte ueberhaupt.
+
+**Fix (`backend/app/runtime/routing_resolver.py`):**
+- Eigener `debugging`-Branch (`defaultDebugModelId`, Fallback `defaultCoderModelId`).
+- Neuer Branch fuer `intent_routing`/`workflow_routing`/`function_calling`/`clarification_detection` -> `defaultWorkflowRoutingModelId` (Fallback `defaultOrchestratorModelId`), Slot `orchestrator_cpu`.
+- Neuer `documentation`-Branch -> `defaultDocumentationModelId` (Fallback `defaultChatModelId`), Slot `quality_cpu`.
+- Neue Felder `defaultWorkflowRoutingModelId`/`defaultDocumentationModelId` in `AppSettings` (Backend), `AppSettings`-TS-Typ + `DEFAULT_SETTINGS` (`packages/shared`), `ModelSettingsFieldRole`, `settingsRegistry.ts` (UI-Eintrag), `settingsStore.ts` (`ROLE_MODEL_KEYS`).
+- `"documentation"` zu `RuntimeTaskType` (`packages/shared`) und `quality_cpu`s `supportedTasks` ergaenzt.
+- 6 neue Backend-Tests fuer alle drei neuen/reparierten Branches inkl. Fallback-Verhalten.
+
+**Zertifizierung:** alle 9 zugewiesenen Modelle in Model Lab mit passenden Capability-Zertifikaten versehen (`POST /model-lab/certifications`, `status: passed`, Notiz dass dies eine manuelle, nutzergesteuerte Zertifizierung ist, keine automatisierte Testauswertung) — CHAT_VERIFIED als Basis fuer alle neun, plus rollenspezifisch TOOL_CALLING_VERIFIED (Orchestrator, Workflow Routing), INSTRUCTION_FOLLOWING_VERIFIED (Planung), CODING_VERIFIED (Coding, Debugging, Review, Kontroll-Fallback), STRUCTURED_OUTPUT_VERIFIED (Review), REPORT_GENERATION_VERIFIED (Dokumentation).
+
+**Nebenbefund (bewusst nicht behoben):** ein von mir angestossener Model-Lab-Vollscan (`POST /model-lab/scan {"all_sources": true}`) haengte minutenlang bei 0 Fortschritt. Root Cause identifiziert: `ModelLabScanner._artifact_from_path()` berechnet einen vollen SHA-256-Hash ueber den gesamten Dateiinhalt jeder Kandidatendatei (`.gguf`/`.safetensors`/`.onnx`) ohne jegliches Progress-Reporting (`total_files` wird erst nach dem kompletten Lauf gesetzt) — bei Hunderten GB an Modelldateien ueber `.ollama`+`D:\Models\Agentic`+`D:\Models` ist das inhaerent sehr langsam, kein Deadlock wie die zwei zuvor gefixten Boot-Haenger. Verwaiste Job-Zeile in `model_lab.sqlite3` manuell auf "failed" gesetzt (Prozess war durch mein eigenes Cleanup beendet worden). Eine echte Behebung (inkrementelles Progress-Reporting, ggf. schnellerer Fingerprint statt Voll-Hash) waere ein groesserer Architektur-Eingriff — bewusst nicht ungefragt umgesetzt.
+
+**Verifiziert:** `tsc --noEmit` sauber (shared + desktop), `pnpm run build` erfolgreich, voller Backend-`pytest`-Lauf 614/614 gruen, voller Desktop-`vitest`-Lauf 1309/1353 gruen (dieselben 2 vorbestehenden, unabhaengigen `chatActions.test.ts`-Fehler). Live-Rauchtest gegen echten Backend-Prozess: `POST /runtime/route` fuer `documentation`/`workflow_routing`/`debugging` loest jeweils korrekt auf das neu gesetzte Modell auf (nicht nur in Unit-Tests).
+
 ## Chat-Fehler "Der Ziel-Slot fuer das Modell ist nicht bereit" bei kalter Rolle behoben (2026-08-03)
 
 **Auftrag:** Live-Fehlerbericht (Screenshot + Diagnose-JSON) — eine C@dee-Chat-Anfrage mit Reviewer-Routing

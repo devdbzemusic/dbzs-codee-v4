@@ -85,6 +85,8 @@ export interface AppSettings {
   autoStartReviewRuntime?: boolean;
   defaultUtilityModelId?: string;
   defaultVisionModelId?: string;
+  defaultWorkflowRoutingModelId?: string;
+  defaultDocumentationModelId?: string;
   idleUnloadWorkModelsMinutes?: number;
   chatRuntimeSlot: "quality_cpu";
   codingRuntimeSlot: "fast_gpu";
@@ -200,6 +202,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoStartReviewRuntime: false,
   defaultUtilityModelId: "",
   defaultVisionModelId: "",
+  defaultWorkflowRoutingModelId: "",
+  defaultDocumentationModelId: "",
   idleUnloadWorkModelsMinutes: 10,
   chatRuntimeSlot: "quality_cpu",
   codingRuntimeSlot: "fast_gpu",
