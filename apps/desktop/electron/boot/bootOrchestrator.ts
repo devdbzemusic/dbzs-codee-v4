@@ -83,6 +83,7 @@ export class BootOrchestrator {
   private readonly clock: BootOrchestratorClock;
   private readonly listeners = new Set<(state: BootState) => void>();
   private readonly logListeners = new Set<(entry: BootLogEntry) => void>();
+  private readonly isSafeMode: boolean;
   private readonly active = new Map<string, Promise<void>>();
   /** Flat, global insertion-order view of every log entry still retained by some phase -- backs the MAX_GLOBAL_LOG_ENTRIES cap. */
   private readonly globalLogEntries: BootLogEntry[] = [];
@@ -94,7 +95,7 @@ export class BootOrchestrator {
   constructor(
     phaseDefinitions: BootPhaseDefinition[],
     runners: Record<string, PhaseRunner>,
-    options?: { clock?: BootOrchestratorClock; runId?: string }
+    options?: { clock?: BootOrchestratorClock; runId?: string; isSafeMode?: boolean }
   ) {
     const validation = validateBootGraph(phaseDefinitions, runners);
     if (!validation.valid) {
@@ -104,6 +105,7 @@ export class BootOrchestrator {
     this.definitions = new Map(phaseDefinitions.map((def) => [def.id, def]));
     this.runners = runners;
     this.clock = options?.clock ?? defaultClock;
+    this.isSafeMode = options?.isSafeMode ?? false;
 
     this.state = {
       runId: options?.runId ?? randomUUID(),
@@ -119,6 +121,8 @@ export class BootOrchestrator {
       detectedModelCount: null,
       lastErrorMessage: null
     };
+
+    this.skipSafeModePhases();
   }
 
   getState(): BootState {
@@ -244,6 +248,20 @@ export class BootOrchestrator {
       if (phase.dependencies.includes(phaseId) && phase.state === "blocked") {
         this.resetPhaseForRetry(phase.id);
         this.resetDependentsToPending(phase.id);
+      }
+    }
+  }
+
+  private skipSafeModePhases(): void {
+    if (!this.isSafeMode) return;
+
+    for (const def of this.definitions.values()) {
+      // safeMode: false bedeutet, die Phase wird im Safe-Mode übersprungen.
+      // Der Default ist true (also nicht überspringen).
+      if (def.safeMode === false) {
+        const phase = this.getPhaseOrThrow(def.id);
+        phase.state = "skipped";
+        phase.message = "Im sicheren Modus übersprungen.";
       }
     }
   }

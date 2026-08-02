@@ -159,6 +159,7 @@ import {
   outcomeForPhaseTimeout,
   type PhaseTimeoutKind
 } from "@/services/runtimePhaseTimeouts";
+import { verifySlotForRequest } from "@/services/runtimeSlotValidator";
 import { validateResolvedRuntimeRoute } from "@/services/runtimeRouteValidator";
 import { gateSlotForRequest } from "@/services/runtimeSlotExecutionState";
 import { checkMissingInformation } from "@/services/missingInformationPolicy";
@@ -1203,6 +1204,39 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
         const errMsg = error instanceof Error ? error.message : "Slot-Status nicht lesbar";
         finishStep("slot-validation", "Slot-Status lesen", errMsg);
       }
+    }
+
+    // P0 Phase 3: Slot-Validierung nach dem Routing und vor dem Kontextaufbau
+    // Dies stellt sicher, dass wir keinen aufwändigen Kontext für einen Slot erstellen,
+    // der nicht bereit ist, die Anfrage anzunehmen.
+    beginStep("slot-readiness", "Slot-Bereitschaft prüfen");
+    try {
+      const backendUrl = useSettingsStore.getState().settings.backendUrl || "http://127.0.0.1:8876";
+      const readinessSlotId = contextSlotId as RuntimeSlotId;
+      const validation = await verifySlotForRequest(
+        backendUrl,
+        readinessSlotId,
+        routing.modelId!,
+        timeoutManager.getRouting(),
+        runAbortController.signal
+      );
+      if (!validation.ok) {
+        throw new Error(validation.error || "Slot validation failed");
+      }
+      finishStep("slot-readiness", "Slot-Bereitschaft prüfen", `Slot '${contextSlotId}' ist bereit.`);
+    } catch (error) {
+      const logMessage = error instanceof Error ? error.message : "Slot nicht bereit.";
+      const userMessage = "Der Ziel-Slot für das Modell ist nicht bereit.";
+
+      failStep("slot-readiness", "Slot-Bereitschaft prüfen", logMessage);
+      appendGenericRunFailure({
+        updateActiveRun,
+        outcome: "runtime_error",
+        summary: userMessage,
+        error: { code: "target_slot_unavailable", message: logMessage, phase: "routing" }
+      });
+      finalizeSendState({ set, get, activity, errorMessage: userMessage });
+      return false;
     }
 
     const orchestrationMessages: string[] = [];
