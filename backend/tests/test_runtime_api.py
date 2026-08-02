@@ -270,7 +270,7 @@ def test_runtime_api_records_and_lists_slot_health_events(tmp_path: Path) -> Non
     assert events[0]["model_id"] == "coder.gguf"
 
 
-def test_runtime_api_rejects_mismatched_slot_id_on_health_event(tmp_path: Path) -> None:
+def test_runtime_api_coerces_mismatched_slot_id_on_health_event(tmp_path: Path) -> None:
     repository = ModelLabRepository(db_path=tmp_path / "model_lab.sqlite3")
     app.dependency_overrides[get_shared_model_lab_repository] = lambda: repository
     client = TestClient(app)
@@ -281,7 +281,9 @@ def test_runtime_api_rejects_mismatched_slot_id_on_health_event(tmp_path: Path) 
     )
 
     app.dependency_overrides.clear()
-    assert response.status_code == 400
+    assert response.status_code == 200
+    event = response.json()
+    assert event["slot_id"] == "fast_gpu"
 
 
 # --- Plan 15, Phase 5: dual-mode vision — projector_artifact_id resolution ---

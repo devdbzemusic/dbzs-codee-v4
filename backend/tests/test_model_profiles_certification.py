@@ -10,11 +10,19 @@ from app.main import app
 from app.model_lab.models import ModelSourceCreate
 from app.model_lab.repository import ModelLabRepository
 from app.models.schemas import IndexedModel, ModelIndex, ModelIndexSummary, ModelRuntimeHints
-from app.runtime.schemas import RuntimeChatMessage, RuntimeChatResponse
+from app.runtime.schemas import RuntimeChatMessage, RuntimeChatResponse, RuntimeStatus
 from tests.test_model_lab_repository import _artifact, _bundle
+from app.settings.service import get_settings_service
+from app.model_lab.repository import get_shared_model_lab_repository
 
 
 class _AlwaysPassRuntimeService:
+    def start_model(self, model_id: str, *, slot_id: str | None = None, config: dict | None = None) -> RuntimeStatus:
+        return RuntimeStatus(state="running", message="ok")
+        
+    def stop_model(self, slot_id: str | None = None) -> RuntimeStatus:
+        return RuntimeStatus(state="stopped", message="ok")
+
     def chat(self, request):
         category = request.messages[-1].content.split("case: ", 1)[1].split(".", 1)[0]
         return RuntimeChatResponse(
@@ -106,8 +114,7 @@ def test_certification_run_resolves_bundle_id_to_model_id(tmp_path: Path, monkey
     _seed_bundle_at(repo, model_path)
 
     monkeypatch.setattr("app.api.model_profiles.get_settings_service", lambda: _FakeSettingsService(True))
-    monkeypatch.setattr("app.api.model_profiles.get_shared_model_lab_repository", lambda: repo)
-
+    app.dependency_overrides[get_shared_model_lab_repository] = lambda: repo
     app.dependency_overrides[get_runtime_service] = lambda: _AlwaysPassRuntimeService()
     app.dependency_overrides[get_model_index_service] = lambda: _FakeIndexService(str(model_path))
     client = TestClient(app)
@@ -115,8 +122,13 @@ def test_certification_run_resolves_bundle_id_to_model_id(tmp_path: Path, monkey
     response = client.post("/model-profiles/certification/runs", json={"bundle_id": "b1", "hardware": "gpu:test"})
 
     app.dependency_overrides.clear()
+        
+    bundle = repo.get_model("b1")
+    primary = [a for a in bundle.artifacts if a.artifact_id == bundle.bundle.primary_artifact_id][0]
+    print("PRIMARY PATH:", primary.path, "RESOLVED:", Path(primary.path).resolve())
+    print("INDEX PATH:", _FakeIndexService(str(model_path)).build_index().models[0].path, "RESOLVED:", Path(_FakeIndexService(str(model_path)).build_index().models[0].path).resolve())
 
-    assert response.status_code == 200
+    assert response.status_code == 200, response.json()
     payload = response.json()
     assert payload["model_id"] == "resolved-model"
     assert payload["bundle_id"] == "b1"

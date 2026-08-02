@@ -117,12 +117,12 @@ def resolve_bundle_to_model_id(
     if not primary:
         return None
     try:
-        target_path = str(Path(primary.path).resolve())
+        target_path = Path(primary.path).resolve()
     except OSError:
         return None
     for model in model_index.models:
         try:
-            if str(Path(model.path).resolve()) == target_path:
+            if Path(model.path).resolve() == target_path:
                 return model.id
         except OSError:
             continue

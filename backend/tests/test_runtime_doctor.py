@@ -165,7 +165,7 @@ def test_runtime_probe_allow_start_runs_controlled_start(tmp_path: Path) -> None
     stopped = RuntimeStatus(state="stopped", message="Runtime stopped.")
 
     class FakeRuntimeService:
-        def start_model(self, model_id: str, config: dict | None = None) -> RuntimeStatus:
+        def start_model(self, model_id: str, *, slot_id: str | None = None, config: dict | None = None) -> RuntimeStatus:
             assert model_id == "coder"
             assert config is None
             return running
@@ -211,7 +211,7 @@ def test_runtime_probe_allows_mmproj_pairing_and_passes_mmproj_path(tmp_path: Pa
         def __init__(self) -> None:
             self.received_config: dict | None = None
 
-        def start_model(self, model_id: str, config: dict | None = None) -> RuntimeStatus:
+        def start_model(self, model_id: str, *, slot_id: str | None = None, config: dict | None = None) -> RuntimeStatus:
             assert model_id == "vision-base"
             self.received_config = config
             return running
@@ -273,7 +273,7 @@ def test_runtime_probe_requires_endpoint_verification_before_marking_pair_verifi
     stopped = RuntimeStatus(state="stopped", message="Runtime stopped.")
 
     class FakeRuntimeService:
-        def start_model(self, model_id: str, config: dict | None = None) -> RuntimeStatus:
+        def start_model(self, model_id: str, *, slot_id: str | None = None, config: dict | None = None) -> RuntimeStatus:
             assert model_id == "vision-base"
             return running
 
@@ -327,7 +327,7 @@ def test_runtime_probe_requires_multimodal_chat_verification_for_mmproj_pairs(tm
     stopped = RuntimeStatus(state="stopped", message="Runtime stopped.")
 
     class FakeRuntimeService:
-        def start_model(self, model_id: str, config: dict | None = None) -> RuntimeStatus:
+        def start_model(self, model_id: str, *, slot_id: str | None = None, config: dict | None = None) -> RuntimeStatus:
             assert model_id == "vision-base"
             return running
 
@@ -383,7 +383,7 @@ def test_runtime_probe_surfaces_multimodal_chat_exception_details(tmp_path: Path
     stopped = RuntimeStatus(state="stopped", message="Runtime stopped.")
 
     class FakeRuntimeService:
-        def start_model(self, model_id: str, config: dict | None = None) -> RuntimeStatus:
+        def start_model(self, model_id: str, *, slot_id: str | None = None, config: dict | None = None) -> RuntimeStatus:
             assert model_id == "vision-base"
             return running
 
