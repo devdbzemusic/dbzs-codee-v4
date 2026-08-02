@@ -2,6 +2,25 @@
 
 Stand: 2026-08-02
 
+## Alle 16 Dependabot-Findings behoben: zwei tote, versehentliche Top-Level-Dependencies entfernt (2026-08-02)
+
+**Auftrag:** Nutzer bat "fix it" nach dem Hinweis auf 16 offene Dependabot-Alerts (4 critical, 4 high,
+7 moderate, 1 low), alle in `pnpm-lock.yaml`.
+
+**Root Cause:** Alle 16 Findings (`minimist`, `ejs`, `parse-url` x5, `gry`, `got`, `tmp`, `micromatch`,
+`braces`) stammten NICHT aus benoetigtem Tooling (electron-builder, tailwindcss), sondern ausschliesslich
+aus zwei komplett toten, versehentlich in `apps/desktop/package.json` gelandeten Top-Level-Dependencies:
+`"go": "^3.0.1"` (ein Boilerplate-Scaffolding-CLI-Tool) und `"package.json": "^2.0.1"` (ein
+Git-Package-Metadata-Reader). Beide + eine dritte tote Dependency (`"runs": "^1.0.1"`) wurden nachweislich
+nirgendwo im Code importiert (`grep` ueber das ganze Repo: 0 Treffer) und laut `git log -S` versehentlich
+in einem unabhaengigen Feature-Commit (`cc807c0`, Model Lab Phase 5/8) eingeschleust — vermutlich ein
+Paketname-Verwechslungsfehler, nicht absichtlich hinzugefuegt.
+
+**Fix:** alle drei toten Dependencies aus `apps/desktop/package.json` entfernt, `pnpm-lock.yaml`
+neu generiert (237 transitive Pakete verschwunden). `pnpm audit` danach: "No known vulnerabilities found".
+Verifiziert: `tsc --noEmit` sauber, `pnpm run build` erfolgreich, volle `vitest`-Suite weiterhin 1308/1352
+gruen (dieselben 2 vorbestehenden, unabhaengigen `chatActions.test.ts`-Fehler wie zuvor, keine neuen).
+
 ## Model Lab UI: zwei Layout-Bugs behoben, per Screenshot verifiziert (2026-08-02)
 
 **Auftrag:** Nutzer-Screenshot zeigte das Inspector-Panel im Model Lab (rechte Spalte,

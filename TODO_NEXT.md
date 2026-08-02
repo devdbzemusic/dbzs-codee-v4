@@ -5,6 +5,14 @@ Stand: 2026-08-02
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
 
+## 16 Dependabot-Findings — BEHOBEN
+
+Alle 16 offenen Alerts kamen ausschliesslich von zwei toten, versehentlichen Top-Level-Dependencies
+(`"go"`, `"package.json"`, dazu die ebenfalls ungenutzte `"runs"`) in `apps/desktop/package.json` —
+nirgendwo im Code verwendet, per `git log -S` auf Commit `cc807c0` zurueckverfolgt. Entfernt,
+`pnpm-lock.yaml` neu generiert (237 Pakete weniger), `pnpm audit` jetzt sauber. Build/Typecheck/Tests
+weiterhin gruen. Details siehe HANDOVER.md.
+
 ## Model Lab UI: Inspector-Panel-Stretch + Zertifizierung-Button-Clipping — BEHOBEN, PER SCREENSHOT VERIFIZIERT
 
 Zwei CSS-Layout-Bugs im Model Lab: (1) `items-start` auf dem 2-Spalten-Grid in `ModelLabTab.tsx` ergaenzt,

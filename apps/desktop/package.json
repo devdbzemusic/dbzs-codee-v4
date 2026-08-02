@@ -6,14 +6,11 @@
   "dependencies": {
     "@dbzs/shared": "workspace:*",
     "@monaco-editor/react": "^4.7.0",
-    "go": "^3.0.1",
     "monaco-editor": "^0.55.1",
-    "package.json": "^2.0.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "runs": "^1.0.1",
     "yaml": "^2.9.0",
     "zod": "^3.25.76",
     "zustand": "^5.0.14"
