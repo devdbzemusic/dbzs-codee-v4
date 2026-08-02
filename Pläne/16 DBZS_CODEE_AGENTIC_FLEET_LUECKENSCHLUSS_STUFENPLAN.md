@@ -11,7 +11,7 @@
 | 2 | Model-Lab-Bridge-Schalter, Scan-Deckel | ✅ erledigt |
 | 3 | Rollen & Routing: Tabelle + UI | ✅ erledigt |
 | 4 | RAM-Prozentschwellen-Schutz | ✅ erledigt |
-| 1 | Quelle registrieren & Scan verifizieren | ⏳ offen (reine Verifikation) |
+| 1 | Quelle registrieren & Scan verifizieren | ✅ erledigt |
 | 6 | Persistente Health-/Failure-Historie | ✅ erledigt |
 | 7 | Zertifizierung/Benchmark an Bundle-IDs | ✅ erledigt |
 | 8 | Hardware-geprüfte Residency-Defaults | ✅ erledigt |

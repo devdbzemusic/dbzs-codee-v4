@@ -611,7 +611,7 @@ describe("useRuntimeChatStore", () => {
     await useRuntimeChatStore.getState().sendMessage("Fehler analysieren", stoppedStatus, null);
 
     expect(resolveDefaultModelForSlotMock).not.toHaveBeenCalled();
-    expect(startSlotMock).toHaveBeenCalledWith("fast_gpu", "coder", "balanced");
+    expect(startSlotMock).toHaveBeenCalledWith("fast_gpu", "coder", "balanced", undefined);
     expect(waitForSlotReadyMock).toHaveBeenCalledWith("fast_gpu", expect.any(Number));
     expect(verifySlotForRequestMock).toHaveBeenCalledWith(
       expect.any(String),
@@ -684,7 +684,7 @@ describe("useRuntimeChatStore", () => {
 
     await useRuntimeChatStore.getState().sendMessage("Hallo", stoppedStatus, null);
     expect(getAllSlotsStatusMock).toHaveBeenCalled();
-    expect(startSlotMock).toHaveBeenCalledWith("quality_cpu", "chat-model", "balanced");
+    expect(startSlotMock).toHaveBeenCalledWith("quality_cpu", "chat-model", "balanced", undefined);
     expect(sendChatStreamMock).toHaveBeenCalled();
   });
 
