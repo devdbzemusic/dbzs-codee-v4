@@ -5,14 +5,18 @@ Stand: 2026-08-02
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
 
-## UI-Feedback aus laufender App (Nutzer-Screenshots, 2026-08-02)
+## UI-Feedback aus laufender App (Nutzer-Screenshots, 2026-08-02) — BEIDE BLÖCKE ERLEDIGT
 
-Zwei Blöcke, Nutzerentscheidung: 1) Settings-Feldlayout überarbeiten (gleiches Notebook, responsiveres Feld-Layout)
-— **ERLEDIGT, aber nicht visuell verifiziert** (Electron-GUI-Start in dieser Sandbox nicht möglich, siehe
-HANDOVER.md — bitte einmal selbst ansehen). 2) Rechtes Panel bekommt Modus-Umschalter Agents/Debug-Log, im
-Debug-Modus füllt ein Live-Log (Auto-Scroll) das ganze Panel — **NÄCHSTER SCHRITT**. Bereits vorhandene Bausteine
-dafür: `runtimeChatStore`s `activeRun.events` (reaktiv, live), `ObservabilityService.onEvent()` (fertiges
-Pub/Sub, aktuell 0 Abonnenten).
+1) Settings-Feldlayout überarbeitet (gleiches Notebook, Feld-Boxen + gestapelte Toggles statt dichter Liste).
+2) Rechtes Panel bekam Modus-Umschalter "Agents"/"Debug Log" (`App.tsx`, `rightSidebarMode`-State); im
+Debug-Modus füllt `DebugLogPanel.tsx` das ganze Panel mit einem live-scrollenden Event-Stream aus
+`runtimeChatStore`s `activeRun.events` UND `ObservabilityService.onEvent()` (dessen Pub/Sub vorher 0
+Abonnenten hatte — jetzt der erste). Auto-Scroll mit Pause-bei-manuellem-Scroll + "Zum Ende springen".
+
+**Beide Blöcke NICHT visuell verifiziert** — Electron-GUI-Start in dieser Sandbox nicht möglich (Playwright
+und direkter `electron.exe`-Aufruf liefern beide `electron.ipcMain === undefined`, spricht für fehlende
+Display-Fähigkeit der Umgebung, kein Code-Fehler). **Bitte im laufenden System selbst ansehen**, ob beide
+Layouts wie gewünscht wirken, bevor dieses Thema als abgeschlossen gilt. Details siehe HANDOVER.md.
 
 ## Workflow Authority & Safety Sprint
 

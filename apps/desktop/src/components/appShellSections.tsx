@@ -27,12 +27,22 @@ export function AppShellRightSidebar({
   onCollapse,
   onExpand,
   onResize,
+  modeToggle,
+  fillBody = false,
   children
 }: {
   collapsed: boolean;
   onCollapse: () => void;
   onExpand: () => void;
   onResize: (event: React.PointerEvent<HTMLButtonElement>) => void;
+  /** Optional mode switcher rendered below the header, outside the scrollable body. */
+  modeToggle?: ReactNode;
+  /**
+   * When true, the body becomes a non-padded flex-1 column instead of the
+   * default scrollable card stack — for content (e.g. a live log) that
+   * manages its own internal scrolling instead of a vertical list of cards.
+   */
+  fillBody?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -50,7 +60,12 @@ export function AppShellRightSidebar({
             onCollapse={onCollapse}
             title="AI / Agents"
           />
-          <div className="panel-scroll space-y-4 px-4 pb-4">{children}</div>
+          {modeToggle ? <div className="shrink-0 px-4 pb-3">{modeToggle}</div> : null}
+          {fillBody ? (
+            <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+          ) : (
+            <div className="panel-scroll space-y-4 px-4 pb-4">{children}</div>
+          )}
         </>
       )}
       {!collapsed ? (

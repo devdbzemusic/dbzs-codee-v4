@@ -2,6 +2,48 @@
 
 Stand: 2026-08-02
 
+## Rechtes Panel: Debug-Log-Modus mit Live-Event-Stream (2026-08-02)
+
+**Auftrag:** Nutzerwunsch nach Screenshot-Feedback: "Panel Rechts Umgestaltung zum extrem detaillierten Debug
+Log und Observer Output Fenster. Hier soll wirklich jeder einzelne Furz zu sehen sein den die App macht (Auto
+Down Scroll)." Nutzerentscheidung nach Rückfrage: kompletter Ersatz mit Modus-Umschalter (Agents / Debug Log)
+statt fester Umgestaltung — die bestehenden 13 Agenten-Karten bleiben im "Agents"-Modus erhalten.
+
+**Fund (Untersuchung):** Zwei bereits vorhandene, aber ungenutzte bzw. nur teilweise genutzte Event-Quellen:
+`runtimeChatStore`s `activeRun.events`/`historicalRuns[...].events` (reaktiv, live befüllt über
+`appendRunEvent()` an ~15 Call-Sites) und `ObservabilityService` (`apps/desktop/src/runtime/observability/
+observabilityService.ts`) mit fertigem Pub/Sub (`onEvent()`/`emitEvent()`), das bisher **null Abonnenten**
+hatte — nur Pull-basierte Leser (`getAllTraces()` etc.) existierten.
+
+**Fix:**
+
+- Neue Komponente `apps/desktop/src/components/DebugLogPanel.tsx`: abonniert `observabilityService.onEvent()`
+  (erster echter Abonnent) und beobachtet `activeRun`/`historicalRuns` aus dem Store per Diff (nur neu
+  hinzugekommene `events` je Run werden angehängt, damit es auch bei vielen historischen Runs günstig bleibt).
+  Beide Quellen fließen chronologisch sortiert in eine gemeinsame, auf 2000 Einträge gedeckelte Liste.
+  Auto-Scroll folgt neuen Einträgen, solange der Nutzer nicht manuell nach oben scrollt (Distanz-zu-Boden-Check
+  beim `onScroll`); dann erscheint ein "Zum Ende springen"-Button statt zu erzwingen. "Leeren"-Button setzt
+  die Liste zurück.
+- `apps/desktop/src/components/appShellSections.tsx`: `AppShellRightSidebar` bekommt zwei neue optionale
+  Props — `modeToggle` (Inhalt unterhalb des Headers, außerhalb des scrollbaren Bereichs) und `fillBody`
+  (wenn `true`: Body wird zu einer nicht-scrollenden `flex-1`-Spalte, die der Kindkomponente die eigene
+  Scroll-Kontrolle überlässt — nötig für das Live-Log statt der sonst üblichen Karten-Liste). Beide Props
+  optional mit sicherem Default, einzige bestehende Verwendungsstelle (`App.tsx`) unberührt kompatibel.
+- `App.tsx`: neuer State `rightSidebarMode` ("agents" | "debug-log"), kleiner Umschalter als `modeToggle`,
+  bestehender ~150-Zeilen-Block mit den 13 Agenten-Karten unverändert in ein `{rightSidebarMode === "agents"
+  ? (<>...</>) : <DebugLogPanel />}` gewrappt — keine der bestehenden Karten-Komponenten oder ihre Props
+  wurden angefasst.
+
+**Verifiziert:** `tsc --noEmit` sauber. Neue `DebugLogPanel.test.tsx` (5 Tests: Platzhalter, Live-Events aus
+aktivem Run, Diff-basiertes Anhängen ohne Duplikate, ObservabilityService-Events, Leeren-Button) grün. Breiter
+Regressionslauf `src/components` + `src/stores` (54 Dateien/315 Tests) und `src/services` (89 Dateien/624
+Tests) weiterhin grün. Kein bestehender Test deckt `App.tsx`/`appShellSections.tsx` direkt ab (keine Datei
+existiert dafür) — das ist ein vorbestehender Zustand, nicht durch diese Änderung verursacht.
+
+**Nicht visuell verifiziert** (gleiche Sandbox-Einschränkung wie beim vorigen Eintrag — Electron kann hier kein
+echtes GUI-Fenster öffnen). **Bitte im laufenden System selbst prüfen:** Umschalter sichtbar und funktional,
+Log erscheint live bei einer Chat-/Agent-Anfrage, Auto-Scroll-Verhalten wie erwartet.
+
 ## Settings-Panel-Feldlayout: Boxen + gestapelte Toggles statt dichter Liste (2026-08-02)
 
 **Auftrag:** Fortsetzung des Nutzerfeedbacks aus dem vorigen Eintrag ("Settingspanel umbauen"). Nutzerentscheidung
