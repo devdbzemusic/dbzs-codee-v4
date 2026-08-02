@@ -2,6 +2,39 @@
 
 Stand: 2026-08-02
 
+## Backend-Boot-Hang behoben: Resident-Model-Autostart blockierte den kompletten Event-Loop (2026-08-02)
+
+**Auftrag:** Nutzer bat erneut "starte App mit Trace", danach "schau" zu Screenshots eines Boot-Fehlers
+("Backend-Health-Endpunkt erreichbar" haengt hart bei 60.2s, `FastAPI backend did not become ready`).
+
+**Root Cause gefunden (per direkter Reproduktion + Code-Lesen, nicht nur Vermutung):**
+`run_resident_model_startup()` (`backend/app/runtime/resident_model_startup.py`) wird beim Boot per
+`asyncio.create_task(...)` als "nicht blockierend" geplant (genau wie sein Geschwister
+`run_model_index_startup()`), rief aber **synchron und blockierend** `model_index_service.build_index()`
+(2x) und `service.start_model(...)` (2x, das selbst nochmal `build_index()` + Subprozess-Start +
+Readiness-Polling macht) direkt im Coroutine-Body auf — ohne `asyncio.to_thread(...)`. Da asyncios Event-Loop
+single-threaded ist, blockiert das die GESAMTE Anwendung (inkl. Uvicorns eigenem HTTP-Accept-Loop) fuer die
+volle Dauer des Modell-Scans + Subprozess-Starts. Das erklaert exakt das beobachtete Symptom: kein
+"Application startup complete" im Log, `ECONNREFUSED` auf dem Health-Endpoint, harter 60s-Timeout in der UI.
+`autoStartOrchestratorRuntime` ist standardmaeszig `true`, betrifft also jeden normalen Boot.
+
+**Verifikation der Diagnose:** Backend direkt (ohne Electron) per `uvicorn app.main:app` gestartet — haengt
+reproduzierbar identisch (kein "Application startup complete" nach 40s). Isolierter Probe-Test von
+`_run_startup_tasks()` allein zeigt Rueckkehr in 0.01s (bestaetigt: nicht die Lifespan-Funktion selbst haengt,
+sondern einer der beiden fire-and-forget Background-Tasks, die sie anstoeszt).
+
+**Fix:** alle vier blockierenden Aufrufe in `resident_model_startup.py` mit `await asyncio.to_thread(...)`
+umschlossen — exakt das bereits etablierte Muster aus `index_startup.py` (Kommentar dort: "Must not block
+GET /health/ready"). `import asyncio` ergaenzt.
+
+**Verifiziert:** direkter `uvicorn`-Start erreicht jetzt "Application startup complete." nach ~10s (statt nie),
+`/health/ready` antwortet sofort mit HTTP 503 (korrekt: Boot laeuft im Hintergrund weiter) statt
+Connection-Refused. Bestehende `tests/test_resident_model_startup.py` (5 Tests) weiterhin gruen.
+
+**Nicht Teil dieses Fixes:** `scripts/acceptance-live.ps1` zeigte beim `git status` bereits unstaged
+Aenderungen (Timeout-Werte erhoeht), die nicht von mir stammen — vermutlich Session-Alt-Stand oder Parallel-
+Session-WIP. Bewusst nicht angefasst/committet, siehe Memory `git-index-lock-parallel-session`.
+
 ## Live-Verifikation der letzten beiden UI-Aenderungen + echter Settings-Bug gefunden und behoben (2026-08-02)
 
 **Auftrag:** Nutzer bat "starte App mit Trace". Grund fuer den fehlgeschlagenen Verifikationsversuch der

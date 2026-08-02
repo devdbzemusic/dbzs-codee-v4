@@ -15,6 +15,7 @@ terminal state first (see bootPhaseDefinitions.ts).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from app.api.health_contracts import ResidentModelDataModel
@@ -69,7 +70,7 @@ async def run_resident_model_startup(store: BootStateStore) -> None:
             except Exception as exc:
                 logger.warning("Orchestrator catalog auto-registration failed: %s", exc)
 
-            index = model_index_service.build_index()
+            index = await asyncio.to_thread(model_index_service.build_index)
             candidates = [m.id for m in index.models if m.role == "ORCHESTRATOR_MODEL"]
             model_id = candidates[0] if len(candidates) == 1 else None
             if len(candidates) > 1:
@@ -107,7 +108,7 @@ async def run_resident_model_startup(store: BootStateStore) -> None:
             "residentModel", "running", message=f"Loading resident model {attempt_model_id}..."
         )
         try:
-            status = service.start_model(attempt_model_id, slot_id="orchestrator_cpu")
+            status = await asyncio.to_thread(service.start_model, attempt_model_id, slot_id="orchestrator_cpu")
         except Exception as exc:
             logger.error("Resident model autostart raised for %s: %s", attempt_model_id, exc)
             continue
@@ -140,7 +141,7 @@ async def run_resident_model_startup(store: BootStateStore) -> None:
     # works) never pays for an extra catalog scan.
     if had_explicit_default:
         try:
-            index = model_index_service.build_index()
+            index = await asyncio.to_thread(model_index_service.build_index)
             extra_candidates = [m.id for m in index.models if m.role == "ORCHESTRATOR_MODEL" and m.id not in attempted]
         except Exception as exc:
             logger.warning("Fallback candidate scan failed: %s", exc)
@@ -152,7 +153,7 @@ async def run_resident_model_startup(store: BootStateStore) -> None:
                 "residentModel", "running", message=f"Loading resident model {attempt_model_id}..."
             )
             try:
-                status = service.start_model(attempt_model_id, slot_id="orchestrator_cpu")
+                status = await asyncio.to_thread(service.start_model, attempt_model_id, slot_id="orchestrator_cpu")
             except Exception as exc:
                 logger.error("Resident model autostart raised for %s: %s", attempt_model_id, exc)
                 continue

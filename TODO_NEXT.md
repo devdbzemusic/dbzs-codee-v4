@@ -5,6 +5,16 @@ Stand: 2026-08-02
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
 
+## Backend-Boot-Hang (Resident-Model-Autostart blockiert Event-Loop) — BEHOBEN
+
+`run_resident_model_startup()` rief `build_index()`/`start_model()` synchron statt per `asyncio.to_thread`
+auf und blockierte dadurch den kompletten Event-Loop beim Boot (kein "Application startup complete",
+Health-Endpoint dauerhaft ECONNREFUSED, 60s-Timeout in der UI). Fix + Verifikation siehe HANDOVER.md.
+**Noch offen:** kompletter Boot-Durchlauf mit echtem, groeszerem Modell nicht per Sandbox verifizierbar (kein
+echtes GPU/grosses-Modell-Setup hier) — beim naechsten echten App-Start pruefen, dass der Boot jetzt bis
+"bereit" durchlaeuft statt nur den Hang zu beheben. `scripts/acceptance-live.ps1` hatte bereits unstaged
+Aenderungen von auszerhalb dieser Session (Timeout-Werte) — nicht angefasst, ggf. beim naechsten Mal klaeren.
+
 ## UI-Feedback aus laufender App (Nutzer-Screenshots, 2026-08-02) — ERLEDIGT, LIVE VERIFIZIERT
 
 1) Settings-Feldlayout überarbeitet (Feld-Boxen + gestapelte Toggles). 2) Rechtes Panel bekam Modus-Umschalter
