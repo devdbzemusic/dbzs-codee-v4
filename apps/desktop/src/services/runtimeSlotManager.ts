@@ -288,13 +288,24 @@ export const runtimeSlotManager = {
   /**
    * Startet einen Slot.
    */
-  async startSlot(slotId: RuntimeSlotId, modelId: string, profile?: string): Promise<SlotOperationResult> {
+  async startSlot(
+    slotId: RuntimeSlotId,
+    modelId: string,
+    profile?: string,
+    projectorArtifactId?: string
+  ): Promise<SlotOperationResult> {
     try {
       const backendUrl = await resolveBackendUrl();
+      const body: Record<string, unknown> = { model_id: modelId };
+      if (profile) body.profile = profile;
+      // Plan 15, Phase 5 (Dual-Mode Vision): an id from the current model index's
+      // MultimodalPair, never a raw filesystem path — the backend resolves it
+      // itself against its own index before ever touching the launch command.
+      if (projectorArtifactId) body.projector_artifact_id = projectorArtifactId;
       const response = await fetch(`${backendUrl}/runtime/slots/${slotId}/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile ? { model_id: modelId, profile } : { model_id: modelId })
+        body: JSON.stringify(body)
       });
 
       if (!response.ok) {

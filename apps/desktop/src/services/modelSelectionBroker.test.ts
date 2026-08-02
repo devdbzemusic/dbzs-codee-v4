@@ -649,6 +649,10 @@ describe("modelSelectionBroker", () => {
       });
       expect(decision.slotId).toBe("vision_gpu");
       expect(decision.reason).toContain("slot:vision_routed:vision_gpu");
+      // Plan 15, Phase 5 (Dual-Mode Vision): the verified pair's projector id must
+      // be carried onto the decision so runtimeSlotManager.startSlot() can request
+      // a dedicated MMProj-loaded process on vision_gpu.
+      expect(decision.projectorArtifactId).toBe("mmproj-vision.gguf");
     });
 
     it("does not route to vision_gpu for a dual chat+vision model used as a normal role model", () => {
@@ -670,6 +674,7 @@ describe("modelSelectionBroker", () => {
       });
       expect(decision.slotId).toBe("quality_cpu");
       expect(decision.reason.some((r) => r.startsWith("slot:vision_routed:"))).toBe(false);
+      expect(decision.projectorArtifactId).toBeUndefined();
     });
 
     it("does not route to vision_gpu when the turn has no image (allowVision false), even for a projector model with text-only support", () => {

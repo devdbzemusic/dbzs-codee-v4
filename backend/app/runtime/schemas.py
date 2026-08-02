@@ -74,6 +74,11 @@ class StartModelRequest(BaseModel):
     model_id: str
     slot_id: RuntimeSlotId | None = None
     profile: str | None = None
+    # Plan 15, Phase 5 (Dual-Mode Vision): id of an MMProj support artifact in
+    # the current model index (from a MultimodalPair), never a raw filesystem
+    # path - the server resolves this to an absolute path itself so a client
+    # can never point llama-server's --mmproj flag at an arbitrary file.
+    projector_artifact_id: str | None = None
 
 
 ChatRole = Literal["system", "user", "assistant"]

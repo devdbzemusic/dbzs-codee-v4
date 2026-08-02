@@ -259,6 +259,32 @@ def _add_second_model_to_catalog(models_dir: Path, model_id: str) -> None:
     catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
 
 
+def _add_mmproj_artifact_to_catalog(models_dir: Path, artifact_id: str) -> Path:
+    """Adds an mmproj support artifact (artifact_type='mmproj') to the catalog,
+    matching the shape build_index() maps into ModelIndex.support_artifacts.
+    Returns the on-disk path of the fake projector file."""
+    mmproj_path = models_dir / f"{artifact_id}.gguf"
+    mmproj_path.write_bytes(b"MMPROJ")
+    catalog_path = models_dir / "models.catalog.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    catalog["artifacts"].append(
+        {
+            "id": artifact_id,
+            "name": artifact_id,
+            "artifact_type": "mmproj",
+            "capabilities": ["vision"],
+            "modality": ["image"],
+            "file_path": str(mmproj_path),
+            "size_bytes": 500,
+            "quantization": "F16",
+            "backend": "llama.cpp",
+            "loader": {"launcher": "llama-server"},
+        }
+    )
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+    return mmproj_path
+
+
 def test_runtime_service_stops_vision_gpu_when_fast_gpu_starts(tmp_path: Path) -> None:
     write_catalog(tmp_path)
     _add_second_model_to_catalog(tmp_path, "vision-model")
@@ -321,6 +347,74 @@ def test_runtime_service_gpu_exclusivity_waits_for_in_flight_request_to_drain(tm
 
     assert service.status_for_slot("vision_gpu").state == "running"
     assert service.status_for_slot("fast_gpu").state == "stopped"
+
+
+def test_runtime_service_reuses_shared_slot_binding_without_mmproj(tmp_path: Path) -> None:
+    """Baseline (Plan 15, Phase 5): the same model_id started on a second slot
+    with no mmproj_path in its config still uses the pre-existing shared-slot-
+    binding reuse path — no second process. This must keep working; only an
+    mmproj_path-bearing request should force a dedicated process (see
+    test_runtime_service_dual_mode_vision_start_launches_dedicated_process)."""
+    write_catalog(tmp_path)
+    runner = MultiStartProcessRunner()
+    service = RuntimeService(
+        model_index_service=ModelIndexService(models_dir=tmp_path),
+        process_runner=runner,
+        endpoint_checker=lambda _url: True,
+    )
+
+    service.start_model("coder", slot_id="orchestrator_cpu")
+    assert service.status_for_slot("orchestrator_cpu").state == "running"
+
+    service.start_model("coder", slot_id="quality_cpu")
+
+    assert service.status_for_slot("quality_cpu").state == "running"
+    assert len(runner.commands) == 1
+    # No second process — quality_cpu is an alias of orchestrator_cpu's running
+    # instance (same port/pid), which is how the shared-slot-binding reuse path
+    # is actually observable here (it only falls back to the literal "Shared
+    # runtime via slot" message text when the source status has no message).
+    assert service.status_for_slot("quality_cpu").port == service.status_for_slot("orchestrator_cpu").port
+    assert service.status_for_slot("quality_cpu").pid == service.status_for_slot("orchestrator_cpu").pid
+
+
+def test_runtime_service_dual_mode_vision_start_launches_dedicated_process(tmp_path: Path) -> None:
+    """Plan 15, Phase 5 (Dual-Mode Vision): a start request carrying an mmproj_path
+    must never be silently aliased onto an already-running text-only instance of the
+    same model_id via the shared-slot-binding reuse path — it must launch a genuinely
+    separate process with --mmproj wired into its command, leaving the original slot
+    untouched. Regression test for the gap documented in _add_second_model_to_catalog's
+    docstring and fixed by the requires_dedicated_process guard in start_model()."""
+    write_catalog(tmp_path)
+    mmproj_path = _add_mmproj_artifact_to_catalog(tmp_path, "coder-mmproj")
+    runner = MultiStartProcessRunner()
+    service = RuntimeService(
+        model_index_service=ModelIndexService(models_dir=tmp_path),
+        process_runner=runner,
+        endpoint_checker=lambda _url: True,
+    )
+
+    service.start_model("coder", slot_id="orchestrator_cpu")
+    assert service.status_for_slot("orchestrator_cpu").state == "running"
+
+    service.start_model(
+        "coder",
+        slot_id="vision_gpu",
+        config={"mmproj_path": str(mmproj_path), "mmproj_bytes": 500},
+    )
+
+    assert service.status_for_slot("vision_gpu").state == "running"
+    assert service.status_for_slot("orchestrator_cpu").state == "running"
+
+    assert len(runner.commands) == 2
+    orchestrator_command, vision_command = runner.commands
+    assert "--mmproj" not in orchestrator_command
+    assert "--mmproj" in vision_command
+    assert vision_command[vision_command.index("--mmproj") + 1] == str(mmproj_path)
+
+    vision_status = service.status_for_slot("vision_gpu")
+    assert "Shared runtime via slot" not in (vision_status.message or "")
+    assert vision_status.port != service.status_for_slot("orchestrator_cpu").port
 
 
 def test_runtime_service_leaves_quality_cpu_and_utility_slots_alone(tmp_path: Path) -> None:

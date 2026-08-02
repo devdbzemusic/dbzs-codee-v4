@@ -145,6 +145,65 @@ describe("runtimeSlotManager", () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain("400");
     });
+
+    it("sendet projector_artifact_id fuer Dual-Mode-Vision-Starts mit (Plan 15, Phase 5)", async () => {
+      const mockStatus: RuntimeSlotStatus = {
+        slot_id: "vision_gpu",
+        state: "starting",
+        provider: "llama.cpp",
+        model_id: "vision-model",
+        model_name: "Vision Model",
+        port: 8083,
+        pid: 12347,
+        endpoint: "http://127.0.0.1:8083",
+        message: "",
+        device_policy: "gpu",
+        gpu_layers: 24,
+        context_size: 16384,
+        chat_ready: false
+      };
+
+      (fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockStatus
+      });
+
+      const result = await runtimeSlotManager.startSlot(
+        "vision_gpu",
+        "vision-model",
+        "balanced",
+        "mmproj-vision.gguf"
+      );
+
+      expect(result.success).toBe(true);
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/runtime/slots/vision_gpu/start"),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            model_id: "vision-model",
+            profile: "balanced",
+            projector_artifact_id: "mmproj-vision.gguf"
+          })
+        })
+      );
+    });
+
+    it("laesst projector_artifact_id weg, wenn keins uebergeben wird", async () => {
+      (fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ slot_id: "fast_gpu", state: "starting" })
+      });
+
+      await runtimeSlotManager.startSlot("fast_gpu", "coder", "balanced");
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/runtime/slots/fast_gpu/start"),
+        expect.objectContaining({
+          body: JSON.stringify({ model_id: "coder", profile: "balanced" })
+        })
+      );
+    });
   });
 
   describe("stopSlot", () => {

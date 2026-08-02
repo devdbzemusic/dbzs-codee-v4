@@ -79,6 +79,14 @@ export interface ModelSelectionDecision {
   capabilities: string[];
   hasImageInput: boolean;
   requiresVision: boolean;
+
+  /** Plan 15, Phase 5 (Dual-Mode Vision): the id of the MMProj support artifact
+   * (from a verified MultimodalPair) that runtimeSlotManager.startSlot() should
+   * pass to the backend so it can load the projector alongside this model on
+   * vision_gpu. Only set when slotId is "vision_gpu" and the resolved model
+   * actually requires its projector — never a raw filesystem path, and never
+   * trusted client-side; the backend re-resolves it against its own index. */
+  projectorArtifactId?: string;
   
   /** Only supporting llama.cpp for now */
   providerId: "llama-cpp";
@@ -840,6 +848,15 @@ export function brokerDecision(
     reasons.push(`slot:vision_routed:${effectiveSlotId}`);
   }
 
+  // Plan 15, Phase 5 (Dual-Mode Vision): when this decision actually needs the
+  // projector loaded, carry its artifact id along so the caller can request a
+  // dedicated dual-mode vision_gpu start. Recomputes the same verified pairing
+  // check resolveModelIdWithVisionGate() already performed above — cheap lookup,
+  // no new source of truth.
+  const projectorArtifactId = requiresVisionSlot
+    ? findVerifiedMultimodalPair(resolvedModelId, options?.multimodalPairs)?.projector_artifact_id
+    : undefined;
+
   if (
     allowVision &&
     taskRequiresCodingCapability(taskType) &&
@@ -867,6 +884,7 @@ export function brokerDecision(
     capabilities: catalogEntry?.capabilities ?? [],
     hasImageInput,
     requiresVision,
+    projectorArtifactId,
     providerId: "llama-cpp",
     reason: reasons,
     // Binding decisions never allow silent local slot/model swaps.

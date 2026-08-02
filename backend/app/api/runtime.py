@@ -271,14 +271,43 @@ def get_runtime_slot_logs(
     return service.get_logs_for_slot(slot_id)
 
 
+def _resolve_projector_config(
+    service: RuntimeService, projector_artifact_id: str
+) -> dict[str, object]:
+    """Resolves a client-supplied `projector_artifact_id` (an MMProj support
+    artifact's id in the current model index, from a MultimodalPair) to an
+    absolute `mmproj_path` + its `mmproj_bytes` for VRAM budgeting (Plan 15,
+    Phase 5). Never trusts a client-supplied filesystem path directly - only
+    an id already present in the server's own model index resolves to a path.
+    """
+    index = service.model_index_service.load_cached_index() or service.model_index_service.build_index()
+    projector = next(
+        (artifact for artifact in index.support_artifacts if artifact.id == projector_artifact_id),
+        None,
+    )
+    if projector is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"projector_artifact_id '{projector_artifact_id}' konnte keinem MMProj-Artefakt "
+                "im Modellindex zugeordnet werden."
+            ),
+        )
+    return {"mmproj_path": projector.path, "mmproj_bytes": projector.size_bytes}
+
+
 @router.post("/slots/{slot_id}/start")
 def start_runtime_slot(
     slot_id: RuntimeSlotId,
     request: StartModelRequest,
     service: RuntimeService = Depends(get_runtime_service),
 ) -> RuntimeStatus:
-    config = {"profile": request.profile} if request.profile else None
-    return service.start_model(request.model_id, slot_id=slot_id, config=config)
+    config: dict[str, object] = {}
+    if request.profile:
+        config["profile"] = request.profile
+    if request.projector_artifact_id:
+        config.update(_resolve_projector_config(service, request.projector_artifact_id))
+    return service.start_model(request.model_id, slot_id=slot_id, config=config or None)
 
 
 @router.post("/slots/{slot_id}/stop")

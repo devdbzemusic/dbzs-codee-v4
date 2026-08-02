@@ -168,3 +168,41 @@ def test_model_size_falls_back_to_name_bucket_when_index_missing_size() -> None:
     plan = planner.plan(model, slot_id="fast_gpu", gpu=make_gpu(24576, recommended_gpu_layers=99), requested_profile="balanced")
 
     assert plan.estimated_model_bytes == 8_000_000_000
+
+
+def test_mmproj_bytes_reduces_chosen_gpu_layers_on_low_vram_card() -> None:
+    """Plan 15, Phase 5: a loaded MMProj projector (InternScience: ~0.626 GiB)
+    must be budgeted for up front on a 4GB-class card, not silently ignored
+    until llama-server OOMs."""
+    planner = RuntimeResourcePlanner()
+    model = make_model()
+    gpu = make_gpu(4096, recommended_gpu_layers=16)
+
+    without_mmproj = planner.plan(model, slot_id="vision_gpu", gpu=gpu, requested_profile="balanced")
+    with_mmproj = planner.plan(
+        model, slot_id="vision_gpu", gpu=gpu, requested_profile="balanced", mmproj_bytes=672_000_000
+    )
+
+    assert with_mmproj.gpu_layers <= without_mmproj.gpu_layers
+
+
+def test_mmproj_bytes_included_in_estimated_total_vram() -> None:
+    planner = RuntimeResourcePlanner()
+    model = make_model()
+    gpu = make_gpu(24576, recommended_gpu_layers=99)
+
+    without_mmproj = planner.plan(model, slot_id="vision_gpu", gpu=gpu, requested_profile="balanced")
+    with_mmproj = planner.plan(
+        model, slot_id="vision_gpu", gpu=gpu, requested_profile="balanced", mmproj_bytes=672_000_000
+    )
+
+    assert with_mmproj.estimated_total_vram_bytes == without_mmproj.estimated_total_vram_bytes + 672_000_000
+
+
+def test_mmproj_bytes_defaults_to_zero_when_unset() -> None:
+    planner = RuntimeResourcePlanner()
+    model = make_model()
+
+    plan = planner.plan(model, slot_id="vision_gpu", gpu=make_gpu(16384, recommended_gpu_layers=48), requested_profile="balanced")
+
+    assert plan.gpu_layers > 0

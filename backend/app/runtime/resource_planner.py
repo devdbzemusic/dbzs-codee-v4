@@ -135,6 +135,7 @@ class RuntimeResourcePlanner:
         gpu: GpuInfo | None,
         requested_profile: RuntimeProfileName | None = None,
         custom_overrides: dict[str, object] | None = None,
+        mmproj_bytes: int = 0,
     ) -> RuntimeResourcePlan:
         warnings: list[str] = ["kv_cache_estimate_approximate"]
         overrides = custom_overrides or {}
@@ -152,6 +153,13 @@ class RuntimeResourcePlanner:
         available_vram_bytes = (gpu.vram_mb * _BYTES_PER_MB) if gpu else None
         safety_reserve_bytes = _safety_reserve_bytes(available_vram_bytes)
         model_bytes = _estimate_model_bytes(model)
+        # Plan 15, Phase 5: a loaded MMProj (vision projector) occupies VRAM
+        # alongside the base model's layers. Budget for it up front by shrinking
+        # the VRAM available for gpu_layers selection, so a dual-mode vision
+        # start on vision_gpu doesn't silently eat into the safety reserve.
+        available_vram_bytes_for_layers = (
+            max(0, available_vram_bytes - mmproj_bytes) if available_vram_bytes is not None else None
+        )
 
         if profile == "cpu_safe":
             gpu_layers = 0
@@ -176,7 +184,7 @@ class RuntimeResourcePlanner:
                 cache_type_k=cache_type_k,
                 cache_type_v=cache_type_v,
                 gpu=gpu,
-                available_vram_bytes=available_vram_bytes,
+                available_vram_bytes=available_vram_bytes_for_layers,
                 safety_reserve_bytes=safety_reserve_bytes,
                 max_layers_hint=max_layers_hint,
             )
@@ -188,7 +196,7 @@ class RuntimeResourcePlanner:
         estimated_compute_buffer_bytes = _estimate_compute_buffer_bytes(batch_size)
         gpu_ratio = min(gpu_layers / 32.0, 1.0) if gpu_layers else 0.0
         estimated_total_vram_bytes = (
-            int(model_bytes * gpu_ratio) + estimated_kv_cache_bytes + estimated_compute_buffer_bytes
+            int(model_bytes * gpu_ratio) + estimated_kv_cache_bytes + estimated_compute_buffer_bytes + mmproj_bytes
             if gpu_layers > 0
             else 0
         )

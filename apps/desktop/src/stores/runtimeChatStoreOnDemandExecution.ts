@@ -105,7 +105,15 @@ export async function executeOnDemandRuntimeAction(input: {
           reasons: brokerDecisionFull?.reason ?? (routing.routingPath ? [String(routing.routingPath)] : [])
         })
       );
-      const startResult = await runtimeSlotManager.startSlot(slotId, modelToStart, launchProfile);
+      // Plan 15, Phase 5 (Dual-Mode Vision): thread the projector artifact id
+      // through when brokerDecision() determined this turn actually needs the
+      // MMProj-loaded instance — only ever set for the vision_gpu slot.
+      const startResult = await runtimeSlotManager.startSlot(
+        slotId,
+        modelToStart,
+        launchProfile,
+        brokerDecisionFull?.projectorArtifactId
+      );
       if (!startResult.success) {
         throw new Error(`target_slot_ondemand_failed: ${startResult.error ?? "unknown"}`);
       }
