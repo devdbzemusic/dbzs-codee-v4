@@ -1393,7 +1393,18 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
 
     // P0 Phase 3: Slot-Validierung nach dem Routing und vor dem Kontextaufbau
     // Dies stellt sicher, dass wir keinen aufwändigen Kontext für einen Slot erstellen,
-    // der nicht bereit ist, die Anfrage anzunehmen.
+    // der in einem gebrochenen Zustand ist (falsches Modell geladen, Endpoint down,
+    // chat_ready=false trotz "running").
+    //
+    // WF-03-Nachtrag: "noch nicht gestartet" (state=stopped, target_slot_not_running)
+    // ist davon bewusst ausgenommen -- das ist der normale, erwartete Zustand vor
+    // einem Cold-Start, und prepareOnDemandRuntimeAction()/executeOnDemandRuntimeAction()
+    // (~950 Zeilen weiter unten) sind exakt dafuer gebaut: sie berechnen slotNeedsStart
+    // selbst neu und starten den Slot bei Bedarf. Vor diesem Fix hat dieser fruehe,
+    // rein lesende Check JEDE Anfrage an einen noch nicht gestarteten Slot hart
+    // abgewiesen, bevor der funktionierende On-Demand-Start je zum Zug kam -- nicht
+    // nur beim Repository Review (der eigene Preflight oben deckt nur diesen einen
+    // Spezialfall ab), sondern bei jeder normalen Chat-Anfrage an eine kalte Rolle.
     beginStep("slot-readiness", "Slot-Bereitschaft prüfen");
     try {
       const backendUrl = useSettingsStore.getState().settings.backendUrl || "http://127.0.0.1:8876";
@@ -1405,10 +1416,16 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
         timeoutManager.getRouting(),
         runAbortController.signal
       );
-      if (!validation.ok) {
+      if (!validation.ok && !validation.error?.startsWith("target_slot_not_running")) {
         throw new Error(validation.error || "Slot validation failed");
       }
-      finishStep("slot-readiness", "Slot-Bereitschaft prüfen", `Slot '${contextSlotId}' ist bereit.`);
+      finishStep(
+        "slot-readiness",
+        "Slot-Bereitschaft prüfen",
+        validation.ok
+          ? `Slot '${contextSlotId}' ist bereit.`
+          : `Slot '${contextSlotId}' noch nicht gestartet — wird bei Bedarf kaltgestartet.`
+      );
     } catch (error) {
       const logMessage = error instanceof Error ? error.message : "Slot nicht bereit.";
       const userMessage = "Der Ziel-Slot für das Modell ist nicht bereit.";

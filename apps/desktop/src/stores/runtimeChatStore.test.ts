@@ -769,6 +769,67 @@ describe("useRuntimeChatStore", () => {
     expect(sendChatStreamMock).toHaveBeenCalled();
   });
 
+  // Regression test: the test above mocks verifySlotForRequest to unconditionally
+  // return ok:true, which masked a real bug -- the early "slot-readiness" gate
+  // (runtimeChatStore.ts, right after routing) called the REAL verifySlotForRequest
+  // and hard-failed the whole send whenever it legitimately reported
+  // target_slot_not_running for a slot that simply hadn't been started yet, before
+  // prepareOnDemandRuntimeAction()/executeOnDemandRuntimeAction() ever got a chance
+  // to cold-start it. This test mocks verifySlotForRequest realistically (not-running
+  // on the first call, matching the unstarted slot; ok on the later call after the
+  // on-demand start/warmup), so it fails the same way the early gate did before the
+  // fix -- and must still reach the on-demand start and complete the chat.
+  it("cold-starts a stopped slot instead of hard-failing when verifySlotForRequest reports target_slot_not_running", async () => {
+    vi.mocked(backendClient.getRuntimeStatus).mockResolvedValue(stoppedStatus);
+    sendChatStreamMock.mockImplementationOnce(
+      async (...args: unknown[]) => {
+        const callbacks = resolveDeltaCallbacks(args);
+        callbacks.onDelta("Antwort", 7);
+        return {
+          message: { role: "assistant", content: "Antwort" },
+          model_id: "chat-model",
+          model_name: "Chat Model"
+        };
+      }
+    );
+    const stoppedChatSlot = {
+      slot_id: "quality_cpu",
+      state: "stopped",
+      provider: null,
+      model_id: null,
+      model_name: null,
+      port: null,
+      pid: null,
+      endpoint: null,
+      chat_ready: false
+    };
+    const runningChatSlot = {
+      slot_id: "quality_cpu",
+      state: "running",
+      provider: "llama.cpp",
+      model_id: "chat-model",
+      model_name: "Chat Model",
+      port: 8081,
+      pid: 42,
+      endpoint: "http://127.0.0.1:8081",
+      chat_ready: true
+    };
+    getSlotStatusMock.mockImplementation(async () =>
+      startSlotMock.mock.calls.length > 0 ? runningChatSlot : stoppedChatSlot
+    );
+    waitForSlotReadyMock.mockResolvedValue(runningChatSlot);
+    verifySlotForRequestMock.mockImplementation(async () =>
+      startSlotMock.mock.calls.length > 0
+        ? { ok: true, slotId: "quality_cpu", status: runningChatSlot }
+        : { ok: false, slotId: "quality_cpu", error: "target_slot_not_running: state=stopped" }
+    );
+
+    const result = await useRuntimeChatStore.getState().sendMessage("Hallo", stoppedStatus, null);
+    expect(result).not.toBe(false);
+    expect(startSlotMock).toHaveBeenCalledWith("quality_cpu", "chat-model", "balanced", undefined);
+    expect(sendChatStreamMock).toHaveBeenCalled();
+  });
+
   it("shows assistant text when change payload parsing fails", async () => {
     vi.mocked(backendClient.getRuntimeStatus).mockResolvedValue(runningStatus);
     sendChatStreamMock.mockImplementationOnce(

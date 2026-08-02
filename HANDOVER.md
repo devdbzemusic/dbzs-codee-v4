@@ -1,6 +1,41 @@
 # Handover
 
-Stand: 2026-08-02
+Stand: 2026-08-03
+
+## Chat-Fehler "Der Ziel-Slot fuer das Modell ist nicht bereit" bei kalter Rolle behoben (2026-08-03)
+
+**Auftrag:** Live-Fehlerbericht (Screenshot + Diagnose-JSON) — eine C@dee-Chat-Anfrage mit Reviewer-Routing
+(Slot `quality_cpu`, Modell `agentica-org_DeepScaleR-1.5B-Preview-Q4_K_M`) schlug sofort fehl mit
+`target_slot_unavailable` / `target_slot_not_running: state=stopped`, obwohl Backend online war.
+
+**Root Cause (verifiziert, nicht nur vermutet):** der generelle Chat-Sendepfad hat bereits eine vollstaendige,
+korrekt getestete On-Demand-Start-Pipeline (`runtimeChatStoreOnDemandPreparation.ts` berechnet
+`slotNeedsStart` echt aus dem aktuellen Slot-Status, `runtimeChatStoreOnDemandExecution.ts` startet den Slot
+inkl. Warm-up und Fallback-Handling). Das Problem: ~950 Zeilen VORHER gibt es in `runtimeChatStore.ts` einen
+rein lesenden "slot-readiness"-Gate (`verifySlotForRequest`), der bei JEDEM noch nicht gestarteten Slot hart
+mit `target_slot_not_running` abbricht, bevor die funktionierende On-Demand-Pipeline je zum Zug kommt. Der
+bestehende Test dafuer ("allows chat send when backend is reachable but work model is stopped") mockt
+`verifySlotForRequest` unconditional auf `ok: true` und hat diese Luecke deshalb nie aufgedeckt — real hat
+der Check den echten `state=stopped` gesehen und sofort abgebrochen.
+
+Das ist die generelle Form des bereits frueher in dieser Session bekannten, bewusst aufgeschobenen Problems
+(zweimal per AskUserQuestion geflaggt, "trotzdem fortfahren" gewaehlt) — die WF-03-Reparatur hat damals nur
+den dedizierten Repository-Review-Pfad mit einem eigenen Preflight versehen; dieser Live-Fall war eine normale
+Reviewer-Chat-Anfrage, die den engen Repository-Review-Trigger nicht traf und deshalb auf den ungefixten
+allgemeinen Pfad durchfiel.
+
+**Fix:** der "slot-readiness"-Gate wirft jetzt nicht mehr hart ab, wenn der Validierungsfehler
+`target_slot_not_running` ist (Slot einfach noch nicht gestartet — der Normalfall vor jedem Cold-Start).
+Alle anderen Validierungsfehler (falsches Modell geladen, Endpoint fehlt, `chat_ready=false` trotz "running")
+bleiben harte Abbrueche wie zuvor — das sind echte, unerwartete Zustaende.
+
+**Test-Luecke geschlossen:** neuer Regressionstest simuliert `verifySlotForRequest` realistisch (liefert
+`target_slot_not_running` beim ersten Aufruf, `ok` erst nach dem On-Demand-Start) statt es unconditional
+auf Erfolg zu mocken — verifiziert vor dem Fix als tatsaechlich fehlschlagend (per `git stash` gegen den
+alten Code gegengeprueft), nach dem Fix gruen.
+
+**Verifiziert:** `tsc --noEmit` sauber, `pnpm run build` erfolgreich, volle `vitest`-Suite 1309/1353 gruen
+(dieselben 2 vorbestehenden, unabhaengigen `chatActions.test.ts`-Fehler, keine neuen).
 
 ## Alle 16 Dependabot-Findings behoben: zwei tote, versehentliche Top-Level-Dependencies entfernt (2026-08-02)
 
