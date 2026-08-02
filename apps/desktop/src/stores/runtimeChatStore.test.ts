@@ -61,6 +61,52 @@ const previewResourcePlanMock = vi.fn();
 const resolveDefaultModelForSlotMock = vi.fn();
 const isSlotReadyMock = vi.fn((status: any) => status?.state === "running" && status?.chat_ready === true);
 
+// brokerDecision() now delegates to backendClient.resolveRuntimeRoute() (the
+// backend FleetRoutingResolver is the sole routing authority). This mock
+// reproduces the same task_type -> agent/slot/model mapping the real
+// resolver uses (backend/app/runtime/routing_resolver.py), driven by
+// whatever settings the individual test has set via useSettingsStore.
+const resolveRuntimeRouteMock = vi.fn(async (request: any) => {
+  const settings = useSettingsStore.getState().settings;
+  let targetAgent = "default";
+  let slotId = "quality_cpu";
+  let configuredModelId = settings.defaultChatModelId || settings.defaultModelId || "";
+  const taskType = request.task_type;
+  if (["small_code_change", "large_code_change", "debugging", "refactoring", "test_analysis"].includes(taskType)) {
+    targetAgent = "coder";
+    slotId = "fast_gpu";
+    configuredModelId = settings.defaultCoderModelId || configuredModelId;
+  } else if (taskType === "review") {
+    targetAgent = "reviewer";
+    configuredModelId = settings.defaultReviewerModelId || configuredModelId;
+  } else if (taskType === "planning" || taskType === "architecture") {
+    targetAgent = "planner";
+    configuredModelId = settings.defaultPlannerModelId || configuredModelId;
+  }
+  if (request.manual_model_id) {
+    configuredModelId = request.manual_model_id;
+  }
+  return {
+    decision_id: `decision-${Math.random().toString(36).slice(2)}`,
+    task_type: taskType,
+    target_agent: targetAgent,
+    slot_id: slotId,
+    model_id: configuredModelId,
+    model_name: configuredModelId,
+    configured_model_id: configuredModelId,
+    resolved_model_id: configuredModelId,
+    resolved_model_name: configuredModelId,
+    selection_source: "role_setting",
+    capabilities: [],
+    has_image_input: Boolean(request.has_image_input),
+    requires_vision: Boolean(request.requires_vision),
+    provider_id: "llama-cpp",
+    reason: [`task_type:${taskType}`],
+    fallback_policy: "strict",
+    decision_settings_revision: 0
+  };
+});
+
 const runningStatus = {
   state: "running" as const,
   provider: "llama.cpp" as const,
@@ -154,7 +200,8 @@ vi.mock("@/stores/editorStore", () => ({
 
 vi.mock("@/services/backendClient", () => ({
   backendClient: {
-    getRuntimeStatus: vi.fn()
+    getRuntimeStatus: vi.fn(),
+    resolveRuntimeRoute: (request: unknown) => resolveRuntimeRouteMock(request)
   }
 }));
 
@@ -237,6 +284,7 @@ beforeEach(() => {
       };
     }
   );
+  resolveRuntimeRouteMock.mockClear();
   resolveRoutingMock.mockReset();
   resolveRoutingMock.mockResolvedValue({
     targetAgent: "runtime_chat",

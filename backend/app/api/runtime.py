@@ -595,5 +595,9 @@ def route_runtime_request(
     resolver = FleetRoutingResolver(
         settings_service=get_settings_service(),
         index_service=service.model_index_service,
+        residency=service.residency,
     )
-    return resolver.resolve(request)
+    try:
+        return resolver.resolve(request)
+    except RuntimeProviderError as exc:
+        raise HTTPException(status_code=409, detail=_runtime_error_detail(exc)) from exc

@@ -359,6 +359,13 @@ RuntimeErrorCode = Literal[
     "provider_template_error",
     "provider_timeout",
     "runtime_internal_error",
+    # FleetRoutingResolver — mirrors the desktop BindingModelError codes it replaces.
+    "vision_pairing_required",
+    "role_model_missing_no_fallback",
+    "role_model_not_in_index",
+    "role_model_not_runnable",
+    "vision_gate_blocked",
+    "code_capability_missing",
 ]
 
 

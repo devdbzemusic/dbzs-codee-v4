@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearActiveTaskContract,
   detachActiveTaskContract,
@@ -23,7 +23,15 @@ import {
   normalizeWorkspacePath,
   verifiedPathsList
 } from "./verifiedWorkspaceEvidence";
-import { BindingModelError, brokerDecision, isDecisionStillValid } from "./modelSelectionBroker";
+
+import { brokerDecision, isDecisionStillValid } from "./modelSelectionBroker";
+
+const resolveRuntimeRouteMock = vi.fn();
+vi.mock("@/services/backendClient", () => ({
+  backendClient: {
+    resolveRuntimeRoute: (...args: unknown[]) => resolveRuntimeRouteMock(...args)
+  }
+}));
 
 describe("workflowContinuation", () => {
   const contract = {
@@ -210,25 +218,50 @@ describe("planningGrounding + verified evidence", () => {
   });
 });
 
-describe("brokerDecision binding + settings revision + VL text", () => {
-  it("uses exact role settings and refuses silent planner→coder swap", () => {
-    const decision = brokerDecision(
-      "planning",
-      {
-        defaultModelId: "chat-default",
-        defaultChatModelId: "chat-model",
-        defaultModelName: "Chat",
-        defaultPlannerModelId: "planner-model",
-        defaultCoderModelId: "coder-model"
-      },
-      {
-        catalog: [
-          { id: "planner-model", name: "Planner Readable" },
-          { id: "coder-model", name: "Coder Readable" }
-        ],
-        settingsRevision: 7
-      }
-    );
+// brokerDecision() is a thin client over backendClient.resolveRuntimeRoute() —
+// FleetRoutingResolver (backend/app/runtime/routing_resolver.py) is now the
+// sole authority for role-setting resolution, the vision gate, and fallback
+// tiers (Workflow-Bruch WF-01). These tests only verify the desktop-side
+// plumbing (request shape sent, response mapped 1:1 onto ModelSelectionDecision);
+// the actual routing/vision-gate/fallback *behavior* is covered by the backend's
+// own tests against FleetRoutingResolver.
+describe("brokerDecision — backend-authoritative plumbing", () => {
+  beforeEach(() => {
+    resolveRuntimeRouteMock.mockReset();
+  });
+
+  const baseSettings = {
+    defaultModelId: "chat-default",
+    defaultChatModelId: "chat-model",
+    defaultModelName: "Chat",
+    defaultPlannerModelId: "planner-model",
+    defaultCoderModelId: "coder-model"
+  };
+
+  const baseResponse = {
+    decision_id: "decision-1",
+    task_type: "planning",
+    target_agent: "planner",
+    slot_id: "quality_cpu",
+    model_id: "planner-model",
+    model_name: "Planner Readable",
+    configured_model_id: "planner-model",
+    resolved_model_id: "planner-model",
+    resolved_model_name: "Planner Readable",
+    selection_source: "role_setting",
+    capabilities: [],
+    has_image_input: false,
+    requires_vision: false,
+    provider_id: "llama-cpp",
+    reason: ["role_setting:planner-model"],
+    fallback_policy: "strict",
+    decision_settings_revision: 7
+  };
+
+  it("maps the backend RuntimeRouteResponse 1:1 onto ModelSelectionDecision", async () => {
+    resolveRuntimeRouteMock.mockResolvedValueOnce(baseResponse);
+
+    const decision = await brokerDecision("planning", baseSettings, { settingsRevision: 7 });
 
     expect(decision.resolvedModelId).toBe("planner-model");
     expect(decision.resolvedModelName).toBe("Planner Readable");
@@ -240,65 +273,34 @@ describe("brokerDecision binding + settings revision + VL text", () => {
     expect(isDecisionStillValid(decision, 60_000, 8)).toBe(false);
   });
 
-  it("errors when the role model setting is missing", () => {
-    expect(() =>
-      brokerDecision("planning", {
-        defaultModelId: "chat-default",
-        defaultModelName: "Chat",
-        defaultCoderModelId: "coder-model"
+  it("sends task type, vision flags and manual override in the route request", async () => {
+    resolveRuntimeRouteMock.mockResolvedValueOnce(baseResponse);
+
+    await brokerDecision("planning", baseSettings, {
+      hasImageInput: true,
+      requiresVision: true,
+      manualModelId: "manual-model",
+      userMessage: "explain this"
+    });
+
+    expect(resolveRuntimeRouteMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        task_type: "planning",
+        has_image_input: true,
+        requires_vision: true,
+        manual_model_id: "manual-model",
+        user_message: "explain this"
       })
-    ).toThrow(BindingModelError);
-  });
-
-  it("allows VL chat models with supportsTextOnly for text chat", () => {
-    const decision = brokerDecision(
-      "casual_chat",
-      {
-        defaultModelId: "text-model",
-        defaultChatModelId: "Qwen2.5-VL-3B-Instruct.Q4_K_M",
-        defaultModelName: "Chat"
-      },
-      {
-        hasImageInput: false,
-        catalog: [
-          {
-            id: "Qwen2.5-VL-3B-Instruct.Q4_K_M",
-            name: "Qwen2.5-VL-3B-Instruct.Q4_K_M",
-            capabilities: ["chat", "vision"],
-            supportsTextOnly: true,
-            supportsVision: true
-          }
-        ]
-      }
     );
-    expect(decision.resolvedModelId).toMatch(/vl/i);
-    expect(decision.reason).toContain("vision_gate:text_only_supported");
   });
 
-  it("blocks VL models without text-only support instead of silent fallback", () => {
-    expect(() =>
-      brokerDecision(
-        "planning",
-        {
-          defaultModelId: "text-model",
-          defaultChatModelId: "text-model",
-          defaultModelName: "Chat",
-          defaultPlannerModelId: "Qwen2.5-VL-3B-VisionOnly",
-          defaultCoderModelId: "coder-model"
-        },
-        {
-          hasImageInput: false,
-          catalog: [
-            {
-              id: "Qwen2.5-VL-3B-VisionOnly",
-              name: "Qwen2.5-VL-3B-VisionOnly",
-              capabilities: ["vision"],
-              supportsTextOnly: false,
-              requiresVisionProjector: true
-            }
-          ]
-        }
-      )
-    ).toThrow(BindingModelError);
+  it("propagates a rejected route resolution instead of silently falling back", async () => {
+    resolveRuntimeRouteMock.mockRejectedValueOnce(
+      new Error("Backend request failed: 409 | vision_pairing_required")
+    );
+
+    await expect(brokerDecision("planning", baseSettings)).rejects.toThrow(
+      "vision_pairing_required"
+    );
   });
 });

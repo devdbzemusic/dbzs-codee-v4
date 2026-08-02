@@ -28,12 +28,6 @@ import type {
   WorkflowModelRole
 } from "@/runtime/workflow/workflowContracts";
 import { backendClient } from "@/services/backendClient";
-  FleetRoutingDecision,
-  FleetRoutingRequest,
-} from "@dbzs/shared/src/fleet/routingContracts";
-import { backendClient } from "./backendClient"; // Annahme: Ein API-Client existiert
-import { getHardwareProfile } from "./hardwareService"; // Annahme: Eine Funktion zum Sammeln des HW-Profils existiert
-import { v4 as uuidv4 } from "uuid";
 
 export type TaskType = RuntimeTaskType;
 
@@ -367,29 +361,15 @@ export interface BrokerDecisionOptions {
     CanonicalWorkflowAssignment,
     "workflowKind" | "phase" | "effectiveAgent" | "modelRole" | "toolProfile"
   >;
-class ModelSelectionBroker {
-  /**
-   * Models currently resident in a runtime slot. Only consulted when no role model is
+  /** Models currently resident in a runtime slot. Only consulted when no role model is
    * configured for the resolved target — used to fall back onto an already-running model
-   * instead of hard-failing the turn. See resolveModelIdWithVisionGate().
-   * Löst eine Routing-Anfrage auf, indem der zentrale Backend-Resolver aufgerufen wird.
-   * @param routingParams Parameter, die den Modellbedarf beschreiben.
-   * @returns Die verbindliche Entscheidung des Backends.
-   */
+   * instead of hard-failing the turn. See resolveModelIdWithVisionGate(). */
   runningModels?: RunningModelSnapshot[];
 }
-  public async resolve(routingParams: {
-    usecase: string;
-    role: string;
-    capabilities: string[];
-  }): Promise<FleetRoutingDecision> {
-    console.log(`[ModelSelectionBroker] Degrading to client. Calling backend fleet resolver for role: ${routingParams.role}`);
 
 function isNonRunnableSupportArtifact(entry?: BrokerModelCatalogEntry | null): boolean {
   return entry?.artifact_type != null && entry.artifact_type !== "model";
 }
-    // 1. Sammle alle notwendigen Informationen für die Anfrage.
-    const hardwareProfile = await getHardwareProfile();
 
 function mapWorkflowAgentToModelTarget(agent: WorkflowAgentRole): ModelTargetAgent {
   switch (agent) {
@@ -405,18 +385,6 @@ function mapWorkflowAgentToModelTarget(agent: WorkflowAgentRole): ModelTargetAge
       return "default";
   }
 }
-    // 2. Erstelle die autoritative Anfrage gemäß Vertrag.
-    const request: FleetRoutingRequest = {
-      requestId: `fsr-${uuidv4()}`,
-      usecaseId: routingParams.usecase,
-      workflowModelRole: routingParams.role,
-      requiredCapabilities: routingParams.capabilities,
-      // Diese Werte würden aus den Usecase-Definitionen oder Settings stammen.
-      requiredCertification: "CHAT_VERIFIED",
-      minimumSafetyLevel: "GUARDED",
-      hardwareProfile: hardwareProfile,
-      fallbackPolicy: "allow_local_fallback",
-    };
 
 /**
  * Detect vision / multimodal models by catalog metadata or filename tokens.
@@ -665,11 +633,6 @@ function resolveModelIdWithVisionGate(
         `Visionmodell '${manualModelId}' benoetigt ein verifiziertes MMProj-Pairing, aber es ist keine Routing-Freigabe vorhanden.`,
         "vision_pairing_required",
         ["MM-Pairing verifizieren", "Anderes Modell waehlen", "Abbrechen"]
-    // 3. Rufe das Backend auf und warte auf die Entscheidung.
-    try {
-      const decision = await backendClient.post<FleetRoutingDecision>(
-        "/fleet/resolve",
-        request
       );
     }
     if (!allowVision && isVisionModelRef(manualModelId, catalog)) {
@@ -691,20 +654,11 @@ function resolveModelIdWithVisionGate(
       const slotId = runningModels?.find((snapshot) => snapshot.modelId === bestRunning)?.slotId;
       reasons.push(`role_fallback:running_model:${bestRunning}`);
       if (slotId) reasons.push(`role_fallback:slot_reassigned:${slotId}`);
-      return decision;
-    } catch (error: any) {
-      // Erstelle eine Fehler-Entscheidung, falls das Backend nicht erreichbar ist.
       return {
         modelId: bestRunning,
         selectionSource: "explicit_fallback",
         fallbackReason: "role_model_missing_used_running",
         fallbackSlotId: slotId,
-        decisionId: `fsd-error-${uuidv4()}`,
-        timestamp: new Date().toISOString(),
-        request: request,
-        status: "error",
-        evidence: { reasoning: `Backend resolver failed: ${error.message}`, certificationUsed: [] },
-        fallbackChain: [],
       };
     }
 
@@ -1115,4 +1069,3 @@ export function formatDecision(decision: ModelSelectionDecision): string {
     `reasons=[${decision.reason.join("; ")}]`,
   ].join(" | ");
 }
-export const modelSelectionBroker = new ModelSelectionBroker();

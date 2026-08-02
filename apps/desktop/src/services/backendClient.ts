@@ -690,6 +690,13 @@ export const backendClient = {
     }
     return method(payload);
   },
+  resolveRuntimeRoute: (request: import("@dbzs/shared").RuntimeRouteRequest) => {
+    const method = bridge().resolveRuntimeRoute;
+    if (!method) {
+      return Promise.reject(new Error("resolveRuntimeRoute is unavailable."));
+    }
+    return method(request);
+  },
   getRuntimeLogs: () => {
     const method = bridge().getRuntimeLogs;
     if (!method) {

@@ -105,6 +105,11 @@ class RuntimeResidencyRegistry:
     def entry_for_slot(self, slot_id: str) -> RuntimeResidencyEntry | None:
         return self._entries.get(slot_id)
 
+    def all_entries(self) -> list[RuntimeResidencyEntry]:
+        """Currently resident slots — used by routing to prefer an
+        already-loaded model over starting a new one."""
+        return list(self._entries.values())
+
     def can_reuse(self, slot_id: str, candidate_fingerprint: str) -> bool:
         entry = self._entries.get(slot_id)
         return (
