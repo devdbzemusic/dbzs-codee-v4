@@ -1,9 +1,18 @@
 # TODO_NEXT
 
-Stand: 2026-08-02
+Stand: 2026-08-03
 
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
+
+## Chat schlug bei kalter Rolle fehl ("Ziel-Slot nicht bereit") — BEHOBEN
+
+Der allgemeine Chat-Sendepfad hatte bereits eine funktionierende On-Demand-Start-Pipeline, aber ein frueherer,
+rein lesender "slot-readiness"-Gate brach VOR dieser Pipeline hart ab, sobald ein Slot noch nicht gestartet
+war (`target_slot_not_running`) — generelle Form des bereits bekannten, bewusst aufgeschobenen WF-03-Problems
+(WF-03 selbst deckte nur den dedizierten Repository-Review-Pfad ab). Gate wirft jetzt nicht mehr ab fuer
+genau diesen einen, erwarteten Fall; alle anderen Validierungsfehler bleiben harte Abbrueche. Neuer
+Regressionstest schliesst die Test-Luecke, die das ueberdeckt hatte. Details siehe HANDOVER.md.
 
 ## 16 Dependabot-Findings — BEHOBEN
 
