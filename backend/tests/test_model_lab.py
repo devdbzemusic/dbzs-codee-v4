@@ -50,7 +50,7 @@ def test_model_lab_registry_initializes_schema(tmp_path: Path) -> None:
     assert "model_role_assignments" in tables
     assert "model_failures" in tables
     assert "agent_execution_policies" in tables
-    assert version == "3"
+    assert version == "5"
 
 
 def test_model_lab_hardware_endpoint_persists_snapshots(tmp_path: Path) -> None:

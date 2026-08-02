@@ -31,6 +31,7 @@ class CertificationReport(BaseModel):
     schema_version: int = 1
     run_id: str = ""
     model_id: str
+    bundle_id: str | None = None
     model_version: str = "unknown"
     slot_id: str = "fast_gpu"
     hardware: str
@@ -79,7 +80,15 @@ class ModelCertificationRunner:
         self.chat = chat
         self.store = store
 
-    def run(self, *, model_id: str, slot_id: str, hardware: str, model_version: str = "unknown") -> CertificationReport:
+    def run(
+        self,
+        *,
+        model_id: str,
+        slot_id: str,
+        hardware: str,
+        model_version: str = "unknown",
+        bundle_id: str | None = None,
+    ) -> CertificationReport:
         cases: list[CertificationCase] = []
         for category in CATEGORIES:
             started = time.perf_counter()
@@ -102,6 +111,7 @@ class ModelCertificationRunner:
                                            tokens_per_second=round(token_count / (duration_ms / 1000), 2)))
         report = certify_model(model_id, hardware, cases).model_copy(update={
             "run_id": f"cert-{uuid4().hex}", "model_version": model_version, "slot_id": slot_id,
+            "bundle_id": bundle_id,
         })
         self.store.put(report)
         return report

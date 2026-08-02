@@ -1743,6 +1743,11 @@ export interface ModelLabRoleAssignment {
   priority: number;
   required_certifications: ModelFleetCertificationKind[];
   notes: string;
+  /** Denormalized cache of the bundle's latest measured certification/benchmark
+   * (Plan 15, Phase 7) - null until a run has actually happened for this bundle. */
+  last_certification_run_id: string | null;
+  last_certification_score: number | null;
+  last_benchmark_run_id: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -89,3 +89,41 @@ def enrich_with_model_lab_health(index: ModelIndex, *, repository: ModelLabRepos
     if not changed:
         return index
     return index.model_copy(update={"models": updated_models})
+
+
+def resolve_bundle_to_model_id(
+    bundle_id: str,
+    *,
+    model_lab_repo: ModelLabRepository,
+    model_index: ModelIndex,
+) -> str | None:
+    """Resolves a Model Lab `bundle_id` to the matching runtime `IndexedModel.id`
+    by comparing resolved primary-artifact file paths (Plan 15, Phase 7).
+
+    Certification/benchmark runs historically only knew the legacy runtime
+    index's `IndexedModel.id`, while Model Lab's registry (sources, dedup,
+    health) is keyed by `bundle_id`. This lets a caller who only has a
+    `bundle_id` still target the right runtime model - or get a clear `None`
+    (never a silent wrong match) if the bundle has no primary artifact, or
+    that artifact isn't part of the given `model_index` (e.g. bridge is off,
+    or the index is stale)."""
+    bundle = model_lab_repo.get_model(bundle_id)
+    if not bundle or not bundle.bundle.primary_artifact_id:
+        return None
+    primary = next(
+        (artifact for artifact in bundle.artifacts if artifact.artifact_id == bundle.bundle.primary_artifact_id),
+        None,
+    )
+    if not primary:
+        return None
+    try:
+        target_path = str(Path(primary.path).resolve())
+    except OSError:
+        return None
+    for model in model_index.models:
+        try:
+            if str(Path(model.path).resolve()) == target_path:
+                return model.id
+        except OSError:
+            continue
+    return None

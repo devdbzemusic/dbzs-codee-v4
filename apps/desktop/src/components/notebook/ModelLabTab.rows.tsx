@@ -11,6 +11,33 @@ import type {
 } from "@dbzs/shared";
 import { runtimeSlotManager } from "@/services/runtimeSlotManager";
 import { formatBytes, ModelLabStatusBadge } from "./ModelLabTab.primitives";
+import { ToneBadge } from "./RuntimeModelsTab.primitives";
+
+/**
+ * Zertifizierungs-Badge fuer eine Rollen-Zuweisung (Plan 15, Phase 7).
+ * Gleiches Muster wie das "Ungetestet (GPU)"-Badge in RuntimeModelsTab.rows.tsx:
+ * ein auffaelliges Warn-Badge, solange noch keine gemessene Zertifizierung fuer
+ * diesen Bundle vorliegt, sonst ein Erfolgs-/Fehler-Badge mit dem Score.
+ */
+function CertificationBadge({ assignment }: { assignment: ModelLabRoleAssignment }) {
+  if (assignment.last_certification_score === null) {
+    return (
+      <ToneBadge title="Noch keine gemessene Zertifizierung fuer dieses Modell gelaufen" tone="warn" uppercase={false}>
+        Unzertifiziert
+      </ToneBadge>
+    );
+  }
+  const score = assignment.last_certification_score;
+  return (
+    <ToneBadge
+      title={`Letzter Zertifizierungslauf: ${assignment.last_certification_run_id ?? "-"}`}
+      tone={score >= 80 ? "ok" : "error"}
+      uppercase={false}
+    >
+      Zertifiziert: {score}%
+    </ToneBadge>
+  );
+}
 
 const FLEET_ROLES: ModelFleetRole[] = [
   "MAIN_AGENT",
@@ -165,11 +192,14 @@ export function RoleAssignmentRow({
         ) : (
           <div className="flex flex-col gap-0.5">
             {assignments.map((assignment) => (
-              <span className="text-dbzs-text" key={assignment.id}>
-                {assignment.role}
-                {assignment.settings_field ? ` -> ${assignment.settings_field}` : ""}
-                {assignment.enabled ? "" : " (manuell)"}
-              </span>
+              <div className="flex items-center gap-1" key={assignment.id}>
+                <span className="text-dbzs-text">
+                  {assignment.role}
+                  {assignment.settings_field ? ` -> ${assignment.settings_field}` : ""}
+                  {assignment.enabled ? "" : " (manuell)"}
+                </span>
+                <CertificationBadge assignment={assignment} />
+              </div>
             ))}
           </div>
         )}

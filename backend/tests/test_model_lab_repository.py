@@ -578,3 +578,62 @@ def test_health_event_pruning_keeps_last_200_per_slot(tmp_path: Path) -> None:
 
     assert len(fast_gpu_events) == 200
     assert len(utility_events) == 1
+
+
+def test_update_role_assignment_cache_stamps_certification_and_benchmark(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+    repo.assign_model_role(
+        ModelRoleAssignmentRequest(bundle_id=bundle.bundle_id, role="MICRO_TOOL_AGENT", enabled=False)
+    )
+
+    repo.update_role_assignment_cache(
+        bundle.bundle_id, certification_run_id="cert-1", certification_score=92.5
+    )
+    repo.update_role_assignment_cache(bundle.bundle_id, benchmark_run_id="bench-1")
+
+    assignment = repo.list_role_assignments()[0]
+    assert assignment.last_certification_run_id == "cert-1"
+    assert assignment.last_certification_score == 92.5
+    assert assignment.last_benchmark_run_id == "bench-1"
+
+
+def test_update_role_assignment_cache_is_noop_for_bundle_without_assignment(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    # Should not raise even though no role assignment row exists yet for this bundle.
+    repo.update_role_assignment_cache(bundle.bundle_id, certification_run_id="cert-1", certification_score=50.0)
+
+    assert repo.list_role_assignments() == []
+
+
+def test_update_role_assignment_cache_leaves_unspecified_fields_untouched(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+    repo.assign_model_role(
+        ModelRoleAssignmentRequest(bundle_id=bundle.bundle_id, role="MICRO_TOOL_AGENT", enabled=False)
+    )
+    repo.update_role_assignment_cache(bundle.bundle_id, certification_run_id="cert-1", certification_score=70.0)
+
+    repo.update_role_assignment_cache(bundle.bundle_id, benchmark_run_id="bench-1")
+
+    assignment = repo.list_role_assignments()[0]
+    assert assignment.last_certification_run_id == "cert-1"
+    assert assignment.last_certification_score == 70.0
+    assert assignment.last_benchmark_run_id == "bench-1"
+
+
+def test_get_model_includes_role_assignments_with_cache_fields(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+    repo.assign_model_role(
+        ModelRoleAssignmentRequest(bundle_id=bundle.bundle_id, role="MICRO_TOOL_AGENT", enabled=False)
+    )
+    repo.update_role_assignment_cache(bundle.bundle_id, certification_run_id="cert-1", certification_score=88.0)
+
+    model = repo.get_model(bundle.bundle_id)
+
+    assert model is not None
+    assert len(model.role_assignments) == 1
+    assert model.role_assignments[0].last_certification_score == 88.0

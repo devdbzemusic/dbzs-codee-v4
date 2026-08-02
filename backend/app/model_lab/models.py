@@ -164,6 +164,12 @@ class ModelBundle(BaseModel):
 class ModelLabModel(BaseModel):
     bundle: ModelBundle
     artifacts: list[ModelArtifact]
+    # Plan 15, Phase 7: role assignment(s) for this bundle, carrying the
+    # denormalized last_certification_run_id/last_certification_score/
+    # last_benchmark_run_id cache - lets the UI badge a bundle's fleet status
+    # from this single fetch instead of separately scanning role-assignment,
+    # certification-run and benchmark-run endpoints.
+    role_assignments: list["ModelRoleAssignment"] = Field(default_factory=list)
 
 
 class ScanRequest(BaseModel):
@@ -383,6 +389,12 @@ class ModelRoleAssignment(BaseModel):
     priority: int
     required_certifications: list[ModelFleetCertificationKind] = Field(default_factory=list)
     notes: str = ""
+    # Denormalized cache of the bundle's latest measured certification/benchmark
+    # (Plan 15, Phase 7) so the UI can show a badge without re-scanning the
+    # certification-run store or benchmark_runs table on every render.
+    last_certification_run_id: str | None = None
+    last_certification_score: float | None = None
+    last_benchmark_run_id: str | None = None
     created_at: datetime
     updated_at: datetime
 

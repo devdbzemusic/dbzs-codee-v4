@@ -48,7 +48,7 @@ from app.model_lab.models import (
 )
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 MAX_HEALTH_EVENTS_PER_SLOT = 200
 
 
@@ -310,6 +310,9 @@ class ModelLabRepository:
             _ensure_column(conn, "scan_jobs", "progress_events", "TEXT NOT NULL DEFAULT '[]'")
             _ensure_column(conn, "model_role_assignments", "settings_field", "TEXT")
             _ensure_column(conn, "model_role_assignments", "residency_intent", "TEXT NOT NULL DEFAULT 'manual'")
+            _ensure_column(conn, "model_role_assignments", "last_certification_run_id", "TEXT")
+            _ensure_column(conn, "model_role_assignments", "last_certification_score", "REAL")
+            _ensure_column(conn, "model_role_assignments", "last_benchmark_run_id", "TEXT")
             self._seed_runtime_adapters(conn)
             self._seed_runtime_presets(conn)
             self._seed_execution_policies(conn)
@@ -567,6 +570,10 @@ class ModelLabRepository:
                 "SELECT * FROM model_artifacts WHERE bundle_id = ? ORDER BY artifact_type, detected_name",
                 (bundle_id,),
             ).fetchall()
+            role_assignment_rows = conn.execute(
+                "SELECT * FROM model_role_assignments WHERE bundle_id = ? ORDER BY role",
+                (bundle_id,),
+            ).fetchall()
             metadata_by_bundle = _metadata_by_bundle(conn)
             collections_by_bundle = _collections_by_bundle(conn)
         return ModelLabModel(
@@ -576,6 +583,7 @@ class ModelLabRepository:
                 collection_ids=collections_by_bundle.get(bundle_id, []),
             ),
             artifacts=[_artifact_from_row(row) for row in artifact_rows],
+            role_assignments=[_role_assignment_from_row(row) for row in role_assignment_rows],
         )
 
     def update_model_metadata(self, bundle_id: str, update: ModelMetadataUpdate) -> ModelBundle:
@@ -1044,6 +1052,43 @@ class ModelLabRepository:
                 (request.bundle_id, request.role),
             ).fetchone()
         return _role_assignment_from_row(row)
+
+    def update_role_assignment_cache(
+        self,
+        bundle_id: str,
+        *,
+        certification_run_id: str | None = None,
+        certification_score: float | None = None,
+        benchmark_run_id: str | None = None,
+    ) -> None:
+        """Denormalized cache update (Plan 15, Phase 7): stamps the bundle's
+        latest measured certification/benchmark run onto its existing
+        `model_role_assignments` row(s), so `GET /model-lab/models/{bundle_id}`
+        can surface a badge without scanning the certification-run store or
+        `benchmark_runs` table on every request. A no-op if the bundle has no
+        role assignment yet - the cache only mirrors an existing assignment,
+        it never creates one."""
+        updates: list[str] = []
+        params: list[object] = []
+        if certification_run_id is not None:
+            updates.append("last_certification_run_id = ?")
+            params.append(certification_run_id)
+        if certification_score is not None:
+            updates.append("last_certification_score = ?")
+            params.append(certification_score)
+        if benchmark_run_id is not None:
+            updates.append("last_benchmark_run_id = ?")
+            params.append(benchmark_run_id)
+        if not updates:
+            return
+        updates.append("updated_at = ?")
+        params.append(_dt(datetime.now(UTC)))
+        params.append(bundle_id)
+        with sqlite_connection(self.db_path) as conn:
+            conn.execute(
+                f"UPDATE model_role_assignments SET {', '.join(updates)} WHERE bundle_id = ?",
+                params,
+            )
 
     def list_probe_runs(self, bundle_id: str | None = None) -> list[ModelProbeRun]:
         with sqlite_connection(self.db_path) as conn:
@@ -1674,6 +1719,9 @@ def _role_assignment_from_row(row: sqlite3.Row) -> ModelRoleAssignment:
         priority=int(row["priority"]),
         required_certifications=json.loads(row["required_certifications"] or "[]"),
         notes=str(row["notes"] or ""),
+        last_certification_run_id=row["last_certification_run_id"],
+        last_certification_score=row["last_certification_score"],
+        last_benchmark_run_id=row["last_benchmark_run_id"],
         created_at=_parse_dt(row["created_at"]),
         updated_at=_parse_dt(row["updated_at"]),
     )
