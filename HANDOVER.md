@@ -2,6 +2,50 @@
 
 Stand: 2026-08-02
 
+## Workflow Authority & Safety Sprint — Teil C (WF-03): Repository Review läuft nicht mehr gegen unfertige Runtime (2026-08-02)
+
+**Auftrag:** Fortsetzung von Teil A/B (siehe Einträge darunter). Nutzer wollte den vollen Reorder trotz
+bekanntem Risiko versuchen (nach expliziter Rückfrage zweimal bestätigt), weil ich hier keine Live-Verifikation
+gegen die echte App durchführen kann.
+
+**Fund:** `runtimeChatStore.ts`s Repository-Review-Zweig (direkt nach dem Routing, vor jeglicher
+Slot-Validierung) startete den `RepositoryReviewOrchestrator` sofort — mit `runtimeContextLimit:
+resolvedContextWindowTokens ?? 8192` als reiner Platzhalter (die echte Kontextfenster-Auflösung passiert erst
+~150 Zeilen später im normalen Chat-Pfad) und ohne jede Prüfung, ob der Ziel-Slot überhaupt das richtige Modell
+geladen hat. Genau WF-03 aus dem Intensivaudit.
+
+**Untersuchung vor der Änderung:** Der normale Chat-Pfad reiht Slot-Validierung (Kontextfenster) → harte
+Slot-Bereitschaftsprüfung (`verifySlotForRequest`, schlägt fehl wenn Slot nicht `"running"`) →
+Tool-/Kontext-Orchestrierung → chat-spezifisches Budget-Gate + Prompt-Bindungs-Assertion → tatsächlicher
+On-Demand-Modellstart (`executeOnDemandRuntimeAction`, ~250 Zeilen, mit ~10 aus vorherigen Schritten
+vorberechneten Eingaben) — in dieser Reihenfolge. Den kompletten Review-Zweig hinter diese gesamte Kette zu
+verschieben wäre falsch gewesen: das Budget-Gate/Prompt-Binding ist speziell für den normalen
+Single-Turn-Chat-Prompt gebaut, den Review gar nicht verwendet (Review baut pro Batch eigene Anfragen mit
+eigenem Token-Budget) — ihn dort durchzuschleusen hätte Review-Läufe an chat-spezifischen Prüfungen scheitern
+lassen können, die mit Review nichts zu tun haben.
+
+**Fix:** Statt die riesige bestehende Kette zu verschieben, bekommt der Review-Zweig einen eigenen,
+in sich geschlossenen Preflight-Schritt (`repo-review-preflight`) direkt an seinem Anfang:
+
+1. Echten Slot-Status lesen (`runtimeSlotManager.getSlotStatus`), Kontextfenster aus `context_size` übernehmen
+   statt hartkodiert 8192 zu raten.
+2. Wenn das aufgelöste Rollenmodell nicht bereits mit `chat_ready` im Ziel-Slot läuft: `startSlot()` +
+   `waitForSlotReady()` (dieselbe Low-Level-API, die der normale On-Demand-Pfad letztlich auch verwendet) —
+   startet Fehler klar ab (`target_slot_unavailable`, sauberer Run-Abbruch über `finalizeSendState`), statt
+   stillschweigend gegen einen ungeladenen Slot zu reviewen.
+3. Erst danach startet der eigentliche `RepositoryReviewOrchestrator`.
+
+**Verifiziert:** `tsc --noEmit` (web + node config) sauber. 3 neue Tests in `runtimeChatStore.test.ts`
+("Repository Review preflight (WF-03)"): Slot bereits bereit → kein Start nötig; Slot gestoppt → wird gestartet,
+dann Review; Start schlägt fehl → sauberer Abbruch, Review läuft nicht an. Breiter Regressionslauf
+`src/stores` + `src/services` (112 Dateien, 723 Tests) weiterhin grün — keine Nebenwirkungen auf den normalen
+Chat-Pfad, da dessen Code unverändert blieb (nur der Review-Zweig bekam einen eigenen Vorab-Schritt).
+
+**Ausdrücklich noch nicht live verifiziert** (Sandbox kann das nicht): ein echter Repository-Review-Lauf gegen
+eine reale App-Instanz mit tatsächlich kaltem/gestopptem Ziel-Slot. Vor dem nächsten Release bitte einmal
+bewusst mit gestopptem Slot einen Review anstoßen und prüfen, dass er den Slot sichtbar startet statt zu
+scheitern oder zu hängen.
+
 ## Workflow Authority & Safety Sprint — Teil B: einzige Routing-Wahrheit fertiggestellt (2026-08-02)
 
 **Auftrag:** Fortsetzung von Teil A, siehe Eintrag darunter. Nutzerauflage bestätigt: nach jedem Block

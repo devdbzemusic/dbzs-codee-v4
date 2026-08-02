@@ -21,9 +21,16 @@ Notfall-Fallback). `FleetRoutingResolver` konsultiert jetzt `ModelLabRepository.
 Workflow-Rolle -> Fleet-Rolle-Mapping, M-002) als bevorzugte Quelle vor dem flachen Settings-Fallback. 11 Backend-
 + 2 neue Frontend-Tests. Details siehe HANDOVER.md.
 
-**Teil C — NÄCHSTER SCHRITT:** Workflow-Reihenfolge & stille Degradation korrigieren. WF-03 (Repository Review hinter Runtime-/Budget-/Binding-Gates verschieben — Branchpunkt
-`runtimeChatStore.ts:1029-1074` vs. Budget-Gate bei `runtimeChatStore.ts:1829`), WF-10 (deterministische
-Fallback-Kette, überschneidet sich mit Teil B), WF-07 (`DegradationLedger`).
+**Teil C / WF-03 — ERLEDIGT:** Repository Review bekommt einen eigenen Preflight-Schritt
+(`repo-review-preflight` in `runtimeChatStore.ts`) statt sofort nach dem Routing zu starten — echtes
+Kontextfenster statt hartkodiert 8192, echter Slot-Start falls nötig statt gegen einen ungeladenen Slot zu
+laufen. **Noch nicht live verifiziert** (siehe HANDOVER.md) — vor dem nächsten Release einmal bewusst mit
+gestopptem Ziel-Slot einen Review anstoßen und pruefen. WF-10 ist über Teil B bereits weitgehend abgedeckt
+(Model-Lab-Routing-Map als bevorzugte Fallback-Quelle).
+
+**Teil C / WF-07 — NÄCHSTER SCHRITT:** `DegradationLedger` einführen, damit stille Fallbacks (z.B. Lexical-RAG
+statt semantischer Suche, fehlgeschlagene Context-Orchestrierung) im Run-Ergebnis sichtbar werden statt
+unbemerkt zu bleiben.
 
 **Danach Teil D:** Usecase-Maßnahmenkatalog (`Pläne/check/DBZS_CODEE_WORKFLOW_USECASE_MASSNAHMENKATALOG.md`,
 M-001…M-702), 8 eigene Phasen, bewusst nur grob sequenziert — mehrmonatiges Programm, siehe Plan-Datei Teil D.

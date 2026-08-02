@@ -1032,6 +1032,64 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
       runWorkspaceRoot &&
       brokerDecisionFull?.targetAgent === "reviewer"
     ) {
+      // WF-03 (Workflow-Bruch-Audit): Repository Review used to start immediately
+      // after routing, before the runtime/context-window preflight that every other
+      // turn goes through — meaning it could run against an unstarted or wrong slot
+      // and always assumed an 8192 context window regardless of the real model. This
+      // ensures the target slot is actually loaded and resolves the real context
+      // size first, same intent as the normal chat path's slot-validation +
+      // on-demand start, without routing review through the chat-prompt-specific
+      // budget-gate/prompt-binding machinery further down (which review, with its
+      // own per-batch token budgeting, does not need and could spuriously fail on).
+      beginStep("repo-review-preflight", "Runtime für Review vorbereiten");
+      try {
+        const reviewSlotId = contextSlotId as RuntimeSlotId;
+        let reviewSlotStatus = await runtimeSlotManager.getSlotStatus(reviewSlotId);
+        if (reviewSlotStatus?.context_size) {
+          resolvedContextWindowTokens = reviewSlotStatus.context_size;
+        }
+        const modelAlreadyReady =
+          runtimeSlotManager.isSlotReady(reviewSlotStatus) &&
+          reviewSlotStatus?.model_id === routing.modelId;
+        if (!modelAlreadyReady) {
+          if (!routing.modelId) {
+            throw new Error("target_slot_unavailable: kein Modell fuer Review-Slot aufgeloest");
+          }
+          appendStepDetail(
+            "repo-review-preflight",
+            `Arbeitsmodell '${routing.modelId}' fuer Slot ${reviewSlotId} wird gestartet ...`
+          );
+          const startResult = await runtimeSlotManager.startSlot(reviewSlotId, routing.modelId);
+          if (!startResult.success) {
+            throw new Error(startResult.error || `target_slot_unavailable: Start von ${reviewSlotId} fehlgeschlagen`);
+          }
+          reviewSlotStatus = await runtimeSlotManager.waitForSlotReady(reviewSlotId, 60_000);
+          if (!reviewSlotStatus || !runtimeSlotManager.isSlotReady(reviewSlotStatus)) {
+            throw new Error(`target_slot_unavailable: Slot ${reviewSlotId} wurde nicht rechtzeitig bereit`);
+          }
+          if (reviewSlotStatus.context_size) {
+            resolvedContextWindowTokens = reviewSlotStatus.context_size;
+          }
+        }
+        finishStep(
+          "repo-review-preflight",
+          "Runtime für Review vorbereiten",
+          `Slot ${reviewSlotId} bereit · Kontextfenster ${resolvedContextWindowTokens ?? "unbekannt, Fallback 8192"}`
+        );
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : "Review-Runtime nicht bereit";
+        const userMessage = "Der Ziel-Slot für den Repository Review ist nicht bereit.";
+        failStep("repo-review-preflight", "Runtime für Review vorbereiten", errMsg);
+        appendGenericRunFailure({
+          updateActiveRun,
+          outcome: "runtime_error",
+          summary: userMessage,
+          error: { code: "target_slot_unavailable", message: errMsg, phase: "routing" }
+        });
+        finalizeSendState({ set, get, activity, errorMessage: userMessage });
+        return false;
+      }
+
       beginStep("repo-review", "Repository Review Orchestrator");
       const workspaceId = workspaceScopeId(runWorkspaceRoot);
       const reviewRequest = buildRepositoryReviewRequest({
