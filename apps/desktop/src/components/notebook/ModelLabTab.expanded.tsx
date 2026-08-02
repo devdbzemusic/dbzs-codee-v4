@@ -177,9 +177,9 @@ export function ModelLabExpandedDetails({
             Vor dem Aktivieren einer Rolle noetig. Auf Basis der Test-Starts/Benchmarks oben als bestanden
             markieren.
           </p>
-          <div className="flex gap-2">
+          <div className="space-y-2">
             <select
-              className="flex-1 bg-dbzs-bg border border-dbzs-border text-[10px] text-dbzs-text px-2 py-1"
+              className="w-full bg-dbzs-bg border border-dbzs-border text-[10px] text-dbzs-text px-2 py-1"
               onChange={(event) => setSelectedCertification(event.target.value as ModelFleetCertificationKind)}
               value={selectedCertification}
             >
@@ -190,7 +190,7 @@ export function ModelLabExpandedDetails({
               ))}
             </select>
             <button
-              className="px-3 py-1 border border-dbzs-border text-[10px] text-dbzs-text hover:bg-dbzs-bg/50 transition-colors disabled:opacity-50"
+              className="w-full text-center px-3 py-1.5 border border-dbzs-border bg-dbzs-bg text-[11px] text-dbzs-text hover:border-dbzs-cyan/50 hover:bg-dbzs-cyan/5 transition-colors disabled:opacity-50"
               disabled={!certifyModel || certifyingModel}
               onClick={() =>
                 certifyModel?.({ bundle_id: bundle.bundle_id, certification: selectedCertification, status: "passed" })

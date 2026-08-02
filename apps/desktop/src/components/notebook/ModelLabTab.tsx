@@ -64,7 +64,7 @@ export function ModelLabTab() {
         sourceCount={sources.length}
       />
       <div className="min-h-0 flex-1 overflow-auto p-4">
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-6">
             <ModelLabSourcesSection
               addingSource={addingSource}

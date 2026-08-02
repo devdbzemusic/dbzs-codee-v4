@@ -2,6 +2,32 @@
 
 Stand: 2026-08-02
 
+## Model Lab UI: zwei Layout-Bugs behoben, per Screenshot verifiziert (2026-08-02)
+
+**Auftrag:** Nutzer-Screenshot zeigte das Inspector-Panel im Model Lab (rechte Spalte,
+"Modell auswaehlen, um Details zu sehen.") von oben bis unten durchgehend gestreckt statt content-gross.
+Bitte um "Vertikales AutoSize/Scale". Zweiter Screenshot (mit rotem Pfeil) zeigte einen weiteren, davon
+unabhaengigen Bug in derselben Ansicht: der "Als bestanden markieren"-Button in der aufgeklappten
+Zertifizierung-Sektion war auf nur "b"/"m"-Fragmente zusammengequetscht.
+
+**Ursache 1:** `ModelLabTab.tsx`s 2-Spalten-Grid (`grid-cols-[minmax(0,1fr)_320px]`) hat per CSS-Grid-Default
+`align-items: stretch` — die linke Spalte (Sources, Modell-Tabelle, Collections, Readiness, Routing,
+Rollenzuweisung, HF-Suche, alles gestapelt) ist sehr hoch, wodurch das kurze `ModelLabInspectorPanel` in
+derselben Grid-Zeile auf dieselbe Hoehe gestreckt wurde. Fix: `items-start` auf den Grid-Container ergaenzt
+— jede Spalte sizet sich jetzt an ihrem eigenen Inhalt statt an der hoechsten Nachbarspalte.
+
+**Ursache 2:** `ModelLabTab.expanded.tsx`s Zertifizierung-Sektion hatte `<select className="flex-1">` +
+`<button>` nebeneinander in einer `flex gap-2`-Zeile innerhalb einer von vier gleich breiten Grid-Spalten
+(`xl:grid-cols-4`) — bei dieser Spaltenbreite war kein Platz fuer den Button-Text ("Als bestanden
+markieren"), er brach um und wurde abgeschnitten. Fix: Select und Button jetzt gestapelt (`space-y-2`,
+beide `w-full`) — exakt das gleiche Muster wie die bereits danebenliegenden "Benchmark starten"- und
+"Zum System hinzufuegen & aktivieren"-Buttons.
+
+**Verifiziert per echtem Playwright-`_electron`-Launch mit echten Klicks** (Model-Lab-Tab oeffnen, Zeile
+"AgentCPM-Explore.Q4_K_M" aufklappen, zur Zertifizierung-Sektion scrollen) — beide Fixes per Screenshot
+bestaetigt: Inspector-Panel jetzt content-gross statt vollhoehig, Zertifizierung-Button vollstaendig lesbar
+statt abgeschnitten.
+
 ## Splashscreen-Hang behoben: Model-Lab-Quelle scannte das ganze Benutzerprofil + Boot-Phase ohne Progress-Verlaengerung (2026-08-02)
 
 **Auftrag:** Nach dem Resident-Model-Fix (siehe Eintrag darunter) meldete der Nutzer weiterhin Probleme:

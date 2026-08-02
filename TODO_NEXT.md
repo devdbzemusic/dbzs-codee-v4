@@ -5,6 +5,15 @@ Stand: 2026-08-02
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
 
+## Model Lab UI: Inspector-Panel-Stretch + Zertifizierung-Button-Clipping — BEHOBEN, PER SCREENSHOT VERIFIZIERT
+
+Zwei CSS-Layout-Bugs im Model Lab: (1) `items-start` auf dem 2-Spalten-Grid in `ModelLabTab.tsx` ergaenzt,
+damit das Inspector-Panel sich nicht mehr an der Hoehe der viel laengeren linken Spalte stretcht. (2) Die
+Zertifizierung-Dropdown+Button-Zeile in `ModelLabTab.expanded.tsx` von `flex` (Button-Text brach um und
+wurde in der schmalen Grid-Spalte abgeschnitten) auf gestapelte `w-full`-Elemente umgestellt, passend zum
+Stil der Nachbar-Buttons. Beide per echtem Playwright-Klick-Durchlauf (Model-Lab-Tab -> Zeile aufklappen ->
+zu Zertifizierung scrollen) screenshotbestaetigt. Details siehe HANDOVER.md.
+
 ## Splashscreen-Hang (Model-Lab-Quelle scannte ganzes Benutzerprofil) — BEHOBEN, LIVE VERIFIZIERT
 
 Zwei Ursachen: `model-index`-Boot-Phase hatte `extendDeadlineOnProgress: false` trotz echtem
