@@ -229,6 +229,26 @@ function selectDefaultModelForSlot(models: IndexedModel[], slotId: RuntimeSlotId
   return fallback[0] ?? runnable[0] ?? null;
 }
 
+/**
+ * Representative task type used to ask the backend FleetRoutingResolver for
+ * a default model when no role setting is configured for `slotId` — the
+ * resolved slot in the response is ignored, only resolved_model_id is used,
+ * since the caller has already committed to `slotId` externally.
+ */
+function taskTypeForSlotFallback(slotId: RuntimeSlotId): string {
+  switch (slotId) {
+    case "fast_gpu":
+      return "small_code_change";
+    case "utility":
+      return "embedding";
+    case "vision_gpu":
+    case "quality_cpu":
+    case "orchestrator_cpu":
+    default:
+      return "normal_chat";
+  }
+}
+
 function configuredModelForSlot(slotId: RuntimeSlotId): string {
   const settings = useSettingsStore.getState().settings;
 
@@ -552,9 +572,41 @@ export const runtimeSlotManager = {
 
   /**
    * Holt das beste echte IndexedModel.id-Default für einen Slot.
+   *
+   * Wenn kein Rollenmodell in den Settings konfiguriert ist, fragt dies zuerst
+   * den Backend-FleetRoutingResolver (einzige Routing-Wahrheit, WF-01/WF-10) statt
+   * direkt auf die lokale Scoring-Heuristik in resolveModelId()/selectDefaultModelForSlot()
+   * zu springen. Diese lokale Heuristik bleibt nur als Notfall-Fallback bestehen, wenn das
+   * Backend nicht erreichbar ist — dieser Fallback wird immer sichtbar geloggt, nie still.
    */
   async resolveDefaultModelForSlot(slotId: RuntimeSlotId): Promise<string> {
     const configuredDefault = this.getDefaultModelForSlot(slotId);
+    if (configuredDefault.trim()) {
+      return this.resolveModelId(configuredDefault, slotId);
+    }
+
+    if (backendClient.resolveRuntimeRoute) {
+      try {
+        const response = await backendClient.resolveRuntimeRoute({
+          task_type: taskTypeForSlotFallback(slotId),
+          requires_vision: slotId === "vision_gpu"
+        });
+        if (response.resolved_model_id) {
+          emitRoutingEvent("slot_default_resolved_via_backend", {
+            slotId,
+            modelId: response.resolved_model_id,
+            selectionSource: response.selection_source
+          });
+          return response.resolved_model_id;
+        }
+      } catch (error) {
+        emitRoutingEvent("slot_default_backend_unavailable_local_fallback", {
+          slotId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
     return this.resolveModelId(configuredDefault, slotId);
   },
 

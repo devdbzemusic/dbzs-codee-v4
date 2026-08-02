@@ -2,6 +2,41 @@
 
 Stand: 2026-08-02
 
+## Workflow Authority & Safety Sprint — Teil B: einzige Routing-Wahrheit fertiggestellt (2026-08-02)
+
+**Auftrag:** Fortsetzung von Teil A, siehe Eintrag darunter. Nutzerauflage bestätigt: nach jedem Block
+committen, pushen, HANDOVER/TODO_NEXT aktualisieren.
+
+**1. `runtimeSlotManager.ts` von eigener Auswahl-Logik befreit:** `resolveDefaultModelForSlot()` fragt jetzt,
+wenn kein Rollenmodell in den Settings konfiguriert ist, zuerst `backendClient.resolveRuntimeRoute()` (den
+Backend-`FleetRoutingResolver`) statt direkt auf die lokale Scoring-Heuristik (`selectDefaultModelForSlot()`/
+`scoreModelForSlot()`) zu springen. Diese lokale Heuristik bleibt nur als Notfall-Fallback bestehen, wenn das
+Backend nicht erreichbar ist — via `emitRoutingEvent()` sichtbar geloggt (`slot_default_resolved_via_backend`
+bzw. `slot_default_backend_unavailable_local_fallback`), nie still. Neuer Helper `taskTypeForSlotFallback()`
+mappt Slot -> repräsentativen Task-Type für die Backend-Anfrage; nur `resolved_model_id` aus der Antwort wird
+verwendet, der Ziel-Slot bleibt extern vom Aufrufer bestimmt.
+
+**2. Offizielles Workflow-Rolle -> Fleet-Rolle -> Zertifizierungs-Mapping** (Maßnahmenkatalog M-002) im Backend
+ergänzt: `FleetRoutingResolver` bekommt einen optionalen `model_lab_repo`-Parameter und eine neue
+`_model_lab_candidate()`-Methode. Bei fehlendem Settings-Rollenmodell wird jetzt zuerst
+`ModelLabRepository.list_routing_map(role=<Fleet-Rolle>)` (gefiltert auf `routing_allowed=True`, sortiert nach
+Priorität) abgefragt und über das bereits vorhandene `resolve_bundle_to_model_id()` (Plan 15, Phase 7) auf die
+echte Runtime-`model_id` aufgelöst — bevor auf die generische resident/installed-Scoring-Kette zurückgefallen
+wird (WF-10: zertifizierte Rollenzuweisung schlägt "läuft zufällig gerade"). Mapping-Tabelle
+`_WORKFLOW_AGENT_TO_FLEET_ROLE` deckt `default/coder/reviewer/tester/planner` ab; Vision bleibt bewusst
+ausgenommen (eigenes Settings-Feld + Pairing-Gate). Degradiert graceful auf den bisherigen Flat-Settings-Pfad,
+wenn kein Model-Lab-Rolleneintrag existiert (die meisten privaten Installationen haben noch keine
+Zertifizierung durchlaufen) — kein Hard-Fail. `/runtime/route`-Endpoint reicht jetzt
+`get_shared_model_lab_repository()` durch.
+
+**Verifiziert:** `tsc --noEmit` sauber. Backend: `test_fleet_routing_resolver.py` von 8 auf 11 Tests erweitert
+(3 neu: zertifizierte Zuweisung gewinnt, nicht-`routing_allowed`-Eintrag fällt durch, Vision-Turn überspringt
+die Model-Lab-Stufe) — alle grün, plus `test_runtime_api.py`/`test_runtime_service.py`/
+`test_model_lab_bridge.py` (81 gesamt) weiterhin grün. Frontend: `runtimeSlotManager.test.ts` — eine veraltete,
+seit der früheren Hardcoded-Namen-Entfernung nie aktualisierte Testerwartung entfernt ("CodeReactor" etc.,
+bereits vor dieser Session kaputt, nicht durch diese Änderung verursacht) und zwei neue Tests für den
+Backend-first/lokaler-Fallback-Pfad ergänzt (29/29 grün).
+
 ## Workflow Authority & Safety Sprint — Teil A: kaputten Build repariert + FleetRoutingResolver-Sicherheitslogik portiert (2026-08-02)
 
 **Auftrag:** Nutzer liess vier Audit-Dokumente in `Pläne/check/` (gitignored, lokal) erstellen

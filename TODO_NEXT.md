@@ -15,17 +15,13 @@ committen, pushen, HANDOVER/TODO_NEXT aktualisieren.
 ergänzt, Vision-/Capability-Gate + dreistufige Fallback-Kette nach `FleetRoutingResolver` (Backend) portiert
 (8 neue Pytest-Tests), tote Draft-Datei `codePatchStore.ts` entfernt. Details siehe HANDOVER.md.
 
-**Teil B — NÄCHSTER SCHRITT:** eine einzige Routing-Wahrheit fertigstellen.
+**Teil B — ERLEDIGT:** einzige Routing-Wahrheit fertiggestellt. `runtimeSlotManager.resolveDefaultModelForSlot()`
+fragt bei fehlendem Rollenmodell zuerst den Backend-Resolver (lokale Heuristik nur noch als geloggter
+Notfall-Fallback). `FleetRoutingResolver` konsultiert jetzt `ModelLabRepository.list_routing_map()` (offizielles
+Workflow-Rolle -> Fleet-Rolle-Mapping, M-002) als bevorzugte Quelle vor dem flachen Settings-Fallback. 11 Backend-
++ 2 neue Frontend-Tests. Details siehe HANDOVER.md.
 
-1. `runtimeSlotManager.ts`s `selectDefaultModelForSlot()`/`scoreModelForSlot()` (eigene lokale Modellwahl bei
-   Auto-Start) auf `backendClient.resolveRuntimeRoute()` umstellen, lokale Heuristik nur als Notfall-Fallback
-   bei nicht erreichbarem Backend behalten (explizit geloggt).
-2. Offizielles Workflow-Rolle -> Fleet-Rolle -> Zertifizierungs-Mapping: `ModelFleetRole`/`ModelLabRoleAssignment`
-   existieren bereits (`packages/shared/src/index.ts`, `backend/app/model_lab/`), werden aber von
-   `FleetRoutingResolver` nicht konsultiert — Model-Lab-Routing-Map als bevorzugte Quelle vor dem flachen
-   Settings-Fallback einbinden.
-
-**Danach Teil C:** WF-03 (Repository Review hinter Runtime-/Budget-/Binding-Gates verschieben — Branchpunkt
+**Teil C — NÄCHSTER SCHRITT:** Workflow-Reihenfolge & stille Degradation korrigieren. WF-03 (Repository Review hinter Runtime-/Budget-/Binding-Gates verschieben — Branchpunkt
 `runtimeChatStore.ts:1029-1074` vs. Budget-Gate bei `runtimeChatStore.ts:1829`), WF-10 (deterministische
 Fallback-Kette, überschneidet sich mit Teil B), WF-07 (`DegradationLedger`).
 
@@ -70,5 +66,5 @@ verifiziert und committet/gepusht (`f069812`, `74292e1`, `3d4790c`, `0366939` au
 
 - `D:\Models\Agentic` als Quelle registrieren/scannen (haengt mit Punkt 4 oben zusammen)
 - `llama.cpp`-RuntimeAdapter live verdrahten (`probe_load`, `health_check`, echte Benchmark-Messung)
-- `modelSelectionBroker` produktiv an die Fleet-Routing-Map anbinden
+- ~~`modelSelectionBroker` produktiv an die Fleet-Routing-Map anbinden~~ — erledigt im Workflow Authority & Safety Sprint, Teil B (siehe oben)
 - manuelle Modell-Abnahme (MiniCPM5-1B, QwenPaw-Flash-2B, Agents-A1-4B, AgentCPM-Explore, Nemotron-3-Nano-4B, ...)

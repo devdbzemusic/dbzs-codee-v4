@@ -596,6 +596,7 @@ def route_runtime_request(
         settings_service=get_settings_service(),
         index_service=service.model_index_service,
         residency=service.residency,
+        model_lab_repo=get_shared_model_lab_repository(),
     )
     try:
         return resolver.resolve(request)

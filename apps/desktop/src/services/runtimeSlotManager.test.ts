@@ -4,10 +4,11 @@
  * Bereich: Desktop Services / Runtime Slot Manager Tests
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { DEFAULT_SETTINGS, type IndexedModel } from "@dbzs/shared";
 import { runtimeSlotManager, scoreModelForSlot, type RuntimeSlotStatus } from "./runtimeSlotManager";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { backendClient } from "@/services/backendClient";
 
 function makeIndexedModel(overrides: Partial<IndexedModel> = {}): IndexedModel {
   return {
@@ -349,14 +350,6 @@ describe("runtimeSlotManager", () => {
   });
 
   describe("getDefaultModelForSlot", () => {
-    it("sollte Default-Modelle zurückgeben", () => {
-      expect(runtimeSlotManager.getDefaultModelForSlot("fast_gpu")).toContain("CodeReactor");
-      expect(runtimeSlotManager.getDefaultModelForSlot("quality_cpu")).toContain("Llama");
-      expect(runtimeSlotManager.getDefaultModelForSlot("utility")).toContain("embedding");
-      expect(runtimeSlotManager.getDefaultModelForSlot("orchestrator_cpu")).toContain("functiongemma");
-      expect(runtimeSlotManager.getDefaultModelForSlot("vision_gpu")).toContain("VL");
-    });
-
     it("sollte gespeichertes Vision-Modell aus den Settings verwenden", () => {
       useSettingsStore.setState({
         settings: {
@@ -485,6 +478,58 @@ describe("runtimeSlotManager", () => {
       expect(result.ok).toBe(false);
       expect(result.error).toBe("binding_mismatch");
       expect(result.detail).toContain("Outcome: binding_mismatch");
+    });
+  });
+
+  describe("resolveDefaultModelForSlot — Backend als einzige Routing-Wahrheit (WF-01/WF-10)", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("fragt den Backend-Resolver, wenn kein Rollenmodell konfiguriert ist", async () => {
+      useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS } });
+      vi.spyOn(backendClient, "resolveRuntimeRoute").mockResolvedValue({
+        decision_id: "d1",
+        task_type: "small_code_change",
+        target_agent: "coder",
+        slot_id: "fast_gpu",
+        model_id: "backend-coder",
+        model_name: "Backend Coder",
+        configured_model_id: "backend-coder",
+        resolved_model_id: "backend-coder",
+        resolved_model_name: "Backend Coder",
+        selection_source: "explicit_fallback",
+        capabilities: [],
+        has_image_input: false,
+        requires_vision: false,
+        provider_id: "llama-cpp",
+        reason: [],
+        fallback_policy: "strict",
+        decision_settings_revision: 0
+      });
+
+      const modelId = await runtimeSlotManager.resolveDefaultModelForSlot("fast_gpu");
+
+      expect(modelId).toBe("backend-coder");
+      expect(backendClient.resolveRuntimeRoute).toHaveBeenCalledWith(
+        expect.objectContaining({ task_type: "small_code_change" })
+      );
+    });
+
+    it("faellt auf die lokale Heuristik zurueck, wenn das Backend nicht erreichbar ist", async () => {
+      useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS } });
+      vi.spyOn(backendClient, "resolveRuntimeRoute").mockRejectedValue(new Error("offline"));
+      vi.spyOn(backendClient, "getModelIndex").mockResolvedValue({
+        generated_from: "test",
+        summary: {} as never,
+        models: [makeIndexedModel({ id: "local-fallback", recommended_use: "coding_candidate" })],
+        support_artifacts: [],
+        multimodal_pairs: []
+      });
+
+      const modelId = await runtimeSlotManager.resolveDefaultModelForSlot("fast_gpu");
+
+      expect(modelId).toBe("local-fallback");
     });
   });
 });

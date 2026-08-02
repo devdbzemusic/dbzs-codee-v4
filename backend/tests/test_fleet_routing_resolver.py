@@ -1,12 +1,17 @@
 """Unit tests for FleetRoutingResolver — the sole backend routing authority
 (Workflow-Bruch WF-01/WF-09/WF-10). Covers the vision gate, capability gate
 and tiered role-model fallback ported from the desktop's now-retired
-resolveModelIdWithVisionGate()."""
+resolveModelIdWithVisionGate(), plus the Model Lab role-assignment tier
+(Massnahmenkatalog M-002/M-101)."""
+
+from datetime import datetime, timezone
 
 import pytest
 
+from app.model_lab.models import ModelFleetRoutingEntry
 from app.models.schemas import IndexedModel, ModelIndex, ModelIndexSummary, ModelRuntimeHints, MultimodalPair
 from app.runtime.errors import RuntimeProviderError
+from app.runtime import routing_resolver as routing_resolver_module
 from app.runtime.routing_resolver import FleetRoutingResolver
 from app.runtime.schemas import RuntimeRouteRequest
 from app.settings.models import AppSettings
@@ -75,6 +80,28 @@ class FakeResidency:
 class FakeResidencyEntry:
     def __init__(self, model_id):
         self.model_id = model_id
+
+
+def _routing_entry(bundle_id, *, role="CODING_EXECUTOR", priority=1, routing_allowed=True):
+    return ModelFleetRoutingEntry(
+        role=role,
+        bundle_id=bundle_id,
+        bundle_name=bundle_id,
+        safety_level="LEVEL_2_WORKSPACE_WRITE",
+        enabled=True,
+        priority=priority,
+        bundle_status="CERTIFIED",
+        routing_allowed=routing_allowed,
+        updated_at=datetime.now(timezone.utc),
+    )
+
+
+class FakeModelLabRepo:
+    def __init__(self, entries):
+        self._entries = entries
+
+    def list_routing_map(self, role=None):
+        return [entry for entry in self._entries if role is None or entry.role == role]
 
 
 def test_routes_coding_task_to_configured_coder_model():
@@ -186,3 +213,71 @@ def test_configured_model_not_in_index_raises_structured_error():
         resolver.resolve(RuntimeRouteRequest(task_type="small_code_change"))
 
     assert excinfo.value.code == "role_model_not_in_index"
+
+
+def test_model_lab_certified_role_assignment_wins_over_generic_fallback(monkeypatch):
+    """WF-10: a certified Model Lab role assignment must be preferred over the
+    generic resident/installed scoring fallback when no settings role model
+    is configured."""
+    settings = FakeSettingsService()  # no defaultCoderModelId
+    index = FakeIndexService(
+        [
+            _model("certified-coder", capabilities=["chat", "code"]),
+            _model("scored-coder", capabilities=["chat", "code"], recommended_use="primary_coding"),
+        ]
+    )
+    model_lab_repo = FakeModelLabRepo([_routing_entry("bundle-1", role="CODING_EXECUTOR")])
+    monkeypatch.setattr(
+        routing_resolver_module,
+        "resolve_bundle_to_model_id",
+        lambda bundle_id, *, model_lab_repo, model_index: "certified-coder",
+    )
+    resolver = FleetRoutingResolver(settings, index, model_lab_repo=model_lab_repo)
+
+    response = resolver.resolve(RuntimeRouteRequest(task_type="small_code_change"))
+
+    assert response.resolved_model_id == "certified-coder"
+    assert "role_fallback:model_lab_certified:certified-coder" in response.reason
+
+
+def test_model_lab_no_routing_allowed_entry_falls_through_to_generic_fallback(monkeypatch):
+    settings = FakeSettingsService()
+    index = FakeIndexService([_model("installed-coder", capabilities=["chat", "code"])])
+    model_lab_repo = FakeModelLabRepo(
+        [_routing_entry("bundle-1", role="CODING_EXECUTOR", routing_allowed=False)]
+    )
+    monkeypatch.setattr(
+        routing_resolver_module,
+        "resolve_bundle_to_model_id",
+        lambda *args, **kwargs: pytest.fail("should not be called for a non-routing-allowed entry"),
+    )
+    resolver = FleetRoutingResolver(settings, index, model_lab_repo=model_lab_repo)
+
+    response = resolver.resolve(RuntimeRouteRequest(task_type="small_code_change"))
+
+    assert response.resolved_model_id == "installed-coder"
+    assert response.selection_source == "explicit_fallback"
+    assert "role_fallback:installed_model:installed-coder" in response.reason
+
+
+def test_model_lab_tier_skipped_for_vision_turns():
+    settings = FakeSettingsService(defaultVisionModelId="vl-model")
+    pair = MultimodalPair(
+        id="pair-1",
+        base_model_id="vl-model",
+        projector_artifact_id="mmproj-1",
+        source="scan",
+        confidence=1.0,
+        status="verified",
+        routing_allowed=True,
+    )
+    index = FakeIndexService(
+        [_model("vl-model", modality=["vision"], recommended_use="vision_candidate")],
+        multimodal_pairs=[pair],
+    )
+    model_lab_repo = FakeModelLabRepo([_routing_entry("bundle-1", role="CODING_EXECUTOR")])
+    resolver = FleetRoutingResolver(settings, index, model_lab_repo=model_lab_repo)
+
+    response = resolver.resolve(RuntimeRouteRequest(task_type="normal_chat", requires_vision=True))
+
+    assert response.resolved_model_id == "vl-model"

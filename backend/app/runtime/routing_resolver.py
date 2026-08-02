@@ -1,11 +1,24 @@
 import uuid
 
+from app.model_lab.repository import ModelLabRepository
 from app.models.index_service import ModelIndexService
+from app.models.model_lab_bridge import resolve_bundle_to_model_id
 from app.models.schemas import IndexedModel, MultimodalPair
 from app.runtime.errors import RuntimeProviderError
 from app.runtime.residency import RuntimeResidencyRegistry
 from app.runtime.schemas import RuntimeRouteRequest, RuntimeRouteResponse
 from app.settings.service import SettingsService
+
+# Official Workflow-Role -> Fleet-Role mapping (Massnahmenkatalog M-002).
+# Only the "preferred" fleet role per workflow agent — special-role fallback
+# (e.g. ALGORITHM_SPECIALIST, DEEP_RESEARCH_AGENT) is left to a later slice.
+_WORKFLOW_AGENT_TO_FLEET_ROLE: dict[str, str] = {
+    "default": "FAST_GENERAL_AGENT",
+    "coder": "CODING_EXECUTOR",
+    "reviewer": "REASONING_VALIDATOR",
+    "tester": "REASONING_VALIDATOR",
+    "planner": "MAIN_AGENT",
+}
 
 _CODING_TASK_TYPES = {
     "small_code_change",
@@ -87,10 +100,33 @@ class FleetRoutingResolver:
         settings_service: SettingsService,
         index_service: ModelIndexService,
         residency: RuntimeResidencyRegistry | None = None,
+        model_lab_repo: ModelLabRepository | None = None,
     ):
         self.settings = settings_service
         self.index = index_service
         self.residency = residency
+        self.model_lab_repo = model_lab_repo
+
+    def _model_lab_candidate(self, target_agent: str, index_data, catalog_by_id: dict[str, IndexedModel]) -> str | None:
+        """Best certified, routing-allowed Model Lab bundle for `target_agent`'s
+        preferred fleet role, resolved to a runtime model id — or None if no
+        Model Lab role assignment exists yet (most personal installs won't have
+        run certification, so this must degrade gracefully to the flat
+        settings-based fallback, never hard-fail)."""
+        if self.model_lab_repo is None:
+            return None
+        fleet_role = _WORKFLOW_AGENT_TO_FLEET_ROLE.get(target_agent)
+        if fleet_role is None:
+            return None
+        entries = [e for e in self.model_lab_repo.list_routing_map(role=fleet_role) if e.routing_allowed]
+        entries.sort(key=lambda e: e.priority)
+        for entry in entries:
+            model_id = resolve_bundle_to_model_id(
+                entry.bundle_id, model_lab_repo=self.model_lab_repo, model_index=index_data
+            )
+            if model_id and model_id in catalog_by_id:
+                return model_id
+        return None
 
     def resolve(self, request: RuntimeRouteRequest) -> RuntimeRouteResponse:
         settings = self.settings.load()
@@ -204,44 +240,61 @@ class FleetRoutingResolver:
         else:
             # No role model configured — tiered fallback.
             reasons.append("role_fallback:role_model_missing")
-            resident_ids = {
-                entry.model_id
-                for entry in (self.residency.all_entries() if self.residency else [])
-            }
-            running_candidates = [
-                catalog_by_id[mid]
-                for mid in resident_ids
-                if mid in catalog_by_id
-                and _is_fallback_candidate_eligible(catalog_by_id[mid], allow_vision, index_data.multimodal_pairs)
-            ]
-            best_running = max(
-                running_candidates, key=lambda m: _score_fallback_candidate(m, task), default=None
+
+            # Tier 1 (new): a certified, routing-allowed Model Lab role assignment
+            # for this agent's fleet role (Massnahmenkatalog M-002/M-101, WF-09).
+            # Only applied for non-vision turns — vision keeps its own dedicated
+            # settings field and verified-pairing gate above.
+            model_lab_model_id = None if allow_vision else self._model_lab_candidate(
+                target_agent, index_data, catalog_by_id
             )
-            if best_running is not None:
-                resolved_model_id = best_running.id
-                reasons.append(f"role_fallback:running_model:{resolved_model_id}")
+
+            if model_lab_model_id is not None:
+                # Certified Model Lab role assignment wins over the generic
+                # heuristic fallback tiers below (WF-10: certified assignment
+                # before "just happens to be resident").
+                resolved_model_id = model_lab_model_id
+                reasons.append(f"role_fallback:model_lab_certified:{resolved_model_id}")
                 selection_source = "explicit_fallback"
             else:
-                installed_candidates = [
-                    model
-                    for model in index_data.models
-                    if _is_fallback_candidate_eligible(model, allow_vision, index_data.multimodal_pairs)
+                resident_ids = {
+                    entry.model_id
+                    for entry in (self.residency.all_entries() if self.residency else [])
+                }
+                running_candidates = [
+                    catalog_by_id[mid]
+                    for mid in resident_ids
+                    if mid in catalog_by_id
+                    and _is_fallback_candidate_eligible(catalog_by_id[mid], allow_vision, index_data.multimodal_pairs)
                 ]
-                best_installed = max(
-                    installed_candidates, key=lambda m: _score_fallback_candidate(m, task), default=None
+                best_running = max(
+                    running_candidates, key=lambda m: _score_fallback_candidate(m, task), default=None
                 )
-                if best_installed is None:
-                    raise RuntimeProviderError(
-                        "Rollenmodell in Settings fehlt, und es ist weder ein laufendes noch ein "
-                        "installiertes kompatibles Modell als Fallback verfuegbar.",
-                        code="role_model_missing_no_fallback",
-                        recoverable=True,
-                        diagnostic_context={"source": "fleet-routing", "task_type": task},
-                        recommended_action="Rollenmodell in Settings setzen oder ein Modell installieren.",
+                if best_running is not None:
+                    resolved_model_id = best_running.id
+                    reasons.append(f"role_fallback:running_model:{resolved_model_id}")
+                    selection_source = "explicit_fallback"
+                else:
+                    installed_candidates = [
+                        model
+                        for model in index_data.models
+                        if _is_fallback_candidate_eligible(model, allow_vision, index_data.multimodal_pairs)
+                    ]
+                    best_installed = max(
+                        installed_candidates, key=lambda m: _score_fallback_candidate(m, task), default=None
                     )
-                resolved_model_id = best_installed.id
-                reasons.append(f"role_fallback:installed_model:{resolved_model_id}")
-                selection_source = "explicit_fallback"
+                    if best_installed is None:
+                        raise RuntimeProviderError(
+                            "Rollenmodell in Settings fehlt, und es ist weder ein laufendes noch ein "
+                            "installiertes kompatibles Modell als Fallback verfuegbar.",
+                            code="role_model_missing_no_fallback",
+                            recoverable=True,
+                            diagnostic_context={"source": "fleet-routing", "task_type": task},
+                            recommended_action="Rollenmodell in Settings setzen oder ein Modell installieren.",
+                        )
+                    resolved_model_id = best_installed.id
+                    reasons.append(f"role_fallback:installed_model:{resolved_model_id}")
+                    selection_source = "explicit_fallback"
 
         resolved_entry = catalog_by_id.get(resolved_model_id)
         resolved_model_name = resolved_entry.name if resolved_entry else "Unknown Model"
