@@ -117,6 +117,94 @@ def test_routes_coding_task_to_configured_coder_model():
     assert response.selection_source == "role_setting"
 
 
+def test_debugging_routes_to_dedicated_debug_model():
+    # Previously "debugging" fell into the same branch as small_code_change/
+    # large_code_change/refactoring and silently used defaultCoderModelId --
+    # defaultDebugModelId existed in settings but nothing ever routed to it.
+    settings = FakeSettingsService(defaultDebugModelId="debug-model", defaultCoderModelId="coder-model")
+    index = FakeIndexService([
+        _model("debug-model", capabilities=["chat", "code"]),
+        _model("coder-model", capabilities=["chat", "code"]),
+    ])
+    resolver = FleetRoutingResolver(settings, index)
+
+    response = resolver.resolve(RuntimeRouteRequest(task_type="debugging"))
+
+    assert response.resolved_model_id == "debug-model"
+    assert response.slot_id == "fast_gpu"
+    assert response.target_agent == "debugger"
+
+
+def test_debugging_falls_back_to_coder_model_when_debug_model_unset():
+    settings = FakeSettingsService(defaultCoderModelId="coder-model")
+    index = FakeIndexService([_model("coder-model", capabilities=["chat", "code"])])
+    resolver = FleetRoutingResolver(settings, index)
+
+    response = resolver.resolve(RuntimeRouteRequest(task_type="debugging"))
+
+    assert response.resolved_model_id == "coder-model"
+    assert response.target_agent == "debugger"
+
+
+@pytest.mark.parametrize(
+    "task_type", ["intent_routing", "workflow_routing", "function_calling", "clarification_detection"]
+)
+def test_routing_tasks_route_to_workflow_routing_model(task_type):
+    settings = FakeSettingsService(
+        defaultWorkflowRoutingModelId="routing-model", defaultOrchestratorModelId="orchestrator-model"
+    )
+    index = FakeIndexService([
+        _model("routing-model", capabilities=["chat"]),
+        _model("orchestrator-model", capabilities=["chat"]),
+    ])
+    resolver = FleetRoutingResolver(settings, index)
+
+    response = resolver.resolve(RuntimeRouteRequest(task_type=task_type))
+
+    assert response.resolved_model_id == "routing-model"
+    assert response.slot_id == "orchestrator_cpu"
+    assert response.target_agent == "router"
+
+
+def test_workflow_routing_falls_back_to_orchestrator_model_when_unset():
+    settings = FakeSettingsService(defaultOrchestratorModelId="orchestrator-model")
+    index = FakeIndexService([_model("orchestrator-model", capabilities=["chat"])])
+    resolver = FleetRoutingResolver(settings, index)
+
+    response = resolver.resolve(RuntimeRouteRequest(task_type="workflow_routing"))
+
+    assert response.resolved_model_id == "orchestrator-model"
+    assert response.slot_id == "orchestrator_cpu"
+
+
+def test_documentation_routes_to_documentation_model():
+    settings = FakeSettingsService(
+        defaultDocumentationModelId="docs-model", defaultChatModelId="chat-model"
+    )
+    index = FakeIndexService([
+        _model("docs-model", capabilities=["chat"]),
+        _model("chat-model", capabilities=["chat"]),
+    ])
+    resolver = FleetRoutingResolver(settings, index)
+
+    response = resolver.resolve(RuntimeRouteRequest(task_type="documentation"))
+
+    assert response.resolved_model_id == "docs-model"
+    assert response.slot_id == "quality_cpu"
+    assert response.target_agent == "documentation"
+
+
+def test_documentation_falls_back_to_chat_model_when_unset():
+    settings = FakeSettingsService(defaultChatModelId="chat-model")
+    index = FakeIndexService([_model("chat-model", capabilities=["chat"])])
+    resolver = FleetRoutingResolver(settings, index)
+
+    response = resolver.resolve(RuntimeRouteRequest(task_type="documentation"))
+
+    assert response.resolved_model_id == "chat-model"
+    assert response.target_agent == "documentation"
+
+
 def test_role_model_missing_falls_back_to_installed_candidate():
     settings = FakeSettingsService()  # no defaultChatModelId configured
     index = FakeIndexService([_model("installed-chat", capabilities=["chat"])])
