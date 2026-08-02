@@ -6,6 +6,7 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import type { PairingUiController } from "./RuntimeModelsTab.pairing";
 import type { ProbeEvidenceItem, ProbeOutcomeSummary } from "./RuntimeModelsTab.primitives";
 import {
+  collectDiagnosticsIssues,
   collectProbeEvidenceItems,
   describeProbeOutcome,
   formatProbeFeedback,
@@ -75,6 +76,11 @@ export function useRuntimeModelsTabController() {
     sortedStartableModels,
     status,
     runtimeBusy
+  );
+  const diagnosticsIssues = collectDiagnosticsIssues(
+    sortedStartableModels,
+    multimodalPairs,
+    sortedVisibleSupportArtifacts
   );
 
   const onSelectionChange = (artifactId: string, value: string) => {
@@ -208,6 +214,7 @@ export function useRuntimeModelsTabController() {
   return {
     autoTuneModel,
     backendOnline,
+    diagnosticsIssues,
     index,
     indexError,
     indexLoading,

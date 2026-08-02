@@ -490,7 +490,7 @@ export function modelRequiresVisionProjector(
   return false;
 }
 
-function taskRequiresCodingCapability(taskType: TaskType): boolean {
+export function taskRequiresCodingCapability(taskType: TaskType): boolean {
   return (
     taskType === "small_code_change" ||
     taskType === "large_code_change" ||
