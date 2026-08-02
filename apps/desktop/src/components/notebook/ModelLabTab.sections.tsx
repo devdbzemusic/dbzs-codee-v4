@@ -169,12 +169,16 @@ export function ModelLabModelsSection({
   models,
   selectedBundleId,
   onSelect,
-  onAssignAndEnable
+  onAssignAndEnable,
+  certifyModel,
+  certifyingModel
 }: {
   models: ModelLabModel[];
   selectedBundleId: string | null;
   onSelect: (bundleId: string) => void;
   onAssignAndEnable: (bundleId: string) => void;
+  certifyModel?: (request: { bundle_id: string; certification: import("@dbzs/shared").ModelFleetCertificationKind; status: "passed" }) => void;
+  certifyingModel?: boolean;
 }) {
   return (
     <div>
@@ -203,6 +207,8 @@ export function ModelLabModelsSection({
                 key={entry.bundle.bundle_id}
                 onSelect={() => onSelect(entry.bundle.bundle_id)}
                 onAssignAndEnable={onAssignAndEnable}
+                certifyModel={certifyModel}
+                certifyingModel={certifyingModel}
               />
             ))}
           </tbody>

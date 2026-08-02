@@ -237,5 +237,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   timeoutCpuSafeStreamIdleSeconds: 180,
   timeoutCpuSafeFirstTokenSeconds: 120,
   timeoutCpuSafeGenerationSeconds: 600,
-  enableModelLabRuntimeBridge: false
+  enableModelLabRuntimeBridge: true
 };

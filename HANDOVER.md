@@ -2,6 +2,67 @@
 
 Stand: 2026-08-02
 
+## Model Lab -> Settings: fehlenden "scan zu nutzbar"-Workflow geschlossen (2026-08-02)
+
+**Auftrag:** Nutzer schickte Screenshots der laufenden App (Model Lab bei "2/15 bereit", Settings-Panel) mit
+Feedback: (1) Settings-Panel-Layout ungünstig, (2) nur 2 Rollen wählbar, Reranker/Embedding gar keins, (3) kein
+klarer Model-Lab-Workflow von "gescannt" zu "nutzbar/auswählbar". Als nächster Block im selben Sprint-Muster
+behandelt (Nutzerentscheidung nach Rückfrage).
+
+**Untersuchung (Explore-Agent) ergab: Punkt 2 war eine Fehldiagnose, Punkt 3 der echte Kern.** Alle 10
+Rollen-Dropdowns in `SettingsNotebook.tsx`/`SettingField.tsx` existieren technisch bereits, inkl.
+Embedding/Reranker (eigener `model_lab_select`-Pfad direkt gegen Model Lab). Sie sind aber fast immer leer,
+weil:
+
+- `assignModelRole` (`ModelRoleAssignmentRequest.settings_field`) schrieb nur einen internen
+  `model_role_assignments`-Datensatz — **nie** das tatsächliche Settings-Feld. Der Button "Zum System
+  hinzufügen & aktivieren" behauptete fälschlich "Macht das Modell in allen Dropdowns auswählbar".
+- Model-Lab-Bundles waren den 8 `model_select`-Dropdowns komplett unsichtbar, außer das versteckte,
+  standardmäßig deaktivierte Flag `enableModelLabRuntimeBridge` war aktiv + Runtime neugestartet.
+- Es gab **keine Zertifizieren-Aktion in der UI** — `certifyModel` existierte im Backend/`backendClient.ts`
+  vollständig fertig verdrahtet, wurde aber von keiner Komponente je aufgerufen. Ohne Zertifizierung schlägt
+  jede Rollenzuweisung mit `enabled=true` ohnehin mit 400 fehl (`_ROLE_POLICY` verlangt z.B. für
+  `CODING_EXECUTOR` `CODING_VERIFIED`+`STRUCTURED_OUTPUT_VERIFIED`+`WRITE_AGENT_VERIFIED`).
+
+**Fix (drei Teile, nach Nutzerentscheidung):**
+
+1. `enableModelLabRuntimeBridge` Default auf `true` (Backend `AppSettings`, Frontend `DEFAULT_SETTINGS`,
+   `settingsRegistry.ts`-Beschreibung/`experimental`-Flag angepasst) — Model Lab ist jetzt standardmäßig die
+   Quelle, nicht ein verstecktes Experiment.
+2. Neue Funktion `_apply_role_assignment_to_settings()` in `backend/app/api/model_lab.py`: nach erfolgreicher
+   Rollenzuweisung mit gesetztem `settings_field` wird `bundle_id` -> echte Runtime-`model_id` aufgelöst
+   (bestehende `resolve_bundle_to_model_id()`-Brücke, Plan 15 Phase 7) und per `SettingsService.patch()`
+   direkt ins passende Settings-Feld geschrieben. Best-effort: Rollenzuweisung selbst schlägt nicht fehl, wenn
+   die Auflösung (noch) nicht klappt oder die Settings-Revision zwischenzeitlich wechselte — nur geloggt.
+   Nimmt bewusst dieselbe `ModelLabRepository`-Instanz wie der aufrufende Endpoint (nicht das
+   Shared-Singleton), damit Tests/Dependency-Overrides greifen.
+   Frontend: "Zum System hinzufügen & aktivieren" setzt jetzt `settings_field: "defaultChatModelId"` statt
+   `null`; Tooltip korrigiert (nennt die konkrete Rolle + nötige Zertifikate statt "alle Dropdowns").
+3. Neue "Zertifizieren"-Sektion in `ModelLabTab.expanded.tsx` (Dropdown über alle 12
+   `ModelFleetCertificationKind`-Werte + "Als bestanden markieren"-Button, ruft `certifyModel`), durch
+   `ModelLabTab.controller.ts`/`.rows.tsx`/`.sections.tsx`/`.tsx` bis zur UI durchgereicht.
+
+**Verifiziert:** `tsc --noEmit` sauber. Neuer End-to-End-Backend-Test
+`test_role_assignment_writes_resolved_model_into_settings` (scannt echtes Bundle, zertifiziert 3x, weist
+`CODING_EXECUTOR`-Rolle mit `settings_field="defaultCoderModelId"` zu, prüft danach `GET /settings` enthält
+die aufgelöste Modell-ID) — grün, zusammen mit 160 weiteren Tests aus
+`test_model_lab.py`/`test_model_lab_repository.py`/`test_settings.py`/`test_model_index.py`/
+`test_fleet_routing_resolver.py`/`test_runtime_api.py`/`test_runtime_service.py`/
+`test_model_profiles_certification.py` (161 gesamt). Frontend: 954 Tests über `src/stores`+`src/services`+
+`src/components`+`src/settings` grün (142 davon direkt in `src/components/notebook`+`src/settings`).
+
+**Noch offen / bewusst nicht in diesem Block:**
+
+- Settings-Panel-Layout selbst (Punkt 1 des Nutzerfeedbacks) — bisher nur der Datenfluss dahinter repariert,
+  nicht das Grid/Platzangebot der Notebook-Ansicht.
+- `ModelSettingsFieldRole`/`SETTINGS_FIELDS` (Model-Lab-Rollenzuweisung) deckt weiterhin nur 8 der 10
+  Default-Modell-Felder ab — Embedding/Reranker/Utility bleiben auf ihrem separaten `model_lab_select`-Pfad,
+  nicht über Rollenzuweisung erreichbar. Absichtlich nicht vereinheitlicht in diesem Block (zwei
+  unterschiedliche, je für sich funktionierende Mechanismen; Vereinheitlichung wäre eine eigene
+  Architekturentscheidung).
+- Kein automatisierter "Rezertifizierungs"-Reminder, wenn sich ein Modell-Artefakt aendert (Hash-Drift) —
+  Zertifikate bleiben, bis manuell widerrufen.
+
 ## Workflow Authority & Safety Sprint — Teil C (WF-07, Teilumsetzung): stille Degradation wird sichtbar (2026-08-02)
 
 **Auftrag:** Fortsetzung von Teil A/B/WF-03 (siehe Einträge darunter).

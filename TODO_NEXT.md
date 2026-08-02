@@ -28,6 +28,16 @@ laufen. **Noch nicht live verifiziert** (siehe HANDOVER.md) — vor dem nächste
 gestopptem Ziel-Slot einen Review anstoßen und pruefen. WF-10 ist über Teil B bereits weitgehend abgedeckt
 (Model-Lab-Routing-Map als bevorzugte Fallback-Quelle).
 
+**Model Lab -> Settings Workflow-Luecke — ERLEDIGT:** Nutzer-Feedback (Screenshots: "2/15 bereit", leere
+Rollen-Dropdowns) fuehrte auf den echten strukturellen Bug: Rollenzuweisung im Model Lab schrieb nie das
+Settings-Feld, `enableModelLabRuntimeBridge` war versteckt+aus, keine Zertifizieren-Aktion existierte in der
+UI (obwohl fast jede Rolle Zertifikate voraussetzt). Alle drei behoben: Bridge-Flag jetzt Default an,
+`assignModelRole` schreibt das Settings-Feld direkt, neue Zertifizieren-Sektion in
+`ModelLabTab.expanded.tsx`. Neuer E2E-Backend-Test beweist die volle Kette scan->zertifizieren->zuweisen->in
+Settings sichtbar. **Noch offen:** Settings-Panel-Layout selbst (Punkt 1 des Nutzerfeedbacks) unangetastet;
+Embedding/Reranker/Utility bleiben auf ihrem separaten `model_lab_select`-Pfad statt ueber Rollenzuweisung.
+Details siehe HANDOVER.md.
+
 **Teil C / WF-07 — TEILWEISE ERLEDIGT:** stille Fallbacks (Kontext-Orchestrierung fehlgeschlagen,
 Embedding-Suche fehlgeschlagen → lexikalisches RAG, RAG insgesamt fehlgeschlagen) setzen jetzt
 `RuntimeChatRun.degraded`/`degradedReason` (bereits bestehende, UI-verdrahtete Felder) statt nur `console.info`

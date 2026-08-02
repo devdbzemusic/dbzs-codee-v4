@@ -36,6 +36,8 @@ export function ModelLabTab() {
     roleAssignments,
     assigningRole,
     assignRole,
+    certifyModel,
+    certifyingModel,
     settingsFieldConflicts,
     creatingCollection,
     createCollection,
@@ -80,10 +82,14 @@ export function ModelLabTab() {
               onSelect={setSelectedBundleId} 
               selectedBundleId={selectedBundleId} 
               onAssignAndEnable={(bundleId) => {
+                // FAST_GENERAL_AGENT is the catalog's default fleet role for general
+                // chat use (Massnahmenkatalog M-002) — set settings_field so the
+                // assignment actually reaches the "Chat"-Rollenmodell dropdown in
+                // Settings instead of only recording an internal Model-Lab row.
                 void assignRole({
                   bundle_id: bundleId,
                   role: "FAST_GENERAL_AGENT",
-                  settings_field: null,
+                  settings_field: "defaultChatModelId",
                   residency_intent: "idle_evict",
                   enabled: true,
                 }).then(() => {
@@ -91,6 +97,8 @@ export function ModelLabTab() {
                   useModelIndexStore.getState().loadModelIndex().catch(console.error);
                 });
               }}
+              certifyModel={certifyModel}
+              certifyingModel={certifyingModel}
             />
             <ModelLabCollectionsSection
               collections={collections}

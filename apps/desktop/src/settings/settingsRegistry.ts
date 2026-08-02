@@ -927,13 +927,14 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
     category: "models",
     label: "Model-Lab-Runtime-Bridge",
     description:
-      "Nimmt Model-Lab-Quellen zusaetzlich in den Runtime-Modell-Index auf (begrenzt auf 500 Dateien " +
-      "pro Quelle und ein Zeitbudget), damit gescannte Bundles im Broker/Runtime-Slot-Manager auffindbar sind.",
+      "Nimmt Model-Lab-Quellen in den Runtime-Modell-Index auf (begrenzt auf 500 Dateien pro Quelle und " +
+      "ein Zeitbudget), damit gescannte und zertifizierte Bundles in den Rollen-Dropdowns der Einstellungen " +
+      "auswaehlbar werden. Standardmaessig aktiv, damit der Weg von 'gescannt' zu 'nutzbar' nicht von einem " +
+      "versteckten Schalter abhaengt.",
     classification: "user_tunable",
-    defaultValue: d.enableModelLabRuntimeBridge ?? false,
+    defaultValue: d.enableModelLabRuntimeBridge ?? true,
     control: "toggle",
     restartRequirement: "runtime_restart",
-    experimental: true,
     consumerDescription: "ModelIndexService (Plan 15, Phase 2)",
   }),
 ];

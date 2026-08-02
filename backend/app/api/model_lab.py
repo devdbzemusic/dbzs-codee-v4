@@ -42,12 +42,62 @@ from app.model_lab.models import (
 )
 from app.model_lab.repository import ModelLabRepository, get_shared_model_lab_repository
 from app.model_lab.service import ModelLabService
+from app.models.discovery_mode import get_model_discovery_mode
+from app.models.index_service import ModelIndexService
+from app.models.model_lab_bridge import resolve_bundle_to_model_id
+from app.settings.models import SettingsRevisionConflict
+from app.settings.service import get_settings_service
 
 router = APIRouter(prefix="/model-lab", tags=["model-lab"])
 
 
 def get_model_lab_service() -> ModelLabService:
     return ModelLabService()
+
+
+def _apply_role_assignment_to_settings(
+    request: ModelRoleAssignmentRequest, model_lab_repo: ModelLabRepository
+) -> None:
+    """Closes the Model-Lab -> Settings gap: assigning a bundle to a role with a
+    concrete settings_field must actually make it selectable there, not just record
+    an internal assignment row (Workflow-Bruch-Audit WF-12 "UI vor operativer
+    Authority"). Best-effort: logs and returns without raising if the bundle can't
+    yet be resolved to a runtime model id (e.g. runtime bridge just enabled, index
+    not rebuilt yet) or if the settings revision changed concurrently — the role
+    assignment itself must still succeed either way.
+
+    Takes the same ModelLabRepository instance the calling endpoint's service uses
+    (rather than the shared singleton) so it respects test/dependency overrides."""
+    if not request.settings_field or not request.enabled:
+        return
+    settings_service = get_settings_service()
+    index_service = ModelIndexService(
+        discovery_mode=get_model_discovery_mode(),
+        model_lab_repository=model_lab_repo,
+        settings_service=settings_service,
+    )
+    model_index = index_service.load_cached_index() or index_service.build_index()
+    model_id = resolve_bundle_to_model_id(
+        request.bundle_id,
+        model_lab_repo=model_lab_repo,
+        model_index=model_index,
+    )
+    if not model_id:
+        print(
+            f"[model-lab] role assignment for bundle '{request.bundle_id}' could not be "
+            f"applied to settings.{request.settings_field}: bundle not resolvable in the "
+            "current runtime model index."
+        )
+        return
+    current = settings_service.load()
+    try:
+        settings_service.patch(current.revision, {request.settings_field: model_id})
+    except SettingsRevisionConflict:
+        print(
+            f"[model-lab] settings revision changed concurrently; role assignment for "
+            f"'{request.bundle_id}' was saved, but settings.{request.settings_field} was "
+            "not updated automatically."
+        )
 
 
 @router.get("/sources")
@@ -321,9 +371,11 @@ def assign_model_role(
     service: ModelLabService = Depends(get_model_lab_service),
 ) -> ModelRoleAssignment:
     try:
-        return service.assign_model_role(request)
+        assignment = service.assign_model_role(request)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _apply_role_assignment_to_settings(request, service.repository)
+    return assignment
 
 
 @router.get("/role-assignments")

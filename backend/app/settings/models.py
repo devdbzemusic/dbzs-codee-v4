@@ -88,7 +88,7 @@ class AppSettings(BaseModel):
     timeoutCpuSafeStreamIdleSeconds: int = Field(default=180, ge=15, le=3600)
     timeoutCpuSafeFirstTokenSeconds: int = Field(default=120, ge=15, le=3600)
     timeoutCpuSafeGenerationSeconds: int = Field(default=600, ge=60, le=14_400)
-    enableModelLabRuntimeBridge: bool = False
+    enableModelLabRuntimeBridge: bool = True
 
 
 class SettingsPatchRequest(BaseModel):

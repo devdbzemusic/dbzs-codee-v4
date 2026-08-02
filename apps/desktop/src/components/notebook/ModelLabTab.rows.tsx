@@ -119,12 +119,16 @@ export function ModelBundleRow({
   entry,
   isSelected,
   onSelect,
-  onAssignAndEnable
+  onAssignAndEnable,
+  certifyModel,
+  certifyingModel
 }: {
   entry: ModelLabModel;
   isSelected: boolean;
   onSelect: () => void;
   onAssignAndEnable: (bundleId: string) => void;
+  certifyModel?: (request: { bundle_id: string; certification: import("@dbzs/shared").ModelFleetCertificationKind; status: "passed" }) => void;
+  certifyingModel?: boolean;
 }) {
   const { bundle } = entry;
   const [isExpanded, setIsExpanded] = useState(false);
@@ -157,7 +161,12 @@ export function ModelBundleRow({
       {isExpanded && (
         <tr>
           <td colSpan={6} className="p-0 border-b border-dbzs-border/60">
-            <ModelLabExpandedDetails entry={entry} onAssignAndEnable={onAssignAndEnable} />
+            <ModelLabExpandedDetails
+              entry={entry}
+              onAssignAndEnable={onAssignAndEnable}
+              certifyModel={certifyModel}
+              certifyingModel={certifyingModel}
+            />
           </td>
         </tr>
       )}

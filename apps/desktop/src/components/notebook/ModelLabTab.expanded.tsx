@@ -1,15 +1,34 @@
 import { useState } from "react";
-import type { ModelLabModel } from "@dbzs/shared";
+import type { ModelFleetCertificationKind, ModelLabModel } from "@dbzs/shared";
 import { backendClient } from "@/services/backendClient";
 import { runtimeSlotManager } from "@/services/runtimeSlotManager";
 import { formatBytes } from "./ModelLabTab.primitives";
 
+const CERTIFICATION_KINDS: ModelFleetCertificationKind[] = [
+  "CHAT_VERIFIED",
+  "INSTRUCTION_FOLLOWING_VERIFIED",
+  "STRUCTURED_OUTPUT_VERIFIED",
+  "TOOL_CALLING_VERIFIED",
+  "READ_ONLY_AGENT_VERIFIED",
+  "WRITE_AGENT_VERIFIED",
+  "CODING_VERIFIED",
+  "REPOSITORY_QA_VERIFIED",
+  "DEEP_RESEARCH_VERIFIED",
+  "LONG_HORIZON_VERIFIED",
+  "REPORT_GENERATION_VERIFIED",
+  "GPU_PROFILE_VERIFIED"
+];
+
 export function ModelLabExpandedDetails({
   entry,
-  onAssignAndEnable
+  onAssignAndEnable,
+  certifyModel,
+  certifyingModel
 }: {
   entry: ModelLabModel;
   onAssignAndEnable: (bundleId: string) => void;
+  certifyModel?: (request: { bundle_id: string; certification: ModelFleetCertificationKind; status: "passed" }) => void;
+  certifyingModel?: boolean;
 }) {
   const { bundle, artifacts } = entry;
   const [startingSlot, setStartingSlot] = useState<string | null>(null);
@@ -17,6 +36,9 @@ export function ModelLabExpandedDetails({
   const [startSuccess, setStartSuccess] = useState<string | null>(null);
   const [benchmarking, setBenchmarking] = useState(false);
   const [benchmarkResult, setBenchmarkResult] = useState<string | null>(null);
+  const [selectedCertification, setSelectedCertification] = useState<ModelFleetCertificationKind>(
+    "CHAT_VERIFIED"
+  );
 
   const handleStartSlot = async (slotId: string, withVision = false) => {
     setStartingSlot(slotId);
@@ -144,6 +166,42 @@ export function ModelLabExpandedDetails({
           )}
         </div>
 
+        {/* Sektion 3b: Zertifizierung — Voraussetzung dafuer, dass eine Rollenzuweisung
+            (unten) ueberhaupt erfolgreich sein kann; die meisten Fleet-Rollen verlangen
+            mindestens eine bestandene Zertifizierung, bevor sie aktiviert werden koennen. */}
+        <div className="space-y-2">
+          <h4 className="text-[10px] font-medium text-dbzs-text uppercase tracking-widest text-dbzs-muted">
+            Zertifizierung
+          </h4>
+          <p className="text-[10px] text-dbzs-muted">
+            Vor dem Aktivieren einer Rolle noetig. Auf Basis der Test-Starts/Benchmarks oben als bestanden
+            markieren.
+          </p>
+          <div className="flex gap-2">
+            <select
+              className="flex-1 bg-dbzs-bg border border-dbzs-border text-[10px] text-dbzs-text px-2 py-1"
+              onChange={(event) => setSelectedCertification(event.target.value as ModelFleetCertificationKind)}
+              value={selectedCertification}
+            >
+              {CERTIFICATION_KINDS.map((kind) => (
+                <option key={kind} value={kind}>
+                  {kind}
+                </option>
+              ))}
+            </select>
+            <button
+              className="px-3 py-1 border border-dbzs-border text-[10px] text-dbzs-text hover:bg-dbzs-bg/50 transition-colors disabled:opacity-50"
+              disabled={!certifyModel || certifyingModel}
+              onClick={() =>
+                certifyModel?.({ bundle_id: bundle.bundle_id, certification: selectedCertification, status: "passed" })
+              }
+              type="button"
+            >
+              {certifyingModel ? "..." : "Als bestanden markieren"}
+            </button>
+          </div>
+        </div>
+
         {/* Sektion 4: Codee Integration */}
         <div className="space-y-3">
           <h4 className="text-[10px] font-medium text-dbzs-text uppercase tracking-widest text-dbzs-muted">Codee Datenbestand</h4>
@@ -158,7 +216,8 @@ export function ModelLabExpandedDetails({
             Zum System hinzufügen & aktivieren
           </button>
           <p className="text-[9px] text-dbzs-muted/70 text-center">
-            Macht das Modell in allen Dropdowns auswählbar.
+            Weist die Fleet-Rolle "FAST_GENERAL_AGENT" zu und setzt das Chat-Rollenmodell in den Einstellungen —
+            erfordert vorher CHAT_VERIFIED und STRUCTURED_OUTPUT_VERIFIED.
           </p>
         </div>
 
