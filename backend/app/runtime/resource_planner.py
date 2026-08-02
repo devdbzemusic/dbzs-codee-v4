@@ -234,6 +234,7 @@ class RuntimeResourcePlanner:
             safety_reserve_bytes=safety_reserve_bytes,
             hardware_mode=hardware_mode,
             warnings=warnings,
+            mmproj_bytes=mmproj_bytes,
         )
 
     def reduce_for_oom(self, previous_plan: RuntimeResourcePlan, attempt: int) -> RuntimeResourcePlan:
@@ -254,10 +255,15 @@ class RuntimeResourcePlanner:
             warnings.append("oom_retry_forced_cpu_only")
 
         gpu_ratio = min(new_gpu_layers / 32.0, 1.0) if new_gpu_layers else 0.0
+        # Carry the original mmproj_bytes forward: the projector is still loaded
+        # even when we reduce gpu_layers, so it still consumes VRAM.  Including
+        # it keeps estimated_total_vram_bytes honest across retries.
+        mmproj = previous_plan.mmproj_bytes
         estimated_total_vram_bytes = (
             int(previous_plan.estimated_model_bytes * gpu_ratio)
             + previous_plan.estimated_kv_cache_bytes
             + previous_plan.estimated_compute_buffer_bytes
+            + mmproj
             if new_gpu_layers > 0
             else 0
         )
@@ -268,5 +274,7 @@ class RuntimeResourcePlanner:
                 "estimated_total_vram_bytes": estimated_total_vram_bytes,
                 "hardware_mode": "cpu" if new_gpu_layers == 0 else "hybrid",
                 "warnings": warnings,
+                # mmproj_bytes unchanged — projector residency is independent of
+                # gpu_layers: llama-server keeps it mapped in VRAM regardless.
             }
         )

@@ -12,10 +12,10 @@
 | 3 | Rollen & Routing: Tabelle + UI | ✅ erledigt |
 | 4 | RAM-Prozentschwellen-Schutz | ✅ erledigt |
 | 1 | Quelle registrieren & Scan verifizieren | ⏳ offen (reine Verifikation) |
-| 6 | Persistente Health-/Failure-Historie | ❌ offen |
-| 7 | Zertifizierung/Benchmark an Bundle-IDs | ❌ offen |
-| 8 | Hardware-geprüfte Residency-Defaults | ⏳ offen (Config/UI) |
-| 5 | Dual-Mode Vision (InternScience) | ❌ offen |
+| 6 | Persistente Health-/Failure-Historie | ✅ erledigt |
+| 7 | Zertifizierung/Benchmark an Bundle-IDs | ✅ erledigt |
+| 8 | Hardware-geprüfte Residency-Defaults | ✅ erledigt |
+| 5 | Dual-Mode Vision (InternScience) | ✅ erledigt |
 
 Dieser Plan schließt die fünf offenen Punkte (1, 6, 7, 8, 5) in einer Reihenfolge, die Abhängigkeiten und Risiko berücksichtigt.
 

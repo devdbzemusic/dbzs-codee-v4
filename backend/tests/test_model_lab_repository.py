@@ -20,6 +20,7 @@ from app.model_lab.models import (
     ModelCapabilityEvidenceRequest,
     ModelCertificationRequest,
     ModelCollectionCreate,
+    ModelHealth,
     ModelMetadataUpdate,
     ModelProbeRequest,
     ModelRoleAssignmentRequest,
@@ -637,3 +638,43 @@ def test_get_model_includes_role_assignments_with_cache_fields(tmp_path: Path) -
     assert model is not None
     assert len(model.role_assignments) == 1
     assert model.role_assignments[0].last_certification_score == 88.0
+
+
+def test_suggest_residency_intent(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    source = repo.create_source(ModelSourceCreate(path=str(tmp_path), name="test"))
+    
+    # 1. Unknown bundle -> manual
+    assert repo.suggest_residency_intent("unknown") == "manual"
+    
+    # 2. Broken bundle -> manual (even if it has vision)
+    art_broken = _artifact(artifact_id="broken_a", bundle_id="broken_b", source_id=source.id)
+    b_broken = _bundle(bundle_id="broken_b", source_id=source.id, artifact_id=art_broken.artifact_id)
+    b_broken.health = ModelHealth(status="error")
+    repo.save_scan_output(source=source, artifacts=[art_broken], bundles=[b_broken])
+    assert repo.suggest_residency_intent("broken_b") == "manual"
+    
+    # 3. Vision bundle (healthy, uncertified) -> idle_evict
+    art_vis = _artifact(artifact_id="vis_a", bundle_id="vis_b", source_id=source.id)
+    b_vis = _bundle(bundle_id="vis_b", source_id=source.id, artifact_id=art_vis.artifact_id)
+    b_vis.health = ModelHealth(status="healthy")
+    b_vis.modalities = ["text", "vision"]
+    repo.save_scan_output(source=source, artifacts=[art_vis], bundles=[b_vis])
+    assert repo.suggest_residency_intent("vis_b") == "idle_evict"
+    
+    # 4. Normal bundle (uncertified) -> manual
+    art_norm = _artifact(artifact_id="norm_a", bundle_id="norm_b", source_id=source.id)
+    b_norm = _bundle(bundle_id="norm_b", source_id=source.id, artifact_id=art_norm.artifact_id)
+    b_norm.health = ModelHealth(status="healthy")
+    b_norm.modalities = ["text"]
+    repo.save_scan_output(source=source, artifacts=[art_norm], bundles=[b_norm])
+    assert repo.suggest_residency_intent("norm_b") == "manual"
+    
+    # 5. Normal bundle (certified) -> idle_evict
+    repo.upsert_certification(ModelCertificationRequest(
+        bundle_id="norm_b",
+        certification="CHAT_VERIFIED",
+        status="passed"
+    ))
+    assert repo.suggest_residency_intent("norm_b") == "idle_evict"
+

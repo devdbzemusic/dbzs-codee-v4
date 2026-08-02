@@ -1347,3 +1347,39 @@ def test_runtime_service_request_strict_policy_wins_over_global_fallback(tmp_pat
                 decision_id="decision-test-strict",
             )
         )
+
+
+def test_vision_gpu_start_does_not_affect_orchestrator_cpu_residency(tmp_path: Path) -> None:
+    """Plan 16, Stufe 5 Regressionstest:
+    orchestrator_cpu-Residency bleibt beim parallelen vision_gpu-Start desselben
+    Modells unberührt (vorher schaltete es gpu_layers hart auf 0 für beide
+    wegen State-Lecks oder fehlendem mmproj-Support)."""
+    write_catalog(tmp_path)
+    runner = MultiStartProcessRunner()
+    service = RuntimeService(
+        model_index_service=ModelIndexService(models_dir=tmp_path),
+        process_runner=runner,
+        endpoint_checker=lambda _url: True,
+    )
+    
+    # 1. Start the model on orchestrator_cpu (expecting GPU layers == 0)
+    status1 = service.start_model("coder", slot_id="orchestrator_cpu")
+    
+    # 2. Start on vision_gpu with mmproj_path (requires dedicated process, expecting GPU layers > 0)
+    mmproj_file = tmp_path / "dummy.gguf"
+    mmproj_file.write_text("dummy mmproj")
+    status2 = service.start_model("coder", slot_id="vision_gpu", config={"mmproj_path": str(mmproj_file)})
+    
+    assert len(runner.commands) >= 2
+    
+    orch_cmd = runner.commands[-2]
+    vision_cmd = runner.commands[-1]
+    
+    # vision_gpu might have --n-gpu-layers depending on fake hardware, but it should NOT be forced to 0
+    # because of orchestrator_cpu.
+    # We can check orchestrator_cpu definitely got --n-gpu-layers 0
+    orch_layers = _gpu_layers_in_command(orch_cmd)
+    assert orch_layers == 0, "orchestrator_cpu must have gpu_layers=0"
+    
+    vision_layers = _gpu_layers_in_command(vision_cmd)
+    assert vision_layers > 0, "vision_gpu must retain its gpu_layers > 0 despite the orchestrator_cpu start"

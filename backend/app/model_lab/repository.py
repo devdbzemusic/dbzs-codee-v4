@@ -35,6 +35,7 @@ from app.model_lab.models import (
     ModelMetadataUpdate,
     ModelProbeRequest,
     ModelProbeRun,
+    ModelResidencyIntent,
     ModelRoleAssignment,
     ModelRoleAssignmentRequest,
     ModelSource,
@@ -1089,6 +1090,45 @@ class ModelLabRepository:
                 f"UPDATE model_role_assignments SET {', '.join(updates)} WHERE bundle_id = ?",
                 params,
             )
+
+    def suggest_residency_intent(self, bundle_id: str) -> ModelResidencyIntent:
+        """Plan 16, Stufe 4: Computes a non-binding residency intent suggestion
+        for a bundle based on its modalities, health status, and whether it has
+        passed at least one certification run.
+
+        Rules (in priority order):
+          1. BROKEN / UNSUPPORTED health  →  "manual"   (unsafe to auto-evict)
+          2. Has a vision modality        →  "idle_evict" (vision models are
+             expensive; don't keep them resident by default)
+          3. Has a passed certification   →  "idle_evict" (verified models can
+             be trusted to restart cleanly)
+          4. Fallback                     →  "manual"   (unverified – safer)
+
+        Never returns "keep_resident"; that is always an explicit user action.
+        """
+        model = self.get_model(bundle_id)
+        if model is None:
+            return "manual"
+
+        # Rule 1: structurally broken bundles stay manual – auto-evict/restart
+        # would silently fail and confuse the runtime.
+        health_status = model.bundle.health.status if model.bundle.health else "unknown"
+        if health_status in ("error", "incomplete"):
+            return "manual"
+
+        # Rule 2: vision/multimodal models are expensive; idle_evict gives back
+        # VRAM without preventing a fresh start on the next request.
+        modalities = model.bundle.modalities or []
+        if "vision" in modalities or "multimodal" in modalities:
+            return "idle_evict"
+
+        # Rule 3: a certified bundle can be trusted to restart cleanly.
+        certifications = self.list_certifications(bundle_id=bundle_id)
+        if any(c.status == "passed" for c in certifications):
+            return "idle_evict"
+
+        # Fallback: unverified models stay manual until the user decides.
+        return "manual"
 
     def list_probe_runs(self, bundle_id: str | None = None) -> list[ModelProbeRun]:
         with sqlite_connection(self.db_path) as conn:

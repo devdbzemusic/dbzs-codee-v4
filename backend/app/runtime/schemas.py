@@ -297,6 +297,10 @@ class RuntimeResourcePlan(BaseModel):
     safety_reserve_bytes: int
     hardware_mode: HardwareMode
     warnings: list[str] = []
+    # Plan 15, Phase 5: MMProj (vision projector) byte-size recorded alongside
+    # the plan so reduce_for_oom() can carry it forward without re-reading the
+    # index and estimated_total_vram_bytes stays accurate across OOM retries.
+    mmproj_bytes: int = 0
 
 
 class ResourcePlanPreviewRequest(BaseModel):
