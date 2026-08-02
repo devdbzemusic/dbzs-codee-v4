@@ -14,6 +14,28 @@ import { formatBytes, ModelLabStatusBadge } from "./ModelLabTab.primitives";
 import { ToneBadge } from "./RuntimeModelsTab.primitives";
 
 /**
+ * Vorschlags-Default fuer Residency Intent (Plan 15, Phase 8 / Stufenplan Stufe 4).
+ * Reine Konfigurations-Vorschlagslogik ohne Backend-Aenderung - der Nutzer kann den
+ * Wert im Dropdown jederzeit ueberschreiben. Nie automatisch KEEP_RESIDENT ohne
+ * explizite Nutzeraktion.
+ *
+ * Reihenfolge (siehe Stufenplan Stufe 4):
+ * 1. vision-Capability gesetzt -> IDLE_EVICT (Zeitteilung mit fast_gpu).
+ * 2. Bundle-Status UNSUPPORTED/BROKEN oder noch kein Zertifikat -> MANUAL.
+ * 3. sonst IDLE_EVICT.
+ */
+function suggestResidencyIntent(entry: ModelLabModel, hasCertification: boolean): ModelResidencyIntent {
+  const { bundle } = entry;
+  if (bundle.capabilities.includes("vision")) {
+    return "idle_evict";
+  }
+  if (bundle.status === "UNSUPPORTED" || bundle.status === "BROKEN" || !hasCertification) {
+    return "manual";
+  }
+  return "idle_evict";
+}
+
+/**
  * Zertifizierungs-Badge fuer eine Rollen-Zuweisung (Plan 15, Phase 7).
  * Gleiches Muster wie das "Ungetestet (GPU)"-Badge in RuntimeModelsTab.rows.tsx:
  * ein auffaelliges Warn-Badge, solange noch keine gemessene Zertifizierung fuer
@@ -142,7 +164,7 @@ export function RoleAssignmentRow({
     assignments[0]?.settings_field ?? ""
   );
   const [residencyIntent, setResidencyIntent] = useState<ModelResidencyIntent>(
-    assignments[0]?.residency_intent ?? "manual"
+    assignments[0]?.residency_intent ?? suggestResidencyIntent(entry, assignments[0]?.last_certification_score != null)
   );
   const [enabled, setEnabled] = useState(assignments[0]?.enabled ?? false);
 
