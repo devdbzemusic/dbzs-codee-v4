@@ -5,11 +5,37 @@ Stand: 2026-08-02
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
 
-## Workflow Authority & Safety Sprint - Phase 0 & 1
-**P0 - Prozessabsicherung (Aktuell in Umsetzung):**
+## Workflow Authority & Safety Sprint
+
+Plan: `C:\Users\ralle\.claude\plans\zazzy-kindling-duckling.md` (Teil A-D). Nutzerauflage: nach jedem Block
+committen, pushen, HANDOVER/TODO_NEXT aktualisieren.
+
+**Teil A — ERLEDIGT (Commit `10d5161`):** kaputten, bereits gepushten `modelSelectionBroker.ts`-Build repariert
+(zwei ineinander verwobene unkoordinierte Edits), fehlende `backendClient.resolveRuntimeRoute`-Verdrahtung
+ergänzt, Vision-/Capability-Gate + dreistufige Fallback-Kette nach `FleetRoutingResolver` (Backend) portiert
+(8 neue Pytest-Tests), tote Draft-Datei `codePatchStore.ts` entfernt. Details siehe HANDOVER.md.
+
+**Teil B — NÄCHSTER SCHRITT:** eine einzige Routing-Wahrheit fertigstellen.
+
+1. `runtimeSlotManager.ts`s `selectDefaultModelForSlot()`/`scoreModelForSlot()` (eigene lokale Modellwahl bei
+   Auto-Start) auf `backendClient.resolveRuntimeRoute()` umstellen, lokale Heuristik nur als Notfall-Fallback
+   bei nicht erreichbarem Backend behalten (explizit geloggt).
+2. Offizielles Workflow-Rolle -> Fleet-Rolle -> Zertifizierungs-Mapping: `ModelFleetRole`/`ModelLabRoleAssignment`
+   existieren bereits (`packages/shared/src/index.ts`, `backend/app/model_lab/`), werden aber von
+   `FleetRoutingResolver` nicht konsultiert — Model-Lab-Routing-Map als bevorzugte Quelle vor dem flachen
+   Settings-Fallback einbinden.
+
+**Danach Teil C:** WF-03 (Repository Review hinter Runtime-/Budget-/Binding-Gates verschieben — Branchpunkt
+`runtimeChatStore.ts:1029-1074` vs. Budget-Gate bei `runtimeChatStore.ts:1829`), WF-10 (deterministische
+Fallback-Kette, überschneidet sich mit Teil B), WF-07 (`DegradationLedger`).
+
+**Danach Teil D:** Usecase-Maßnahmenkatalog (`Pläne/check/DBZS_CODEE_WORKFLOW_USECASE_MASSNAHMENKATALOG.md`,
+M-001…M-702), 8 eigene Phasen, bewusst nur grob sequenziert — mehrmonatiges Programm, siehe Plan-Datei Teil D.
+
+**P0 - Prozessabsicherung (weiterhin gültig):**
 1. **Lokale CI-Pflicht:** Vor jedem zukünftigen Merge auf `main` MUSS `pnpm ci:local:win` lokal erfolgreich durchlaufen und dokumentiert werden. (Ersatz für ausgesetzte GitHub CI).
 2. **PR #34 gesperrt:** Der alte Vision-PR basiert auf einem veralteten Routing/Runtime-Stand und darf NICHT gemergt werden. Muss später in kleinen Slices neu aufgebaut werden.
-3. **Parallele Agentenarbeit:** Striktes Locking / explizite Scopes einhalten, um gleichzeitige Modifikationen an Kern-Dateien zu verhindern.
+3. **Parallele Agentenarbeit:** Striktes Locking / explizite Scopes einhalten, um gleichzeitige Modifikationen an Kern-Dateien zu verhindern — Teil A war ein lebendes Beispiel dafür, was ohne das schiefgeht.
 
 ## Zuvor: Abschlussverifikation Stufe 6 (Agentic Fleet)
 

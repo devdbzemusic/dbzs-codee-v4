@@ -2,6 +2,69 @@
 
 Stand: 2026-08-02
 
+## Workflow Authority & Safety Sprint — Teil A: kaputten Build repariert + FleetRoutingResolver-Sicherheitslogik portiert (2026-08-02)
+
+**Auftrag:** Nutzer liess vier Audit-Dokumente in `Pläne/check/` (gitignored, lokal) erstellen
+(`DBZS_CODEE_V4_WORKFLOW_BRUCH_INTENSIVAUDIT_2026-08-02.md`, `DBZS_CODEE_WORKFLOW_USECASE_MASSNAHMENKATALOG.md`,
+`DBZS_CODEE_V4_REPO_PRUEFUNG_2026-08-02.md`, `DBZS_CODEE_V4_PRIVATE_NUTZUNG_EINORDNUNG.md`) und danach lesen,
+planen und umsetzen. Plan (Teil A-D) unter `C:\Users\ralle\.claude\plans\zazzy-kindling-duckling.md` genehmigt.
+Branch durchgehend `codex/agentic-model-fleet-integration`. Nutzerauflage: nach jedem Block committen, pushen,
+HANDOVER/TODO_NEXT aktualisieren.
+
+**Kritischer Fund waehrend Teil A:** Commit `dd7de6d` (aus einer frueheren, ungeprueften "versioniere alles"-
+Anweisung in derselben Session) hatte bereits kaputten Code gepusht: `apps/desktop/src/services/modelSelectionBroker.ts`
+enthielt zwei unkoordiniert ineinander verwobene automatisierte Edits — ein sauberer, gewollter Umbau
+(`brokerDecision()` wird `async` und delegiert an `backendClient.resolveRuntimeRoute()`) plus ein kaputter,
+nie fertiggestellter Entwurf (`class ModelSelectionBroker` gegen einen nicht-existenten `/fleet/resolve`-Endpunkt
+und nicht-existente Typen). Datei parste nicht (`tsc --noEmit`: 21 Fehler) — lebender Beweis fuer das im Audit
+beschriebene P0-Risiko "parallele Agenten veraendern dieselben Kernbereiche".
+
+**Fix (Commit `10d5161`):**
+
+- `modelSelectionBroker.ts` auf den sauberen Async-Zustand zurueckgefuehrt (Referenz: `git show f2b5e44:...`
+  war die letzte bekannt-gute Fassung; `git diff f2b5e44 dd7de6d -- ...` zeigte exakt, welcher der beiden
+  ineinander verwobenen Edits der gewollte war).
+- Fehlende Verdrahtung ergaenzt: `backendClient.ts`s exportiertes Objekt hatte `resolveRuntimeRoute` nie
+  implementiert, obwohl `preload.ts`/`runtimeAndJobIpc.ts` es bereits vollstaendig bis zum Backend-Endpunkt
+  `/runtime/route` durchreichten — Delegation nach dem `dryRunRuntimeModel`/`probeRuntimeModel`-Muster ergaenzt.
+- **Sicherheitsluecke geschlossen, nicht nur Syntax repariert:** der neue Backend-`FleetRoutingResolver`
+  (`backend/app/runtime/routing_resolver.py`) hatte urspruenglich nur simples Task-Type->Settings-Mapping,
+  OHNE die Vision-Gate-/Capability-Gate-/dreistufige-Fallback-Logik, die vorher im Desktop-Broker lag. Waere
+  `resolveRuntimeRoute` einfach nur verdrahtet worden, waeren diese Sicherheitschecks (u.a. verifiziertes
+  MMProj-Pairing erzwingen) stillschweigend verschwunden. Logik 1:1 nach Python portiert (neue Fehlercodes
+  `vision_pairing_required`, `role_model_missing_no_fallback`, `role_model_not_in_index`,
+  `role_model_not_runnable`, `vision_gate_blocked`, `code_capability_missing` in `RuntimeErrorCode`), inkl.
+  neuer `RuntimeResidencyRegistry.all_entries()`-Methode fuer die "bereits resident bevorzugen"-Fallback-Stufe.
+  Neue, gezielte Testdatei `backend/tests/test_fleet_routing_resolver.py` (8 Tests) deckt Vision-Gate,
+  Capability-Gate und beide Fallback-Stufen ab.
+- `apps/desktop/src/stores/codePatchStore.ts` entfernt — unbenutzter, selbst als "hypothetisch" markierter
+  Entwurfscode (importierte ebenfalls nicht-existente Module), der denselben Build zusaetzlich brach.
+- Tests, die die alte lokale Broker-Logik synchron testeten, auf den neuen asynchronen Backend-Aufruf
+  umgestellt (`bindingWorkflowGrounding.test.ts` neu als reiner Plumbing-Test mit gemocktem `backendClient`,
+  `runtimeChatStore.test.ts` bekam einen `resolveRuntimeRoute`-Mock, `capabilityScenarios.ts`s Mock-Factory
+  fehlte `await`).
+
+**Verifiziert:** `tsc --noEmit` (beide Configs) sauber. Vitest gezielt: `bindingWorkflowGrounding.test.ts`,
+`runtimeChatStore.test.ts` (22/22), plus 10 weitere potenziell betroffene Dateien, die `backendClient` mocken
+(alle gruen, 92 Tests gesamt in dieser Teilmenge). Backend: `test_fleet_routing_resolver.py` (8/8) +
+`test_runtime_api.py`/`test_runtime_service.py`/`test_runtime_slot_contract.py` (75 gesamt) gruen.
+
+**Ein von dieser Session parallel gestarteter Plan-Agent** bestaetigte die Befunde unabhaengig und wies zusaetzlich
+darauf hin, dass `Pläne/check/task.md`s Behauptung, `FleetRoutingResolver` habe bereits "CERT & SAFETY FILTER"/
+"HW PROFILE FILTER", zum Pruefzeitpunkt **falsch** war — Checkbox-Status in diesen (gitignoreten, lokalen)
+Audit-/Planungsdokumenten nicht ungeprueft uebernehmen.
+
+**Noch offen (Teil B/C/D des genehmigten Plans, noch nicht begonnen):**
+
+- Teil B: `runtimeSlotManager.ts`s eigene Modellwahl (`selectDefaultModelForSlot`/`scoreModelForSlot`) bei
+  Auto-Start noch nicht auf den Backend-Resolver umgestellt; offizielles Workflow-Rolle -> Fleet-Rolle ->
+  Zertifizierungs-Mapping fehlt noch (Model-Lab-Rollendaten existieren, werden aber vom Resolver nicht
+  konsultiert).
+- Teil C: WF-03 (Repository Review vor statt nach Runtime-/Budget-/Binding-Gates — Branchpunkt
+  `runtimeChatStore.ts:1029-1074` vs. echtes Budget-Gate bei `runtimeChatStore.ts:1829`), danach WF-10
+  (deterministische Fallback-Kette, ueberschneidet sich mit Teil B), danach WF-07 (`DegradationLedger`).
+- Teil D: Usecase-Massnahmenkatalog, 8 eigene Phasen, bewusst nur grob sequenziert (mehrmonatiges Programm).
+
 ## Lueckenschluss-Stufenplan (Plan 15) Stufen 2-5 umgesetzt (2026-08-02)
 
 **Auftrag:** Nutzer liess `Pläne/16 DBZS_CODEE_AGENTIC_FLEET_LUECKENSCHLUSS_STUFENPLAN.md` erstellen (Diff
