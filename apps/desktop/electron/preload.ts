@@ -598,6 +598,8 @@ const api = {
     ipcRenderer.invoke("dbzs:runtime:doctor-dry-run", payload) as Promise<import("@dbzs/shared").RuntimeDryRunResponse>,
   probeRuntimeModel: (payload: import("@dbzs/shared").RuntimeProbeRequest) =>
     ipcRenderer.invoke("dbzs:runtime:doctor-probe", payload) as Promise<import("@dbzs/shared").RuntimeProbeResponse>,
+  resolveRuntimeRoute: (request: import("@dbzs/shared").RuntimeRouteRequest) =>
+    ipcRenderer.invoke("dbzs:runtime:route", request) as Promise<import("@dbzs/shared").RuntimeRouteResponse>,
   getRuntimeLogs: () => ipcRenderer.invoke("dbzs:runtime:logs") as Promise<import("@dbzs/shared").RuntimeLogsResponse>,
   listJobs: (status?: JobStatus, limit?: number) =>
     ipcRenderer.invoke("dbzs:job-spooler:list", status, limit) as Promise<JobRecord[]>,

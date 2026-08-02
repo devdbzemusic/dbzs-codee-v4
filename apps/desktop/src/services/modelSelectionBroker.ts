@@ -27,6 +27,13 @@ import type {
   WorkflowAgentRole,
   WorkflowModelRole
 } from "@/runtime/workflow/workflowContracts";
+import { backendClient } from "@/services/backendClient";
+  FleetRoutingDecision,
+  FleetRoutingRequest,
+} from "@dbzs/shared/src/fleet/routingContracts";
+import { backendClient } from "./backendClient"; // Annahme: Ein API-Client existiert
+import { getHardwareProfile } from "./hardwareService"; // Annahme: Eine Funktion zum Sammeln des HW-Profils existiert
+import { v4 as uuidv4 } from "uuid";
 
 export type TaskType = RuntimeTaskType;
 
@@ -178,6 +185,11 @@ const PLAN_PATTERNS = ["plan", "design", "architektur", "architecture", "struktu
 /**
  * Explicit review intent — must win over Agent Mode / coding prefixes.
  * Canonical task type remains `review` (hotfix alias: code_review).
+ * Der ModelSelectionBroker ist nach dem Umbau ein reiner Client/Presenter
+ * für den autoritativen FleetRoutingResolver im Backend.
+ *
+ * FRÜHER: Hielt komplexe Logik zum Filtern, Scoren und Auswählen von Modellen.
+ * HEUTE: Baut eine Anfrage, sendet sie ans Backend und gibt die Entscheidung zurück.
  */
 export function matchesReviewIntent(userMessage: string): boolean {
   const cleaned = userMessage.toLowerCase();
@@ -355,17 +367,29 @@ export interface BrokerDecisionOptions {
     CanonicalWorkflowAssignment,
     "workflowKind" | "phase" | "effectiveAgent" | "modelRole" | "toolProfile"
   >;
+class ModelSelectionBroker {
   /**
    * Models currently resident in a runtime slot. Only consulted when no role model is
    * configured for the resolved target — used to fall back onto an already-running model
    * instead of hard-failing the turn. See resolveModelIdWithVisionGate().
+   * Löst eine Routing-Anfrage auf, indem der zentrale Backend-Resolver aufgerufen wird.
+   * @param routingParams Parameter, die den Modellbedarf beschreiben.
+   * @returns Die verbindliche Entscheidung des Backends.
    */
   runningModels?: RunningModelSnapshot[];
 }
+  public async resolve(routingParams: {
+    usecase: string;
+    role: string;
+    capabilities: string[];
+  }): Promise<FleetRoutingDecision> {
+    console.log(`[ModelSelectionBroker] Degrading to client. Calling backend fleet resolver for role: ${routingParams.role}`);
 
 function isNonRunnableSupportArtifact(entry?: BrokerModelCatalogEntry | null): boolean {
   return entry?.artifact_type != null && entry.artifact_type !== "model";
 }
+    // 1. Sammle alle notwendigen Informationen für die Anfrage.
+    const hardwareProfile = await getHardwareProfile();
 
 function mapWorkflowAgentToModelTarget(agent: WorkflowAgentRole): ModelTargetAgent {
   switch (agent) {
@@ -381,6 +405,18 @@ function mapWorkflowAgentToModelTarget(agent: WorkflowAgentRole): ModelTargetAge
       return "default";
   }
 }
+    // 2. Erstelle die autoritative Anfrage gemäß Vertrag.
+    const request: FleetRoutingRequest = {
+      requestId: `fsr-${uuidv4()}`,
+      usecaseId: routingParams.usecase,
+      workflowModelRole: routingParams.role,
+      requiredCapabilities: routingParams.capabilities,
+      // Diese Werte würden aus den Usecase-Definitionen oder Settings stammen.
+      requiredCertification: "CHAT_VERIFIED",
+      minimumSafetyLevel: "GUARDED",
+      hardwareProfile: hardwareProfile,
+      fallbackPolicy: "allow_local_fallback",
+    };
 
 /**
  * Detect vision / multimodal models by catalog metadata or filename tokens.
@@ -629,6 +665,11 @@ function resolveModelIdWithVisionGate(
         `Visionmodell '${manualModelId}' benoetigt ein verifiziertes MMProj-Pairing, aber es ist keine Routing-Freigabe vorhanden.`,
         "vision_pairing_required",
         ["MM-Pairing verifizieren", "Anderes Modell waehlen", "Abbrechen"]
+    // 3. Rufe das Backend auf und warte auf die Entscheidung.
+    try {
+      const decision = await backendClient.post<FleetRoutingDecision>(
+        "/fleet/resolve",
+        request
       );
     }
     if (!allowVision && isVisionModelRef(manualModelId, catalog)) {
@@ -650,11 +691,20 @@ function resolveModelIdWithVisionGate(
       const slotId = runningModels?.find((snapshot) => snapshot.modelId === bestRunning)?.slotId;
       reasons.push(`role_fallback:running_model:${bestRunning}`);
       if (slotId) reasons.push(`role_fallback:slot_reassigned:${slotId}`);
+      return decision;
+    } catch (error: any) {
+      // Erstelle eine Fehler-Entscheidung, falls das Backend nicht erreichbar ist.
       return {
         modelId: bestRunning,
         selectionSource: "explicit_fallback",
         fallbackReason: "role_model_missing_used_running",
         fallbackSlotId: slotId,
+        decisionId: `fsd-error-${uuidv4()}`,
+        timestamp: new Date().toISOString(),
+        request: request,
+        status: "error",
+        evidence: { reasoning: `Backend resolver failed: ${error.message}`, certificationUsed: [] },
+        fallbackChain: [],
       };
     }
 
@@ -772,7 +822,7 @@ export function hasConfiguredRoleModelForTask(
  * Make a BINDING routing decision.
  * This decision is final. Backend does NOT re-route.
  */
-export function brokerDecision(
+export async function brokerDecision(
   taskType: TaskType,
   settings: {
     defaultModelId: string;
@@ -786,112 +836,50 @@ export function brokerDecision(
     localOnlyModels?: boolean;
   },
   options?: BrokerDecisionOptions,
-): ModelSelectionDecision {
-  const reasons: string[] = [];
-  const hasImageInput = options?.hasImageInput === true;
-  const requiresVision = options?.requiresVision === true;
-  const allowVision = hasImageInput || requiresVision;
-  const preferPlannerFirst = options?.preferPlannerFirst !== false;
-  const catalog = options?.catalog;
+): Promise<ModelSelectionDecision> {
   const assignment = options?.workflowAssignment;
   const targetAgent = assignment
     ? mapWorkflowAgentToModelTarget(assignment.effectiveAgent)
-    : mapTaskTypeToAgent(taskType, preferPlannerFirst);
-  reasons.push(`task_type:${taskType}`);
-  reasons.push(`target_agent:${targetAgent}`);
-  if (assignment) {
-    reasons.push(`workflow_kind:${assignment.workflowKind}`);
-    reasons.push(`workflow_phase:${assignment.phase}`);
-    reasons.push(`model_role:${assignment.modelRole}`);
-    reasons.push(`tool_profile:${assignment.toolProfile}`);
+    : mapTaskTypeToAgent(taskType, options?.preferPlannerFirst !== false);
+
+  if (!backendClient.resolveRuntimeRoute) {
+    throw new Error("Backend does not support resolveRuntimeRoute yet.");
   }
 
-  const slotId = assignment
-    ? mapModelRoleToSlot(assignment.modelRole, taskType)
-    : mapTaskTypeToSlot(taskType);
-  reasons.push(`slot:${slotId}`);
-
-  const configuredModelId = assignment
-    ? selectModelForRole(assignment.modelRole, settings, targetAgent) ?? ""
-    : selectModelForTask(taskType, settings, targetAgent) ?? "";
-  reasons.push(`model_selection:${taskType}`);
-  reasons.push(allowVision ? "vision_gate:vision_allowed" : "vision_gate:text_only");
-
-  const resolved = resolveModelIdWithVisionGate(
-    configuredModelId || undefined,
-    settings,
-    allowVision,
-    catalog,
-    options?.multimodalPairs,
-    reasons,
-    options?.manualModelId,
-    taskType,
-    options?.runningModels,
-  );
-  const preVisionSlotId = resolved.fallbackSlotId ?? slotId;
-  if (resolved.fallbackSlotId && resolved.fallbackSlotId !== slotId) {
-    reasons.push(`slot:reassigned_from:${slotId}`);
-  }
-  const catalogEntry = findCatalogEntry(resolved.modelId, catalog);
-  const resolvedModelId = catalogEntry?.id ?? resolved.modelId;
-  const resolvedModelName = catalogEntry?.name?.trim()
-    ? catalogEntry.name.trim()
-    : deriveModelDisplayName(resolvedModelId, settings.defaultModelName, catalog);
-  reasons.push(`selection_source:${resolved.selectionSource}`);
-
-  // A model that strictly requires the vision projector (not just a dual chat+vision
-  // model being used as a normal role model) must run on the dedicated vision_gpu slot,
-  // never on quality_cpu/fast_gpu — those never load the projector.
-  const requiresVisionSlot = allowVision && modelRequiresVisionProjector(resolvedModelId, catalog);
-  const effectiveSlotId = requiresVisionSlot ? "vision_gpu" : preVisionSlotId;
-  if (requiresVisionSlot && effectiveSlotId !== preVisionSlotId) {
-    reasons.push(`slot:vision_routed:${effectiveSlotId}`);
-  }
-
-  // Plan 15, Phase 5 (Dual-Mode Vision): when this decision actually needs the
-  // projector loaded, carry its artifact id along so the caller can request a
-  // dedicated dual-mode vision_gpu start. Recomputes the same verified pairing
-  // check resolveModelIdWithVisionGate() already performed above — cheap lookup,
-  // no new source of truth.
-  const projectorArtifactId = requiresVisionSlot
-    ? findVerifiedMultimodalPair(resolvedModelId, options?.multimodalPairs)?.projector_artifact_id
-    : undefined;
-
-  if (
-    allowVision &&
-    taskRequiresCodingCapability(taskType) &&
-    !modelSupportsCodingCapability(resolvedModelId, catalog)
-  ) {
-    reasons.push(`capability_gate:code_missing:${resolvedModelId}`);
-    throw new BindingModelError(
-      `Modell '${resolvedModelName}' ist fuer diese Bild-Coding-/Review-Anfrage nicht freigegeben, weil die Code-Faehigkeit im Modellindex fehlt.`,
-      "code_capability_missing",
-      ["Coding-faehiges Visionmodell waehlen", "Textmodell ohne Bild nutzen", "Abbrechen"]
-    );
-  }
+  const response = await backendClient.resolveRuntimeRoute({
+    task_type: taskType,
+    has_image_input: options?.hasImageInput,
+    requires_vision: options?.requiresVision,
+    prefer_planner_first: options?.preferPlannerFirst,
+    manual_model_id: options?.manualModelId,
+    user_message: options?.userMessage,
+    workflow_kind: assignment?.workflowKind,
+    phase: assignment?.phase,
+    effective_agent: assignment?.effectiveAgent,
+    model_role: assignment?.modelRole,
+  });
 
   const decision: ModelSelectionDecision = {
-    taskType,
-    targetAgent,
-    slotId: effectiveSlotId,
-    modelId: resolvedModelId,
-    modelName: resolvedModelName,
-    configuredModelId: configuredModelId || resolvedModelId,
-    resolvedModelId,
-    resolvedModelName,
-    selectionSource: resolved.selectionSource,
-    fallbackReason: resolved.fallbackReason,
-    capabilities: catalogEntry?.capabilities ?? [],
-    hasImageInput,
-    requiresVision,
-    projectorArtifactId,
-    providerId: "llama-cpp",
-    reason: reasons,
-    // Binding decisions never allow silent local slot/model swaps.
-    fallbackPolicy: "strict",
-    decisionId: `decision-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    taskType: response.task_type as TaskType,
+    targetAgent: response.target_agent as ModelTargetAgent,
+    slotId: response.slot_id as RuntimeSlotId,
+    modelId: response.model_id,
+    modelName: response.model_name,
+    configuredModelId: response.configured_model_id,
+    resolvedModelId: response.resolved_model_id,
+    resolvedModelName: response.resolved_model_name,
+    selectionSource: response.selection_source as BindingSelectionSource,
+    fallbackReason: response.fallback_reason,
+    capabilities: response.capabilities,
+    hasImageInput: response.has_image_input,
+    requiresVision: response.requires_vision,
+    projectorArtifactId: response.projector_artifact_id,
+    providerId: response.provider_id as "llama-cpp",
+    reason: response.reason,
+    fallbackPolicy: response.fallback_policy as FallbackPolicy,
+    decisionId: response.decision_id,
     decidedAt: new Date(),
-    decisionSettingsRevision: options?.settingsRevision ?? 0,
+    decisionSettingsRevision: response.decision_settings_revision,
   };
 
   if (taskType === "review" && options?.userMessage) {
@@ -902,9 +890,6 @@ export function brokerDecision(
       decision.intentLabel = "code_review";
       decision.workflowId = "repository_review";
       decision.reviewScope = scope;
-      reasons.push(`review_workflow:repository_review`);
-      reasons.push(`review_scope:${scope}`);
-      reasons.push(`intent_label:code_review`);
     }
   }
 
@@ -914,8 +899,6 @@ export function brokerDecision(
   ) {
     decision.intentLabel = "fix_review_findings";
     decision.workflowId = "review_remediation";
-    reasons.push("review_workflow:review_remediation");
-    reasons.push("intent_label:fix_review_findings");
   }
 
   if (assignment) {
@@ -1132,3 +1115,4 @@ export function formatDecision(decision: ModelSelectionDecision): string {
     `reasons=[${decision.reason.join("; ")}]`,
   ].join(" | ");
 }
+export const modelSelectionBroker = new ModelSelectionBroker();

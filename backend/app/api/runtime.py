@@ -35,12 +35,15 @@ from app.runtime.schemas import (
     TokenizeRequest,
     TokenizeResponse,
     WarmupSlotRequest,
+    RuntimeRouteRequest,
+    RuntimeRouteResponse,
 )
 from app.runtime.service import RuntimeService
 from app.runtime.errors import RuntimeProviderError
 from app.runtime.gpu_detect import GpuInfo, detect_gpu
 from app.runtime.benchmark import run_benchmark, BenchmarkResult
 from app.runtime.model_test import run_model_test
+from app.runtime.routing_resolver import FleetRoutingResolver
 from app.model_lab.models import RuntimeSlotHealthEvent, RuntimeSlotHealthEventCreate
 from app.model_lab.repository import ModelLabRepository, get_shared_model_lab_repository
 from app.models.discovery_mode import get_model_discovery_mode
@@ -582,3 +585,15 @@ def get_gpu_info() -> dict:
         "vram_mb": gpu.vram_mb,
         "recommended_gpu_layers": gpu.recommended_gpu_layers,
     }
+
+
+@router.post("/route")
+def route_runtime_request(
+    request: RuntimeRouteRequest,
+    service: RuntimeService = Depends(get_runtime_service),
+) -> RuntimeRouteResponse:
+    resolver = FleetRoutingResolver(
+        settings_service=get_settings_service(),
+        index_service=service.model_index_service,
+    )
+    return resolver.resolve(request)

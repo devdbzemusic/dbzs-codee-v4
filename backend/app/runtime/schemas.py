@@ -451,3 +451,38 @@ class RuntimeRamPressureStatus(BaseModel):
     """
     percent_used: float | None
     tier: Literal["none", "warn", "evict_idle", "evict_resident", "evict_all_but_floor"]
+
+
+class RuntimeRouteRequest(BaseModel):
+    task_type: str
+    has_image_input: bool = False
+    requires_vision: bool = False
+    prefer_planner_first: bool = True
+    manual_model_id: str | None = None
+    user_message: str | None = None
+    workflow_kind: str | None = None
+    phase: str | None = None
+    effective_agent: str | None = None
+    model_role: str | None = None
+
+
+class RuntimeRouteResponse(BaseModel):
+    decision_id: str
+    task_type: str
+    target_agent: str
+    slot_id: str
+    model_id: str
+    model_name: str
+    configured_model_id: str
+    resolved_model_id: str
+    resolved_model_name: str
+    selection_source: str
+    fallback_reason: str | None = None
+    capabilities: list[str] = []
+    has_image_input: bool = False
+    requires_vision: bool = False
+    projector_artifact_id: str | None = None
+    provider_id: str = "llama-cpp"
+    reason: list[str] = []
+    fallback_policy: str = "strict"
+    decision_settings_revision: int = 0

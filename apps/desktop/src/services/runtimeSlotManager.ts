@@ -525,25 +525,7 @@ export const runtimeSlotManager = {
    * Holt Default-Modell für einen Slot.
    */
   getDefaultModelForSlot(slotId: RuntimeSlotId): string {
-    const configured = configuredModelForSlot(slotId);
-    if (configured) {
-      return configured;
-    }
-
-    switch (slotId) {
-      case "fast_gpu":
-        return "Llama-3.2-3B-CodeReactor-Q8_0";
-      case "quality_cpu":
-        return "Meta-Llama-3.1-8B-Instruct-Q4_K_M";
-      case "utility":
-        return "qwen3-embedding-0.6b-q8-0";
-      case "orchestrator_cpu":
-        return "functiongemma-270m-it.Q8_0";
-      case "vision_gpu":
-        return "Qwen2.5-VL-3B-Instruct.Q4_K_M";
-      default:
-        return "Meta-Llama-3.1-8B-Instruct-Q4_K_M";
-    }
+    return configuredModelForSlot(slotId);
   },
 
   /**

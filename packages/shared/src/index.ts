@@ -2522,3 +2522,4 @@ export * from './modelLabel.js';
 export * from './runtimeDoctor.js';
 export * from "./webResearchContracts.js";
 export * from './workspacePackageContract.js';
+export * from './runtimeRouteContracts.js';
