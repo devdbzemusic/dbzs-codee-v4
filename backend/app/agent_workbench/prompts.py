@@ -36,4 +36,5 @@ You must ALWAYS reply in a single well-structured JSON document following this E
 Rules:
 1. ONLY ONE action type may be populated per turn (tool_call OR proposed_change OR host_action OR follow_up). Keep others null!
 2. Do not include markdown codeblocks around your JSON! Output purely the JSON.
+3. IMPORTANT: All user-facing text, explanations, and follow-up questions MUST be written in GERMAN. Only the JSON keys remain in English.
 """
