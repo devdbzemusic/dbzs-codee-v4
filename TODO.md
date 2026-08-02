@@ -1,6 +1,6 @@
 # TODO
 
-Stand: 2026-08-01
+Stand: 2026-08-02
 
 ## Jetzt direkt
 
@@ -129,6 +129,23 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
       das; eine Theme-Aenderung waehrend eines minutenlangen Modell-Warmups bricht den Request nicht mehr ab.
       Die eigentliche Langsamkeit (7 Minuten Runtime-Check + Kontextvorbereitung) ist plausibel echte
       Modell-Ladezeit auf schwacher Hardware, kein Code-Bug — nicht veraendert.
+
+### Lueckenschluss-Stufenplan (`Pläne/16 DBZS_CODEE_AGENTIC_FLEET_LUECKENSCHLUSS_STUFENPLAN.md`)
+
+- [x] Stufe 2 (Phase 6) — fehlender Frontend-Test fuer die persistente Slot-Health-Historie ergaenzt (`f069812`)
+- [x] Stufe 3 (Phase 7) — gemessene Certification/Benchmark an Model Labs `bundle_id` gebrueckt, inkl.
+      denormalisierter Cache-Spalten und UI-Badge (`74292e1`)
+- [x] Stufe 4 (Phase 8) — `suggestResidencyIntent()` fuer sinnvolle Residency-Defaults nach Scan (`3d4790c`)
+- [x] Stufe 5 (Phase 5, Dual-Mode Vision) — `requires_dedicated_process`-Guard schliesst die
+      Shared-Slot-Binding-Reuse-Luecke, `projector_artifact_id`-Resolution serverseitig gegen den
+      Modellindex, `mmproj_bytes` im VRAM-Budget, Frontend-Threading bis `runtimeSlotManager.startSlot()`
+      (`0366939`). Details siehe HANDOVER.md.
+- [ ] Stufe 6 (Abschlussverifikation) — voller `pnpm typecheck`/`pytest -q`/`pnpm test`, Statustabelle im
+      Stufenplan-Dokument aktualisieren, Stufe 1 (echter Scan) und Stufe 5 (echter Dual-Prozess-Lauf) als
+      manuell-zu-verifizieren markieren. Siehe `TODO_NEXT.md` fuer den konkreten Einstieg.
+- [ ] Nebenfund aus Stufe 5: `pytest tests/test_runtime_doctor.py` haengt isoliert dauerhaft auf dieser
+      Maschine (nicht durch diese Session verursacht, Datei unangetastet). Root-Cause noch offen.
+
 - [ ] `D:\Models\Agentic` als erste produktive Quelle ueber den neuen Candidate-Button registrieren/scannen
       und den veralteten lokalen Model-Katalog auf dieser Maschine neu erzeugen.
 - [ ] `llama.cpp`-RuntimeAdapter live verdrahten: `probe_load`, `health_check`, echte Benchmark-Messung,

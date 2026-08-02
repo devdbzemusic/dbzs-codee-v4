@@ -1,6 +1,78 @@
 # Handover
 
-Stand: 2026-08-01
+Stand: 2026-08-02
+
+## Lueckenschluss-Stufenplan (Plan 15) Stufen 2-5 umgesetzt (2026-08-02)
+
+**Auftrag:** Nutzer liess `Pläne/16 DBZS_CODEE_AGENTIC_FLEET_LUECKENSCHLUSS_STUFENPLAN.md` erstellen (Diff
+gegen alle Plan-15-Dateien im Ordner `Pläne/`) und danach Stufe fuer Stufe abarbeiten — nach Stufe 4 per
+Rueckfrage explizit "Stufe 4 fertig, dann Stufe 5" gewaehlt. Branch durchgehend
+`codex/agentic-model-fleet-integration`. Jede Stufe: echte Code-Aenderung ueber die Remote-Device-Bridge auf
+`C:\Users\ralle\source\repos\dbzs-codee-project`, gezielte Backend-/Frontend-Verifikation, eigener Commit.
+
+- **Stufe 2 (Phase 6) — `f069812`:** fehlender Frontend-Test fuer die bereits vorhandene persistente
+  Slot-Health-Historie (`RuntimeSlotPanel.tsx`s "Verlauf anzeigen"-Button) ergaenzt. 43/43 Frontend-Tests gruen.
+- **Stufe 3 (Phase 7) — `74292e1`:** `resolve_bundle_to_model_id()` bruecken den gemessenen
+  Certification-Runner (bislang nur an bare Runtime-`model_id` gebunden) an Model Labs `bundle_id`;
+  `model_role_assignments` (Schema v5) bekommt denormalisierte `last_certification_*`/`last_benchmark_run_id`-
+  Cache-Spalten, gefuellt sowohl vom gemessenen Certification-Pfad als auch vom bereits bundle-nativen
+  Benchmark-Pfad; neue Zertifizierungs-Badge im Model-Lab-Tab. 82 Backend- + 16 Frontend-Tests gruen.
+- **Stufe 4 (Phase 8) — `3d4790c`:** reine UI-Vorschlagslogik `suggestResidencyIntent()` fuer
+  Residency-Intent-Defaults nach einem Scan (Vision-Modelle -> `idle_evict`, unzertifizierte/kaputte Bundles
+  -> `manual`, sonst `idle_evict`). Kein neuer Test noetig (Config-only); tsc + 16/16 Vitest gruen.
+- **Stufe 5 (Phase 5, Dual-Mode Vision) — `0366939`:** siehe eigener Eintrag unten fuer Details.
+
+**Architektonische Korrektur waehrend Stufe 5:** der Stufenplan selbst nahm faelschlich an,
+`projector_artifact_id` wuerde serverseitig ueber `ModelLabRepository` aufgeloest. Tatsaechlich ist
+`MultimodalPair.projector_artifact_id` ein Legacy-Runtime-Index-Feld (`IndexedModel.id` in
+`ModelIndex.support_artifacts`), aufgeloest ueber `ModelIndexService` — komplett getrennt von Model Lab.
+Vor dem Bau verifiziert statt dem Plandokument blind gefolgt.
+
+## Stufe 5: Dual-Mode Vision — dedizierter MMProj-Prozess auf `vision_gpu` (2026-08-02)
+
+**Kritischer Fund:** `RuntimeService.start_model()`s Cross-Slot-"Shared-Slot-Binding"-Wiederverwendung
+(`_find_running_slot_for_model`/`_bind_shared_slot`) haette einen neuen `vision_gpu`-Start mit `mmproj_path`
+stillschweigend an eine bereits laufende **text-only** Instanz derselben `model_id` (z. B. auf
+`orchestrator_cpu`) angehaengt — kein Fingerprint-Check vorhanden. Selbst der Same-Slot-Fingerprint-Reuse
+haette es nicht gefangen, da `compute_launch_fingerprint()` `mmproj_path` nicht hasht. Beides haette den
+gesamten Zweck von Dual-Mode-Vision (Text- und Vision-Instanz desselben Modells gleichzeitig auf getrennten
+Slots) unterlaufen. Bestaetigt als bekannte, bisher nur umschiffte Luecke ueber den Docstring des
+bestehenden Test-Helfers `_add_second_model_to_catalog` in `test_runtime_service.py`.
+
+**Fix:** neuer `requires_dedicated_process`-Guard in `start_model()` (`true` sobald `config["mmproj_path"]`
+gesetzt ist), deaktiviert sowohl den Same-Slot-Fingerprint-Reuse als auch das Cross-Slot-Shared-Binding und
+erzwingt damit einen echten neuen Prozess. `--mmproj`-Verdrahtung und Datei-Existenz-Check in `launch.py`
+waren bereits vorhanden (aeltere Manual-Pairing-Infrastruktur) — der Fix schliesst nur die Reuse-Luecke davor.
+
+**Weitere Aenderungen:**
+- `StartModelRequest.projector_artifact_id` (neu, optional) + `POST /runtime/slots/{slot_id}/start` loest ihn
+  serverseitig gegen `ModelIndexService`s `support_artifacts` auf (400 bei unbekannter ID) — nie ein
+  client-seitig vertrauter Dateipfad. `/runtime/start` bewusst unveraendert.
+- `resource_planner.plan()` bekommt `mmproj_bytes`: wird vom VRAM-Budget vor der `gpu_layers`-Wahl abgezogen
+  und zu `estimated_total_vram_bytes` addiert, damit ein geladener Projector auf kleinen Karten vorab
+  budgetiert wird statt erst als OOM aufzufallen.
+- Frontend: `modelSelectionBroker.ts`s `ModelSelectionDecision` bekommt `projectorArtifactId` (aus dem
+  verifizierten `MultimodalPair`, nur gesetzt wenn `slotId === "vision_gpu"`); `runtimeSlotManager.startSlot()`
+  bekommt einen optionalen 4. Parameter; `runtimeChatStoreOnDemandExecution.ts` reicht ihn beim
+  On-Demand-Slot-Start durch.
+
+**Verifiziert:** 85 Backend-Tests direkt betroffen (3 neu in `test_resource_planner.py`, 2 neu in
+`test_runtime_service.py` inkl. einer Baseline, die den weiterhin funktionierenden Shared-Binding-Pfad ohne
+`mmproj_path` bestaetigt, 3 neu in `test_runtime_api.py`) plus 79 weitere in
+`test_gpu_exclusivity/test_runtime_launch/test_runtime_slot_contract/test_runtime_warmup/
+test_residency_cache/test_resident_model_startup/test_runtime_strict_mode/test_runtime_chat_ready` — alle
+gruen. `tsc --noEmit` beide Configs sauber, 81 Frontend-Tests gruen (4 neu).
+
+**Nebenfund (nicht Teil dieser Aenderung, separat zu untersuchen):** `pytest tests/test_runtime_doctor.py`
+haengt bei isoliertem Lauf auf dieser Maschine dauerhaft (mehrfach reproduziert, auch nach Prozess-Neustart
+und Geraete-Reconnect). Datei wurde in dieser Session nicht angefasst; betroffene Tests nutzen ausschliesslich
+gefakte Services, kein echter `RuntimeService`. Vermutlich ein bereits vorher bestehendes, umgebungsbedingtes
+Problem (z. B. eine ungemockte echte Hardware-/GPU-Abfrage in `build_runtime_doctor()`), keine Regression
+dieser Session — siehe `TODO_NEXT.md`.
+
+**Nicht in dieser Sandbox verifizierbar:** ein echter gleichzeitiger Zwei-Prozess-Dual-Mode-Lauf (Text auf
+`orchestrator_cpu` + Vision mit geladenem MMProj auf `vision_gpu`, parallel, mit echtem Qwen2.5-VL-Modell)
+braucht eine echte interaktive Session mit laufenden `llama-server`-Prozessen.
 
 ## Aktuelle Repo-/Statuslage (2026-08-01)
 
