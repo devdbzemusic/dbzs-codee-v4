@@ -113,35 +113,55 @@ export function SourceRow({ source, onScan, isScanning }: { source: ModelLabSour
   );
 }
 
+import { ModelLabExpandedDetails } from "./ModelLabTab.expanded";
+
 export function ModelBundleRow({
   entry,
   isSelected,
-  onSelect
+  onSelect,
+  onAssignAndEnable
 }: {
   entry: ModelLabModel;
   isSelected: boolean;
   onSelect: () => void;
+  onAssignAndEnable: (bundleId: string) => void;
 }) {
   const { bundle } = entry;
+  const [isExpanded, setIsExpanded] = useState(false);
   const totalSize = entry.artifacts.reduce((sum, artifact) => sum + artifact.size_bytes, 0);
 
+  const handleRowClick = () => {
+    onSelect();
+    setIsExpanded(!isExpanded);
+  };
+
   return (
-    <tr
-      className={`cursor-pointer border-b border-dbzs-border/60 ${isSelected ? "bg-dbzs-cyan/5" : "hover:bg-dbzs-bg"}`}
-      onClick={onSelect}
-    >
-      <td className="px-2 py-1.5 text-xs text-dbzs-text">
-        {bundle.is_favorite ? "* " : ""}
-        {bundle.name}
-      </td>
-      <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">
-        <ModelLabStatusBadge status={bundle.status} />
-      </td>
-      <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">{bundle.health.quantization ?? "-"}</td>
-      <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">{formatBytes(totalSize)}</td>
-      <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">{bundle.capabilities.join(", ") || "-"}</td>
-      <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">{entry.artifacts.length}</td>
-    </tr>
+    <>
+      <tr
+        className={`cursor-pointer border-b border-dbzs-border/60 transition-colors ${isSelected ? "bg-dbzs-cyan/5" : "hover:bg-dbzs-bg"}`}
+        onClick={handleRowClick}
+      >
+        <td className="px-2 py-1.5 text-xs text-dbzs-text">
+          {bundle.is_favorite ? "* " : ""}
+          <span className="inline-block w-4 text-dbzs-muted">{isExpanded ? "▼" : "▶"}</span>
+          {bundle.name}
+        </td>
+        <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">
+          <ModelLabStatusBadge status={bundle.status} />
+        </td>
+        <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">{bundle.health.quantization ?? "-"}</td>
+        <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">{formatBytes(totalSize)}</td>
+        <td className="px-2 py-1.5 text-[11px] text-dbzs-muted max-w-xs truncate">{bundle.capabilities.join(", ") || "-"}</td>
+        <td className="px-2 py-1.5 text-[11px] text-dbzs-muted">{entry.artifacts.length}</td>
+      </tr>
+      {isExpanded && (
+        <tr>
+          <td colSpan={6} className="p-0 border-b border-dbzs-border/60">
+            <ModelLabExpandedDetails entry={entry} onAssignAndEnable={onAssignAndEnable} />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 

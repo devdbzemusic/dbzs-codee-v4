@@ -10,6 +10,7 @@ import {
   ModelLabRoutingSection,
   ModelLabSourcesSection
 } from "./ModelLabTab.sections";
+import { useModelIndexStore } from "@/stores/modelIndexStore";
 
 export function ModelLabTab() {
   const {
@@ -74,7 +75,23 @@ export function ModelLabTab() {
               sourceCandidates={sourceCandidates}
               sources={sources}
             />
-            <ModelLabModelsSection models={models} onSelect={setSelectedBundleId} selectedBundleId={selectedBundleId} />
+            <ModelLabModelsSection 
+              models={models} 
+              onSelect={setSelectedBundleId} 
+              selectedBundleId={selectedBundleId} 
+              onAssignAndEnable={(bundleId) => {
+                void assignRole({
+                  bundle_id: bundleId,
+                  role: "FAST_GENERAL_AGENT",
+                  settings_field: null,
+                  residency_intent: "idle_evict",
+                  enabled: true,
+                }).then(() => {
+                  // After assigning, reload the global model index so it appears in Codee settings
+                  useModelIndexStore.getState().loadModelIndex().catch(console.error);
+                });
+              }}
+            />
             <ModelLabCollectionsSection
               collections={collections}
               creatingCollection={creatingCollection}

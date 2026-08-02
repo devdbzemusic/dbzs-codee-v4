@@ -168,11 +168,13 @@ export function ModelLabSourcesSection({
 export function ModelLabModelsSection({
   models,
   selectedBundleId,
-  onSelect
+  onSelect,
+  onAssignAndEnable
 }: {
   models: ModelLabModel[];
   selectedBundleId: string | null;
   onSelect: (bundleId: string) => void;
+  onAssignAndEnable: (bundleId: string) => void;
 }) {
   return (
     <div>
@@ -200,6 +202,7 @@ export function ModelLabModelsSection({
                 isSelected={entry.bundle.bundle_id === selectedBundleId}
                 key={entry.bundle.bundle_id}
                 onSelect={() => onSelect(entry.bundle.bundle_id)}
+                onAssignAndEnable={onAssignAndEnable}
               />
             ))}
           </tbody>
