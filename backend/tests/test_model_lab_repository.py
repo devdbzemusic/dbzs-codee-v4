@@ -20,10 +20,12 @@ from app.model_lab.models import (
     ModelCapabilityEvidenceRequest,
     ModelCertificationRequest,
     ModelCollectionCreate,
+    ModelHealth,
     ModelMetadataUpdate,
     ModelProbeRequest,
     ModelRoleAssignmentRequest,
     ModelSourceCreate,
+    RuntimeSlotHealthEventCreate,
 )
 from app.model_lab.repository import ModelLabRepository
 
@@ -516,3 +518,163 @@ def test_rebuild_logical_models_groups_quantized_variants(tmp_path: Path) -> Non
     assert set(logical[0].bundle_ids) == {"b1", "b2"}
     assert {variant.bundle_id for variant in variants} == {"b1", "b2"}
     assert {variant.quantization for variant in variants} == {"Q4_K_M", "Q8_0"}
+
+
+# --- Plan 15, Phase 6: persistent runtime slot health/failure history ---
+
+
+def test_record_health_event_and_list(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+
+    record = repo.record_health_event(
+        RuntimeSlotHealthEventCreate(
+            slot_id="fast_gpu",
+            model_id="qwenpaw-flash-2b.gguf",
+            event_type="restart_attempt",
+            detail="Slot abgestuerzt, Neustart Versuch 1",
+        )
+    )
+
+    assert record.id
+    assert record.slot_id == "fast_gpu"
+    assert record.event_type == "restart_attempt"
+
+    events = repo.list_health_events(slot_id="fast_gpu")
+    assert len(events) == 1
+    assert events[0].id == record.id
+    assert events[0].model_id == "qwenpaw-flash-2b.gguf"
+
+
+def test_list_health_events_filters_by_slot(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    repo.record_health_event(RuntimeSlotHealthEventCreate(slot_id="fast_gpu", event_type="start"))
+    repo.record_health_event(RuntimeSlotHealthEventCreate(slot_id="utility", event_type="start"))
+
+    fast_gpu_events = repo.list_health_events(slot_id="fast_gpu")
+    all_events = repo.list_health_events()
+
+    assert len(fast_gpu_events) == 1
+    assert fast_gpu_events[0].slot_id == "fast_gpu"
+    assert len(all_events) == 2
+
+
+def test_list_health_events_orders_newest_first(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    first = repo.record_health_event(RuntimeSlotHealthEventCreate(slot_id="fast_gpu", event_type="start"))
+    second = repo.record_health_event(RuntimeSlotHealthEventCreate(slot_id="fast_gpu", event_type="crash"))
+
+    events = repo.list_health_events(slot_id="fast_gpu")
+
+    assert [event.id for event in events] == [second.id, first.id]
+
+
+def test_health_event_pruning_keeps_last_200_per_slot(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    for _ in range(205):
+        repo.record_health_event(RuntimeSlotHealthEventCreate(slot_id="fast_gpu", event_type="start"))
+    repo.record_health_event(RuntimeSlotHealthEventCreate(slot_id="utility", event_type="start"))
+
+    fast_gpu_events = repo.list_health_events(slot_id="fast_gpu", limit=1000)
+    utility_events = repo.list_health_events(slot_id="utility", limit=1000)
+
+    assert len(fast_gpu_events) == 200
+    assert len(utility_events) == 1
+
+
+def test_update_role_assignment_cache_stamps_certification_and_benchmark(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+    repo.assign_model_role(
+        ModelRoleAssignmentRequest(bundle_id=bundle.bundle_id, role="MICRO_TOOL_AGENT", enabled=False)
+    )
+
+    repo.update_role_assignment_cache(
+        bundle.bundle_id, certification_run_id="cert-1", certification_score=92.5
+    )
+    repo.update_role_assignment_cache(bundle.bundle_id, benchmark_run_id="bench-1")
+
+    assignment = repo.list_role_assignments()[0]
+    assert assignment.last_certification_run_id == "cert-1"
+    assert assignment.last_certification_score == 92.5
+    assert assignment.last_benchmark_run_id == "bench-1"
+
+
+def test_update_role_assignment_cache_is_noop_for_bundle_without_assignment(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+
+    # Should not raise even though no role assignment row exists yet for this bundle.
+    repo.update_role_assignment_cache(bundle.bundle_id, certification_run_id="cert-1", certification_score=50.0)
+
+    assert repo.list_role_assignments() == []
+
+
+def test_update_role_assignment_cache_leaves_unspecified_fields_untouched(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+    repo.assign_model_role(
+        ModelRoleAssignmentRequest(bundle_id=bundle.bundle_id, role="MICRO_TOOL_AGENT", enabled=False)
+    )
+    repo.update_role_assignment_cache(bundle.bundle_id, certification_run_id="cert-1", certification_score=70.0)
+
+    repo.update_role_assignment_cache(bundle.bundle_id, benchmark_run_id="bench-1")
+
+    assignment = repo.list_role_assignments()[0]
+    assert assignment.last_certification_run_id == "cert-1"
+    assert assignment.last_certification_score == 70.0
+    assert assignment.last_benchmark_run_id == "bench-1"
+
+
+def test_get_model_includes_role_assignments_with_cache_fields(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _source_id, bundle = _seed_bundle(repo, tmp_path)
+    repo.assign_model_role(
+        ModelRoleAssignmentRequest(bundle_id=bundle.bundle_id, role="MICRO_TOOL_AGENT", enabled=False)
+    )
+    repo.update_role_assignment_cache(bundle.bundle_id, certification_run_id="cert-1", certification_score=88.0)
+
+    model = repo.get_model(bundle.bundle_id)
+
+    assert model is not None
+    assert len(model.role_assignments) == 1
+    assert model.role_assignments[0].last_certification_score == 88.0
+
+
+def test_suggest_residency_intent(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    source = repo.create_source(ModelSourceCreate(path=str(tmp_path), name="test"))
+    
+    # 1. Unknown bundle -> manual
+    assert repo.suggest_residency_intent("unknown") == "manual"
+    
+    # 2. Broken bundle -> manual (even if it has vision)
+    art_broken = _artifact(artifact_id="broken_a", bundle_id="broken_b", source_id=source.id)
+    b_broken = _bundle(bundle_id="broken_b", source_id=source.id, artifact_id=art_broken.artifact_id)
+    b_broken.health = ModelHealth(status="error")
+    repo.save_scan_output(source=source, artifacts=[art_broken], bundles=[b_broken])
+    assert repo.suggest_residency_intent("broken_b") == "manual"
+    
+    # 3. Vision bundle (healthy, uncertified) -> idle_evict
+    art_vis = _artifact(artifact_id="vis_a", bundle_id="vis_b", source_id=source.id)
+    b_vis = _bundle(bundle_id="vis_b", source_id=source.id, artifact_id=art_vis.artifact_id)
+    b_vis.health = ModelHealth(status="healthy")
+    b_vis.modalities = ["text", "vision"]
+    repo.save_scan_output(source=source, artifacts=[art_vis], bundles=[b_vis])
+    assert repo.suggest_residency_intent("vis_b") == "idle_evict"
+    
+    # 4. Normal bundle (uncertified) -> manual
+    art_norm = _artifact(artifact_id="norm_a", bundle_id="norm_b", source_id=source.id)
+    b_norm = _bundle(bundle_id="norm_b", source_id=source.id, artifact_id=art_norm.artifact_id)
+    b_norm.health = ModelHealth(status="healthy")
+    b_norm.modalities = ["text"]
+    repo.save_scan_output(source=source, artifacts=[art_norm], bundles=[b_norm])
+    assert repo.suggest_residency_intent("norm_b") == "manual"
+    
+    # 5. Normal bundle (certified) -> idle_evict
+    repo.upsert_certification(ModelCertificationRequest(
+        bundle_id="norm_b",
+        certification="CHAT_VERIFIED",
+        status="passed"
+    ))
+    assert repo.suggest_residency_intent("norm_b") == "idle_evict"
+

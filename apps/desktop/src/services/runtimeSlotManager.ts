@@ -18,6 +18,8 @@ import type {
   RuntimeReadinessStage,
   RuntimeSlotStatus,
   RuntimeSlotId,
+  RuntimeSlotHealthEvent,
+  RuntimeSlotHealthEventType,
   RuntimeWarmupDiagnostics
 } from "@dbzs/shared";
 import { backendClient } from "@/services/backendClient";
@@ -227,6 +229,26 @@ function selectDefaultModelForSlot(models: IndexedModel[], slotId: RuntimeSlotId
   return fallback[0] ?? runnable[0] ?? null;
 }
 
+/**
+ * Representative task type used to ask the backend FleetRoutingResolver for
+ * a default model when no role setting is configured for `slotId` — the
+ * resolved slot in the response is ignored, only resolved_model_id is used,
+ * since the caller has already committed to `slotId` externally.
+ */
+function taskTypeForSlotFallback(slotId: RuntimeSlotId): string {
+  switch (slotId) {
+    case "fast_gpu":
+      return "small_code_change";
+    case "utility":
+      return "embedding";
+    case "vision_gpu":
+    case "quality_cpu":
+    case "orchestrator_cpu":
+    default:
+      return "normal_chat";
+  }
+}
+
 function configuredModelForSlot(slotId: RuntimeSlotId): string {
   const settings = useSettingsStore.getState().settings;
 
@@ -286,13 +308,24 @@ export const runtimeSlotManager = {
   /**
    * Startet einen Slot.
    */
-  async startSlot(slotId: RuntimeSlotId, modelId: string, profile?: string): Promise<SlotOperationResult> {
+  async startSlot(
+    slotId: RuntimeSlotId,
+    modelId: string,
+    profile?: string,
+    projectorArtifactId?: string
+  ): Promise<SlotOperationResult> {
     try {
       const backendUrl = await resolveBackendUrl();
+      const body: Record<string, unknown> = { model_id: modelId };
+      if (profile) body.profile = profile;
+      // Plan 15, Phase 5 (Dual-Mode Vision): an id from the current model index's
+      // MultimodalPair, never a raw filesystem path — the backend resolves it
+      // itself against its own index before ever touching the launch command.
+      if (projectorArtifactId) body.projector_artifact_id = projectorArtifactId;
       const response = await fetch(`${backendUrl}/runtime/slots/${slotId}/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile ? { model_id: modelId, profile } : { model_id: modelId })
+        body: JSON.stringify(body)
       });
 
       if (!response.ok) {
@@ -512,25 +545,7 @@ export const runtimeSlotManager = {
    * Holt Default-Modell für einen Slot.
    */
   getDefaultModelForSlot(slotId: RuntimeSlotId): string {
-    const configured = configuredModelForSlot(slotId);
-    if (configured) {
-      return configured;
-    }
-
-    switch (slotId) {
-      case "fast_gpu":
-        return "Llama-3.2-3B-CodeReactor-Q8_0";
-      case "quality_cpu":
-        return "Meta-Llama-3.1-8B-Instruct-Q4_K_M";
-      case "utility":
-        return "qwen3-embedding-0.6b-q8-0";
-      case "orchestrator_cpu":
-        return "functiongemma-270m-it.Q8_0";
-      case "vision_gpu":
-        return "Qwen2.5-VL-3B-Instruct.Q4_K_M";
-      default:
-        return "Meta-Llama-3.1-8B-Instruct-Q4_K_M";
-    }
+    return configuredModelForSlot(slotId);
   },
 
   /**
@@ -557,9 +572,41 @@ export const runtimeSlotManager = {
 
   /**
    * Holt das beste echte IndexedModel.id-Default für einen Slot.
+   *
+   * Wenn kein Rollenmodell in den Settings konfiguriert ist, fragt dies zuerst
+   * den Backend-FleetRoutingResolver (einzige Routing-Wahrheit, WF-01/WF-10) statt
+   * direkt auf die lokale Scoring-Heuristik in resolveModelId()/selectDefaultModelForSlot()
+   * zu springen. Diese lokale Heuristik bleibt nur als Notfall-Fallback bestehen, wenn das
+   * Backend nicht erreichbar ist — dieser Fallback wird immer sichtbar geloggt, nie still.
    */
   async resolveDefaultModelForSlot(slotId: RuntimeSlotId): Promise<string> {
     const configuredDefault = this.getDefaultModelForSlot(slotId);
+    if (configuredDefault.trim()) {
+      return this.resolveModelId(configuredDefault, slotId);
+    }
+
+    if (backendClient.resolveRuntimeRoute) {
+      try {
+        const response = await backendClient.resolveRuntimeRoute({
+          task_type: taskTypeForSlotFallback(slotId),
+          requires_vision: slotId === "vision_gpu"
+        });
+        if (response.resolved_model_id) {
+          emitRoutingEvent("slot_default_resolved_via_backend", {
+            slotId,
+            modelId: response.resolved_model_id,
+            selectionSource: response.selection_source
+          });
+          return response.resolved_model_id;
+        }
+      } catch (error) {
+        emitRoutingEvent("slot_default_backend_unavailable_local_fallback", {
+          slotId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
     return this.resolveModelId(configuredDefault, slotId);
   },
 
@@ -792,6 +839,50 @@ export const runtimeSlotManager = {
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
+    }
+  },
+
+  /**
+   * Postet ein Health-/Failure-Event fuer einen Slot in die persistente Historie
+   * (Plan 15, Phase 6). Fire-and-forget und fehlertolerant: ein Fehlschlag hier
+   * darf die aufrufende Restart-/Recovery-Logik nie unterbrechen, deshalb wird
+   * nie geworfen — nur geloggt.
+   */
+  async recordSlotHealthEvent(
+    slotId: RuntimeSlotId,
+    eventType: RuntimeSlotHealthEventType,
+    options?: { modelId?: string | null; detail?: string }
+  ): Promise<void> {
+    try {
+      const backendUrl = await resolveBackendUrl();
+      await fetch(`${backendUrl}/runtime/slots/${slotId}/health-events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slot_id: slotId,
+          model_id: options?.modelId ?? null,
+          event_type: eventType,
+          detail: options?.detail ?? ""
+        })
+      });
+    } catch (error) {
+      console.warn(`[RuntimeSlotManager] Health-Event fuer ${slotId} konnte nicht gespeichert werden:`, error);
+    }
+  },
+
+  /**
+   * Liest die persistente Health-/Failure-Historie eines Slots (Plan 15, Phase 6).
+   * Liefert bei Fehlern eine leere Liste statt zu werfen — die "Verlauf"-Sektion
+   * soll nie den gesamten RuntimeSlotPanel zum Absturz bringen.
+   */
+  async listSlotHealthEvents(slotId: RuntimeSlotId, limit = 50): Promise<RuntimeSlotHealthEvent[]> {
+    try {
+      const backendUrl = await resolveBackendUrl();
+      const response = await fetch(`${backendUrl}/runtime/slots/${slotId}/health-events?limit=${limit}`);
+      if (!response.ok) return [];
+      return (await response.json()) as RuntimeSlotHealthEvent[];
+    } catch {
+      return [];
     }
   }
 };

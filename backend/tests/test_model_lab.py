@@ -50,7 +50,7 @@ def test_model_lab_registry_initializes_schema(tmp_path: Path) -> None:
     assert "model_role_assignments" in tables
     assert "model_failures" in tables
     assert "agent_execution_policies" in tables
-    assert version == "3"
+    assert version == "5"
 
 
 def test_model_lab_hardware_endpoint_persists_snapshots(tmp_path: Path) -> None:
@@ -333,6 +333,66 @@ def test_model_lab_fleet_endpoints_record_safe_gates_and_roles(tmp_path: Path) -
     assert readiness.json()[0]["bundle_id"] == bundle_id
     assert readiness.json()[0]["latest_probe_status"] == "skipped"
     assert readiness.json()[0]["routing_allowed_roles"] == ["MICRO_TOOL_AGENT"]
+
+
+def test_role_assignment_writes_resolved_model_into_settings(tmp_path: Path, monkeypatch) -> None:
+    """WF-12 gap: assigning a certified bundle to a role with a concrete
+    settings_field must actually make it selectable in Settings, not just
+    record an internal Model Lab row."""
+    app_data_dir = tmp_path / "app-data"
+    app_data_dir.mkdir()
+    monkeypatch.setenv("DBZS_APP_DATA_DIR", str(app_data_dir))
+    monkeypatch.setenv("DBZS_MODELS_DIR", str(tmp_path / "empty-runtime-models"))
+
+    models_dir = tmp_path / "models"
+    models_dir.mkdir()
+    (models_dir / "coder-agent-Q4_K_M.gguf").write_bytes(b"GGUF-model")
+
+    db_path = tmp_path / "test.sqlite3"
+    app.dependency_overrides[get_model_lab_service] = lambda: _service(db_path)
+    client = TestClient(app)
+    try:
+        # Runtime bridge must be enabled for Model-Lab bundles to enter the
+        # runtime model index at all (default changed to True; set explicitly
+        # here so the test doesn't depend on the shared DEFAULT_SETTINGS value).
+        patch_response = client.get("/settings")
+        assert patch_response.status_code == 200
+        current_revision = patch_response.json()["revision"]
+        enable_bridge = client.patch(
+            "/settings",
+            json={"baseRevision": current_revision, "changes": {"enableModelLabRuntimeBridge": True}},
+        )
+        assert enable_bridge.status_code == 200
+
+        source_id = client.post("/model-lab/sources", json={"path": str(models_dir)}).json()["id"]
+        client.post("/model-lab/scan", json={"source_id": source_id})
+        bundle_id = client.get("/model-lab/models").json()[0]["bundle"]["bundle_id"]
+
+        for certification in ("CODING_VERIFIED", "STRUCTURED_OUTPUT_VERIFIED", "WRITE_AGENT_VERIFIED"):
+            response = client.post(
+                "/model-lab/certifications",
+                json={"bundle_id": bundle_id, "certification": certification, "evidence": {"test": "unit"}},
+            )
+            assert response.status_code == 200
+
+        role = client.post(
+            "/model-lab/role-assignments",
+            json={
+                "bundle_id": bundle_id,
+                "role": "CODING_EXECUTOR",
+                "settings_field": "defaultCoderModelId",
+                "safety_level": "LEVEL_2_WORKSPACE_WRITE",
+            },
+        )
+        assert role.status_code == 200
+        assert role.json()["settings_field"] == "defaultCoderModelId"
+
+        settings_after = client.get("/settings").json()
+    finally:
+        app.dependency_overrides.clear()
+
+    assert settings_after["defaultCoderModelId"]
+    assert settings_after["defaultCoderModelId"] != ""
 
 
 def test_huggingface_search_uses_category_filter_without_network() -> None:

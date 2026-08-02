@@ -4,7 +4,11 @@ from pathlib import Path
 
 from app.model_lab.models import ModelHealth, ModelMetadataUpdate, ModelSourceCreate
 from app.model_lab.repository import ModelLabRepository
-from app.models.model_lab_bridge import additional_scan_roots, enrich_with_model_lab_health
+from app.models.model_lab_bridge import (
+    additional_scan_roots,
+    enrich_with_model_lab_health,
+    resolve_bundle_to_model_id,
+)
 from app.models.schemas import IndexedModel, ModelIndex, ModelIndexSummary, ModelRuntimeHints
 from tests.test_model_lab_repository import _artifact, _bundle
 
@@ -129,3 +133,46 @@ def test_enrich_with_model_lab_health_is_noop_when_model_lab_has_no_models(tmp_p
     result = enrich_with_model_lab_health(index, repository=repo)
 
     assert result is index
+
+
+def test_resolve_bundle_to_model_id_matches_by_primary_artifact_path(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    source = repo.create_source(ModelSourceCreate(path=str(tmp_path)))
+    model_path = tmp_path / "model.gguf"
+    model_path.write_bytes(b"fake-gguf")
+    artifact = _artifact(source_id=source.id, artifact_id="a1", bundle_id="b1")
+    artifact = artifact.model_copy(update={"path": str(model_path)})
+    bundle = _bundle(source_id=source.id, artifact_id="a1")
+    repo.save_scan_output(source=source, artifacts=[artifact], bundles=[bundle])
+
+    index = ModelIndex(
+        generated_from="test",
+        summary=_empty_summary(),
+        models=[_indexed_model(model_id="m1", path=str(model_path))],
+    )
+
+    resolved = resolve_bundle_to_model_id("b1", model_lab_repo=repo, model_index=index)
+
+    assert resolved == "m1"
+
+
+def test_resolve_bundle_to_model_id_returns_none_for_unknown_bundle(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    index = ModelIndex(generated_from="test", summary=_empty_summary(), models=[])
+
+    assert resolve_bundle_to_model_id("missing-bundle", model_lab_repo=repo, model_index=index) is None
+
+
+def test_resolve_bundle_to_model_id_returns_none_when_artifact_not_in_index(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    source = repo.create_source(ModelSourceCreate(path=str(tmp_path)))
+    model_path = tmp_path / "model.gguf"
+    model_path.write_bytes(b"fake-gguf")
+    artifact = _artifact(source_id=source.id, artifact_id="a1", bundle_id="b1")
+    artifact = artifact.model_copy(update={"path": str(model_path)})
+    bundle = _bundle(source_id=source.id, artifact_id="a1")
+    repo.save_scan_output(source=source, artifacts=[artifact], bundles=[bundle])
+
+    index = ModelIndex(generated_from="test", summary=_empty_summary(), models=[])
+
+    assert resolve_bundle_to_model_id("b1", model_lab_repo=repo, model_index=index) is None

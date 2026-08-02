@@ -61,6 +61,52 @@ const previewResourcePlanMock = vi.fn();
 const resolveDefaultModelForSlotMock = vi.fn();
 const isSlotReadyMock = vi.fn((status: any) => status?.state === "running" && status?.chat_ready === true);
 
+// brokerDecision() now delegates to backendClient.resolveRuntimeRoute() (the
+// backend FleetRoutingResolver is the sole routing authority). This mock
+// reproduces the same task_type -> agent/slot/model mapping the real
+// resolver uses (backend/app/runtime/routing_resolver.py), driven by
+// whatever settings the individual test has set via useSettingsStore.
+const resolveRuntimeRouteMock = vi.fn(async (request: any) => {
+  const settings = useSettingsStore.getState().settings;
+  let targetAgent = "default";
+  let slotId = "quality_cpu";
+  let configuredModelId = settings.defaultChatModelId || settings.defaultModelId || "";
+  const taskType = request.task_type;
+  if (["small_code_change", "large_code_change", "debugging", "refactoring", "test_analysis"].includes(taskType)) {
+    targetAgent = "coder";
+    slotId = "fast_gpu";
+    configuredModelId = settings.defaultCoderModelId || configuredModelId;
+  } else if (taskType === "review") {
+    targetAgent = "reviewer";
+    configuredModelId = settings.defaultReviewerModelId || configuredModelId;
+  } else if (taskType === "planning" || taskType === "architecture") {
+    targetAgent = "planner";
+    configuredModelId = settings.defaultPlannerModelId || configuredModelId;
+  }
+  if (request.manual_model_id) {
+    configuredModelId = request.manual_model_id;
+  }
+  return {
+    decision_id: `decision-${Math.random().toString(36).slice(2)}`,
+    task_type: taskType,
+    target_agent: targetAgent,
+    slot_id: slotId,
+    model_id: configuredModelId,
+    model_name: configuredModelId,
+    configured_model_id: configuredModelId,
+    resolved_model_id: configuredModelId,
+    resolved_model_name: configuredModelId,
+    selection_source: "role_setting",
+    capabilities: [],
+    has_image_input: Boolean(request.has_image_input),
+    requires_vision: Boolean(request.requires_vision),
+    provider_id: "llama-cpp",
+    reason: [`task_type:${taskType}`],
+    fallback_policy: "strict",
+    decision_settings_revision: 0
+  };
+});
+
 const runningStatus = {
   state: "running" as const,
   provider: "llama.cpp" as const,
@@ -154,8 +200,37 @@ vi.mock("@/stores/editorStore", () => ({
 
 vi.mock("@/services/backendClient", () => ({
   backendClient: {
-    getRuntimeStatus: vi.fn()
+    getRuntimeStatus: vi.fn(),
+    resolveRuntimeRoute: (request: unknown) => resolveRuntimeRouteMock(request)
   }
+}));
+
+const repositoryReviewStartMock = vi.fn().mockResolvedValue({
+  outcome: "completed",
+  progress: { severityCounts: {}, checks: [] }
+});
+
+vi.mock("@/services/repositoryReview", () => ({
+  buildRepositoryReviewRequest: (args: unknown) => args,
+  createElectronReviewWorkspaceIO: vi.fn(() => ({})),
+  createHeuristicBatchAnalyzer: vi.fn(() => ({})),
+  createHybridBatchAnalyzer: vi.fn(() => ({})),
+  createLlmBatchAnalyzer: vi.fn(() => ({})),
+  loadFindings: vi.fn(),
+  loadRemediationState: vi.fn(),
+  matchesCompleteRepositoryReviewIntent: () => true,
+  RepositoryReviewOrchestrator: class {
+    start(...args: unknown[]) {
+      return repositoryReviewStartMock(...args);
+    }
+  },
+  resolveRepositoryReviewScope: () => "full_repository",
+  saveRemediationReport: vi.fn(),
+  saveRemediationState: vi.fn(),
+  REPOSITORY_REVIEW_WORKFLOW_ID: "repository_review",
+  CODE_REVIEW_INTENT_LABEL: "code_review",
+  buildChatReviewSummaryLines: () => ["Review abgeschlossen"],
+  isSuccessfulReviewOutcome: (outcome: string) => outcome === "completed"
 }));
 
 vi.mock("@/services/runtimeSlotValidator", () => ({
@@ -237,6 +312,12 @@ beforeEach(() => {
       };
     }
   );
+  resolveRuntimeRouteMock.mockClear();
+  repositoryReviewStartMock.mockClear();
+  repositoryReviewStartMock.mockResolvedValue({
+    outcome: "completed",
+    progress: { severityCounts: {}, checks: [] }
+  });
   resolveRoutingMock.mockReset();
   resolveRoutingMock.mockResolvedValue({
     targetAgent: "runtime_chat",
@@ -611,7 +692,7 @@ describe("useRuntimeChatStore", () => {
     await useRuntimeChatStore.getState().sendMessage("Fehler analysieren", stoppedStatus, null);
 
     expect(resolveDefaultModelForSlotMock).not.toHaveBeenCalled();
-    expect(startSlotMock).toHaveBeenCalledWith("fast_gpu", "coder", "balanced");
+    expect(startSlotMock).toHaveBeenCalledWith("fast_gpu", "coder", "balanced", undefined);
     expect(waitForSlotReadyMock).toHaveBeenCalledWith("fast_gpu", expect.any(Number));
     expect(verifySlotForRequestMock).toHaveBeenCalledWith(
       expect.any(String),
@@ -684,7 +765,7 @@ describe("useRuntimeChatStore", () => {
 
     await useRuntimeChatStore.getState().sendMessage("Hallo", stoppedStatus, null);
     expect(getAllSlotsStatusMock).toHaveBeenCalled();
-    expect(startSlotMock).toHaveBeenCalledWith("quality_cpu", "chat-model", "balanced");
+    expect(startSlotMock).toHaveBeenCalledWith("quality_cpu", "chat-model", "balanced", undefined);
     expect(sendChatStreamMock).toHaveBeenCalled();
   });
 
@@ -718,6 +799,95 @@ describe("useRuntimeChatStore", () => {
 
     expect(sent).toBe(false);
     expect(useRuntimeChatStore.getState().error).toBeTruthy();
+  });
+});
+
+describe("Repository Review preflight (WF-03)", () => {
+  const reviewSendOptions = { workspaceRoot: "C:/workspace", workspaceName: "test" };
+
+  it("startet den Review sofort, wenn der Ziel-Slot bereits das richtige Modell bereit hat", async () => {
+    vi.mocked(backendClient.getRuntimeStatus).mockResolvedValue(runningStatus);
+    getSlotStatusMock.mockResolvedValue({
+      slot_id: "quality_cpu",
+      state: "running",
+      model_id: "reviewer-model",
+      chat_ready: true,
+      context_size: 16384
+    });
+
+    const sent = await useRuntimeChatStore.getState().sendMessage(
+      "Mach einen kompletten Code Review",
+      runningStatus,
+      null,
+      undefined,
+      null,
+      "runtime_chat",
+      reviewSendOptions
+    );
+
+    expect(sent).toBe(true);
+    expect(startSlotMock).not.toHaveBeenCalled();
+    expect(repositoryReviewStartMock).toHaveBeenCalled();
+  });
+
+  it("startet den Ziel-Slot zuerst, wenn er noch nicht bereit ist, und faehrt danach mit dem Review fort", async () => {
+    vi.mocked(backendClient.getRuntimeStatus).mockResolvedValue(stoppedStatus);
+    getSlotStatusMock.mockResolvedValueOnce({
+      slot_id: "quality_cpu",
+      state: "stopped",
+      model_id: null,
+      chat_ready: false,
+      context_size: null
+    });
+    startSlotMock.mockResolvedValueOnce({ success: true, slotId: "quality_cpu" });
+    waitForSlotReadyMock.mockResolvedValueOnce({
+      slot_id: "quality_cpu",
+      state: "running",
+      model_id: "reviewer-model",
+      chat_ready: true,
+      context_size: 16384
+    });
+
+    const sent = await useRuntimeChatStore.getState().sendMessage(
+      "Mach einen kompletten Code Review",
+      stoppedStatus,
+      null,
+      undefined,
+      null,
+      "runtime_chat",
+      reviewSendOptions
+    );
+
+    expect(startSlotMock).toHaveBeenCalledWith("quality_cpu", "reviewer-model");
+    expect(waitForSlotReadyMock).toHaveBeenCalledWith("quality_cpu", expect.any(Number));
+    expect(repositoryReviewStartMock).toHaveBeenCalled();
+    expect(sent).toBe(true);
+  });
+
+  it("bricht sauber ab, statt gegen einen nicht gestarteten Slot zu reviewen, wenn der Start fehlschlaegt", async () => {
+    vi.mocked(backendClient.getRuntimeStatus).mockResolvedValue(stoppedStatus);
+    getSlotStatusMock.mockResolvedValueOnce({
+      slot_id: "quality_cpu",
+      state: "stopped",
+      model_id: null,
+      chat_ready: false,
+      context_size: null
+    });
+    startSlotMock.mockResolvedValueOnce({ success: false, slotId: "quality_cpu", error: "port_in_use" });
+
+    const sent = await useRuntimeChatStore.getState().sendMessage(
+      "Mach einen kompletten Code Review",
+      stoppedStatus,
+      null,
+      undefined,
+      null,
+      "runtime_chat",
+      reviewSendOptions
+    );
+
+    expect(sent).toBe(false);
+    expect(repositoryReviewStartMock).not.toHaveBeenCalled();
+    expect(useRuntimeChatStore.getState().error).toBe("Der Ziel-Slot für den Repository Review ist nicht bereit.");
   });
 });
 

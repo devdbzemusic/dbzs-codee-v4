@@ -6,6 +6,8 @@ export interface BootPhaseDefinition {
   description?: string;
   dependencies: string[];
   optional: boolean;
+  /** If false, this phase is skipped when the application is started in safe mode. Defaults to true. */
+  safeMode?: boolean;
   /** Whether the main window's release must wait for this phase to reach a terminal state. */
   blocksWindowRelease: boolean;
   timeouts: BootPhasePolicy;
@@ -44,6 +46,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     label: "Desktop-Prozess gestartet",
     dependencies: [],
     optional: false,
+    safeMode: true,
     blocksWindowRelease: true,
     timeouts: {
       softTimeoutMs: 1_000,
@@ -60,6 +63,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     label: "Lokale Konfiguration geladen",
     dependencies: ["desktop-process"],
     optional: false,
+    safeMode: true,
     blocksWindowRelease: true,
     timeouts: {
       softTimeoutMs: 2_000,
@@ -76,6 +80,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     label: "Verzeichnisse, Modelle und Schreibrechte geprüft",
     dependencies: ["local-config"],
     optional: false,
+    safeMode: true,
     blocksWindowRelease: true,
     timeouts: {
       softTimeoutMs: 3_000,
@@ -93,6 +98,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     description: "Spawnt den Backend-Prozess (oder erkennt einen bereits laufenden) und bestätigt dessen PID.",
     dependencies: ["filesystem-check"],
     optional: false,
+    safeMode: true,
     blocksWindowRelease: true,
     timeouts: {
       softTimeoutMs: 3_000,
@@ -108,6 +114,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     id: "backend-live",
     label: "Backend-Health-Endpunkt erreichbar",
     dependencies: ["backend-spawn"],
+    safeMode: true,
     optional: false,
     blocksWindowRelease: true,
     // Cold start (Python interpreter + importing the full FastAPI app
@@ -131,6 +138,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     label: "Backend-Readiness-Subsystem erreichbar",
     description: "Prüft nur, dass GET /health/startup antwortet -- nicht, dass etwas bereits bereit ist.",
     dependencies: ["backend-live"],
+    safeMode: true,
     optional: false,
     blocksWindowRelease: true,
     timeouts: {
@@ -147,6 +155,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     id: "database-init",
     label: "Datenbank initialisiert",
     dependencies: ["backend-startup-api"],
+    safeMode: true,
     optional: false,
     blocksWindowRelease: true,
     timeouts: {
@@ -163,6 +172,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     id: "model-index",
     label: "Modellkatalog geladen",
     dependencies: ["database-init"],
+    safeMode: true,
     optional: false,
     blocksWindowRelease: true,
     timeouts: {
@@ -171,14 +181,21 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
       pollIntervalMs: 2_000,
       maxRetries: 2,
       retryDelayMs: 2_000,
-      extendDeadlineOnProgress: false,
-      maxDeadlineExtensionMs: 0
+      // Scan duration scales with the real models directory's file count
+      // (hundreds of GGUF files legitimately take longer than a fixed
+      // 60s budget to hash/validate) -- unlike the other fixed-cost boot
+      // phases, this one must extend its deadline as long as the backend
+      // keeps reporting real checked/total progress, or a large but
+      // healthy catalog gets hard-timed-out before it ever finishes.
+      extendDeadlineOnProgress: true,
+      maxDeadlineExtensionMs: 300_000
     }
   },
   {
     id: "runtime-manager-init",
     label: "Runtime Manager initialisiert",
     dependencies: ["model-index"],
+    safeMode: true,
     optional: false,
     blocksWindowRelease: true,
     timeouts: {
@@ -195,6 +212,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     id: "resident-model",
     label: "Residentes Basismodell geprüft oder gestartet",
     dependencies: ["runtime-manager-init"],
+    safeMode: false, // Dies ist die entscheidende Änderung für den Safe-Mode
     optional: true,
     // Semantic reversal from the pre-repair version: the splash now waits
     // for this phase to reach ANY terminal state before releasing the main
@@ -216,6 +234,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     label: "Backend vollständig ready",
     description: "Pollt das echte GET /health/ready -- ready:true erst wenn alle Pflichtkomponenten erfolgreich sind.",
     dependencies: ["runtime-manager-init", "resident-model"],
+    safeMode: true,
     optional: false,
     blocksWindowRelease: true,
     timeouts: {
@@ -232,6 +251,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     id: "frontend-bridge",
     label: "Frontend-Backend-Bridge verbunden",
     dependencies: ["backend-ready"],
+    safeMode: true,
     optional: false,
     blocksWindowRelease: true,
     // The renderer (App.tsx) runs its own internal ~30s retry loop before
@@ -253,6 +273,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     id: "frontend-config-sync",
     label: "Frontend-Konfiguration synchronisiert",
     dependencies: ["frontend-bridge"],
+    safeMode: true,
     optional: false,
     blocksWindowRelease: true,
     timeouts: {
@@ -269,6 +290,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     id: "workspace-restore",
     label: "Workspace wiederhergestellt",
     dependencies: ["frontend-bridge", "frontend-config-sync"],
+    safeMode: true,
     optional: false,
     blocksWindowRelease: true,
     // Cost scales with workspace size, not just backend latency — measured
@@ -288,6 +310,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     id: "agents-roles-models",
     label: "Agenten, Rollen und Modellzuweisungen geladen",
     dependencies: ["workspace-restore"],
+    safeMode: false, // Kann im Safe-Mode ebenfalls übersprungen werden
     optional: false,
     blocksWindowRelease: true,
     timeouts: {
@@ -305,6 +328,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     label: "Hauptfenster vollständig gerendert",
     description: "Wartet auf den Renderer-Paint-Ack (doppeltes requestAnimationFrame) statt nur auf Electrons ready-to-show.",
     dependencies: ["agents-roles-models"],
+    safeMode: true,
     optional: false,
     blocksWindowRelease: true,
     timeouts: {
@@ -321,6 +345,7 @@ export const BOOT_PHASE_DEFINITIONS: BootPhaseDefinition[] = [
     id: "main-app-released",
     label: "Hauptanwendung freigegeben",
     dependencies: ["main-window-rendered"],
+    safeMode: true,
     optional: false,
     blocksWindowRelease: true,
     timeouts: {

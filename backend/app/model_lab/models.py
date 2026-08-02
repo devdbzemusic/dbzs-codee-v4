@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, TYPE_CHECKING
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    pass
+
+# RuntimeSlotId is defined in runtime.schemas to avoid circular imports;
+# for the health-event models we inline the same Literal so this module
+# stays independent of the runtime package.
+_RuntimeSlotId = Literal["fast_gpu", "quality_cpu", "utility", "orchestrator_cpu", "vision_gpu"]
 
 
 ArtifactType = Literal[
@@ -164,6 +172,12 @@ class ModelBundle(BaseModel):
 class ModelLabModel(BaseModel):
     bundle: ModelBundle
     artifacts: list[ModelArtifact]
+    # Plan 15, Phase 7: role assignment(s) for this bundle, carrying the
+    # denormalized last_certification_run_id/last_certification_score/
+    # last_benchmark_run_id cache - lets the UI badge a bundle's fleet status
+    # from this single fetch instead of separately scanning role-assignment,
+    # certification-run and benchmark-run endpoints.
+    role_assignments: list["ModelRoleAssignment"] = Field(default_factory=list)
 
 
 class ScanRequest(BaseModel):
@@ -383,6 +397,12 @@ class ModelRoleAssignment(BaseModel):
     priority: int
     required_certifications: list[ModelFleetCertificationKind] = Field(default_factory=list)
     notes: str = ""
+    # Denormalized cache of the bundle's latest measured certification/benchmark
+    # (Plan 15, Phase 7) so the UI can show a badge without re-scanning the
+    # certification-run store or benchmark_runs table on every render.
+    last_certification_run_id: str | None = None
+    last_certification_score: float | None = None
+    last_benchmark_run_id: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -437,6 +457,34 @@ class ModelFailureRecord(BaseModel):
     message: str
     details: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
+
+
+RuntimeSlotHealthEventType = Literal[
+    "start",
+    "stop",
+    "crash",
+    "restart_attempt",
+    "budget_exhausted",
+    "oom",
+]
+
+
+class RuntimeSlotHealthEventCreate(BaseModel):
+    # Validated against the known slot IDs — unknown values are rejected at
+    # the Pydantic level rather than silently stored as phantom rows.
+    slot_id: _RuntimeSlotId
+    model_id: str | None = None
+    event_type: RuntimeSlotHealthEventType
+    detail: str = ""
+
+
+class RuntimeSlotHealthEvent(BaseModel):
+    id: str
+    slot_id: _RuntimeSlotId
+    model_id: str | None = None
+    event_type: RuntimeSlotHealthEventType
+    detail: str = ""
+    occurred_at: datetime
 
 
 class ModelFleetSummary(BaseModel):

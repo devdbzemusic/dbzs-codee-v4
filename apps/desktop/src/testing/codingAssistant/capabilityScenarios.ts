@@ -45,8 +45,8 @@ vi.mock("@/services/modelSelectionBroker", async (importOriginal) => {
   };
   return {
     ...actual,
-    brokerDecision: (...args: Parameters<typeof actual.brokerDecision>) => {
-      const decision = actual.brokerDecision(...args);
+    brokerDecision: async (...args: Parameters<typeof actual.brokerDecision>) => {
+      const decision = await actual.brokerDecision(...args);
       if (!capabilityBrokerAgentOverride) {
         return decision;
       }

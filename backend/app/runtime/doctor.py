@@ -496,7 +496,11 @@ def probe_runtime(
     )
 
     start_config = {"mmproj_path": mmproj_path} if mmproj_path else None
-    status = runtime.start_model(request.model_id, config=start_config)
+    status = runtime.start_model(
+        request.model_id, 
+        slot_id="vision_gpu" if mmproj_path else None, 
+        config=start_config
+    )
     if status.state != "running":
         logs = runtime.get_logs()
         return RuntimeProbeResponse(

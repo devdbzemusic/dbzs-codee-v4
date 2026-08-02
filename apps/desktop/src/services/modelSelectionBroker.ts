@@ -27,6 +27,7 @@ import type {
   WorkflowAgentRole,
   WorkflowModelRole
 } from "@/runtime/workflow/workflowContracts";
+import { backendClient } from "@/services/backendClient";
 
 export type TaskType = RuntimeTaskType;
 
@@ -79,6 +80,14 @@ export interface ModelSelectionDecision {
   capabilities: string[];
   hasImageInput: boolean;
   requiresVision: boolean;
+
+  /** Plan 15, Phase 5 (Dual-Mode Vision): the id of the MMProj support artifact
+   * (from a verified MultimodalPair) that runtimeSlotManager.startSlot() should
+   * pass to the backend so it can load the projector alongside this model on
+   * vision_gpu. Only set when slotId is "vision_gpu" and the resolved model
+   * actually requires its projector — never a raw filesystem path, and never
+   * trusted client-side; the backend re-resolves it against its own index. */
+  projectorArtifactId?: string;
   
   /** Only supporting llama.cpp for now */
   providerId: "llama-cpp";
@@ -170,6 +179,11 @@ const PLAN_PATTERNS = ["plan", "design", "architektur", "architecture", "struktu
 /**
  * Explicit review intent — must win over Agent Mode / coding prefixes.
  * Canonical task type remains `review` (hotfix alias: code_review).
+ * Der ModelSelectionBroker ist nach dem Umbau ein reiner Client/Presenter
+ * für den autoritativen FleetRoutingResolver im Backend.
+ *
+ * FRÜHER: Hielt komplexe Logik zum Filtern, Scoren und Auswählen von Modellen.
+ * HEUTE: Baut eine Anfrage, sendet sie ans Backend und gibt die Entscheidung zurück.
  */
 export function matchesReviewIntent(userMessage: string): boolean {
   const cleaned = userMessage.toLowerCase();
@@ -347,11 +361,9 @@ export interface BrokerDecisionOptions {
     CanonicalWorkflowAssignment,
     "workflowKind" | "phase" | "effectiveAgent" | "modelRole" | "toolProfile"
   >;
-  /**
-   * Models currently resident in a runtime slot. Only consulted when no role model is
+  /** Models currently resident in a runtime slot. Only consulted when no role model is
    * configured for the resolved target — used to fall back onto an already-running model
-   * instead of hard-failing the turn. See resolveModelIdWithVisionGate().
-   */
+   * instead of hard-failing the turn. See resolveModelIdWithVisionGate(). */
   runningModels?: RunningModelSnapshot[];
 }
 
@@ -764,7 +776,7 @@ export function hasConfiguredRoleModelForTask(
  * Make a BINDING routing decision.
  * This decision is final. Backend does NOT re-route.
  */
-export function brokerDecision(
+export async function brokerDecision(
   taskType: TaskType,
   settings: {
     defaultModelId: string;
@@ -778,102 +790,50 @@ export function brokerDecision(
     localOnlyModels?: boolean;
   },
   options?: BrokerDecisionOptions,
-): ModelSelectionDecision {
-  const reasons: string[] = [];
-  const hasImageInput = options?.hasImageInput === true;
-  const requiresVision = options?.requiresVision === true;
-  const allowVision = hasImageInput || requiresVision;
-  const preferPlannerFirst = options?.preferPlannerFirst !== false;
-  const catalog = options?.catalog;
+): Promise<ModelSelectionDecision> {
   const assignment = options?.workflowAssignment;
   const targetAgent = assignment
     ? mapWorkflowAgentToModelTarget(assignment.effectiveAgent)
-    : mapTaskTypeToAgent(taskType, preferPlannerFirst);
-  reasons.push(`task_type:${taskType}`);
-  reasons.push(`target_agent:${targetAgent}`);
-  if (assignment) {
-    reasons.push(`workflow_kind:${assignment.workflowKind}`);
-    reasons.push(`workflow_phase:${assignment.phase}`);
-    reasons.push(`model_role:${assignment.modelRole}`);
-    reasons.push(`tool_profile:${assignment.toolProfile}`);
+    : mapTaskTypeToAgent(taskType, options?.preferPlannerFirst !== false);
+
+  if (!backendClient.resolveRuntimeRoute) {
+    throw new Error("Backend does not support resolveRuntimeRoute yet.");
   }
 
-  const slotId = assignment
-    ? mapModelRoleToSlot(assignment.modelRole, taskType)
-    : mapTaskTypeToSlot(taskType);
-  reasons.push(`slot:${slotId}`);
-
-  const configuredModelId = assignment
-    ? selectModelForRole(assignment.modelRole, settings, targetAgent) ?? ""
-    : selectModelForTask(taskType, settings, targetAgent) ?? "";
-  reasons.push(`model_selection:${taskType}`);
-  reasons.push(allowVision ? "vision_gate:vision_allowed" : "vision_gate:text_only");
-
-  const resolved = resolveModelIdWithVisionGate(
-    configuredModelId || undefined,
-    settings,
-    allowVision,
-    catalog,
-    options?.multimodalPairs,
-    reasons,
-    options?.manualModelId,
-    taskType,
-    options?.runningModels,
-  );
-  const preVisionSlotId = resolved.fallbackSlotId ?? slotId;
-  if (resolved.fallbackSlotId && resolved.fallbackSlotId !== slotId) {
-    reasons.push(`slot:reassigned_from:${slotId}`);
-  }
-  const catalogEntry = findCatalogEntry(resolved.modelId, catalog);
-  const resolvedModelId = catalogEntry?.id ?? resolved.modelId;
-  const resolvedModelName = catalogEntry?.name?.trim()
-    ? catalogEntry.name.trim()
-    : deriveModelDisplayName(resolvedModelId, settings.defaultModelName, catalog);
-  reasons.push(`selection_source:${resolved.selectionSource}`);
-
-  // A model that strictly requires the vision projector (not just a dual chat+vision
-  // model being used as a normal role model) must run on the dedicated vision_gpu slot,
-  // never on quality_cpu/fast_gpu — those never load the projector.
-  const requiresVisionSlot = allowVision && modelRequiresVisionProjector(resolvedModelId, catalog);
-  const effectiveSlotId = requiresVisionSlot ? "vision_gpu" : preVisionSlotId;
-  if (requiresVisionSlot && effectiveSlotId !== preVisionSlotId) {
-    reasons.push(`slot:vision_routed:${effectiveSlotId}`);
-  }
-
-  if (
-    allowVision &&
-    taskRequiresCodingCapability(taskType) &&
-    !modelSupportsCodingCapability(resolvedModelId, catalog)
-  ) {
-    reasons.push(`capability_gate:code_missing:${resolvedModelId}`);
-    throw new BindingModelError(
-      `Modell '${resolvedModelName}' ist fuer diese Bild-Coding-/Review-Anfrage nicht freigegeben, weil die Code-Faehigkeit im Modellindex fehlt.`,
-      "code_capability_missing",
-      ["Coding-faehiges Visionmodell waehlen", "Textmodell ohne Bild nutzen", "Abbrechen"]
-    );
-  }
+  const response = await backendClient.resolveRuntimeRoute({
+    task_type: taskType,
+    has_image_input: options?.hasImageInput,
+    requires_vision: options?.requiresVision,
+    prefer_planner_first: options?.preferPlannerFirst,
+    manual_model_id: options?.manualModelId,
+    user_message: options?.userMessage,
+    workflow_kind: assignment?.workflowKind,
+    phase: assignment?.phase,
+    effective_agent: assignment?.effectiveAgent,
+    model_role: assignment?.modelRole,
+  });
 
   const decision: ModelSelectionDecision = {
-    taskType,
-    targetAgent,
-    slotId: effectiveSlotId,
-    modelId: resolvedModelId,
-    modelName: resolvedModelName,
-    configuredModelId: configuredModelId || resolvedModelId,
-    resolvedModelId,
-    resolvedModelName,
-    selectionSource: resolved.selectionSource,
-    fallbackReason: resolved.fallbackReason,
-    capabilities: catalogEntry?.capabilities ?? [],
-    hasImageInput,
-    requiresVision,
-    providerId: "llama-cpp",
-    reason: reasons,
-    // Binding decisions never allow silent local slot/model swaps.
-    fallbackPolicy: "strict",
-    decisionId: `decision-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    taskType: response.task_type as TaskType,
+    targetAgent: response.target_agent as ModelTargetAgent,
+    slotId: response.slot_id as RuntimeSlotId,
+    modelId: response.model_id,
+    modelName: response.model_name,
+    configuredModelId: response.configured_model_id,
+    resolvedModelId: response.resolved_model_id,
+    resolvedModelName: response.resolved_model_name,
+    selectionSource: response.selection_source as BindingSelectionSource,
+    fallbackReason: response.fallback_reason,
+    capabilities: response.capabilities,
+    hasImageInput: response.has_image_input,
+    requiresVision: response.requires_vision,
+    projectorArtifactId: response.projector_artifact_id,
+    providerId: response.provider_id as "llama-cpp",
+    reason: response.reason,
+    fallbackPolicy: response.fallback_policy as FallbackPolicy,
+    decisionId: response.decision_id,
     decidedAt: new Date(),
-    decisionSettingsRevision: options?.settingsRevision ?? 0,
+    decisionSettingsRevision: response.decision_settings_revision,
   };
 
   if (taskType === "review" && options?.userMessage) {
@@ -884,9 +844,6 @@ export function brokerDecision(
       decision.intentLabel = "code_review";
       decision.workflowId = "repository_review";
       decision.reviewScope = scope;
-      reasons.push(`review_workflow:repository_review`);
-      reasons.push(`review_scope:${scope}`);
-      reasons.push(`intent_label:code_review`);
     }
   }
 
@@ -896,8 +853,6 @@ export function brokerDecision(
   ) {
     decision.intentLabel = "fix_review_findings";
     decision.workflowId = "review_remediation";
-    reasons.push("review_workflow:review_remediation");
-    reasons.push("intent_label:fix_review_findings");
   }
 
   if (assignment) {

@@ -819,6 +819,15 @@ class RuntimeService:
 
         caller_config = dict(config or {})
         caller_port = caller_config.get("port")
+        # Plan 15, Phase 5 (Dual-Mode Vision): a start request carrying an MMProj
+        # path always needs its own dedicated process on this slot - neither the
+        # same-slot launch-fingerprint reuse below (mmproj_path isn't part of the
+        # fingerprint) nor the cross-slot shared-binding reuse (no fingerprint
+        # check at all) may silently hand back a differently-configured, already-
+        # running instance of the same model_id from another slot (e.g. the
+        # text-only orchestrator_cpu instance) instead of launching the
+        # projector-loaded one.
+        requires_dedicated_process = bool(caller_config.get("mmproj_path"))
 
         port_for_slot = caller_port
         if slot_id:
@@ -873,7 +882,7 @@ class RuntimeService:
 
             current = self.status_for_slot(target_slot_id)
             if current.state == "running":
-                can_reuse_current = current.model_id == model_id
+                can_reuse_current = current.model_id == model_id and not requires_dedicated_process
                 if can_reuse_current and model is not None and model.runtime_launcher != "ollama":
                     candidate_plan = self._plan_for_candidate(
                         model, target_slot_id, gpu=gpu, hardware_hash=hardware_hash, requested_profile=requested_profile,
@@ -895,7 +904,11 @@ class RuntimeService:
                     return current
                 self.stop_model_for_slot(target_slot_id)
 
-            shared_slot_id = self._find_running_slot_for_model(model_id, exclude_slot_id=target_slot_id)
+            shared_slot_id = (
+                None
+                if requires_dedicated_process
+                else self._find_running_slot_for_model(model_id, exclude_slot_id=target_slot_id)
+            )
             if shared_slot_id is not None:
                 shared_status = self._bind_shared_slot(target_slot_id, shared_slot_id)
                 if shared_status.state == "running":
@@ -928,8 +941,14 @@ class RuntimeService:
                 if candidate_port is None:
                     candidate_port = _default_port_for_slot(target_slot_id)
 
+                candidate_mmproj_bytes = caller_config.get("mmproj_bytes")
                 resource_plan = self._plan_for_candidate(
-                    candidate_model, target_slot_id, gpu=gpu, hardware_hash=hardware_hash, requested_profile=requested_profile,
+                    candidate_model,
+                    target_slot_id,
+                    gpu=gpu,
+                    hardware_hash=hardware_hash,
+                    requested_profile=requested_profile,
+                    mmproj_bytes=int(candidate_mmproj_bytes) if isinstance(candidate_mmproj_bytes, (int, float)) else 0,
                 )
 
                 oom_attempt = 0
@@ -1857,6 +1876,7 @@ class RuntimeService:
         gpu: GpuInfo | None,
         hardware_hash: str,
         requested_profile: str | None,
+        mmproj_bytes: int = 0,
     ) -> RuntimeResourcePlan | None:
         if candidate_model.runtime_launcher == "ollama":
             return None
@@ -1888,6 +1908,7 @@ class RuntimeService:
             gpu=gpu,
             requested_profile=plan_profile,  # type: ignore[arg-type]
             custom_overrides=custom_overrides,
+            mmproj_bytes=mmproj_bytes,
         )
 
     def sweep_idle_slots(self, idle_timeout_seconds: float | None = None) -> list[str]:

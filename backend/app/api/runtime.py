@@ -35,13 +35,17 @@ from app.runtime.schemas import (
     TokenizeRequest,
     TokenizeResponse,
     WarmupSlotRequest,
+    RuntimeRouteRequest,
+    RuntimeRouteResponse,
 )
 from app.runtime.service import RuntimeService
 from app.runtime.errors import RuntimeProviderError
 from app.runtime.gpu_detect import GpuInfo, detect_gpu
 from app.runtime.benchmark import run_benchmark, BenchmarkResult
 from app.runtime.model_test import run_model_test
-from app.model_lab.repository import get_shared_model_lab_repository
+from app.runtime.routing_resolver import FleetRoutingResolver
+from app.model_lab.models import RuntimeSlotHealthEvent, RuntimeSlotHealthEventCreate
+from app.model_lab.repository import ModelLabRepository, get_shared_model_lab_repository
 from app.models.discovery_mode import get_model_discovery_mode
 from app.models.index_service import ModelIndexService
 from app.settings.service import get_settings_service
@@ -270,14 +274,43 @@ def get_runtime_slot_logs(
     return service.get_logs_for_slot(slot_id)
 
 
+def _resolve_projector_config(
+    service: RuntimeService, projector_artifact_id: str
+) -> dict[str, object]:
+    """Resolves a client-supplied `projector_artifact_id` (an MMProj support
+    artifact's id in the current model index, from a MultimodalPair) to an
+    absolute `mmproj_path` + its `mmproj_bytes` for VRAM budgeting (Plan 15,
+    Phase 5). Never trusts a client-supplied filesystem path directly - only
+    an id already present in the server's own model index resolves to a path.
+    """
+    index = service.model_index_service.load_cached_index() or service.model_index_service.build_index()
+    projector = next(
+        (artifact for artifact in index.support_artifacts if artifact.id == projector_artifact_id),
+        None,
+    )
+    if projector is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"projector_artifact_id '{projector_artifact_id}' konnte keinem MMProj-Artefakt "
+                "im Modellindex zugeordnet werden."
+            ),
+        )
+    return {"mmproj_path": projector.path, "mmproj_bytes": projector.size_bytes}
+
+
 @router.post("/slots/{slot_id}/start")
 def start_runtime_slot(
     slot_id: RuntimeSlotId,
     request: StartModelRequest,
     service: RuntimeService = Depends(get_runtime_service),
 ) -> RuntimeStatus:
-    config = {"profile": request.profile} if request.profile else None
-    return service.start_model(request.model_id, slot_id=slot_id, config=config)
+    config: dict[str, object] = {}
+    if request.profile:
+        config["profile"] = request.profile
+    if request.projector_artifact_id:
+        config.update(_resolve_projector_config(service, request.projector_artifact_id))
+    return service.start_model(request.model_id, slot_id=slot_id, config=config or None)
 
 
 @router.post("/slots/{slot_id}/stop")
@@ -312,6 +345,33 @@ def evict_runtime_slot(
     """Manual eviction — backs the "Runtime neu starten" UI button."""
     service.residency.mark_evicting(slot_id)
     return service.stop_model_for_slot(slot_id)
+
+
+@router.get("/slots/{slot_id}/health-events")
+def list_slot_health_events(
+    slot_id: RuntimeSlotId,
+    limit: int = 200,
+    repository: ModelLabRepository = Depends(get_shared_model_lab_repository),
+) -> list[RuntimeSlotHealthEvent]:
+    """Persistent history of start/stop/crash/restart events for a slot (Plan 15, Phase 6) —
+    survives an app restart, unlike runtimeProcessSupervisor's in-memory-only health state."""
+    return repository.list_health_events(slot_id=slot_id, limit=min(max(limit, 1), 200))
+
+
+@router.post("/slots/{slot_id}/health-events")
+def record_slot_health_event(
+    slot_id: RuntimeSlotId,
+    request: RuntimeSlotHealthEventCreate,
+    repository: ModelLabRepository = Depends(get_shared_model_lab_repository),
+) -> RuntimeSlotHealthEvent:
+    """Persists a health/failure event for a slot. The `slot_id` in the body
+    is ignored in favour of the path parameter — callers may omit it or pass
+    any value; the path always wins."""
+    # Overwrite body slot_id with the authoritative path value so callers
+    # don't need to duplicate it and a mismatch never silently stores a
+    # phantom slot row.
+    coerced = request.model_copy(update={"slot_id": slot_id})
+    return repository.record_health_event(coerced)
 
 
 @router.post("/slots/sweep-idle")
@@ -525,3 +585,20 @@ def get_gpu_info() -> dict:
         "vram_mb": gpu.vram_mb,
         "recommended_gpu_layers": gpu.recommended_gpu_layers,
     }
+
+
+@router.post("/route")
+def route_runtime_request(
+    request: RuntimeRouteRequest,
+    service: RuntimeService = Depends(get_runtime_service),
+) -> RuntimeRouteResponse:
+    resolver = FleetRoutingResolver(
+        settings_service=get_settings_service(),
+        index_service=service.model_index_service,
+        residency=service.residency,
+        model_lab_repo=get_shared_model_lab_repository(),
+    )
+    try:
+        return resolver.resolve(request)
+    except RuntimeProviderError as exc:
+        raise HTTPException(status_code=409, detail=_runtime_error_detail(exc)) from exc

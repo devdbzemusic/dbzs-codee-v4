@@ -35,6 +35,7 @@ from app.model_lab.models import (
     ModelMetadataUpdate,
     ModelProbeRequest,
     ModelProbeRun,
+    ModelResidencyIntent,
     ModelRoleAssignment,
     ModelRoleAssignmentRequest,
     ModelSource,
@@ -42,11 +43,14 @@ from app.model_lab.models import (
     ModelVariant,
     RuntimeAdapterRecord,
     RuntimePresetRecord,
+    RuntimeSlotHealthEvent,
+    RuntimeSlotHealthEventCreate,
     ScanJob,
 )
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 5
+MAX_HEALTH_EVENTS_PER_SLOT = 200
 
 
 class ModelLabRepository:
@@ -286,11 +290,20 @@ class ModelLabRepository:
                     required_certifications TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS runtime_slot_health_events (
+                    id TEXT PRIMARY KEY,
+                    slot_id TEXT NOT NULL,
+                    model_id TEXT,
+                    event_type TEXT NOT NULL,
+                    detail TEXT NOT NULL DEFAULT '',
+                    occurred_at TEXT NOT NULL
+                );
                 CREATE INDEX IF NOT EXISTS idx_model_collection_members_bundle ON model_collection_members(bundle_id);
                 CREATE INDEX IF NOT EXISTS idx_model_role_assignments_role ON model_role_assignments(role, enabled, priority);
                 CREATE INDEX IF NOT EXISTS idx_certifications_bundle ON certifications(bundle_id, status);
                 CREATE INDEX IF NOT EXISTS idx_probe_runs_bundle ON probe_runs(bundle_id, started_at);
                 CREATE INDEX IF NOT EXISTS idx_model_variants_logical ON model_variants(logical_model_id, status);
+                CREATE INDEX IF NOT EXISTS idx_health_events_slot ON runtime_slot_health_events(slot_id, occurred_at);
                 """
             )
             _ensure_column(conn, "model_bundles", "health", "TEXT NOT NULL DEFAULT '{}'")
@@ -298,6 +311,9 @@ class ModelLabRepository:
             _ensure_column(conn, "scan_jobs", "progress_events", "TEXT NOT NULL DEFAULT '[]'")
             _ensure_column(conn, "model_role_assignments", "settings_field", "TEXT")
             _ensure_column(conn, "model_role_assignments", "residency_intent", "TEXT NOT NULL DEFAULT 'manual'")
+            _ensure_column(conn, "model_role_assignments", "last_certification_run_id", "TEXT")
+            _ensure_column(conn, "model_role_assignments", "last_certification_score", "REAL")
+            _ensure_column(conn, "model_role_assignments", "last_benchmark_run_id", "TEXT")
             self._seed_runtime_adapters(conn)
             self._seed_runtime_presets(conn)
             self._seed_execution_policies(conn)
@@ -555,6 +571,10 @@ class ModelLabRepository:
                 "SELECT * FROM model_artifacts WHERE bundle_id = ? ORDER BY artifact_type, detected_name",
                 (bundle_id,),
             ).fetchall()
+            role_assignment_rows = conn.execute(
+                "SELECT * FROM model_role_assignments WHERE bundle_id = ? ORDER BY role",
+                (bundle_id,),
+            ).fetchall()
             metadata_by_bundle = _metadata_by_bundle(conn)
             collections_by_bundle = _collections_by_bundle(conn)
         return ModelLabModel(
@@ -564,6 +584,7 @@ class ModelLabRepository:
                 collection_ids=collections_by_bundle.get(bundle_id, []),
             ),
             artifacts=[_artifact_from_row(row) for row in artifact_rows],
+            role_assignments=[_role_assignment_from_row(row) for row in role_assignment_rows],
         )
 
     def update_model_metadata(self, bundle_id: str, update: ModelMetadataUpdate) -> ModelBundle:
@@ -1033,6 +1054,82 @@ class ModelLabRepository:
             ).fetchone()
         return _role_assignment_from_row(row)
 
+    def update_role_assignment_cache(
+        self,
+        bundle_id: str,
+        *,
+        certification_run_id: str | None = None,
+        certification_score: float | None = None,
+        benchmark_run_id: str | None = None,
+    ) -> None:
+        """Denormalized cache update (Plan 15, Phase 7): stamps the bundle's
+        latest measured certification/benchmark run onto its existing
+        `model_role_assignments` row(s), so `GET /model-lab/models/{bundle_id}`
+        can surface a badge without scanning the certification-run store or
+        `benchmark_runs` table on every request. A no-op if the bundle has no
+        role assignment yet - the cache only mirrors an existing assignment,
+        it never creates one."""
+        updates: list[str] = []
+        params: list[object] = []
+        if certification_run_id is not None:
+            updates.append("last_certification_run_id = ?")
+            params.append(certification_run_id)
+        if certification_score is not None:
+            updates.append("last_certification_score = ?")
+            params.append(certification_score)
+        if benchmark_run_id is not None:
+            updates.append("last_benchmark_run_id = ?")
+            params.append(benchmark_run_id)
+        if not updates:
+            return
+        updates.append("updated_at = ?")
+        params.append(_dt(datetime.now(UTC)))
+        params.append(bundle_id)
+        with sqlite_connection(self.db_path) as conn:
+            conn.execute(
+                f"UPDATE model_role_assignments SET {', '.join(updates)} WHERE bundle_id = ?",
+                params,
+            )
+
+    def suggest_residency_intent(self, bundle_id: str) -> ModelResidencyIntent:
+        """Plan 16, Stufe 4: Computes a non-binding residency intent suggestion
+        for a bundle based on its modalities, health status, and whether it has
+        passed at least one certification run.
+
+        Rules (in priority order):
+          1. BROKEN / UNSUPPORTED health  →  "manual"   (unsafe to auto-evict)
+          2. Has a vision modality        →  "idle_evict" (vision models are
+             expensive; don't keep them resident by default)
+          3. Has a passed certification   →  "idle_evict" (verified models can
+             be trusted to restart cleanly)
+          4. Fallback                     →  "manual"   (unverified – safer)
+
+        Never returns "keep_resident"; that is always an explicit user action.
+        """
+        model = self.get_model(bundle_id)
+        if model is None:
+            return "manual"
+
+        # Rule 1: structurally broken bundles stay manual – auto-evict/restart
+        # would silently fail and confuse the runtime.
+        health_status = model.bundle.health.status if model.bundle.health else "unknown"
+        if health_status in ("error", "incomplete"):
+            return "manual"
+
+        # Rule 2: vision/multimodal models are expensive; idle_evict gives back
+        # VRAM without preventing a fresh start on the next request.
+        modalities = model.bundle.modalities or []
+        if "vision" in modalities or "multimodal" in modalities:
+            return "idle_evict"
+
+        # Rule 3: a certified bundle can be trusted to restart cleanly.
+        certifications = self.list_certifications(bundle_id=bundle_id)
+        if any(c.status == "passed" for c in certifications):
+            return "idle_evict"
+
+        # Fallback: unverified models stay manual until the user decides.
+        return "manual"
+
     def list_probe_runs(self, bundle_id: str | None = None) -> list[ModelProbeRun]:
         with sqlite_connection(self.db_path) as conn:
             if bundle_id:
@@ -1221,6 +1318,62 @@ class ModelLabRepository:
                     json.dumps(record.details, sort_keys=True),
                     _dt(record.created_at),
                 ),
+            )
+        return record
+
+    def list_health_events(self, slot_id: str | None = None, limit: int = 200) -> list[RuntimeSlotHealthEvent]:
+        with sqlite_connection(self.db_path) as conn:
+            if slot_id:
+                rows = conn.execute(
+                    "SELECT * FROM runtime_slot_health_events WHERE slot_id = ? ORDER BY occurred_at DESC LIMIT ?",
+                    (slot_id, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM runtime_slot_health_events ORDER BY occurred_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+        return [_health_event_from_row(row) for row in rows]
+
+    def record_health_event(self, request: RuntimeSlotHealthEventCreate) -> RuntimeSlotHealthEvent:
+        now = datetime.now(UTC)
+        record = RuntimeSlotHealthEvent(
+            id=uuid.uuid4().hex,
+            slot_id=request.slot_id,
+            model_id=request.model_id,
+            event_type=request.event_type,
+            detail=request.detail,
+            occurred_at=now,
+        )
+        with sqlite_connection(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO runtime_slot_health_events(id, slot_id, model_id, event_type, detail, occurred_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record.id,
+                    record.slot_id,
+                    record.model_id,
+                    record.event_type,
+                    record.detail,
+                    _dt(record.occurred_at),
+                ),
+            )
+            # Bounded retention (spec: last 200 events per slot) — prune on every insert
+            # rather than a separate background job, same approach as the boot orchestrator's
+            # in-memory log caps.
+            conn.execute(
+                """
+                DELETE FROM runtime_slot_health_events
+                WHERE slot_id = ? AND id NOT IN (
+                    SELECT id FROM runtime_slot_health_events
+                    WHERE slot_id = ?
+                    ORDER BY occurred_at DESC
+                    LIMIT ?
+                )
+                """,
+                (record.slot_id, record.slot_id, MAX_HEALTH_EVENTS_PER_SLOT),
             )
         return record
 
@@ -1606,6 +1759,9 @@ def _role_assignment_from_row(row: sqlite3.Row) -> ModelRoleAssignment:
         priority=int(row["priority"]),
         required_certifications=json.loads(row["required_certifications"] or "[]"),
         notes=str(row["notes"] or ""),
+        last_certification_run_id=row["last_certification_run_id"],
+        last_certification_score=row["last_certification_score"],
+        last_benchmark_run_id=row["last_benchmark_run_id"],
         created_at=_parse_dt(row["created_at"]),
         updated_at=_parse_dt(row["updated_at"]),
     )
@@ -1832,6 +1988,17 @@ def _readiness_blockers(
     if routes and not any(route.routing_allowed for route in routes):
         blockers.append("routing:no_allowed_role")
     return blockers
+
+
+def _health_event_from_row(row: sqlite3.Row) -> RuntimeSlotHealthEvent:
+    return RuntimeSlotHealthEvent(
+        id=str(row["id"]),
+        slot_id=str(row["slot_id"]),
+        model_id=row["model_id"],
+        event_type=row["event_type"],
+        detail=str(row["detail"]),
+        occurred_at=_parse_dt(row["occurred_at"]),
+    )
 
 
 def _dt(value: datetime) -> str:

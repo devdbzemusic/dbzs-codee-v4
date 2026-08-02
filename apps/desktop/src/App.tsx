@@ -28,6 +28,7 @@ import { useTestAgentStore } from "@/stores/testAgentStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useGitStore } from "@/stores/gitStore";
 import { DebugAgentPanel } from "@/components/DebugAgentPanel";
+import { DebugLogPanel } from "@/components/DebugLogPanel";
 import { DiffPanel } from "@/components/DiffPanel";
 import { FileToolsPanel } from "@/components/FileToolsPanel";
 import { TerminalPanel } from "@/components/TerminalPanel";
@@ -310,6 +311,7 @@ function AppShell() {
   const [terminalHeight, setTerminalHeight] = useState(188);
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
+  const [rightSidebarMode, setRightSidebarMode] = useState<"agents" | "debug-log">("agents");
   const [terminalCollapsed, setTerminalCollapsed] = useState(false);
   const [standaloneView, setStandaloneView] = useState(readStandaloneView);
   const [runtimeChatWindowOpen, setRuntimeChatWindowOpen] = useState(false);
@@ -908,10 +910,33 @@ function AppShell() {
 
           <AppShellRightSidebar
             collapsed={rightPanelCollapsed}
+            fillBody={rightSidebarMode === "debug-log"}
+            modeToggle={
+              <div className="flex border border-dbzs-border text-[10px]">
+                <button
+                  className={`flex-1 px-2 py-1 ${rightSidebarMode === "agents" ? "bg-dbzs-cyan/10 text-dbzs-cyan" : "text-dbzs-muted hover:text-dbzs-text"}`}
+                  onClick={() => setRightSidebarMode("agents")}
+                  type="button"
+                >
+                  Agents
+                </button>
+                <button
+                  className={`flex-1 border-l border-dbzs-border px-2 py-1 ${rightSidebarMode === "debug-log" ? "bg-dbzs-cyan/10 text-dbzs-cyan" : "text-dbzs-muted hover:text-dbzs-text"}`}
+                  onClick={() => setRightSidebarMode("debug-log")}
+                  type="button"
+                >
+                  Debug Log
+                </button>
+              </div>
+            }
             onCollapse={() => setRightPanelCollapsed(true)}
             onExpand={() => setRightPanelCollapsed(false)}
             onResize={startSidePanelResize("right")}
           >
+            {rightSidebarMode === "debug-log" ? (
+              <DebugLogPanel />
+            ) : (
+              <>
               <DebugAgentPanel
                 analyses={debugAnalyses}
                 affectedFiles={debugAffectedFiles}
@@ -1054,6 +1079,8 @@ function AppShell() {
               <DiffPanel />
               <FileToolsPanel />
               <AppShellSettingsPanel compact />
+              </>
+            )}
           </AppShellRightSidebar>
         </section>
 

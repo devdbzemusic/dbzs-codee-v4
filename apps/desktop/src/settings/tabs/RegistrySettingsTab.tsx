@@ -18,15 +18,19 @@ export function RegistrySettingsTab({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {category === "runtime" ? <IdleUnloadDiagnosticsPanel /> : null}
       {entries.map((entry) => (
-        <SettingField
-          definition={entry}
+        <div
+          className="border border-dbzs-border/40 bg-dbzs-panel/40 px-3 py-3"
           key={String(entry.key)}
-          modelLabOptionsByKey={entry.control === "model_lab_select" ? modelLabOptionsByKey : undefined}
-          modelOptions={entry.control === "model_select" ? modelOptions : undefined}
-        />
+        >
+          <SettingField
+            definition={entry}
+            modelLabOptionsByKey={entry.control === "model_lab_select" ? modelLabOptionsByKey : undefined}
+            modelOptions={entry.control === "model_select" ? modelOptions : undefined}
+          />
+        </div>
       ))}
     </div>
   );

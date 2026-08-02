@@ -279,7 +279,7 @@ def resolve_preferred_port(
     models_dir: Path,
     *,
     config_override: dict[str, object] | None = None,
-) -> int:
+) -> int | None:
     override = config_override or {}
     override_port = override.get("port")
     if isinstance(override_port, int):
@@ -309,7 +309,7 @@ def resolve_preferred_port(
                     if isinstance(port, int):
                         return port
 
-    return 8091
+    return None
 
 
 def build_runtime_command(
@@ -500,7 +500,7 @@ def build_launch_plan(
 
     effective_runtime_dir = runtime_dir or (models_dir / "llama.cpp-win-runtime")
 
-    port = resolve_preferred_port(model, models_dir, config_override=config_override)
+    port = resolve_preferred_port(model, models_dir, config_override=config_override) or 8091
     command = build_runtime_command(
         model,
         effective_runtime_dir,

@@ -372,6 +372,12 @@ export function registerRuntimeAndJobIpcHandlers(options: RegisterRuntimeAndJobI
       body: JSON.stringify(payload)
     })
   );
+  ipcMain.handle("dbzs:runtime:route", (_event, payload: unknown) =>
+    requestBackend("/runtime/route", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    })
+  );
   ipcMain.handle("dbzs:runtime:logs", () => requestBackend("/runtime/logs"));
   ipcMain.handle("dbzs:orchestration:tools", () => requestBackend("/orchestration/tools"));
   ipcMain.handle("dbzs:orchestration:prepare", (_event, request: unknown) =>

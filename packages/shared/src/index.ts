@@ -1743,6 +1743,11 @@ export interface ModelLabRoleAssignment {
   priority: number;
   required_certifications: ModelFleetCertificationKind[];
   notes: string;
+  /** Denormalized cache of the bundle's latest measured certification/benchmark
+   * (Plan 15, Phase 7) - null until a run has actually happened for this bundle. */
+  last_certification_run_id: string | null;
+  last_certification_score: number | null;
+  last_benchmark_run_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1904,6 +1909,19 @@ export interface RuntimeSlotStatus extends RuntimeStatus {
   micro_batch_size?: number | null;
   cache_type_k?: string | null;
   cache_type_v?: string | null;
+}
+
+export type RuntimeSlotHealthEventType = "start" | "stop" | "crash" | "restart_attempt" | "budget_exhausted" | "oom";
+
+/** Persistent per-slot health/failure history entry (Plan 15, Phase 6) — survives an
+ * app restart, unlike runtimeProcessSupervisor's in-memory-only SlotHealthState. */
+export interface RuntimeSlotHealthEvent {
+  id: string;
+  slot_id: RuntimeSlotId;
+  model_id: string | null;
+  event_type: RuntimeSlotHealthEventType;
+  detail: string;
+  occurred_at: string;
 }
 
 export interface RuntimeChatStreamDonePayload {
@@ -2504,3 +2522,4 @@ export * from './modelLabel.js';
 export * from './runtimeDoctor.js';
 export * from "./webResearchContracts.js";
 export * from './workspacePackageContract.js';
+export * from './runtimeRouteContracts.js';

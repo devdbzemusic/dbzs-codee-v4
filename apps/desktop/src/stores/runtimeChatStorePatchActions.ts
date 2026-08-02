@@ -232,7 +232,7 @@ export async function applyPatchAction(set: PatchStoreSetter, get: PatchStoreGet
 
   try {
     if (get().patchState !== "APPROVED") {
-      await approvePatchAction(set, get);
+      throw new Error("patch_not_explicitly_approved");
     }
     set({ patchState: "APPLYING", patchError: null });
     const result = await applyAgentPatch(proposal.id);

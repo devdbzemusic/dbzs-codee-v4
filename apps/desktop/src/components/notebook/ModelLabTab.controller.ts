@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
+  ModelLabCertificationRequest,
   ModelLabCollection,
   ModelLabCollectionCreate,
   ModelLabHuggingFaceSearchResult,
@@ -56,6 +57,7 @@ export function useModelLabTabController() {
   const [readinessMap, setReadinessMap] = useState<ModelLabReadinessEntry[]>([]);
   const [roleAssignments, setRoleAssignments] = useState<ModelLabRoleAssignment[]>([]);
   const [assigningRole, setAssigningRole] = useState(false);
+  const [certifyingModel, setCertifyingModel] = useState(false);
   const [creatingCollection, setCreatingCollection] = useState(false);
   const [hfQuery, setHfQuery] = useState("");
   const [hfResults, setHfResults] = useState<ModelLabHuggingFaceSearchResult[]>([]);
@@ -187,6 +189,26 @@ export function useModelLabTabController() {
     [loadAll]
   );
 
+  const certifyModel = useCallback(
+    async (request: ModelLabCertificationRequest) => {
+      if (!backendClient.certifyModel) {
+        setError("certifyModel ist nicht verfuegbar.");
+        return;
+      }
+      setCertifyingModel(true);
+      setError(null);
+      try {
+        await backendClient.certifyModel(request);
+        await loadAll();
+      } catch (certifyError) {
+        setError(certifyError instanceof Error ? certifyError.message : "Zertifizierung fehlgeschlagen.");
+      } finally {
+        setCertifyingModel(false);
+      }
+    },
+    [loadAll]
+  );
+
   const addToCollection = useCallback(
     async (collectionId: string, bundleId: string) => {
       if (!backendClient.addModelLabCollectionMember) {
@@ -271,6 +293,8 @@ export function useModelLabTabController() {
     roleAssignments,
     assigningRole,
     assignRole,
+    certifyingModel,
+    certifyModel,
     settingsFieldConflicts,
     creatingCollection,
     createCollection,

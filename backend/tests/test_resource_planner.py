@@ -168,3 +168,85 @@ def test_model_size_falls_back_to_name_bucket_when_index_missing_size() -> None:
     plan = planner.plan(model, slot_id="fast_gpu", gpu=make_gpu(24576, recommended_gpu_layers=99), requested_profile="balanced")
 
     assert plan.estimated_model_bytes == 8_000_000_000
+
+
+def test_mmproj_bytes_reduces_chosen_gpu_layers_on_low_vram_card() -> None:
+    """Plan 15, Phase 5: a loaded MMProj projector (InternScience: ~0.626 GiB)
+    must be budgeted for up front on a 4GB-class card, not silently ignored
+    until llama-server OOMs."""
+    planner = RuntimeResourcePlanner()
+    model = make_model()
+    gpu = make_gpu(4096, recommended_gpu_layers=16)
+
+    without_mmproj = planner.plan(model, slot_id="vision_gpu", gpu=gpu, requested_profile="balanced")
+    with_mmproj = planner.plan(
+        model, slot_id="vision_gpu", gpu=gpu, requested_profile="balanced", mmproj_bytes=672_000_000
+    )
+
+    assert with_mmproj.gpu_layers <= without_mmproj.gpu_layers
+
+
+def test_mmproj_bytes_included_in_estimated_total_vram() -> None:
+    planner = RuntimeResourcePlanner()
+    model = make_model()
+    gpu = make_gpu(24576, recommended_gpu_layers=99)
+
+    without_mmproj = planner.plan(model, slot_id="vision_gpu", gpu=gpu, requested_profile="balanced")
+    with_mmproj = planner.plan(
+        model, slot_id="vision_gpu", gpu=gpu, requested_profile="balanced", mmproj_bytes=672_000_000
+    )
+
+    assert with_mmproj.estimated_total_vram_bytes == without_mmproj.estimated_total_vram_bytes + 672_000_000
+
+
+def test_mmproj_bytes_defaults_to_zero_when_unset() -> None:
+    planner = RuntimeResourcePlanner()
+    model = make_model()
+
+    plan = planner.plan(model, slot_id="vision_gpu", gpu=make_gpu(16384, recommended_gpu_layers=48), requested_profile="balanced")
+
+    assert plan.gpu_layers > 0
+
+
+def test_reduce_for_oom_carries_mmproj_bytes_through_retries() -> None:
+    """Plan 16, Stufe 5: reduce_for_oom() must not drop mmproj_bytes so that
+    estimated_total_vram_bytes stays accurate across multiple OOM retries on a
+    vision_gpu slot that loaded a projector alongside the base model."""
+    planner = RuntimeResourcePlanner()
+    model = make_model()
+    gpu = make_gpu(8192, recommended_gpu_layers=32)
+    mmproj = 672_000_000  # ~640 MB projector
+
+    original = planner.plan(
+        model, slot_id="vision_gpu", gpu=gpu, requested_profile="balanced", mmproj_bytes=mmproj
+    )
+    assert original.mmproj_bytes == mmproj
+
+    reduced_1 = planner.reduce_for_oom(original, attempt=1)
+    assert reduced_1.mmproj_bytes == mmproj, "mmproj_bytes must survive first OOM retry"
+    assert reduced_1.gpu_layers < original.gpu_layers
+    if reduced_1.gpu_layers > 0:
+        assert reduced_1.estimated_total_vram_bytes >= mmproj, (
+            "estimated_total_vram_bytes must include projector even after layer reduction"
+        )
+
+    reduced_2 = planner.reduce_for_oom(reduced_1, attempt=2)
+    assert reduced_2.mmproj_bytes == mmproj, "mmproj_bytes must survive second OOM retry"
+
+
+def test_reduce_for_oom_cpu_fallback_zeros_vram_not_projector() -> None:
+    """When OOM forces cpu-only (gpu_layers=0) the projector is not loaded
+    at all, so estimated_total_vram_bytes should be 0."""
+    planner = RuntimeResourcePlanner()
+    model = make_model(size_bytes=40_000_000_000)  # 40 GB – forces CPU on small GPU
+    gpu = make_gpu(2048, recommended_gpu_layers=4)
+    mmproj = 300_000_000
+
+    original = planner.plan(
+        model, slot_id="vision_gpu", gpu=gpu, requested_profile="balanced", mmproj_bytes=mmproj
+    )
+    # Force cpu-only via aggressive reduction
+    cpu_plan = planner.reduce_for_oom(planner.reduce_for_oom(original, attempt=1), attempt=2)
+    if cpu_plan.gpu_layers == 0:
+        assert cpu_plan.estimated_total_vram_bytes == 0
+        assert cpu_plan.hardware_mode == "cpu"

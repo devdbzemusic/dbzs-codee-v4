@@ -74,6 +74,11 @@ class StartModelRequest(BaseModel):
     model_id: str
     slot_id: RuntimeSlotId | None = None
     profile: str | None = None
+    # Plan 15, Phase 5 (Dual-Mode Vision): id of an MMProj support artifact in
+    # the current model index (from a MultimodalPair), never a raw filesystem
+    # path - the server resolves this to an absolute path itself so a client
+    # can never point llama-server's --mmproj flag at an arbitrary file.
+    projector_artifact_id: str | None = None
 
 
 ChatRole = Literal["system", "user", "assistant"]
@@ -292,6 +297,10 @@ class RuntimeResourcePlan(BaseModel):
     safety_reserve_bytes: int
     hardware_mode: HardwareMode
     warnings: list[str] = []
+    # Plan 15, Phase 5: MMProj (vision projector) byte-size recorded alongside
+    # the plan so reduce_for_oom() can carry it forward without re-reading the
+    # index and estimated_total_vram_bytes stays accurate across OOM retries.
+    mmproj_bytes: int = 0
 
 
 class ResourcePlanPreviewRequest(BaseModel):
@@ -350,6 +359,13 @@ RuntimeErrorCode = Literal[
     "provider_template_error",
     "provider_timeout",
     "runtime_internal_error",
+    # FleetRoutingResolver — mirrors the desktop BindingModelError codes it replaces.
+    "vision_pairing_required",
+    "role_model_missing_no_fallback",
+    "role_model_not_in_index",
+    "role_model_not_runnable",
+    "vision_gate_blocked",
+    "code_capability_missing",
 ]
 
 
@@ -442,3 +458,38 @@ class RuntimeRamPressureStatus(BaseModel):
     """
     percent_used: float | None
     tier: Literal["none", "warn", "evict_idle", "evict_resident", "evict_all_but_floor"]
+
+
+class RuntimeRouteRequest(BaseModel):
+    task_type: str
+    has_image_input: bool = False
+    requires_vision: bool = False
+    prefer_planner_first: bool = True
+    manual_model_id: str | None = None
+    user_message: str | None = None
+    workflow_kind: str | None = None
+    phase: str | None = None
+    effective_agent: str | None = None
+    model_role: str | None = None
+
+
+class RuntimeRouteResponse(BaseModel):
+    decision_id: str
+    task_type: str
+    target_agent: str
+    slot_id: str
+    model_id: str
+    model_name: str
+    configured_model_id: str
+    resolved_model_id: str
+    resolved_model_name: str
+    selection_source: str
+    fallback_reason: str | None = None
+    capabilities: list[str] = []
+    has_image_input: bool = False
+    requires_vision: bool = False
+    projector_artifact_id: str | None = None
+    provider_id: str = "llama-cpp"
+    reason: list[str] = []
+    fallback_policy: str = "strict"
+    decision_settings_revision: int = 0

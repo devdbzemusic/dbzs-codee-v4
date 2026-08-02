@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from app.model_lab.models import (
     CollectionMembershipRequest,
@@ -26,6 +27,7 @@ from app.model_lab.models import (
     ModelMetadataUpdate,
     ModelProbeRequest,
     ModelProbeRun,
+    ModelResidencyIntent,
     ModelRoleAssignment,
     ModelRoleAssignmentRequest,
     ModelSource,
@@ -38,13 +40,64 @@ from app.model_lab.models import (
     ScanRequest,
     ScanResult,
 )
+from app.model_lab.repository import ModelLabRepository, get_shared_model_lab_repository
 from app.model_lab.service import ModelLabService
+from app.models.discovery_mode import get_model_discovery_mode
+from app.models.index_service import ModelIndexService
+from app.models.model_lab_bridge import resolve_bundle_to_model_id
+from app.settings.models import SettingsRevisionConflict
+from app.settings.service import get_settings_service
 
 router = APIRouter(prefix="/model-lab", tags=["model-lab"])
 
 
 def get_model_lab_service() -> ModelLabService:
     return ModelLabService()
+
+
+def _apply_role_assignment_to_settings(
+    request: ModelRoleAssignmentRequest, model_lab_repo: ModelLabRepository
+) -> None:
+    """Closes the Model-Lab -> Settings gap: assigning a bundle to a role with a
+    concrete settings_field must actually make it selectable there, not just record
+    an internal assignment row (Workflow-Bruch-Audit WF-12 "UI vor operativer
+    Authority"). Best-effort: logs and returns without raising if the bundle can't
+    yet be resolved to a runtime model id (e.g. runtime bridge just enabled, index
+    not rebuilt yet) or if the settings revision changed concurrently — the role
+    assignment itself must still succeed either way.
+
+    Takes the same ModelLabRepository instance the calling endpoint's service uses
+    (rather than the shared singleton) so it respects test/dependency overrides."""
+    if not request.settings_field or not request.enabled:
+        return
+    settings_service = get_settings_service()
+    index_service = ModelIndexService(
+        discovery_mode=get_model_discovery_mode(),
+        model_lab_repository=model_lab_repo,
+        settings_service=settings_service,
+    )
+    model_index = index_service.load_cached_index() or index_service.build_index()
+    model_id = resolve_bundle_to_model_id(
+        request.bundle_id,
+        model_lab_repo=model_lab_repo,
+        model_index=model_index,
+    )
+    if not model_id:
+        print(
+            f"[model-lab] role assignment for bundle '{request.bundle_id}' could not be "
+            f"applied to settings.{request.settings_field}: bundle not resolvable in the "
+            "current runtime model index."
+        )
+        return
+    current = settings_service.load()
+    try:
+        settings_service.patch(current.revision, {request.settings_field: model_id})
+    except SettingsRevisionConflict:
+        print(
+            f"[model-lab] settings revision changed concurrently; role assignment for "
+            f"'{request.bundle_id}' was saved, but settings.{request.settings_field} was "
+            "not updated automatically."
+        )
 
 
 @router.get("/sources")
@@ -318,9 +371,11 @@ def assign_model_role(
     service: ModelLabService = Depends(get_model_lab_service),
 ) -> ModelRoleAssignment:
     try:
-        return service.assign_model_role(request)
+        assignment = service.assign_model_role(request)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _apply_role_assignment_to_settings(request, service.repository)
+    return assignment
 
 
 @router.get("/role-assignments")
@@ -361,3 +416,134 @@ def list_failures(
 ) -> list[ModelFailureRecord]:
     return service.list_failures(bundle_id=bundle_id)
 
+
+# ---------------------------------------------------------------------------
+# Plan 16, Stufe 4 – Residency-Default-Vorschlagslogik
+# ---------------------------------------------------------------------------
+
+class ResidencySuggestion(BaseModel):
+    bundle_id: str
+    suggested_intent: ModelResidencyIntent
+    reason: str
+
+
+@router.get("/models/{bundle_id}/residency-suggestion")
+def get_residency_suggestion(
+    bundle_id: str,
+    repository: ModelLabRepository = Depends(get_shared_model_lab_repository),
+) -> ResidencySuggestion:
+    """Non-binding residency intent suggestion for a specific bundle.
+
+    Returns a computed suggestion based on modalities, health status, and
+    certification state. The caller may apply it or ignore it — this endpoint
+    never writes to the database.
+    """
+    model = repository.get_model(bundle_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail=f"Bundle '{bundle_id}' nicht gefunden.")
+
+    suggested = repository.suggest_residency_intent(bundle_id)
+
+    # Build a human-readable explanation alongside the suggestion.
+    health_status = model.bundle.health.status if model.bundle.health else "unknown"
+    modalities = model.bundle.modalities or []
+
+    if health_status in ("error", "incomplete"):
+        reason = f"Health-Status '{health_status}' — manuell belassen (Neustart würde silent fehlschlagen)."
+    elif "vision" in modalities or "multimodal" in modalities:
+        reason = "Vision-/Multimodal-Modell — idle_evict gibt VRAM frei ohne Neustart zu blockieren."
+    else:
+        certifications = repository.list_certifications(bundle_id=bundle_id)
+        if any(c.passed for c in certifications):
+            reason = "Zertifiziertes Modell — idle_evict da Neustart verifiziert stabil."
+        else:
+            reason = "Noch nicht zertifiziert — manuell belassen bis Zertifizierung vorliegt."
+
+    return ResidencySuggestion(
+        bundle_id=bundle_id,
+        suggested_intent=suggested,
+        reason=reason,
+    )
+
+
+class ResidencyDefaultsResult(BaseModel):
+    applied: int
+    skipped: int
+    assignments: list[dict]
+
+
+# Standard-Slot-Zuordnung (Plan 16, Stufe 4): Modell-ID-Substring → (Slot, Rolle)
+_SLOT_DEFAULTS: list[tuple[str, str, str]] = [
+    ("QwenPaw",         "fast_gpu",         "primary_worker"),
+    ("InternScience_Agents", "orchestrator_cpu", "orchestrator"),
+    ("MiniCPM5",        "utility",          "utility"),
+    ("InternScience",   "vision_gpu",       "vision_worker"),
+]
+
+
+@router.post("/apply-residency-defaults")
+def apply_residency_defaults(
+    repository: ModelLabRepository = Depends(get_shared_model_lab_repository),
+) -> ResidencyDefaultsResult:
+    """Applies Plan-16 standard slot assignments for known model families.
+
+    Only sets residency_intent when the bundle has no existing role assignment
+    yet — never overwrites an explicit user choice. Safe to call repeatedly.
+    """
+    applied = 0
+    skipped = 0
+    assignments: list[dict] = []
+
+    all_models = repository.list_models()
+    existing_assignments = {a.bundle_id for a in repository.list_role_assignments()}
+
+    for model in all_models:
+        if model is None or model.bundle is None:
+            continue
+        bundle_id = model.bundle.id
+        if bundle_id in existing_assignments:
+            skipped += 1
+            continue
+
+        bundle_name = (model.bundle.name or "").lower()
+        matched_slot: str | None = None
+        matched_role: str | None = None
+        for name_fragment, slot, role in _SLOT_DEFAULTS:
+            if name_fragment.lower() in bundle_name:
+                matched_slot = slot
+                matched_role = role
+                break
+
+        if matched_slot is None:
+            skipped += 1
+            continue
+
+        suggested = repository.suggest_residency_intent(bundle_id)
+        try:
+            from app.model_lab.models import ModelRoleAssignmentRequest  # noqa: PLC0415
+            repository.assign_model_role(
+                ModelRoleAssignmentRequest(
+                    bundle_id=bundle_id,
+                    role=matched_role,  # type: ignore[arg-type]
+                    residency_intent=suggested,
+                    enabled=True,
+                    priority=100,
+                    notes="Plan-16-Residency-Default automatisch gesetzt.",
+                )
+            )
+            applied += 1
+            assignments.append({
+                "bundle_id": bundle_id,
+                "bundle_name": model.bundle.name,
+                "slot": matched_slot,
+                "role": matched_role,
+                "residency_intent": suggested,
+            })
+        except Exception as exc:  # noqa: BLE001
+            skipped += 1
+            assignments.append({
+                "bundle_id": bundle_id,
+                "error": str(exc),
+            })
+
+    return ResidencyDefaultsResult(applied=applied, skipped=skipped, assignments=assignments)

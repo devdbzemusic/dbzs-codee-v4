@@ -187,7 +187,7 @@ export async function runRoutingPhaseAction(input: {
         .map((status) => ({ slotId: status.slot_id, modelId: status.model_id as string }));
     }
 
-    const decision = brokerDecision(
+    const decision = await brokerDecision(
       taskType,
       {
         defaultModelId: settings.defaultModelId,

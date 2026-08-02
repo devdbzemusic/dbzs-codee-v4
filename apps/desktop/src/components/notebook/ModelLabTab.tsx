@@ -10,6 +10,7 @@ import {
   ModelLabRoutingSection,
   ModelLabSourcesSection
 } from "./ModelLabTab.sections";
+import { useModelIndexStore } from "@/stores/modelIndexStore";
 
 export function ModelLabTab() {
   const {
@@ -35,6 +36,8 @@ export function ModelLabTab() {
     roleAssignments,
     assigningRole,
     assignRole,
+    certifyModel,
+    certifyingModel,
     settingsFieldConflicts,
     creatingCollection,
     createCollection,
@@ -61,7 +64,7 @@ export function ModelLabTab() {
         sourceCount={sources.length}
       />
       <div className="min-h-0 flex-1 overflow-auto p-4">
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-6">
             <ModelLabSourcesSection
               addingSource={addingSource}
@@ -74,7 +77,29 @@ export function ModelLabTab() {
               sourceCandidates={sourceCandidates}
               sources={sources}
             />
-            <ModelLabModelsSection models={models} onSelect={setSelectedBundleId} selectedBundleId={selectedBundleId} />
+            <ModelLabModelsSection 
+              models={models} 
+              onSelect={setSelectedBundleId} 
+              selectedBundleId={selectedBundleId} 
+              onAssignAndEnable={(bundleId) => {
+                // FAST_GENERAL_AGENT is the catalog's default fleet role for general
+                // chat use (Massnahmenkatalog M-002) — set settings_field so the
+                // assignment actually reaches the "Chat"-Rollenmodell dropdown in
+                // Settings instead of only recording an internal Model-Lab row.
+                void assignRole({
+                  bundle_id: bundleId,
+                  role: "FAST_GENERAL_AGENT",
+                  settings_field: "defaultChatModelId",
+                  residency_intent: "idle_evict",
+                  enabled: true,
+                }).then(() => {
+                  // After assigning, reload the global model index so it appears in Codee settings
+                  useModelIndexStore.getState().loadModelIndex().catch(console.error);
+                });
+              }}
+              certifyModel={certifyModel}
+              certifyingModel={certifyingModel}
+            />
             <ModelLabCollectionsSection
               collections={collections}
               creatingCollection={creatingCollection}

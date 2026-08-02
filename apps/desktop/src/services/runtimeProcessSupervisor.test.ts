@@ -1,15 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeSlotStatus } from "@dbzs/shared";
 
-const { getAllSlotsStatusMock, restartSlotMock } = vi.hoisted(() => ({
+const { getAllSlotsStatusMock, restartSlotMock, recordSlotHealthEventMock } = vi.hoisted(() => ({
   getAllSlotsStatusMock: vi.fn(),
-  restartSlotMock: vi.fn()
+  restartSlotMock: vi.fn(),
+  recordSlotHealthEventMock: vi.fn()
 }));
 
 vi.mock("@/services/runtimeSlotManager", () => ({
   runtimeSlotManager: {
     getAllSlotsStatus: getAllSlotsStatusMock,
-    restartSlot: restartSlotMock
+    restartSlot: restartSlotMock,
+    recordSlotHealthEvent: recordSlotHealthEventMock
   }
 }));
 
@@ -45,6 +47,8 @@ describe("runtimeProcessSupervisor", () => {
     getAllSlotsStatusMock.mockReset();
     restartSlotMock.mockReset();
     restartSlotMock.mockResolvedValue({ success: true, slotId: "fast_gpu" });
+    recordSlotHealthEventMock.mockReset();
+    recordSlotHealthEventMock.mockResolvedValue(undefined);
     vi.useFakeTimers();
     vi.setSystemTime(0);
   });
@@ -170,5 +174,59 @@ describe("runtimeProcessSupervisor", () => {
     getAllSlotsStatusMock.mockResolvedValue([status({ slot_id: "fast_gpu", state: "error" })]);
 
     await expect(checkAndRecoverSlots()).resolves.toBeUndefined();
+  });
+
+  it("records a crash + restart_attempt health event on a successful restart", async () => {
+    getAllSlotsStatusMock.mockResolvedValue([
+      status({ slot_id: "fast_gpu", state: "running", model_id: "coder.gguf" })
+    ]);
+    await checkAndRecoverSlots();
+
+    getAllSlotsStatusMock.mockResolvedValue([status({ slot_id: "fast_gpu", state: "error" })]);
+    await checkAndRecoverSlots();
+
+    expect(recordSlotHealthEventMock).toHaveBeenCalledWith(
+      "fast_gpu",
+      "crash",
+      expect.objectContaining({ modelId: "coder.gguf" })
+    );
+    expect(recordSlotHealthEventMock).toHaveBeenCalledWith(
+      "fast_gpu",
+      "restart_attempt",
+      expect.objectContaining({ modelId: "coder.gguf" })
+    );
+  });
+
+  it("records a budget_exhausted health event once the restart budget runs out", async () => {
+    getAllSlotsStatusMock.mockResolvedValue([
+      status({ slot_id: "fast_gpu", state: "running", model_id: "coder.gguf" })
+    ]);
+    await checkAndRecoverSlots(0);
+
+    getAllSlotsStatusMock.mockResolvedValue([status({ slot_id: "fast_gpu", state: "error" })]);
+    await checkAndRecoverSlots(1_000);
+    await checkAndRecoverSlots(2_000);
+    await checkAndRecoverSlots(3_000);
+    recordSlotHealthEventMock.mockClear();
+    await checkAndRecoverSlots(4_000);
+
+    expect(recordSlotHealthEventMock).toHaveBeenCalledWith(
+      "fast_gpu",
+      "budget_exhausted",
+      expect.objectContaining({ modelId: "coder.gguf" })
+    );
+  });
+
+  it("a failed health-event post does not break the restart flow", async () => {
+    recordSlotHealthEventMock.mockRejectedValue(new Error("backend unreachable"));
+    getAllSlotsStatusMock.mockResolvedValue([
+      status({ slot_id: "fast_gpu", state: "running", model_id: "coder.gguf" })
+    ]);
+    await checkAndRecoverSlots();
+
+    getAllSlotsStatusMock.mockResolvedValue([status({ slot_id: "fast_gpu", state: "error" })]);
+
+    await expect(checkAndRecoverSlots()).resolves.toBeUndefined();
+    expect(restartSlotMock).toHaveBeenCalledWith("fast_gpu", "coder.gguf");
   });
 });

@@ -11,6 +11,7 @@ Rules:
 - proposed_content must be the full file content after your change.
 - Keep changes minimal and focused on the user task.
 - If no file change is needed, return {"patches": []}.
+- IMPORTANT: Write the "summary" field in GERMAN.
 
 Response schema:
 {

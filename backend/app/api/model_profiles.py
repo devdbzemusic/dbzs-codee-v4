@@ -5,12 +5,17 @@ Model Profiles API: REST endpoints for profile management and multi-model orches
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
+from app.model_lab.repository import ModelLabRepository, get_shared_model_lab_repository
 from app.models.profile_service import ProfileService
+from app.models.model_lab_bridge import resolve_bundle_to_model_id
 from app.runtime.multi_server_manager import MultiServerManager
 from app.models.profiles import HardwareClass, TaskType
+from app.api.models import get_model_index_service
 from app.api.runtime import get_runtime_service
 from app.context.certification import CertificationStore, ModelCertificationRunner
+from app.models.index_service import ModelIndexService
 from app.runtime.service import RuntimeService
+from app.settings.service import get_settings_service
 
 router = APIRouter(prefix="/model-profiles", tags=["model-profiles"])
 
@@ -109,7 +114,8 @@ class BenchmarkProfileResponse(BaseModel):
 
 
 class CertificationRunRequest(BaseModel):
-    model_id: str
+    model_id: str | None = None
+    bundle_id: str | None = None
     slot_id: str = "fast_gpu"
     hardware: str
     model_version: str = "unknown"
@@ -313,13 +319,46 @@ def benchmark_profile(
 
 
 @router.post("/certification/runs")
-def run_certification(request: CertificationRunRequest, runtime: RuntimeService = Depends(get_runtime_service)) -> dict:
+def run_certification(
+    request: CertificationRunRequest,
+    runtime: RuntimeService = Depends(get_runtime_service),
+    index_service: ModelIndexService = Depends(get_model_index_service),
+    repository: ModelLabRepository = Depends(get_shared_model_lab_repository),
+) -> dict:
     if request.slot_id not in {"quality_cpu", "fast_gpu", "utility"}:
         raise HTTPException(status_code=422, detail="invalid slot_id")
+
+    model_id = request.model_id
+    if request.bundle_id:
+        if not get_settings_service().load().enableModelLabRuntimeBridge:
+            raise HTTPException(
+                status_code=400,
+                detail="Model Lab Runtime-Bridge ist deaktiviert - bundle_id kann nicht aufgeloest werden.",
+            )
+        model_index = index_service.load_cached_index() or index_service.build_index()
+        model_id = resolve_bundle_to_model_id(
+            request.bundle_id,
+            model_lab_repo=repository,
+            model_index=model_index,
+        )
+        if model_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"bundle_id '{request.bundle_id}' konnte keinem Runtime-Modell im Index zugeordnet werden.",
+            )
+    if not model_id:
+        raise HTTPException(status_code=422, detail="model_id oder bundle_id erforderlich")
+
     report = ModelCertificationRunner(runtime.chat, CertificationStore()).run(
-        model_id=request.model_id, slot_id=request.slot_id, hardware=request.hardware,
-        model_version=request.model_version,
+        model_id=model_id, slot_id=request.slot_id, hardware=request.hardware,
+        model_version=request.model_version, bundle_id=request.bundle_id,
     )
+    if request.bundle_id:
+        repository.update_role_assignment_cache(
+            request.bundle_id,
+            certification_run_id=report.run_id,
+            certification_score=report.score,
+        )
     return report.model_dump()
 
 

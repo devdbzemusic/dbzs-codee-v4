@@ -191,8 +191,21 @@ export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
     }
   };
 
+  // Compact (sidebar-embedded) mode must NOT try to be its own fixed-height
+  // internal-scroll region: the header chrome above the field list (search,
+  // export/import, category tabs wrapping across several lines at ~360px
+  // width) alone can exceed the available height, which collapsed the
+  // flex-1 field-list body to 0px and made every field invisible/inaccessible
+  // — not just visually cramped. Compact mode instead flows naturally and
+  // relies on the already-working outer sidebar scroll (AppShellRightSidebar's
+  // .panel-scroll), exactly like every other card in that sidebar.
+  const sectionClassName = compact
+    ? "flex flex-col border border-dbzs-border bg-dbzs-panelSoft p-4"
+    : "flex h-full min-h-0 flex-col border border-dbzs-border bg-dbzs-panelSoft p-4";
+  const bodyClassName = compact ? "mt-3" : "mt-3 min-h-0 flex-1 overflow-auto pr-1";
+
   return (
-    <section className="flex h-full min-h-0 flex-col border border-dbzs-border bg-dbzs-panelSoft p-4">
+    <section className={sectionClassName}>
       <SettingsPageHeader compact={compact} />
       {!backendReady ? (
         <div className="mb-3 rounded border border-dbzs-amber/40 bg-dbzs-amber/10 px-3 py-2 text-[11px] text-dbzs-amber">
@@ -220,7 +233,7 @@ export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
       />
       <SettingsTransferBar activeTab={activeTab} />
       <SettingsTabBar active={activeTab} onChange={setActiveTab} />
-      <div className="mt-3 min-h-0 flex-1 overflow-auto pr-1">
+      <div className={bodyClassName}>
         {activeTab === "diagnostics" ? (
           <DiagnosticsStorageTab />
         ) : (

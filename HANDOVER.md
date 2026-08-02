@@ -1,6 +1,528 @@
 # Handover
 
-Stand: 2026-08-01
+Stand: 2026-08-02
+
+## Model Lab UI: zwei Layout-Bugs behoben, per Screenshot verifiziert (2026-08-02)
+
+**Auftrag:** Nutzer-Screenshot zeigte das Inspector-Panel im Model Lab (rechte Spalte,
+"Modell auswaehlen, um Details zu sehen.") von oben bis unten durchgehend gestreckt statt content-gross.
+Bitte um "Vertikales AutoSize/Scale". Zweiter Screenshot (mit rotem Pfeil) zeigte einen weiteren, davon
+unabhaengigen Bug in derselben Ansicht: der "Als bestanden markieren"-Button in der aufgeklappten
+Zertifizierung-Sektion war auf nur "b"/"m"-Fragmente zusammengequetscht.
+
+**Ursache 1:** `ModelLabTab.tsx`s 2-Spalten-Grid (`grid-cols-[minmax(0,1fr)_320px]`) hat per CSS-Grid-Default
+`align-items: stretch` — die linke Spalte (Sources, Modell-Tabelle, Collections, Readiness, Routing,
+Rollenzuweisung, HF-Suche, alles gestapelt) ist sehr hoch, wodurch das kurze `ModelLabInspectorPanel` in
+derselben Grid-Zeile auf dieselbe Hoehe gestreckt wurde. Fix: `items-start` auf den Grid-Container ergaenzt
+— jede Spalte sizet sich jetzt an ihrem eigenen Inhalt statt an der hoechsten Nachbarspalte.
+
+**Ursache 2:** `ModelLabTab.expanded.tsx`s Zertifizierung-Sektion hatte `<select className="flex-1">` +
+`<button>` nebeneinander in einer `flex gap-2`-Zeile innerhalb einer von vier gleich breiten Grid-Spalten
+(`xl:grid-cols-4`) — bei dieser Spaltenbreite war kein Platz fuer den Button-Text ("Als bestanden
+markieren"), er brach um und wurde abgeschnitten. Fix: Select und Button jetzt gestapelt (`space-y-2`,
+beide `w-full`) — exakt das gleiche Muster wie die bereits danebenliegenden "Benchmark starten"- und
+"Zum System hinzufuegen & aktivieren"-Buttons.
+
+**Verifiziert per echtem Playwright-`_electron`-Launch mit echten Klicks** (Model-Lab-Tab oeffnen, Zeile
+"AgentCPM-Explore.Q4_K_M" aufklappen, zur Zertifizierung-Sektion scrollen) — beide Fixes per Screenshot
+bestaetigt: Inspector-Panel jetzt content-gross statt vollhoehig, Zertifizierung-Button vollstaendig lesbar
+statt abgeschnitten.
+
+## Splashscreen-Hang behoben: Model-Lab-Quelle scannte das ganze Benutzerprofil + Boot-Phase ohne Progress-Verlaengerung (2026-08-02)
+
+**Auftrag:** Nach dem Resident-Model-Fix (siehe Eintrag darunter) meldete der Nutzer weiterhin Probleme:
+"Jetzt startet gar nichts mehr", dann "Mit dem Modelkatalog haut was nicht hin" (Boot haengt bei 27%
+"Lade Modellkatalog"), zuletzt "Ich komme nicht ueber den SplashScreen hinaus".
+
+**Zwei unabhaengige Ursachen gefunden, beide live am echten Prozess verifiziert (nicht nur vermutet):**
+
+1. **Frontend-Bug:** die `model-index`-Boot-Phase (`apps/desktop/electron/boot/bootPhaseDefinitions.ts`)
+   hatte ein fixes 60s-Timeout mit `extendDeadlineOnProgress: false` — obwohl das Backend echten
+   inkrementellen Scan-Fortschritt (`checked`/`total`) genau dafuer liefert und der Orchestrator
+   (`bootOrchestrator.ts`) die Verlaengerung bereits vollstaendig implementiert hatte, war sie fuer genau
+   diese eine Phase abgeschaltet. Bei hunderten echten GGUF-Dateien im konfigurierten Modelle-Verzeichnis
+   dauert der Scan legitim laenger als 60s. Fix: `extendDeadlineOnProgress: true`,
+   `maxDeadlineExtensionMs: 300_000`.
+2. **Eigentliche Root Cause (schwerwiegender):** In Model Lab war eine Quelle registriert mit Pfad
+   `C:\Users\ralle` (das komplette Benutzerprofil, rekursiv aktiviert) — vermutlich versehentlich frueher
+   angelegt. Jeder `build_index()`-Aufruf (Boot-Warmup UND jeder normale `/models/index`-Request) durchsucht
+   dadurch AppData, node_modules, pnpm-Store etc. komplett nach `.gguf`-Dateien, bevor ueberhaupt der erste
+   Fortschritts-Tick gemeldet werden kann — das erklaert auch die zuvor beobachteten falschen "invaliden
+   GGUF"-Eintraege aus `AppData\Local\pnpm\store\...\backend\tests\.pytest-local-tmp\...`. Live gemessen:
+   `GET /models/index` brauchte vorher 90s+ (haengt teils ganz), danach **2.7s**. Es gibt aktuell keine
+   API/UI zum Entfernen einer Model-Lab-Quelle (echte Produktluecke) — auf Nutzerwunsch direkt per SQL
+   geloescht (`DELETE FROM model_sources WHERE id = '7908121230fb462c9fb27638bf41fba5'` in
+   `%LOCALAPPDATA%\DBZS\CodeAssistant\model_lab.sqlite3`), keine Code-Aenderung noetig fuer diesen Teil.
+
+**Verifiziert per echtem Playwright-`_electron`-Launch** (nicht nur Log-Lesen): App zeigt ab Sekunde 0 die
+volle Haupt-UI (Workspace/Explorer/Semantic-Search sichtbar), kein Splash-Hang mehr. Vorher haengengebliebene
+Alt-Prozesse aus der Diagnose (mehrere `electron.exe`/`python.exe`, teils weil Git-Bash `kill` native
+Windows-Prozesse oft nicht erreicht — `Stop-Process` in PowerShell nutzen, nicht `kill`) sauber beendet.
+
+**Noch offen (bewusst nicht in diesem Fix):** Model Lab hat kein Delete/Disable-Endpoint fuer Quellen
+(`backend/app/api/model_lab.py` hat nur `GET`/`POST /sources`, `ModelLabRepository` keine
+`delete_source`/`update_source`-Methode) — sollte nachgezogen werden, damit sowas wie die `C:\Users\ralle`-
+Quelle kuenftig ueber die UI korrigierbar ist statt manueller DB-Chirurgie.
+
+## Backend-Boot-Hang behoben: Resident-Model-Autostart blockierte den kompletten Event-Loop (2026-08-02)
+
+**Auftrag:** Nutzer bat erneut "starte App mit Trace", danach "schau" zu Screenshots eines Boot-Fehlers
+("Backend-Health-Endpunkt erreichbar" haengt hart bei 60.2s, `FastAPI backend did not become ready`).
+
+**Root Cause gefunden (per direkter Reproduktion + Code-Lesen, nicht nur Vermutung):**
+`run_resident_model_startup()` (`backend/app/runtime/resident_model_startup.py`) wird beim Boot per
+`asyncio.create_task(...)` als "nicht blockierend" geplant (genau wie sein Geschwister
+`run_model_index_startup()`), rief aber **synchron und blockierend** `model_index_service.build_index()`
+(2x) und `service.start_model(...)` (2x, das selbst nochmal `build_index()` + Subprozess-Start +
+Readiness-Polling macht) direkt im Coroutine-Body auf — ohne `asyncio.to_thread(...)`. Da asyncios Event-Loop
+single-threaded ist, blockiert das die GESAMTE Anwendung (inkl. Uvicorns eigenem HTTP-Accept-Loop) fuer die
+volle Dauer des Modell-Scans + Subprozess-Starts. Das erklaert exakt das beobachtete Symptom: kein
+"Application startup complete" im Log, `ECONNREFUSED` auf dem Health-Endpoint, harter 60s-Timeout in der UI.
+`autoStartOrchestratorRuntime` ist standardmaeszig `true`, betrifft also jeden normalen Boot.
+
+**Verifikation der Diagnose:** Backend direkt (ohne Electron) per `uvicorn app.main:app` gestartet — haengt
+reproduzierbar identisch (kein "Application startup complete" nach 40s). Isolierter Probe-Test von
+`_run_startup_tasks()` allein zeigt Rueckkehr in 0.01s (bestaetigt: nicht die Lifespan-Funktion selbst haengt,
+sondern einer der beiden fire-and-forget Background-Tasks, die sie anstoeszt).
+
+**Fix:** alle vier blockierenden Aufrufe in `resident_model_startup.py` mit `await asyncio.to_thread(...)`
+umschlossen — exakt das bereits etablierte Muster aus `index_startup.py` (Kommentar dort: "Must not block
+GET /health/ready"). `import asyncio` ergaenzt.
+
+**Verifiziert:** direkter `uvicorn`-Start erreicht jetzt "Application startup complete." nach ~10s (statt nie),
+`/health/ready` antwortet sofort mit HTTP 503 (korrekt: Boot laeuft im Hintergrund weiter) statt
+Connection-Refused. Bestehende `tests/test_resident_model_startup.py` (5 Tests) weiterhin gruen.
+
+**Nicht Teil dieses Fixes:** `scripts/acceptance-live.ps1` zeigte beim `git status` bereits unstaged
+Aenderungen (Timeout-Werte erhoeht), die nicht von mir stammen — vermutlich Session-Alt-Stand oder Parallel-
+Session-WIP. Bewusst nicht angefasst/committet, siehe Memory `git-index-lock-parallel-session`.
+
+## Live-Verifikation der letzten beiden UI-Aenderungen + echter Settings-Bug gefunden und behoben (2026-08-02)
+
+**Auftrag:** Nutzer bat "starte App mit Trace". Grund fuer den fehlgeschlagenen Verifikationsversuch der
+letzten beiden Eintraege gefunden: `ELECTRON_RUN_AS_NODE=1` war in der Session-Umgebung gesetzt — Electron
+laeuft dann als reines Node.js ohne GUI-Runtime (`electron.ipcMain` bleibt `undefined`), kein Sandbox-Limit.
+Mit `env -u ELECTRON_RUN_AS_NODE` liess sich die echte App real starten (inkl. echtem Backend-Subprozess,
+Playwright `_electron` gegen den gebauten `out/main/main.js`).
+
+**Dabei ein echter, eigenstaendiger Bug gefunden** (nicht durch die vorherigen Aenderungen verursacht, aber
+durch die Feld-Box-Aenderung aus dem vorletzten Eintrag erst *sichtbar* geworden): Im Sidebar-Modus
+(`compact`) hatte `SettingsNotebook.tsx`s Wurzel-`<section>` `flex h-full min-h-0 flex-col`, mit dem
+Feld-Body als `min-h-0 flex-1 overflow-auto`-Kind. Der "Chrome" oberhalb des Feld-Bodys (Backend-Warnbanner,
+Suche, Export/Import/Reset-Buttons, 9 Kategorie-Tabs, die bei ~360px Breite auf mehrere Zeilen umbrechen)
+beanspruchte allein schon mehr Hoehe, als die Section insgesamt zur Verfuegung hatte — mit
+`flex-basis: 0%` bekam der Feld-Body dadurch **0px Hoehe**, DOM-Messung bestaetigt (`h: 0` trotz
+`scrollHeight` von 2523px Inhalt). Die Einstellungsfelder waren im Sidebar-Modus also nicht nur eng, sondern
+**komplett unsichtbar und unerreichbar** — das war der eigentliche Kern der urspruenglichen Nutzerbeobachtung
+("2/15 bereit", leere Dropdowns), nicht nur ein Abstandsproblem.
+
+**Fix:** `compact`-Modus bekommt jetzt bewusst *keine* eigene `h-full`/`flex-1 overflow-auto`-Struktur mehr —
+Section und Feld-Body flieszen stattdessen natuerlich (wie alle anderen 12 Karten in der Sidebar) und
+verlassen sich auf das bereits funktionierende, aeuszere Sidebar-Scrolling (`AppShellRightSidebar`s
+`.panel-scroll`, live per DOM-Test bestaetigt, dass es scrollt). Nur der `compact=false`-Vollfenster-Modus
+behaelt das interne Fixed-Height-Scroll-Layout, wo es wegen fehlendem aeuszeren Scroll-Container weiterhin
+noetig ist.
+
+**Live bestaetigt (Screenshots, nicht nur DOM-Messung):**
+
+- Modus-Umschalter "Agents"/"Debug Log" sichtbar und funktional im rechten Panel.
+- Settings-Felder (z. B. "Model-Lab-Runtime-Bridge", "Nur lokale Modelle") jetzt tatsaechlich sichtbar mit
+  Box-Rahmen, Toggle-Layout gestapelt wie gebaut.
+- Debug-Log-Modus fuellt das ganze Panel, zeigt "0 Eintraege"/"Leeren"/"Auto-Scroll aktiv" und den
+  Platzhaltertext — UI-seitig korrekt, es kamen in dieser kurzen Boot-Phase (Backend noch nicht bereit) noch
+  keine echten Events zum Anzeigen.
+
+**Verifiziert:** `tsc --noEmit` sauber, 142 Frontend-Tests (`src/settings` + `src/components/notebook`) weiterhin
+gruen. Der eigentliche Fix wurde durch echten App-Start bestaetigt, nicht nur durch Tests.
+
+**Praktische Notiz fuer kuenftige Sessions in dieser Umgebung:** `ELECTRON_RUN_AS_NODE` vor jedem
+Electron-Start pruefen/entfernen (`env -u ELECTRON_RUN_AS_NODE ...` oder `Remove-Item Env:ELECTRON_RUN_AS_NODE`
+in PowerShell) — echte GUI-Verifikation ist in dieser Sandbox moeglich, wenn diese Variable nicht gesetzt ist.
+
+## Rechtes Panel: Debug-Log-Modus mit Live-Event-Stream (2026-08-02)
+
+**Auftrag:** Nutzerwunsch nach Screenshot-Feedback: "Panel Rechts Umgestaltung zum extrem detaillierten Debug
+Log und Observer Output Fenster. Hier soll wirklich jeder einzelne Furz zu sehen sein den die App macht (Auto
+Down Scroll)." Nutzerentscheidung nach Rückfrage: kompletter Ersatz mit Modus-Umschalter (Agents / Debug Log)
+statt fester Umgestaltung — die bestehenden 13 Agenten-Karten bleiben im "Agents"-Modus erhalten.
+
+**Fund (Untersuchung):** Zwei bereits vorhandene, aber ungenutzte bzw. nur teilweise genutzte Event-Quellen:
+`runtimeChatStore`s `activeRun.events`/`historicalRuns[...].events` (reaktiv, live befüllt über
+`appendRunEvent()` an ~15 Call-Sites) und `ObservabilityService` (`apps/desktop/src/runtime/observability/
+observabilityService.ts`) mit fertigem Pub/Sub (`onEvent()`/`emitEvent()`), das bisher **null Abonnenten**
+hatte — nur Pull-basierte Leser (`getAllTraces()` etc.) existierten.
+
+**Fix:**
+
+- Neue Komponente `apps/desktop/src/components/DebugLogPanel.tsx`: abonniert `observabilityService.onEvent()`
+  (erster echter Abonnent) und beobachtet `activeRun`/`historicalRuns` aus dem Store per Diff (nur neu
+  hinzugekommene `events` je Run werden angehängt, damit es auch bei vielen historischen Runs günstig bleibt).
+  Beide Quellen fließen chronologisch sortiert in eine gemeinsame, auf 2000 Einträge gedeckelte Liste.
+  Auto-Scroll folgt neuen Einträgen, solange der Nutzer nicht manuell nach oben scrollt (Distanz-zu-Boden-Check
+  beim `onScroll`); dann erscheint ein "Zum Ende springen"-Button statt zu erzwingen. "Leeren"-Button setzt
+  die Liste zurück.
+- `apps/desktop/src/components/appShellSections.tsx`: `AppShellRightSidebar` bekommt zwei neue optionale
+  Props — `modeToggle` (Inhalt unterhalb des Headers, außerhalb des scrollbaren Bereichs) und `fillBody`
+  (wenn `true`: Body wird zu einer nicht-scrollenden `flex-1`-Spalte, die der Kindkomponente die eigene
+  Scroll-Kontrolle überlässt — nötig für das Live-Log statt der sonst üblichen Karten-Liste). Beide Props
+  optional mit sicherem Default, einzige bestehende Verwendungsstelle (`App.tsx`) unberührt kompatibel.
+- `App.tsx`: neuer State `rightSidebarMode` ("agents" | "debug-log"), kleiner Umschalter als `modeToggle`,
+  bestehender ~150-Zeilen-Block mit den 13 Agenten-Karten unverändert in ein `{rightSidebarMode === "agents"
+  ? (<>...</>) : <DebugLogPanel />}` gewrappt — keine der bestehenden Karten-Komponenten oder ihre Props
+  wurden angefasst.
+
+**Verifiziert:** `tsc --noEmit` sauber. Neue `DebugLogPanel.test.tsx` (5 Tests: Platzhalter, Live-Events aus
+aktivem Run, Diff-basiertes Anhängen ohne Duplikate, ObservabilityService-Events, Leeren-Button) grün. Breiter
+Regressionslauf `src/components` + `src/stores` (54 Dateien/315 Tests) und `src/services` (89 Dateien/624
+Tests) weiterhin grün. Kein bestehender Test deckt `App.tsx`/`appShellSections.tsx` direkt ab (keine Datei
+existiert dafür) — das ist ein vorbestehender Zustand, nicht durch diese Änderung verursacht.
+
+**Nicht visuell verifiziert** (gleiche Sandbox-Einschränkung wie beim vorigen Eintrag — Electron kann hier kein
+echtes GUI-Fenster öffnen). **Bitte im laufenden System selbst prüfen:** Umschalter sichtbar und funktional,
+Log erscheint live bei einer Chat-/Agent-Anfrage, Auto-Scroll-Verhalten wie erwartet.
+
+## Settings-Panel-Feldlayout: Boxen + gestapelte Toggles statt dichter Liste (2026-08-02)
+
+**Auftrag:** Fortsetzung des Nutzerfeedbacks aus dem vorigen Eintrag ("Settingspanel umbauen"). Nutzerentscheidung
+nach Rückfrage: gleiches `SettingsNotebook` an beiden Renderstellen (Vollfenster + rechte Sidebar) beibehalten,
+aber das Feld-Layout überarbeiten — Label über Control statt daneben, mehr Abstand.
+
+**Fund:** `SettingsNotebook.tsx` ist buchstäblich dieselbe Komponente an beiden Stellen (Vollfenster
+`max-w-4xl` via `openSettingsWindow`/`App.tsx:566`, UND eingebettet als eine von ~13 Karten in der
+`AppShellRightSidebar` bei 220–520px Breite, `App.tsx:1056`) — keine responsive Anpassung, nur ein kosmetischer
+Text-Unterschied über den `compact`-Prop. `SettingField.tsx` layoutete Toggle-Felder mit
+`flex justify-between` (Label links, Checkbox rechts, Label auf 70% Breite begrenzt) — bei schmaler Breite
+wirkt das gequetscht. Alle Felder standen ohne visuelle Trennung in einer durchgehenden `space-y-3`-Liste.
+
+**Fix:**
+
+- `RegistrySettingsTab.tsx`: jedes Feld bekommt eine eigene Box (`border border-dbzs-border/40 bg-dbzs-panel/40
+  px-3 py-3`), Abstand zwischen Feldern `space-y-3` → `space-y-4`.
+- `SettingField.tsx`: Toggle-Layout vereinheitlicht mit allen anderen Control-Typen (kein `flex
+  justify-between` mehr) — Checkbox + "Aktiviert"/"Deaktiviert"-Text stehen jetzt wie jeder andere Control
+  unterhalb von Label/Beschreibung, nicht mehr daneben gequetscht. Etwas mehr vertikaler Abstand
+  (`mt-0.5` → `mt-1` für die Beschreibung, Status-Badge in eigene Zeile mit `mt-2`).
+
+**Verifiziert:** `tsc --noEmit` sauber, 142 Frontend-Tests (`src/settings` + `src/components/notebook`) grün.
+**Nicht visuell verifiziert:** Versuch, die echte Electron-App zu bauen (`pnpm build` lief durch) und per
+Playwright (`_electron`) oder direktem `electron.exe`-Aufruf (auch via PowerShell) zu starten, um einen
+Screenshot zu machen, ist an der Sandbox gescheitert — `electron.ipcMain` kommt selbst beim direkten Start der
+echten `electron.exe` als `undefined` zurück, was auf eine fehlende GUI-/Display-Fähigkeit in dieser Umgebung
+hindeutet, nicht auf einen Code-Fehler. **Bitte vor Abschluss dieses Themas einmal selbst im laufenden System
+ansehen**, ob das Layout wie gewünscht wirkt.
+
+## Model Lab -> Settings: fehlenden "scan zu nutzbar"-Workflow geschlossen (2026-08-02)
+
+**Auftrag:** Nutzer schickte Screenshots der laufenden App (Model Lab bei "2/15 bereit", Settings-Panel) mit
+Feedback: (1) Settings-Panel-Layout ungünstig, (2) nur 2 Rollen wählbar, Reranker/Embedding gar keins, (3) kein
+klarer Model-Lab-Workflow von "gescannt" zu "nutzbar/auswählbar". Als nächster Block im selben Sprint-Muster
+behandelt (Nutzerentscheidung nach Rückfrage).
+
+**Untersuchung (Explore-Agent) ergab: Punkt 2 war eine Fehldiagnose, Punkt 3 der echte Kern.** Alle 10
+Rollen-Dropdowns in `SettingsNotebook.tsx`/`SettingField.tsx` existieren technisch bereits, inkl.
+Embedding/Reranker (eigener `model_lab_select`-Pfad direkt gegen Model Lab). Sie sind aber fast immer leer,
+weil:
+
+- `assignModelRole` (`ModelRoleAssignmentRequest.settings_field`) schrieb nur einen internen
+  `model_role_assignments`-Datensatz — **nie** das tatsächliche Settings-Feld. Der Button "Zum System
+  hinzufügen & aktivieren" behauptete fälschlich "Macht das Modell in allen Dropdowns auswählbar".
+- Model-Lab-Bundles waren den 8 `model_select`-Dropdowns komplett unsichtbar, außer das versteckte,
+  standardmäßig deaktivierte Flag `enableModelLabRuntimeBridge` war aktiv + Runtime neugestartet.
+- Es gab **keine Zertifizieren-Aktion in der UI** — `certifyModel` existierte im Backend/`backendClient.ts`
+  vollständig fertig verdrahtet, wurde aber von keiner Komponente je aufgerufen. Ohne Zertifizierung schlägt
+  jede Rollenzuweisung mit `enabled=true` ohnehin mit 400 fehl (`_ROLE_POLICY` verlangt z.B. für
+  `CODING_EXECUTOR` `CODING_VERIFIED`+`STRUCTURED_OUTPUT_VERIFIED`+`WRITE_AGENT_VERIFIED`).
+
+**Fix (drei Teile, nach Nutzerentscheidung):**
+
+1. `enableModelLabRuntimeBridge` Default auf `true` (Backend `AppSettings`, Frontend `DEFAULT_SETTINGS`,
+   `settingsRegistry.ts`-Beschreibung/`experimental`-Flag angepasst) — Model Lab ist jetzt standardmäßig die
+   Quelle, nicht ein verstecktes Experiment.
+2. Neue Funktion `_apply_role_assignment_to_settings()` in `backend/app/api/model_lab.py`: nach erfolgreicher
+   Rollenzuweisung mit gesetztem `settings_field` wird `bundle_id` -> echte Runtime-`model_id` aufgelöst
+   (bestehende `resolve_bundle_to_model_id()`-Brücke, Plan 15 Phase 7) und per `SettingsService.patch()`
+   direkt ins passende Settings-Feld geschrieben. Best-effort: Rollenzuweisung selbst schlägt nicht fehl, wenn
+   die Auflösung (noch) nicht klappt oder die Settings-Revision zwischenzeitlich wechselte — nur geloggt.
+   Nimmt bewusst dieselbe `ModelLabRepository`-Instanz wie der aufrufende Endpoint (nicht das
+   Shared-Singleton), damit Tests/Dependency-Overrides greifen.
+   Frontend: "Zum System hinzufügen & aktivieren" setzt jetzt `settings_field: "defaultChatModelId"` statt
+   `null`; Tooltip korrigiert (nennt die konkrete Rolle + nötige Zertifikate statt "alle Dropdowns").
+3. Neue "Zertifizieren"-Sektion in `ModelLabTab.expanded.tsx` (Dropdown über alle 12
+   `ModelFleetCertificationKind`-Werte + "Als bestanden markieren"-Button, ruft `certifyModel`), durch
+   `ModelLabTab.controller.ts`/`.rows.tsx`/`.sections.tsx`/`.tsx` bis zur UI durchgereicht.
+
+**Verifiziert:** `tsc --noEmit` sauber. Neuer End-to-End-Backend-Test
+`test_role_assignment_writes_resolved_model_into_settings` (scannt echtes Bundle, zertifiziert 3x, weist
+`CODING_EXECUTOR`-Rolle mit `settings_field="defaultCoderModelId"` zu, prüft danach `GET /settings` enthält
+die aufgelöste Modell-ID) — grün, zusammen mit 160 weiteren Tests aus
+`test_model_lab.py`/`test_model_lab_repository.py`/`test_settings.py`/`test_model_index.py`/
+`test_fleet_routing_resolver.py`/`test_runtime_api.py`/`test_runtime_service.py`/
+`test_model_profiles_certification.py` (161 gesamt). Frontend: 954 Tests über `src/stores`+`src/services`+
+`src/components`+`src/settings` grün (142 davon direkt in `src/components/notebook`+`src/settings`).
+
+**Noch offen / bewusst nicht in diesem Block:**
+
+- Settings-Panel-Layout selbst (Punkt 1 des Nutzerfeedbacks) — bisher nur der Datenfluss dahinter repariert,
+  nicht das Grid/Platzangebot der Notebook-Ansicht.
+- `ModelSettingsFieldRole`/`SETTINGS_FIELDS` (Model-Lab-Rollenzuweisung) deckt weiterhin nur 8 der 10
+  Default-Modell-Felder ab — Embedding/Reranker/Utility bleiben auf ihrem separaten `model_lab_select`-Pfad,
+  nicht über Rollenzuweisung erreichbar. Absichtlich nicht vereinheitlicht in diesem Block (zwei
+  unterschiedliche, je für sich funktionierende Mechanismen; Vereinheitlichung wäre eine eigene
+  Architekturentscheidung).
+- Kein automatisierter "Rezertifizierungs"-Reminder, wenn sich ein Modell-Artefakt aendert (Hash-Drift) —
+  Zertifikate bleiben, bis manuell widerrufen.
+
+## Workflow Authority & Safety Sprint — Teil C (WF-07, Teilumsetzung): stille Degradation wird sichtbar (2026-08-02)
+
+**Auftrag:** Fortsetzung von Teil A/B/WF-03 (siehe Einträge darunter).
+
+**Fund:** Mehrere Stellen im Chat-Preflight fangen Fehler ab und machen robust weiter, ohne dass das im
+finalen Antwortstatus sichtbar wird (Intensivaudit WF-07): Kontext-Orchestrierung fehlgeschlagen → bestehende
+Retrieval-Pipeline; Embedding-Suche fehlgeschlagen → lexikalisches RAG bleibt aktiv (nur `console.info`);
+RAG insgesamt fehlgeschlagen → Chat läuft ohne Repository-Kontext weiter.
+
+**Entscheidung zum Umfang:** Der Intensivaudit schlägt eine neue `DegradationLedger`-Datenstruktur vor. Beim
+genaueren Hinsehen existiert dafür aber bereits eine funktionierende, UI-verdrahtete Infrastruktur:
+`RuntimeChatRun.degraded`/`degradedReason` (bisher nur für residenten Modell-Fallback gesetzt,
+`fallbackHandler.ts`) wird bereits korrekt in `CodeeRunLiveBlock.tsx` (Degraded-Badge + Grund) und
+`RuntimeChatConversationFeed.tsx` gerendert. Diese Teilumsetzung erweitert die bestehende, getestete
+Infrastruktur auf die beiden oben genannten stillen Fallbacks, statt eine parallele neue Ledger-Struktur
+einzuführen, die erst noch durch die UI gezogen werden müsste — kleinerer, risikoärmerer Schnitt.
+
+**Fix:** neuer kleiner Helper `markRunDegraded(reason)` in `runtimeChatStore.ts` (setzt `degraded: true` und
+hängt `reason` an einen ggf. bereits vorhandenen `degradedReason` an, statt ihn zu überschreiben — mehrere
+Degradationen in einem Run bleiben so alle sichtbar). Aufgerufen an den drei identifizierten Stellen:
+Kontext-Orchestrierung fehlgeschlagen, Embedding-Suche fehlgeschlagen (lexikalischer Fallback), RAG insgesamt
+fehlgeschlagen.
+
+**Verifiziert:** `tsc --noEmit` sauber. Voller Regressionslauf `src/stores` + `src/services` (112 Dateien, 723
+Tests) weiterhin grün. **Kein dedizierter neuer Test** für die drei `markRunDegraded()`-Aufrufe selbst — sie
+liegen hinter mehreren real-service-abhängigen Bedingungen (`bootstrapRuntimeLayer`, `getRuntimeKernel`,
+`ragClient`, `embeddingService`), die in `runtimeChatStore.test.ts` bisher nicht gemockt sind; das dafür
+nötige Mock-Setup war gegenüber der Größe der Änderung (3 Zeilen, ruft eine bereits durch obigen
+Regressionslauf abgedeckte kleine Funktion auf) nicht verhältnismäßig.
+
+**Bewusst NICHT Teil dieser Teilumsetzung** (Folgearbeit): das Overall-`outcome`-Feld
+(`RuntimeRunOutcome`) bekommt noch keinen `"success_degraded"`-Wert — die finale Erfolgs-/Fehl-Entscheidung
+läuft über das zentrale, eigenständig getestete `runtimeRunFinalization.ts` plus mindestens zwei weitere
+Completion-Stellen in `runtimeChatStore.ts` (Agent-Turn-Loop bei Zeile ~2531, Streaming-Pfad bei ~2827); das
+dort einzuweben haette denselben Umfang wie WF-03 gehabt und wurde bewusst nicht blind versucht. `degraded`/
+`degradedReason` sind aber bereits die Felder, die die UI für genau diesen Zweck rendert — die Sichtbarkeit
+ist also real vorhanden, nur noch nicht bis in den High-Level-`outcome`-Wert durchgezogen.
+
+## Workflow Authority & Safety Sprint — Teil C (WF-03): Repository Review läuft nicht mehr gegen unfertige Runtime (2026-08-02)
+
+**Auftrag:** Fortsetzung von Teil A/B (siehe Einträge darunter). Nutzer wollte den vollen Reorder trotz
+bekanntem Risiko versuchen (nach expliziter Rückfrage zweimal bestätigt), weil ich hier keine Live-Verifikation
+gegen die echte App durchführen kann.
+
+**Fund:** `runtimeChatStore.ts`s Repository-Review-Zweig (direkt nach dem Routing, vor jeglicher
+Slot-Validierung) startete den `RepositoryReviewOrchestrator` sofort — mit `runtimeContextLimit:
+resolvedContextWindowTokens ?? 8192` als reiner Platzhalter (die echte Kontextfenster-Auflösung passiert erst
+~150 Zeilen später im normalen Chat-Pfad) und ohne jede Prüfung, ob der Ziel-Slot überhaupt das richtige Modell
+geladen hat. Genau WF-03 aus dem Intensivaudit.
+
+**Untersuchung vor der Änderung:** Der normale Chat-Pfad reiht Slot-Validierung (Kontextfenster) → harte
+Slot-Bereitschaftsprüfung (`verifySlotForRequest`, schlägt fehl wenn Slot nicht `"running"`) →
+Tool-/Kontext-Orchestrierung → chat-spezifisches Budget-Gate + Prompt-Bindungs-Assertion → tatsächlicher
+On-Demand-Modellstart (`executeOnDemandRuntimeAction`, ~250 Zeilen, mit ~10 aus vorherigen Schritten
+vorberechneten Eingaben) — in dieser Reihenfolge. Den kompletten Review-Zweig hinter diese gesamte Kette zu
+verschieben wäre falsch gewesen: das Budget-Gate/Prompt-Binding ist speziell für den normalen
+Single-Turn-Chat-Prompt gebaut, den Review gar nicht verwendet (Review baut pro Batch eigene Anfragen mit
+eigenem Token-Budget) — ihn dort durchzuschleusen hätte Review-Läufe an chat-spezifischen Prüfungen scheitern
+lassen können, die mit Review nichts zu tun haben.
+
+**Fix:** Statt die riesige bestehende Kette zu verschieben, bekommt der Review-Zweig einen eigenen,
+in sich geschlossenen Preflight-Schritt (`repo-review-preflight`) direkt an seinem Anfang:
+
+1. Echten Slot-Status lesen (`runtimeSlotManager.getSlotStatus`), Kontextfenster aus `context_size` übernehmen
+   statt hartkodiert 8192 zu raten.
+2. Wenn das aufgelöste Rollenmodell nicht bereits mit `chat_ready` im Ziel-Slot läuft: `startSlot()` +
+   `waitForSlotReady()` (dieselbe Low-Level-API, die der normale On-Demand-Pfad letztlich auch verwendet) —
+   startet Fehler klar ab (`target_slot_unavailable`, sauberer Run-Abbruch über `finalizeSendState`), statt
+   stillschweigend gegen einen ungeladenen Slot zu reviewen.
+3. Erst danach startet der eigentliche `RepositoryReviewOrchestrator`.
+
+**Verifiziert:** `tsc --noEmit` (web + node config) sauber. 3 neue Tests in `runtimeChatStore.test.ts`
+("Repository Review preflight (WF-03)"): Slot bereits bereit → kein Start nötig; Slot gestoppt → wird gestartet,
+dann Review; Start schlägt fehl → sauberer Abbruch, Review läuft nicht an. Breiter Regressionslauf
+`src/stores` + `src/services` (112 Dateien, 723 Tests) weiterhin grün — keine Nebenwirkungen auf den normalen
+Chat-Pfad, da dessen Code unverändert blieb (nur der Review-Zweig bekam einen eigenen Vorab-Schritt).
+
+**Ausdrücklich noch nicht live verifiziert** (Sandbox kann das nicht): ein echter Repository-Review-Lauf gegen
+eine reale App-Instanz mit tatsächlich kaltem/gestopptem Ziel-Slot. Vor dem nächsten Release bitte einmal
+bewusst mit gestopptem Slot einen Review anstoßen und prüfen, dass er den Slot sichtbar startet statt zu
+scheitern oder zu hängen.
+
+## Workflow Authority & Safety Sprint — Teil B: einzige Routing-Wahrheit fertiggestellt (2026-08-02)
+
+**Auftrag:** Fortsetzung von Teil A, siehe Eintrag darunter. Nutzerauflage bestätigt: nach jedem Block
+committen, pushen, HANDOVER/TODO_NEXT aktualisieren.
+
+**1. `runtimeSlotManager.ts` von eigener Auswahl-Logik befreit:** `resolveDefaultModelForSlot()` fragt jetzt,
+wenn kein Rollenmodell in den Settings konfiguriert ist, zuerst `backendClient.resolveRuntimeRoute()` (den
+Backend-`FleetRoutingResolver`) statt direkt auf die lokale Scoring-Heuristik (`selectDefaultModelForSlot()`/
+`scoreModelForSlot()`) zu springen. Diese lokale Heuristik bleibt nur als Notfall-Fallback bestehen, wenn das
+Backend nicht erreichbar ist — via `emitRoutingEvent()` sichtbar geloggt (`slot_default_resolved_via_backend`
+bzw. `slot_default_backend_unavailable_local_fallback`), nie still. Neuer Helper `taskTypeForSlotFallback()`
+mappt Slot -> repräsentativen Task-Type für die Backend-Anfrage; nur `resolved_model_id` aus der Antwort wird
+verwendet, der Ziel-Slot bleibt extern vom Aufrufer bestimmt.
+
+**2. Offizielles Workflow-Rolle -> Fleet-Rolle -> Zertifizierungs-Mapping** (Maßnahmenkatalog M-002) im Backend
+ergänzt: `FleetRoutingResolver` bekommt einen optionalen `model_lab_repo`-Parameter und eine neue
+`_model_lab_candidate()`-Methode. Bei fehlendem Settings-Rollenmodell wird jetzt zuerst
+`ModelLabRepository.list_routing_map(role=<Fleet-Rolle>)` (gefiltert auf `routing_allowed=True`, sortiert nach
+Priorität) abgefragt und über das bereits vorhandene `resolve_bundle_to_model_id()` (Plan 15, Phase 7) auf die
+echte Runtime-`model_id` aufgelöst — bevor auf die generische resident/installed-Scoring-Kette zurückgefallen
+wird (WF-10: zertifizierte Rollenzuweisung schlägt "läuft zufällig gerade"). Mapping-Tabelle
+`_WORKFLOW_AGENT_TO_FLEET_ROLE` deckt `default/coder/reviewer/tester/planner` ab; Vision bleibt bewusst
+ausgenommen (eigenes Settings-Feld + Pairing-Gate). Degradiert graceful auf den bisherigen Flat-Settings-Pfad,
+wenn kein Model-Lab-Rolleneintrag existiert (die meisten privaten Installationen haben noch keine
+Zertifizierung durchlaufen) — kein Hard-Fail. `/runtime/route`-Endpoint reicht jetzt
+`get_shared_model_lab_repository()` durch.
+
+**Verifiziert:** `tsc --noEmit` sauber. Backend: `test_fleet_routing_resolver.py` von 8 auf 11 Tests erweitert
+(3 neu: zertifizierte Zuweisung gewinnt, nicht-`routing_allowed`-Eintrag fällt durch, Vision-Turn überspringt
+die Model-Lab-Stufe) — alle grün, plus `test_runtime_api.py`/`test_runtime_service.py`/
+`test_model_lab_bridge.py` (81 gesamt) weiterhin grün. Frontend: `runtimeSlotManager.test.ts` — eine veraltete,
+seit der früheren Hardcoded-Namen-Entfernung nie aktualisierte Testerwartung entfernt ("CodeReactor" etc.,
+bereits vor dieser Session kaputt, nicht durch diese Änderung verursacht) und zwei neue Tests für den
+Backend-first/lokaler-Fallback-Pfad ergänzt (29/29 grün).
+
+## Workflow Authority & Safety Sprint — Teil A: kaputten Build repariert + FleetRoutingResolver-Sicherheitslogik portiert (2026-08-02)
+
+**Auftrag:** Nutzer liess vier Audit-Dokumente in `Pläne/check/` (gitignored, lokal) erstellen
+(`DBZS_CODEE_V4_WORKFLOW_BRUCH_INTENSIVAUDIT_2026-08-02.md`, `DBZS_CODEE_WORKFLOW_USECASE_MASSNAHMENKATALOG.md`,
+`DBZS_CODEE_V4_REPO_PRUEFUNG_2026-08-02.md`, `DBZS_CODEE_V4_PRIVATE_NUTZUNG_EINORDNUNG.md`) und danach lesen,
+planen und umsetzen. Plan (Teil A-D) unter `C:\Users\ralle\.claude\plans\zazzy-kindling-duckling.md` genehmigt.
+Branch durchgehend `codex/agentic-model-fleet-integration`. Nutzerauflage: nach jedem Block committen, pushen,
+HANDOVER/TODO_NEXT aktualisieren.
+
+**Kritischer Fund waehrend Teil A:** Commit `dd7de6d` (aus einer frueheren, ungeprueften "versioniere alles"-
+Anweisung in derselben Session) hatte bereits kaputten Code gepusht: `apps/desktop/src/services/modelSelectionBroker.ts`
+enthielt zwei unkoordiniert ineinander verwobene automatisierte Edits — ein sauberer, gewollter Umbau
+(`brokerDecision()` wird `async` und delegiert an `backendClient.resolveRuntimeRoute()`) plus ein kaputter,
+nie fertiggestellter Entwurf (`class ModelSelectionBroker` gegen einen nicht-existenten `/fleet/resolve`-Endpunkt
+und nicht-existente Typen). Datei parste nicht (`tsc --noEmit`: 21 Fehler) — lebender Beweis fuer das im Audit
+beschriebene P0-Risiko "parallele Agenten veraendern dieselben Kernbereiche".
+
+**Fix (Commit `10d5161`):**
+
+- `modelSelectionBroker.ts` auf den sauberen Async-Zustand zurueckgefuehrt (Referenz: `git show f2b5e44:...`
+  war die letzte bekannt-gute Fassung; `git diff f2b5e44 dd7de6d -- ...` zeigte exakt, welcher der beiden
+  ineinander verwobenen Edits der gewollte war).
+- Fehlende Verdrahtung ergaenzt: `backendClient.ts`s exportiertes Objekt hatte `resolveRuntimeRoute` nie
+  implementiert, obwohl `preload.ts`/`runtimeAndJobIpc.ts` es bereits vollstaendig bis zum Backend-Endpunkt
+  `/runtime/route` durchreichten — Delegation nach dem `dryRunRuntimeModel`/`probeRuntimeModel`-Muster ergaenzt.
+- **Sicherheitsluecke geschlossen, nicht nur Syntax repariert:** der neue Backend-`FleetRoutingResolver`
+  (`backend/app/runtime/routing_resolver.py`) hatte urspruenglich nur simples Task-Type->Settings-Mapping,
+  OHNE die Vision-Gate-/Capability-Gate-/dreistufige-Fallback-Logik, die vorher im Desktop-Broker lag. Waere
+  `resolveRuntimeRoute` einfach nur verdrahtet worden, waeren diese Sicherheitschecks (u.a. verifiziertes
+  MMProj-Pairing erzwingen) stillschweigend verschwunden. Logik 1:1 nach Python portiert (neue Fehlercodes
+  `vision_pairing_required`, `role_model_missing_no_fallback`, `role_model_not_in_index`,
+  `role_model_not_runnable`, `vision_gate_blocked`, `code_capability_missing` in `RuntimeErrorCode`), inkl.
+  neuer `RuntimeResidencyRegistry.all_entries()`-Methode fuer die "bereits resident bevorzugen"-Fallback-Stufe.
+  Neue, gezielte Testdatei `backend/tests/test_fleet_routing_resolver.py` (8 Tests) deckt Vision-Gate,
+  Capability-Gate und beide Fallback-Stufen ab.
+- `apps/desktop/src/stores/codePatchStore.ts` entfernt — unbenutzter, selbst als "hypothetisch" markierter
+  Entwurfscode (importierte ebenfalls nicht-existente Module), der denselben Build zusaetzlich brach.
+- Tests, die die alte lokale Broker-Logik synchron testeten, auf den neuen asynchronen Backend-Aufruf
+  umgestellt (`bindingWorkflowGrounding.test.ts` neu als reiner Plumbing-Test mit gemocktem `backendClient`,
+  `runtimeChatStore.test.ts` bekam einen `resolveRuntimeRoute`-Mock, `capabilityScenarios.ts`s Mock-Factory
+  fehlte `await`).
+
+**Verifiziert:** `tsc --noEmit` (beide Configs) sauber. Vitest gezielt: `bindingWorkflowGrounding.test.ts`,
+`runtimeChatStore.test.ts` (22/22), plus 10 weitere potenziell betroffene Dateien, die `backendClient` mocken
+(alle gruen, 92 Tests gesamt in dieser Teilmenge). Backend: `test_fleet_routing_resolver.py` (8/8) +
+`test_runtime_api.py`/`test_runtime_service.py`/`test_runtime_slot_contract.py` (75 gesamt) gruen.
+
+**Ein von dieser Session parallel gestarteter Plan-Agent** bestaetigte die Befunde unabhaengig und wies zusaetzlich
+darauf hin, dass `Pläne/check/task.md`s Behauptung, `FleetRoutingResolver` habe bereits "CERT & SAFETY FILTER"/
+"HW PROFILE FILTER", zum Pruefzeitpunkt **falsch** war — Checkbox-Status in diesen (gitignoreten, lokalen)
+Audit-/Planungsdokumenten nicht ungeprueft uebernehmen.
+
+**Noch offen (Teil B/C/D des genehmigten Plans, noch nicht begonnen):**
+
+- Teil B: `runtimeSlotManager.ts`s eigene Modellwahl (`selectDefaultModelForSlot`/`scoreModelForSlot`) bei
+  Auto-Start noch nicht auf den Backend-Resolver umgestellt; offizielles Workflow-Rolle -> Fleet-Rolle ->
+  Zertifizierungs-Mapping fehlt noch (Model-Lab-Rollendaten existieren, werden aber vom Resolver nicht
+  konsultiert).
+- Teil C: WF-03 (Repository Review vor statt nach Runtime-/Budget-/Binding-Gates — Branchpunkt
+  `runtimeChatStore.ts:1029-1074` vs. echtes Budget-Gate bei `runtimeChatStore.ts:1829`), danach WF-10
+  (deterministische Fallback-Kette, ueberschneidet sich mit Teil B), danach WF-07 (`DegradationLedger`).
+- Teil D: Usecase-Massnahmenkatalog, 8 eigene Phasen, bewusst nur grob sequenziert (mehrmonatiges Programm).
+
+## Lueckenschluss-Stufenplan (Plan 15) Stufen 2-5 umgesetzt (2026-08-02)
+
+**Auftrag:** Nutzer liess `Pläne/16 DBZS_CODEE_AGENTIC_FLEET_LUECKENSCHLUSS_STUFENPLAN.md` erstellen (Diff
+gegen alle Plan-15-Dateien im Ordner `Pläne/`) und danach Stufe fuer Stufe abarbeiten — nach Stufe 4 per
+Rueckfrage explizit "Stufe 4 fertig, dann Stufe 5" gewaehlt. Branch durchgehend
+`codex/agentic-model-fleet-integration`. Jede Stufe: echte Code-Aenderung ueber die Remote-Device-Bridge auf
+`C:\Users\ralle\source\repos\dbzs-codee-project`, gezielte Backend-/Frontend-Verifikation, eigener Commit.
+
+- **Stufe 2 (Phase 6) — `f069812`:** fehlender Frontend-Test fuer die bereits vorhandene persistente
+  Slot-Health-Historie (`RuntimeSlotPanel.tsx`s "Verlauf anzeigen"-Button) ergaenzt. 43/43 Frontend-Tests gruen.
+- **Stufe 3 (Phase 7) — `74292e1`:** `resolve_bundle_to_model_id()` bruecken den gemessenen
+  Certification-Runner (bislang nur an bare Runtime-`model_id` gebunden) an Model Labs `bundle_id`;
+  `model_role_assignments` (Schema v5) bekommt denormalisierte `last_certification_*`/`last_benchmark_run_id`-
+  Cache-Spalten, gefuellt sowohl vom gemessenen Certification-Pfad als auch vom bereits bundle-nativen
+  Benchmark-Pfad; neue Zertifizierungs-Badge im Model-Lab-Tab. 82 Backend- + 16 Frontend-Tests gruen.
+- **Stufe 4 (Phase 8) — `3d4790c`:** reine UI-Vorschlagslogik `suggestResidencyIntent()` fuer
+  Residency-Intent-Defaults nach einem Scan (Vision-Modelle -> `idle_evict`, unzertifizierte/kaputte Bundles
+  -> `manual`, sonst `idle_evict`). Kein neuer Test noetig (Config-only); tsc + 16/16 Vitest gruen.
+- **Stufe 5 (Phase 5, Dual-Mode Vision) — `0366939`:** siehe eigener Eintrag unten fuer Details.
+
+**Architektonische Korrektur waehrend Stufe 5:** der Stufenplan selbst nahm faelschlich an,
+`projector_artifact_id` wuerde serverseitig ueber `ModelLabRepository` aufgeloest. Tatsaechlich ist
+`MultimodalPair.projector_artifact_id` ein Legacy-Runtime-Index-Feld (`IndexedModel.id` in
+`ModelIndex.support_artifacts`), aufgeloest ueber `ModelIndexService` — komplett getrennt von Model Lab.
+Vor dem Bau verifiziert statt dem Plandokument blind gefolgt.
+
+## Stufe 5: Dual-Mode Vision — dedizierter MMProj-Prozess auf `vision_gpu` (2026-08-02)
+
+**Kritischer Fund:** `RuntimeService.start_model()`s Cross-Slot-"Shared-Slot-Binding"-Wiederverwendung
+(`_find_running_slot_for_model`/`_bind_shared_slot`) haette einen neuen `vision_gpu`-Start mit `mmproj_path`
+stillschweigend an eine bereits laufende **text-only** Instanz derselben `model_id` (z. B. auf
+`orchestrator_cpu`) angehaengt — kein Fingerprint-Check vorhanden. Selbst der Same-Slot-Fingerprint-Reuse
+haette es nicht gefangen, da `compute_launch_fingerprint()` `mmproj_path` nicht hasht. Beides haette den
+gesamten Zweck von Dual-Mode-Vision (Text- und Vision-Instanz desselben Modells gleichzeitig auf getrennten
+Slots) unterlaufen. Bestaetigt als bekannte, bisher nur umschiffte Luecke ueber den Docstring des
+bestehenden Test-Helfers `_add_second_model_to_catalog` in `test_runtime_service.py`.
+
+**Fix:** neuer `requires_dedicated_process`-Guard in `start_model()` (`true` sobald `config["mmproj_path"]`
+gesetzt ist), deaktiviert sowohl den Same-Slot-Fingerprint-Reuse als auch das Cross-Slot-Shared-Binding und
+erzwingt damit einen echten neuen Prozess. `--mmproj`-Verdrahtung und Datei-Existenz-Check in `launch.py`
+waren bereits vorhanden (aeltere Manual-Pairing-Infrastruktur) — der Fix schliesst nur die Reuse-Luecke davor.
+
+**Weitere Aenderungen:**
+- `StartModelRequest.projector_artifact_id` (neu, optional) + `POST /runtime/slots/{slot_id}/start` loest ihn
+  serverseitig gegen `ModelIndexService`s `support_artifacts` auf (400 bei unbekannter ID) — nie ein
+  client-seitig vertrauter Dateipfad. `/runtime/start` bewusst unveraendert.
+- `resource_planner.plan()` bekommt `mmproj_bytes`: wird vom VRAM-Budget vor der `gpu_layers`-Wahl abgezogen
+  und zu `estimated_total_vram_bytes` addiert, damit ein geladener Projector auf kleinen Karten vorab
+  budgetiert wird statt erst als OOM aufzufallen.
+- Frontend: `modelSelectionBroker.ts`s `ModelSelectionDecision` bekommt `projectorArtifactId` (aus dem
+  verifizierten `MultimodalPair`, nur gesetzt wenn `slotId === "vision_gpu"`); `runtimeSlotManager.startSlot()`
+  bekommt einen optionalen 4. Parameter; `runtimeChatStoreOnDemandExecution.ts` reicht ihn beim
+  On-Demand-Slot-Start durch.
+
+**Verifiziert:** 85 Backend-Tests direkt betroffen (3 neu in `test_resource_planner.py`, 2 neu in
+`test_runtime_service.py` inkl. einer Baseline, die den weiterhin funktionierenden Shared-Binding-Pfad ohne
+`mmproj_path` bestaetigt, 3 neu in `test_runtime_api.py`) plus 79 weitere in
+`test_gpu_exclusivity/test_runtime_launch/test_runtime_slot_contract/test_runtime_warmup/
+test_residency_cache/test_resident_model_startup/test_runtime_strict_mode/test_runtime_chat_ready` — alle
+gruen. `tsc --noEmit` beide Configs sauber, 81 Frontend-Tests gruen (4 neu).
+
+**Nebenfund (nicht Teil dieser Aenderung, separat zu untersuchen):** `pytest tests/test_runtime_doctor.py`
+haengt bei isoliertem Lauf auf dieser Maschine dauerhaft (mehrfach reproduziert, auch nach Prozess-Neustart
+und Geraete-Reconnect). Datei wurde in dieser Session nicht angefasst; betroffene Tests nutzen ausschliesslich
+gefakte Services, kein echter `RuntimeService`. Vermutlich ein bereits vorher bestehendes, umgebungsbedingtes
+Problem (z. B. eine ungemockte echte Hardware-/GPU-Abfrage in `build_runtime_doctor()`), keine Regression
+dieser Session — siehe `TODO_NEXT.md`.
+
+**Nicht in dieser Sandbox verifizierbar:** ein echter gleichzeitiger Zwei-Prozess-Dual-Mode-Lauf (Text auf
+`orchestrator_cpu` + Vision mit geladenem MMProj auf `vision_gpu`, parallel, mit echtem Qwen2.5-VL-Modell)
+braucht eine echte interaktive Session mit laufenden `llama-server`-Prozessen.
 
 ## Aktuelle Repo-/Statuslage (2026-08-01)
 

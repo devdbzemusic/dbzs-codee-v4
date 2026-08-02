@@ -159,6 +159,7 @@ import {
   outcomeForPhaseTimeout,
   type PhaseTimeoutKind
 } from "@/services/runtimePhaseTimeouts";
+import { verifySlotForRequest } from "@/services/runtimeSlotValidator";
 import { validateResolvedRuntimeRoute } from "@/services/runtimeRouteValidator";
 import { gateSlotForRequest } from "@/services/runtimeSlotExecutionState";
 import { checkMissingInformation } from "@/services/missingInformationPolicy";
@@ -930,6 +931,20 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
       }));
     };
 
+    // WF-07 (Workflow-Bruch-Audit): several preflight steps intentionally fall back
+    // to a lesser pipeline on failure (e.g. lexical RAG instead of semantic retrieval)
+    // instead of hard-failing the turn — good for robustness, but the final response
+    // used to look identical to a full-context one. Mark the run as degraded (reusing
+    // the existing degraded/degradedReason fields already rendered in the UI, e.g.
+    // resident-model fallback) so the reduced quality stays visible instead of silent.
+    const markRunDegraded = (reason: string) => {
+      updateActiveRun((run) => ({
+        ...run,
+        degraded: true,
+        degradedReason: run.degradedReason ? `${run.degradedReason} · ${reason}` : reason
+      }));
+    };
+
     const buildRunTurnSnapshot = (input: {
       turnNumber: number;
       prompt: string;
@@ -1031,6 +1046,64 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
       runWorkspaceRoot &&
       brokerDecisionFull?.targetAgent === "reviewer"
     ) {
+      // WF-03 (Workflow-Bruch-Audit): Repository Review used to start immediately
+      // after routing, before the runtime/context-window preflight that every other
+      // turn goes through — meaning it could run against an unstarted or wrong slot
+      // and always assumed an 8192 context window regardless of the real model. This
+      // ensures the target slot is actually loaded and resolves the real context
+      // size first, same intent as the normal chat path's slot-validation +
+      // on-demand start, without routing review through the chat-prompt-specific
+      // budget-gate/prompt-binding machinery further down (which review, with its
+      // own per-batch token budgeting, does not need and could spuriously fail on).
+      beginStep("repo-review-preflight", "Runtime für Review vorbereiten");
+      try {
+        const reviewSlotId = contextSlotId as RuntimeSlotId;
+        let reviewSlotStatus = await runtimeSlotManager.getSlotStatus(reviewSlotId);
+        if (reviewSlotStatus?.context_size) {
+          resolvedContextWindowTokens = reviewSlotStatus.context_size;
+        }
+        const modelAlreadyReady =
+          runtimeSlotManager.isSlotReady(reviewSlotStatus) &&
+          reviewSlotStatus?.model_id === routing.modelId;
+        if (!modelAlreadyReady) {
+          if (!routing.modelId) {
+            throw new Error("target_slot_unavailable: kein Modell fuer Review-Slot aufgeloest");
+          }
+          appendStepDetail(
+            "repo-review-preflight",
+            `Arbeitsmodell '${routing.modelId}' fuer Slot ${reviewSlotId} wird gestartet ...`
+          );
+          const startResult = await runtimeSlotManager.startSlot(reviewSlotId, routing.modelId);
+          if (!startResult.success) {
+            throw new Error(startResult.error || `target_slot_unavailable: Start von ${reviewSlotId} fehlgeschlagen`);
+          }
+          reviewSlotStatus = await runtimeSlotManager.waitForSlotReady(reviewSlotId, 60_000);
+          if (!reviewSlotStatus || !runtimeSlotManager.isSlotReady(reviewSlotStatus)) {
+            throw new Error(`target_slot_unavailable: Slot ${reviewSlotId} wurde nicht rechtzeitig bereit`);
+          }
+          if (reviewSlotStatus.context_size) {
+            resolvedContextWindowTokens = reviewSlotStatus.context_size;
+          }
+        }
+        finishStep(
+          "repo-review-preflight",
+          "Runtime für Review vorbereiten",
+          `Slot ${reviewSlotId} bereit · Kontextfenster ${resolvedContextWindowTokens ?? "unbekannt, Fallback 8192"}`
+        );
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : "Review-Runtime nicht bereit";
+        const userMessage = "Der Ziel-Slot für den Repository Review ist nicht bereit.";
+        failStep("repo-review-preflight", "Runtime für Review vorbereiten", errMsg);
+        appendGenericRunFailure({
+          updateActiveRun,
+          outcome: "runtime_error",
+          summary: userMessage,
+          error: { code: "target_slot_unavailable", message: errMsg, phase: "routing" }
+        });
+        finalizeSendState({ set, get, activity, errorMessage: userMessage });
+        return false;
+      }
+
       beginStep("repo-review", "Repository Review Orchestrator");
       const workspaceId = workspaceScopeId(runWorkspaceRoot);
       const reviewRequest = buildRepositoryReviewRequest({
@@ -1203,6 +1276,39 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
         const errMsg = error instanceof Error ? error.message : "Slot-Status nicht lesbar";
         finishStep("slot-validation", "Slot-Status lesen", errMsg);
       }
+    }
+
+    // P0 Phase 3: Slot-Validierung nach dem Routing und vor dem Kontextaufbau
+    // Dies stellt sicher, dass wir keinen aufwändigen Kontext für einen Slot erstellen,
+    // der nicht bereit ist, die Anfrage anzunehmen.
+    beginStep("slot-readiness", "Slot-Bereitschaft prüfen");
+    try {
+      const backendUrl = useSettingsStore.getState().settings.backendUrl || "http://127.0.0.1:8876";
+      const readinessSlotId = contextSlotId as RuntimeSlotId;
+      const validation = await verifySlotForRequest(
+        backendUrl,
+        readinessSlotId,
+        routing.modelId!,
+        timeoutManager.getRouting(),
+        runAbortController.signal
+      );
+      if (!validation.ok) {
+        throw new Error(validation.error || "Slot validation failed");
+      }
+      finishStep("slot-readiness", "Slot-Bereitschaft prüfen", `Slot '${contextSlotId}' ist bereit.`);
+    } catch (error) {
+      const logMessage = error instanceof Error ? error.message : "Slot nicht bereit.";
+      const userMessage = "Der Ziel-Slot für das Modell ist nicht bereit.";
+
+      failStep("slot-readiness", "Slot-Bereitschaft prüfen", logMessage);
+      appendGenericRunFailure({
+        updateActiveRun,
+        outcome: "runtime_error",
+        summary: userMessage,
+        error: { code: "target_slot_unavailable", message: logMessage, phase: "routing" }
+      });
+      finalizeSendState({ set, get, activity, errorMessage: userMessage });
+      return false;
     }
 
     const orchestrationMessages: string[] = [];
@@ -1543,6 +1649,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
           const detail = error instanceof Error ? error.message : "Kontext-Orchestrierung nicht verfügbar";
           safeTraceEvents.push(createTraceEvent(initialRun.id, "context_pack_failed", "Kontext-Orchestrierung fehlgeschlagen", detail, "failed"));
           failStep("context-orchestrator", "Kontext-Orchestrierung", detail);
+          markRunDegraded(`Kontext-Orchestrierung nicht verfügbar: ${detail}`);
           console.info("Context orchestrator unavailable; continuing with existing retrieval pipeline:", error);
         }
       }
@@ -1599,6 +1706,8 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
                 });
               }
             } catch (error) {
+              const embeddingDetail = error instanceof Error ? error.message : "Embedding-Suche nicht verfügbar";
+              markRunDegraded(`Semantische Suche nicht verfügbar, lexikalisches RAG aktiv: ${embeddingDetail}`);
               console.info("Embedding retrieval unavailable; lexical RAG remains active:", error);
             }
           }
@@ -1609,6 +1718,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
           const detail = error instanceof Error ? error.message : "RAG nicht verfügbar";
           safeTraceEvents[safeTraceEvents.length - 1] = createTraceEvent(initialRun.id, "retrieval_completed", "RAG-Fallback", detail, "failed");
           failStep("rag-retrieval", "Repository-Kontext suchen", detail);
+          markRunDegraded(`Repository-Kontextsuche fehlgeschlagen, Antwort ohne RAG-Kontext: ${detail}`);
         }
       }
 

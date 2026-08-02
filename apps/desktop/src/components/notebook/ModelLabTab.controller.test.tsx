@@ -168,6 +168,9 @@ function createRoleAssignment(overrides: Partial<ModelLabRoleAssignment> = {}): 
     priority: 100,
     required_certifications: [],
     notes: "",
+    last_certification_run_id: null,
+    last_certification_score: null,
+    last_benchmark_run_id: null,
     created_at: "2026-07-31T00:00:00Z",
     updated_at: "2026-07-31T00:00:00Z",
     ...overrides

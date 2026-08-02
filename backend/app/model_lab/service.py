@@ -262,7 +262,9 @@ class ModelLabService:
 
     def benchmark_model(self, request: ModelBenchmarkRequest) -> ModelBenchmarkRun:
         message = "Benchmark-Messung gespeichert; echte Laufzeitmessung folgt ueber RuntimeAdapter-Gate."
-        return self.repository.create_benchmark_run(request, status="queued", message=message)
+        run = self.repository.create_benchmark_run(request, status="queued", message=message)
+        self.repository.update_role_assignment_cache(request.bundle_id, benchmark_run_id=run.id)
+        return run
 
     def certify_model(self, request: ModelCertificationRequest) -> ModelCertificationRecord:
         record = self.repository.upsert_certification(request)
