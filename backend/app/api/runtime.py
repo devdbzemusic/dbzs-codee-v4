@@ -361,9 +361,14 @@ def record_slot_health_event(
     request: RuntimeSlotHealthEventCreate,
     repository: ModelLabRepository = Depends(get_shared_model_lab_repository),
 ) -> RuntimeSlotHealthEvent:
-    if request.slot_id != slot_id:
-        raise HTTPException(status_code=400, detail="slot_id in path and body must match")
-    return repository.record_health_event(request)
+    """Persists a health/failure event for a slot. The `slot_id` in the body
+    is ignored in favour of the path parameter — callers may omit it or pass
+    any value; the path always wins."""
+    # Overwrite body slot_id with the authoritative path value so callers
+    # don't need to duplicate it and a mismatch never silently stores a
+    # phantom slot row.
+    coerced = request.model_copy(update={"slot_id": slot_id})
+    return repository.record_health_event(coerced)
 
 
 @router.post("/slots/sweep-idle")

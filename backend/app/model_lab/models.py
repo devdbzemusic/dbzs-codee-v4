@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, TYPE_CHECKING
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    pass
+
+# RuntimeSlotId is defined in runtime.schemas to avoid circular imports;
+# for the health-event models we inline the same Literal so this module
+# stays independent of the runtime package.
+_RuntimeSlotId = Literal["fast_gpu", "quality_cpu", "utility", "orchestrator_cpu", "vision_gpu"]
 
 
 ArtifactType = Literal[
@@ -462,7 +470,9 @@ RuntimeSlotHealthEventType = Literal[
 
 
 class RuntimeSlotHealthEventCreate(BaseModel):
-    slot_id: str
+    # Validated against the known slot IDs — unknown values are rejected at
+    # the Pydantic level rather than silently stored as phantom rows.
+    slot_id: _RuntimeSlotId
     model_id: str | None = None
     event_type: RuntimeSlotHealthEventType
     detail: str = ""
@@ -470,7 +480,7 @@ class RuntimeSlotHealthEventCreate(BaseModel):
 
 class RuntimeSlotHealthEvent(BaseModel):
     id: str
-    slot_id: str
+    slot_id: _RuntimeSlotId
     model_id: str | None = None
     event_type: RuntimeSlotHealthEventType
     detail: str = ""

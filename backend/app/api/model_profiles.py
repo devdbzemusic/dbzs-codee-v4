@@ -5,7 +5,7 @@ Model Profiles API: REST endpoints for profile management and multi-model orches
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
-from app.model_lab.repository import get_shared_model_lab_repository
+from app.model_lab.repository import ModelLabRepository, get_shared_model_lab_repository
 from app.models.profile_service import ProfileService
 from app.models.model_lab_bridge import resolve_bundle_to_model_id
 from app.runtime.multi_server_manager import MultiServerManager
@@ -323,6 +323,7 @@ def run_certification(
     request: CertificationRunRequest,
     runtime: RuntimeService = Depends(get_runtime_service),
     index_service: ModelIndexService = Depends(get_model_index_service),
+    repository: ModelLabRepository = Depends(get_shared_model_lab_repository),
 ) -> dict:
     if request.slot_id not in {"quality_cpu", "fast_gpu", "utility"}:
         raise HTTPException(status_code=422, detail="invalid slot_id")
@@ -337,7 +338,7 @@ def run_certification(
         model_index = index_service.load_cached_index() or index_service.build_index()
         model_id = resolve_bundle_to_model_id(
             request.bundle_id,
-            model_lab_repo=get_shared_model_lab_repository(),
+            model_lab_repo=repository,
             model_index=model_index,
         )
         if model_id is None:
@@ -353,7 +354,7 @@ def run_certification(
         model_version=request.model_version, bundle_id=request.bundle_id,
     )
     if request.bundle_id:
-        get_shared_model_lab_repository().update_role_assignment_cache(
+        repository.update_role_assignment_cache(
             request.bundle_id,
             certification_run_id=report.run_id,
             certification_score=report.score,
