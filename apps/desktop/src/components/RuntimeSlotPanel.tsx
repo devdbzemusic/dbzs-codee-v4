@@ -14,6 +14,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from "react";
+import type { RuntimeSlotHealthEvent } from "@dbzs/shared";
 import type { RuntimeSlotId } from "@/services/modelSelectionBroker";
 import { runtimeSlotManager, getRecentRoutingEvents, type RuntimeSlotStatus } from "@/services/runtimeSlotManager";
 import { getAllSlotHealthStates, getSlotHealthState } from "@/services/runtimeProcessSupervisor";
@@ -342,6 +343,70 @@ interface SlotCardProps {
   onSaveProfile: () => void;
 }
 
+const HEALTH_EVENT_LABELS: Record<string, string> = {
+  start: "Gestartet",
+  stop: "Gestoppt",
+  crash: "Abgestürzt",
+  restart_attempt: "Neustart-Versuch",
+  budget_exhausted: "Restart-Budget erschöpft",
+  oom: "Speicher erschöpft (OOM)"
+};
+
+/**
+ * Ausklappbare, persistente Health-/Failure-Historie eines Slots (Plan 15, Phase 6).
+ * Laedt erst beim ersten Aufklappen (nicht bei jedem Slot-Poll), damit das Panel
+ * nicht bei jedem der ueblichen 5s-Status-Refreshes zusaetzliche Requests feuert.
+ */
+const SlotHealthHistory: React.FC<{ slotId: RuntimeSlotId }> = ({ slotId }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [events, setEvents] = useState<RuntimeSlotHealthEvent[]>([]);
+
+  const toggle = useCallback(async () => {
+    const next = !isOpen;
+    setIsOpen(next);
+    if (next && !hasLoaded) {
+      setIsLoading(true);
+      try {
+        const history = await runtimeSlotManager.listSlotHealthEvents(slotId);
+        setEvents(history);
+      } finally {
+        setIsLoading(false);
+        setHasLoaded(true);
+      }
+    }
+  }, [isOpen, hasLoaded, slotId]);
+
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        onClick={() => void toggle()}
+        className="text-xs text-blue-300 underline decoration-dotted hover:text-blue-200"
+      >
+        {isOpen ? "Verlauf ausblenden" : "Verlauf anzeigen"}
+      </button>
+      {isOpen && (
+        <div className="mt-1 max-h-40 overflow-y-auto rounded border border-gray-700 bg-gray-900/60 p-1.5 text-xs text-gray-300">
+          {isLoading && <p className="text-gray-500">Lade Verlauf…</p>}
+          {!isLoading && events.length === 0 && <p className="text-gray-500">Kein Verlauf vorhanden.</p>}
+          {!isLoading &&
+            events.map((event) => (
+              <div key={event.id} className="border-b border-gray-800 py-0.5 last:border-b-0">
+                <span className="font-medium text-gray-200">
+                  {HEALTH_EVENT_LABELS[event.event_type] ?? event.event_type}
+                </span>{" "}
+                <span className="text-gray-500">{new Date(event.occurred_at).toLocaleString()}</span>
+                {event.detail && <p className="text-gray-400">{event.detail}</p>}
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const SlotCard: React.FC<SlotCardProps> = ({
   slot,
   compact,
@@ -474,6 +539,7 @@ const SlotCard: React.FC<SlotCardProps> = ({
                 : `Auto-Recovery: Neustart wird versucht (${healthState.restartAttempts}/3 in diesem Fenster).`}
             </p>
           )}
+          {!compact && <SlotHealthHistory slotId={slot.slot_id} />}
         </div>
 
         {/* Actions */}

@@ -19,6 +19,7 @@ const previewResourcePlanMock = vi.fn().mockResolvedValue({
   estimated_total_vram_bytes: 3_000_000_000
 });
 const autoStartSlotsMock = vi.fn();
+const listSlotHealthEventsMock = vi.fn().mockResolvedValue([]);
 const clearCacheMock = vi.fn().mockResolvedValue(true);
 const getRecentRoutingEventsMock = vi.fn().mockReturnValue([
   {
@@ -37,7 +38,8 @@ vi.mock("@/services/runtimeSlotManager", () => ({
     stopSlot: (...args: unknown[]) => stopSlotMock(...args),
     resolveDefaultModelForSlot: (...args: unknown[]) => resolveDefaultModelForSlotMock(...args),
     previewResourcePlan: (...args: unknown[]) => previewResourcePlanMock(...args),
-    autoStartSlots: (...args: unknown[]) => autoStartSlotsMock(...args)
+    autoStartSlots: (...args: unknown[]) => autoStartSlotsMock(...args),
+    listSlotHealthEvents: (...args: unknown[]) => listSlotHealthEventsMock(...args)
   },
   getRecentRoutingEvents: (...args: unknown[]) => getRecentRoutingEventsMock(...args)
 }));
@@ -100,6 +102,7 @@ describe("RuntimeSlotPanel", () => {
       context_size: 8192,
       estimated_total_vram_bytes: 3_000_000_000
     });
+    listSlotHealthEventsMock.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -199,5 +202,39 @@ describe("RuntimeSlotPanel", () => {
 
     expect(stopSlotMock).toHaveBeenCalledWith("fast_gpu");
     expect(startSlotMock).toHaveBeenCalled();
+  });
+
+  it("Verlauf anzeigen loads and renders persistent health history (Plan 15, Phase 6)", async () => {
+    listSlotHealthEventsMock.mockResolvedValue([
+      {
+        id: "evt-1",
+        slot_id: "fast_gpu",
+        model_id: "coder",
+        event_type: "restart_attempt",
+        detail: "Neustart nach Absturz",
+        occurred_at: "2026-07-12T20:05:00.000Z"
+      }
+    ]);
+
+    await act(async () => {
+      root.render(<RuntimeSlotPanel />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const toggleButton = findByText(container, "button", "Verlauf anzeigen");
+    expect(toggleButton).not.toBeNull();
+    expect(listSlotHealthEventsMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      toggleButton!.click();
+      await Promise.resolve();
+    });
+
+    expect(listSlotHealthEventsMock).toHaveBeenCalledWith("fast_gpu");
+    expect(container.textContent).toContain("Neustart-Versuch");
+    expect(container.textContent).toContain("Neustart nach Absturz");
+    expect(findByText(container, "button", "Verlauf ausblenden")).not.toBeNull();
   });
 });

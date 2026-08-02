@@ -1,7 +1,10 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.api.runtime import get_runtime_service
 from app.main import app
+from app.model_lab.repository import ModelLabRepository, get_shared_model_lab_repository
 from app.runtime.errors import RuntimeProviderError
 from app.runtime.schemas import (
     RuntimeChatMessage,
@@ -241,3 +244,41 @@ def test_runtime_api_warmup_slot() -> None:
     assert payload["ok"] is True
     assert payload["outcome"] == "inference_ready"
     assert payload["model_id"] == "planner-model"
+
+
+# --- Plan 15, Phase 6: persistent runtime slot health/failure history ---
+
+
+def test_runtime_api_records_and_lists_slot_health_events(tmp_path: Path) -> None:
+    repository = ModelLabRepository(db_path=tmp_path / "model_lab.sqlite3")
+    app.dependency_overrides[get_shared_model_lab_repository] = lambda: repository
+    client = TestClient(app)
+
+    post_response = client.post(
+        "/runtime/slots/fast_gpu/health-events",
+        json={"slot_id": "fast_gpu", "model_id": "coder.gguf", "event_type": "restart_attempt", "detail": "Versuch 1"},
+    )
+    get_response = client.get("/runtime/slots/fast_gpu/health-events")
+
+    app.dependency_overrides.clear()
+    assert post_response.status_code == 200
+    assert post_response.json()["event_type"] == "restart_attempt"
+    assert get_response.status_code == 200
+    events = get_response.json()
+    assert len(events) == 1
+    assert events[0]["slot_id"] == "fast_gpu"
+    assert events[0]["model_id"] == "coder.gguf"
+
+
+def test_runtime_api_rejects_mismatched_slot_id_on_health_event(tmp_path: Path) -> None:
+    repository = ModelLabRepository(db_path=tmp_path / "model_lab.sqlite3")
+    app.dependency_overrides[get_shared_model_lab_repository] = lambda: repository
+    client = TestClient(app)
+
+    response = client.post(
+        "/runtime/slots/fast_gpu/health-events",
+        json={"slot_id": "utility", "event_type": "start"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 400

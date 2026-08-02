@@ -439,6 +439,32 @@ class ModelFailureRecord(BaseModel):
     created_at: datetime
 
 
+RuntimeSlotHealthEventType = Literal[
+    "start",
+    "stop",
+    "crash",
+    "restart_attempt",
+    "budget_exhausted",
+    "oom",
+]
+
+
+class RuntimeSlotHealthEventCreate(BaseModel):
+    slot_id: str
+    model_id: str | None = None
+    event_type: RuntimeSlotHealthEventType
+    detail: str = ""
+
+
+class RuntimeSlotHealthEvent(BaseModel):
+    id: str
+    slot_id: str
+    model_id: str | None = None
+    event_type: RuntimeSlotHealthEventType
+    detail: str = ""
+    occurred_at: datetime
+
+
 class ModelFleetSummary(BaseModel):
     logical_models: list[LogicalModel]
     variants: list[ModelVariant]

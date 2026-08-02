@@ -42,11 +42,14 @@ from app.model_lab.models import (
     ModelVariant,
     RuntimeAdapterRecord,
     RuntimePresetRecord,
+    RuntimeSlotHealthEvent,
+    RuntimeSlotHealthEventCreate,
     ScanJob,
 )
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
+MAX_HEALTH_EVENTS_PER_SLOT = 200
 
 
 class ModelLabRepository:
@@ -286,11 +289,20 @@ class ModelLabRepository:
                     required_certifications TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS runtime_slot_health_events (
+                    id TEXT PRIMARY KEY,
+                    slot_id TEXT NOT NULL,
+                    model_id TEXT,
+                    event_type TEXT NOT NULL,
+                    detail TEXT NOT NULL DEFAULT '',
+                    occurred_at TEXT NOT NULL
+                );
                 CREATE INDEX IF NOT EXISTS idx_model_collection_members_bundle ON model_collection_members(bundle_id);
                 CREATE INDEX IF NOT EXISTS idx_model_role_assignments_role ON model_role_assignments(role, enabled, priority);
                 CREATE INDEX IF NOT EXISTS idx_certifications_bundle ON certifications(bundle_id, status);
                 CREATE INDEX IF NOT EXISTS idx_probe_runs_bundle ON probe_runs(bundle_id, started_at);
                 CREATE INDEX IF NOT EXISTS idx_model_variants_logical ON model_variants(logical_model_id, status);
+                CREATE INDEX IF NOT EXISTS idx_health_events_slot ON runtime_slot_health_events(slot_id, occurred_at);
                 """
             )
             _ensure_column(conn, "model_bundles", "health", "TEXT NOT NULL DEFAULT '{}'")
@@ -1224,6 +1236,62 @@ class ModelLabRepository:
             )
         return record
 
+    def list_health_events(self, slot_id: str | None = None, limit: int = 200) -> list[RuntimeSlotHealthEvent]:
+        with sqlite_connection(self.db_path) as conn:
+            if slot_id:
+                rows = conn.execute(
+                    "SELECT * FROM runtime_slot_health_events WHERE slot_id = ? ORDER BY occurred_at DESC LIMIT ?",
+                    (slot_id, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM runtime_slot_health_events ORDER BY occurred_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+        return [_health_event_from_row(row) for row in rows]
+
+    def record_health_event(self, request: RuntimeSlotHealthEventCreate) -> RuntimeSlotHealthEvent:
+        now = datetime.now(UTC)
+        record = RuntimeSlotHealthEvent(
+            id=uuid.uuid4().hex,
+            slot_id=request.slot_id,
+            model_id=request.model_id,
+            event_type=request.event_type,
+            detail=request.detail,
+            occurred_at=now,
+        )
+        with sqlite_connection(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO runtime_slot_health_events(id, slot_id, model_id, event_type, detail, occurred_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record.id,
+                    record.slot_id,
+                    record.model_id,
+                    record.event_type,
+                    record.detail,
+                    _dt(record.occurred_at),
+                ),
+            )
+            # Bounded retention (spec: last 200 events per slot) — prune on every insert
+            # rather than a separate background job, same approach as the boot orchestrator's
+            # in-memory log caps.
+            conn.execute(
+                """
+                DELETE FROM runtime_slot_health_events
+                WHERE slot_id = ? AND id NOT IN (
+                    SELECT id FROM runtime_slot_health_events
+                    WHERE slot_id = ?
+                    ORDER BY occurred_at DESC
+                    LIMIT ?
+                )
+                """,
+                (record.slot_id, record.slot_id, MAX_HEALTH_EVENTS_PER_SLOT),
+            )
+        return record
+
     def _passed_certifications(self, bundle_id: str) -> set[str]:
         with sqlite_connection(self.db_path) as conn:
             rows = conn.execute(
@@ -1832,6 +1900,17 @@ def _readiness_blockers(
     if routes and not any(route.routing_allowed for route in routes):
         blockers.append("routing:no_allowed_role")
     return blockers
+
+
+def _health_event_from_row(row: sqlite3.Row) -> RuntimeSlotHealthEvent:
+    return RuntimeSlotHealthEvent(
+        id=str(row["id"]),
+        slot_id=str(row["slot_id"]),
+        model_id=row["model_id"],
+        event_type=row["event_type"],
+        detail=str(row["detail"]),
+        occurred_at=_parse_dt(row["occurred_at"]),
+    )
 
 
 def _dt(value: datetime) -> str:

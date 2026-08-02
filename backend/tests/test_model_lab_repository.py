@@ -24,6 +24,7 @@ from app.model_lab.models import (
     ModelProbeRequest,
     ModelRoleAssignmentRequest,
     ModelSourceCreate,
+    RuntimeSlotHealthEventCreate,
 )
 from app.model_lab.repository import ModelLabRepository
 
@@ -516,3 +517,64 @@ def test_rebuild_logical_models_groups_quantized_variants(tmp_path: Path) -> Non
     assert set(logical[0].bundle_ids) == {"b1", "b2"}
     assert {variant.bundle_id for variant in variants} == {"b1", "b2"}
     assert {variant.quantization for variant in variants} == {"Q4_K_M", "Q8_0"}
+
+
+# --- Plan 15, Phase 6: persistent runtime slot health/failure history ---
+
+
+def test_record_health_event_and_list(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+
+    record = repo.record_health_event(
+        RuntimeSlotHealthEventCreate(
+            slot_id="fast_gpu",
+            model_id="qwenpaw-flash-2b.gguf",
+            event_type="restart_attempt",
+            detail="Slot abgestuerzt, Neustart Versuch 1",
+        )
+    )
+
+    assert record.id
+    assert record.slot_id == "fast_gpu"
+    assert record.event_type == "restart_attempt"
+
+    events = repo.list_health_events(slot_id="fast_gpu")
+    assert len(events) == 1
+    assert events[0].id == record.id
+    assert events[0].model_id == "qwenpaw-flash-2b.gguf"
+
+
+def test_list_health_events_filters_by_slot(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    repo.record_health_event(RuntimeSlotHealthEventCreate(slot_id="fast_gpu", event_type="start"))
+    repo.record_health_event(RuntimeSlotHealthEventCreate(slot_id="utility", event_type="start"))
+
+    fast_gpu_events = repo.list_health_events(slot_id="fast_gpu")
+    all_events = repo.list_health_events()
+
+    assert len(fast_gpu_events) == 1
+    assert fast_gpu_events[0].slot_id == "fast_gpu"
+    assert len(all_events) == 2
+
+
+def test_list_health_events_orders_newest_first(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    first = repo.record_health_event(RuntimeSlotHealthEventCreate(slot_id="fast_gpu", event_type="start"))
+    second = repo.record_health_event(RuntimeSlotHealthEventCreate(slot_id="fast_gpu", event_type="crash"))
+
+    events = repo.list_health_events(slot_id="fast_gpu")
+
+    assert [event.id for event in events] == [second.id, first.id]
+
+
+def test_health_event_pruning_keeps_last_200_per_slot(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    for _ in range(205):
+        repo.record_health_event(RuntimeSlotHealthEventCreate(slot_id="fast_gpu", event_type="start"))
+    repo.record_health_event(RuntimeSlotHealthEventCreate(slot_id="utility", event_type="start"))
+
+    fast_gpu_events = repo.list_health_events(slot_id="fast_gpu", limit=1000)
+    utility_events = repo.list_health_events(slot_id="utility", limit=1000)
+
+    assert len(fast_gpu_events) == 200
+    assert len(utility_events) == 1

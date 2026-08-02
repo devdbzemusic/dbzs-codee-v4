@@ -110,15 +110,34 @@ export async function checkAndRecoverSlots(nowMs: number = Date.now()): Promise<
           `[RuntimeSupervisor] Restart-Budget fuer ${slotId} erschoepft (${MAX_RESTART_ATTEMPTS} Versuche in ` +
             `${RESTART_BUDGET_WINDOW_MS / 60_000} Minuten) — manuelle Intervention noetig.`
         );
+        void runtimeSlotManager
+          .recordSlotHealthEvent(slotId, "budget_exhausted", {
+            modelId: lastKnownModelId,
+            detail: `${MAX_RESTART_ATTEMPTS} Neustart-Versuche in ${RESTART_BUDGET_WINDOW_MS / 60_000} Minuten erschoepft.`
+          })
+          .catch(() => {});
         continue;
       }
 
       console.warn(`[RuntimeSupervisor] Slot ${slotId} abgestuerzt, versuche Neustart mit ${lastKnownModelId}.`);
       lastRestartAtBySlot.set(slotId, nowMs);
+      void runtimeSlotManager.recordSlotHealthEvent(slotId, "crash", { modelId: lastKnownModelId }).catch(() => {});
       try {
         await runtimeSlotManager.restartSlot(slotId, lastKnownModelId);
+        void runtimeSlotManager
+          .recordSlotHealthEvent(slotId, "restart_attempt", {
+            modelId: lastKnownModelId,
+            detail: `Versuch ${getSlotHealthState(slotId).restartAttempts}/${MAX_RESTART_ATTEMPTS}`
+          })
+          .catch(() => {});
       } catch (error) {
         console.warn(`[RuntimeSupervisor] Neustart fuer ${slotId} fehlgeschlagen:`, error);
+        void runtimeSlotManager
+          .recordSlotHealthEvent(slotId, "restart_attempt", {
+            modelId: lastKnownModelId,
+            detail: `Fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`
+          })
+          .catch(() => {});
       }
     }
   }

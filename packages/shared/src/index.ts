@@ -1906,6 +1906,19 @@ export interface RuntimeSlotStatus extends RuntimeStatus {
   cache_type_v?: string | null;
 }
 
+export type RuntimeSlotHealthEventType = "start" | "stop" | "crash" | "restart_attempt" | "budget_exhausted" | "oom";
+
+/** Persistent per-slot health/failure history entry (Plan 15, Phase 6) — survives an
+ * app restart, unlike runtimeProcessSupervisor's in-memory-only SlotHealthState. */
+export interface RuntimeSlotHealthEvent {
+  id: string;
+  slot_id: RuntimeSlotId;
+  model_id: string | null;
+  event_type: RuntimeSlotHealthEventType;
+  detail: string;
+  occurred_at: string;
+}
+
 export interface RuntimeChatStreamDonePayload {
   type: "done";
   slot_id: RuntimeSlotId | null;

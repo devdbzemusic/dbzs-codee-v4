@@ -18,6 +18,8 @@ import type {
   RuntimeReadinessStage,
   RuntimeSlotStatus,
   RuntimeSlotId,
+  RuntimeSlotHealthEvent,
+  RuntimeSlotHealthEventType,
   RuntimeWarmupDiagnostics
 } from "@dbzs/shared";
 import { backendClient } from "@/services/backendClient";
@@ -792,6 +794,50 @@ export const runtimeSlotManager = {
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
+    }
+  },
+
+  /**
+   * Postet ein Health-/Failure-Event fuer einen Slot in die persistente Historie
+   * (Plan 15, Phase 6). Fire-and-forget und fehlertolerant: ein Fehlschlag hier
+   * darf die aufrufende Restart-/Recovery-Logik nie unterbrechen, deshalb wird
+   * nie geworfen — nur geloggt.
+   */
+  async recordSlotHealthEvent(
+    slotId: RuntimeSlotId,
+    eventType: RuntimeSlotHealthEventType,
+    options?: { modelId?: string | null; detail?: string }
+  ): Promise<void> {
+    try {
+      const backendUrl = await resolveBackendUrl();
+      await fetch(`${backendUrl}/runtime/slots/${slotId}/health-events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slot_id: slotId,
+          model_id: options?.modelId ?? null,
+          event_type: eventType,
+          detail: options?.detail ?? ""
+        })
+      });
+    } catch (error) {
+      console.warn(`[RuntimeSlotManager] Health-Event fuer ${slotId} konnte nicht gespeichert werden:`, error);
+    }
+  },
+
+  /**
+   * Liest die persistente Health-/Failure-Historie eines Slots (Plan 15, Phase 6).
+   * Liefert bei Fehlern eine leere Liste statt zu werfen — die "Verlauf"-Sektion
+   * soll nie den gesamten RuntimeSlotPanel zum Absturz bringen.
+   */
+  async listSlotHealthEvents(slotId: RuntimeSlotId, limit = 50): Promise<RuntimeSlotHealthEvent[]> {
+    try {
+      const backendUrl = await resolveBackendUrl();
+      const response = await fetch(`${backendUrl}/runtime/slots/${slotId}/health-events?limit=${limit}`);
+      if (!response.ok) return [];
+      return (await response.json()) as RuntimeSlotHealthEvent[];
+    } catch {
+      return [];
     }
   }
 };

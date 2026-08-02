@@ -41,7 +41,8 @@ from app.runtime.errors import RuntimeProviderError
 from app.runtime.gpu_detect import GpuInfo, detect_gpu
 from app.runtime.benchmark import run_benchmark, BenchmarkResult
 from app.runtime.model_test import run_model_test
-from app.model_lab.repository import get_shared_model_lab_repository
+from app.model_lab.models import RuntimeSlotHealthEvent, RuntimeSlotHealthEventCreate
+from app.model_lab.repository import ModelLabRepository, get_shared_model_lab_repository
 from app.models.discovery_mode import get_model_discovery_mode
 from app.models.index_service import ModelIndexService
 from app.settings.service import get_settings_service
@@ -312,6 +313,28 @@ def evict_runtime_slot(
     """Manual eviction — backs the "Runtime neu starten" UI button."""
     service.residency.mark_evicting(slot_id)
     return service.stop_model_for_slot(slot_id)
+
+
+@router.get("/slots/{slot_id}/health-events")
+def list_slot_health_events(
+    slot_id: RuntimeSlotId,
+    limit: int = 200,
+    repository: ModelLabRepository = Depends(get_shared_model_lab_repository),
+) -> list[RuntimeSlotHealthEvent]:
+    """Persistent history of start/stop/crash/restart events for a slot (Plan 15, Phase 6) —
+    survives an app restart, unlike runtimeProcessSupervisor's in-memory-only health state."""
+    return repository.list_health_events(slot_id=slot_id, limit=min(max(limit, 1), 200))
+
+
+@router.post("/slots/{slot_id}/health-events")
+def record_slot_health_event(
+    slot_id: RuntimeSlotId,
+    request: RuntimeSlotHealthEventCreate,
+    repository: ModelLabRepository = Depends(get_shared_model_lab_repository),
+) -> RuntimeSlotHealthEvent:
+    if request.slot_id != slot_id:
+        raise HTTPException(status_code=400, detail="slot_id in path and body must match")
+    return repository.record_health_event(request)
 
 
 @router.post("/slots/sweep-idle")
