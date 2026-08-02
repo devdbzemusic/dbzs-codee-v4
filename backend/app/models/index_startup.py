@@ -14,8 +14,10 @@ import asyncio
 import logging
 
 from app.core.boot_state import BootComponentError, BootStateStore
+from app.model_lab.repository import get_shared_model_lab_repository
 from app.models.discovery_mode import get_model_discovery_mode
 from app.models.index_service import ModelIndexService
+from app.settings.service import get_settings_service
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +65,11 @@ async def run_model_index_startup(store: BootStateStore, *, cache_only: bool = F
         logger.warning("Model index: skipping unreadable model %s: %s", identifier, exc)
 
     loop = asyncio.get_running_loop()
-    service = ModelIndexService(discovery_mode=get_model_discovery_mode())
+    service = ModelIndexService(
+        discovery_mode=get_model_discovery_mode(),
+        model_lab_repository=get_shared_model_lab_repository,
+        settings_service=get_settings_service(),
+    )
 
     try:
         if cache_only:

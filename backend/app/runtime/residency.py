@@ -11,9 +11,12 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from enum import Enum
+from typing import Literal
 
 from app.models.schemas import IndexedModel
 from app.runtime.schemas import RuntimeResidencyEntry, RuntimeResourcePlan, RuntimeSlotId
+
+RamPressureTier = Literal["none", "warn", "evict_idle", "evict_resident", "evict_all_but_floor"]
 
 
 class ResidencyPolicy(str, Enum):
@@ -64,6 +67,26 @@ def compute_launch_fingerprint(
     }
     encoded = json.dumps(payload, sort_keys=True, ensure_ascii=True).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def classify_ram_pressure(percent_used: float) -> RamPressureTier:
+    """Klassifiziert die prozentuale RAM-Auslastung in diskrete Handlungsstufen.
+
+    - < 80%: Keine Aktion.
+    - 80-85%: Warnung, kein Evict.
+    - 85-90%: Evict von `IDLE_EVICT`-Slots.
+    - 90-95%: Zusaetzlich Evict des aeltesten `KEEP_RESIDENT`-Slots.
+    - >= 95%: Evict aller idle Slots ausser dem Floor-Slot.
+    """
+    if percent_used >= 95.0:
+        return "evict_all_but_floor"
+    if percent_used >= 90.0:
+        return "evict_resident"
+    if percent_used >= 85.0:
+        return "evict_idle"
+    if percent_used >= 80.0:
+        return "warn"
+    return "none"
 
 
 class RuntimeResidencyRegistry:

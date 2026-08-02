@@ -99,7 +99,7 @@ class ModelIndexService:
         ollama_models_dir: Path | None = None,
         cache_dir: Path | None = None,
         discovery_mode: ModelDiscoveryMode = "local_with_ollama",
-        model_lab_repository: ModelLabRepository | None = None,
+        model_lab_repository: ModelLabRepository | Callable[[], ModelLabRepository] | None = None,
         settings_service: SettingsService | None = None,
     ) -> None:
         self.models_dir = models_dir or get_models_dir()
@@ -113,7 +113,21 @@ class ModelIndexService:
         # user registered in Model Lab, so every ad-hoc/test ModelIndexService()
         # construction must not silently touch real Model Lab data. Real app
         # call sites pass an actual ModelLabRepository explicitly to enable it.
-        self.model_lab_repository = model_lab_repository
+        #
+        # `model_lab_repository` may also be a zero-arg factory (Plan 15, Phase 2
+        # production wiring passes get_shared_model_lab_repository, not a
+        # pre-built instance): ModelLabRepository's constructor does real disk
+        # I/O (creates the sqlite file, runs schema migrations), so resolving it
+        # eagerly here would do that work on every ModelIndexService() call -
+        # including module-import-time singletons - even when the bridge setting
+        # is off. The factory form defers that work to _model_lab_bridge_active(),
+        # which only resolves it once the settings check has already passed.
+        if model_lab_repository is None or isinstance(model_lab_repository, ModelLabRepository):
+            self._model_lab_repository_factory: Callable[[], ModelLabRepository] | None = None
+            self._resolved_model_lab_repository: ModelLabRepository | None = model_lab_repository
+        else:
+            self._model_lab_repository_factory = model_lab_repository
+            self._resolved_model_lab_repository = None
         # Plan 15, Phase 2: an optional second gate on top of `model_lab_repository`.
         # When a settings_service is given, the bridge additionally requires
         # `enableModelLabRuntimeBridge=True`; without a settings_service, passing a
@@ -220,12 +234,22 @@ class ModelIndexService:
             pairings_by_id[pair.id] = pair
         return merged.model_copy(update={"multimodal_pairs": sorted(pairings_by_id.values(), key=lambda pair: pair.id)})
 
+    @property
+    def model_lab_repository(self) -> ModelLabRepository | None:
+        if self._resolved_model_lab_repository is None and self._model_lab_repository_factory is not None:
+            self._resolved_model_lab_repository = self._model_lab_repository_factory()
+        return self._resolved_model_lab_repository
+
     def _model_lab_bridge_active(self) -> bool:
-        if self.model_lab_repository is None:
+        # Check the settings gate BEFORE resolving model_lab_repository: when a
+        # factory was passed (production wiring), resolving it constructs a real
+        # ModelLabRepository (disk I/O, schema migrations) - only do that once we
+        # know the bridge is actually supposed to be on.
+        if self._resolved_model_lab_repository is None and self._model_lab_repository_factory is None:
             return False
-        if self.settings_service is None:
-            return True
-        return bool(self.settings_service.load().enableModelLabRuntimeBridge)
+        if self.settings_service is not None and not bool(self.settings_service.load().enableModelLabRuntimeBridge):
+            return False
+        return self.model_lab_repository is not None
 
     def _enrich_with_model_lab(self, index: ModelIndex) -> ModelIndex:
         if not self._model_lab_bridge_active():

@@ -433,3 +433,12 @@ class RuntimeResidencyEntry(BaseModel):
     started_at: str
     last_used_at: str
     idle_since: str | None = None
+
+
+class RuntimeRamPressureStatus(BaseModel):
+    """Plan 15, Phase 4: current system RAM pressure and what it implies for
+    slot eviction. `percent_used` is None when psutil isn't installed —
+    `tier` still reports "none" in that case (protection degrades gracefully).
+    """
+    percent_used: float | None
+    tier: Literal["none", "warn", "evict_idle", "evict_resident", "evict_all_but_floor"]

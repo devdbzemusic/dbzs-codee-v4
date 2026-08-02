@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 from app.core.gguf_metadata import GGUF_MAGIC
 from app.model_lab.models import ModelSourceCreate
-from app.model_lab.repository import ModelLabRepository
+from app.model_lab.repository import ModelLabRepository, get_shared_model_lab_repository
 from app.models.index_service import ModelIndexService, _infer_artifact_type
 from app.settings.models import AppSettings
 
@@ -790,3 +790,84 @@ def test_model_index_classifies_clip_projector_by_metadata_not_filename(tmp_path
 
     assert index.summary.total == 1
     assert index.models[0].artifact_type == "mmproj"
+
+
+def test_model_index_never_resolves_repository_factory_when_bridge_disabled(tmp_path: Path) -> None:
+    """Plan 15, Phase 2 production wiring: real call sites pass a zero-arg
+    factory (get_shared_model_lab_repository) instead of a pre-built
+    ModelLabRepository, since constructing one does real disk I/O (creates the
+    sqlite file, runs schema migrations). With the bridge setting off, that
+    factory must never be called - otherwise every ModelIndexService(...)
+    construction across the app would eagerly touch disk even when the
+    feature is disabled (this was a real bug: importing app.api.runtime
+    touched the real %LOCALAPPDATA% model_lab.sqlite3 at module-import time
+    before this factory indirection was added)."""
+    calls: list[int] = []
+
+    def factory() -> ModelLabRepository:
+        calls.append(1)
+        return ModelLabRepository(db_path=tmp_path / "should-not-be-created.sqlite3")
+
+    settings_service = MagicMock()
+    settings_service.load.return_value = AppSettings(enableModelLabRuntimeBridge=False)
+
+    service = ModelIndexService(
+        models_dir=tmp_path,
+        ollama_models_dir=tmp_path / "empty-ollama",
+        model_lab_repository=factory,
+        settings_service=settings_service,
+    )
+    service.build_index()
+    service.build_index()
+
+    assert calls == []
+    assert not (tmp_path / "should-not-be-created.sqlite3").exists()
+
+
+def test_model_index_resolves_repository_factory_once_when_bridge_enabled(tmp_path: Path) -> None:
+    """Mirror of the disabled case: with the setting on, the factory must be
+    called to actually get Model Lab data - but only once per
+    ModelIndexService instance (cached), even across multiple build_index()
+    calls, so repeated index builds don't repeatedly reopen the sqlite file."""
+    extra_dir = tmp_path / "extra"
+    extra_dir.mkdir()
+    (extra_dir / "extra-model.gguf").write_bytes(b"GGUF")
+
+    repository = ModelLabRepository(db_path=tmp_path / "model_lab.sqlite3")
+    repository.create_source(ModelSourceCreate(path=str(extra_dir)))
+
+    calls: list[int] = []
+
+    def factory() -> ModelLabRepository:
+        calls.append(1)
+        return repository
+
+    settings_service = MagicMock()
+    settings_service.load.return_value = AppSettings(enableModelLabRuntimeBridge=True)
+
+    service = ModelIndexService(
+        models_dir=tmp_path / "empty-primary",
+        ollama_models_dir=tmp_path / "empty-ollama",
+        model_lab_repository=factory,
+        settings_service=settings_service,
+    )
+    first = service.build_index()
+    second = service.build_index()
+
+    assert calls == [1]
+    assert first.summary.total == 1
+    assert second.summary.total == 1
+
+
+def test_get_shared_model_lab_repository_is_a_process_wide_singleton(tmp_path: Path, monkeypatch) -> None:
+    """The production factory itself must be cached (lru_cache) so repeated
+    ModelIndexService builds across the app don't reopen/re-migrate the
+    sqlite file on every call."""
+    monkeypatch.setattr("app.model_lab.repository.get_app_data_dir", lambda: tmp_path)
+    get_shared_model_lab_repository.cache_clear()
+    try:
+        first = get_shared_model_lab_repository()
+        second = get_shared_model_lab_repository()
+        assert first is second
+    finally:
+        get_shared_model_lab_repository.cache_clear()

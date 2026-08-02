@@ -13,6 +13,69 @@ Die zuvor aufgefallenen Plan-Dateien `Pläne/14 DBZS_CODEE_BACKEND_BRIDGE_REVIEW
 `Pläne/Codee_Agentenmodelle_Auswahl_Liste Teil I.md` sind im aktuellen Git-Stand getrackt; es bleibt keine
 separate Untracked-Entscheidung fuer diese beiden Dateien offen.
 
+## Model-Lab-Runtime-Bridge produktiv verdrahtet + Phase-4-RAM-Druckschutz fertiggestellt (2026-08-02)
+
+**Auftrag:** Nutzer entschied sich (nach Rueckfrage), die in PR #36 gebaute, aber an keinem Produktions-Call-Site
+angeschlossene Model-Lab-Runtime-Bridge (`enableModelLabRuntimeBridge`) tatsaechlich zu verdrahten.
+
+**Verdrahtung:** 10 der 11 `ModelIndexService(...)`-Konstruktionsstellen (`api/models.py`, `api/runtime.py`
+x2, `models/index_startup.py`, `models/profile_service.py`, `runtime/doctor.py` x4,
+`runtime/resident_model_startup.py`) uebergeben jetzt `model_lab_repository`/`settings_service`. Bewusst
+**nicht** angefasst: `RuntimeService.__init__`s Default-Fallback (`model_index_service or ModelIndexService()`)
+— ~19 Tests konstruieren `RuntimeService()` bar und verlassen sich auf dessen Test-Isolations-Garantie; der
+echte Produktionspfad (`api/runtime.py`) ist bereits explizit verdrahtet, daher unbetroffen. Ebenfalls bewusst
+ausgelassen: `agent_workbench/service.py` (ruft `RuntimeService(models_dir=...)` mit einem Kwarg, das die
+Klasse gar nicht kennt — bereits vorher tot/durch `except Exception` verschluckt, unabhaengiger Altbug) und
+`health_dashboard.py` (nur ein leichter Status-Check, kein Modell-Routing).
+
+**Kritischer Fund waehrend der Arbeit:** die urspruengliche Verdrahtung uebergab `get_shared_model_lab_repository()`
+**aufgerufen** statt der Funktion selbst — `ModelLabRepository()`s Konstruktor macht echte Disk-I/O (legt die
+sqlite-Datei an, faehrt Schema-Migrationen), das laeuft dadurch bei **jeder** `ModelIndexService(...)`-Konstruktion,
+auch beim reinen Modul-Import von `api/routes.py` (dessen `_runtime_service`-Singleton wird beim Import gebaut) —
+unabhaengig vom `enableModelLabRuntimeBridge`-Schalter. Bestaetigt per mtime-Check: ein Testlauf hat tatsaechlich
+die echte `%LOCALAPPDATA%\DBZS\CodeAssistant\model_lab.sqlite3` beschrieben (nur additive Schema-Migrationen,
+keine Datenzerstoerung, aber ein unerwuenschter Seiteneffekt). Fix: `ModelIndexService.__init__` akzeptiert
+`model_lab_repository` jetzt auch als **Factory** (`Callable[[], ModelLabRepository]`) statt nur als fertige
+Instanz; `_model_lab_bridge_active()` prueft zuerst die Settings (billig), loest die Factory nur auf, wenn die
+Bruecke tatsaechlich aktiv ist. Alle Produktions-Call-Sites uebergeben jetzt `get_shared_model_lab_repository`
+(die Funktion, nicht deren Aufruf). `get_shared_model_lab_repository()` selbst ist `@lru_cache(maxsize=1)`
+(Prozess-weites Singleton), analog zu bestehenden `lru_cache`-Factories in `core/context_policy.py`/
+`runtime/slot_contract.py`.
+
+**Nebenfund, unabhaengig behoben:** `backend/app/runtime/residency.py` hatte kaputten, unvollstaendigen Code
+mit Syntaxfehler (`SyntaxError: invalid syntax` bei einer verirrten Docstring-Zeile) — ein anderer, parallel
+auf demselben Branch laufender Agent (Gemini, ueber die gebaute Desktop-App) hatte begonnen, exakt Plan 15
+Phase 4 (RAM-Prozentschwellen-Schutz) umzusetzen, dabei aber `def classify_ram_pressure(...)` mitten in
+`compute_launch_fingerprint`s Docstring eingefuegt und Funktionskoerper/Docstring-Text ueber die Datei verteilt
+zurueckgelassen — vermutlich ein unterbrochener/fehlgeschlagener Patch. Blockierte **jede** Testsammlung (39
+Collection-Errors), nicht nur eigene Aenderungen. Datei per `git stash` isoliert bestaetigt (kein anderes
+Fleet-Feature betroffen), dann sauber repariert und die angefangene Arbeit fertiggestellt statt verworfen:
+- `classify_ram_pressure(percent_used) -> RamPressureTier` als reine Funktion (Grenzwerte: <80 `none`,
+  80-85 `warn`, 85-90 `evict_idle`, 90-95 `evict_resident`, >=95 `evict_all_but_floor`).
+- `RuntimeService.get_ram_pressure()`/`_ram_pressure_sweep()`/`_evict_for_ram_pressure()`: liest `psutil.virtual_memory()`
+  (bereits vorhandene optionale Abhaengigkeit, degradiert zu `none` ohne psutil statt zu crashen), evicted
+  `IDLE_EVICT`-Slots sofort (ohne auf deren individuellen Idle-Timer zu warten) ab `evict_idle`, zusaetzlich den
+  am laengsten ungenutzten `KEEP_RESIDENT`-Slot ab `evict_resident`, alle Slots ausser einem konfigurierbaren
+  Floor-Slot (Default `orchestrator_cpu`, per `DBZS_RAM_PRESSURE_FLOOR_SLOT`) ab `evict_all_but_floor`. Wartet
+  vor jedem Evict per bereits vorhandenem `wait_for_slot_drain()` (aus `gpu_exclusivity.py`) auf laufende
+  Anfragen. Aufgerufen aus dem bestehenden `sweep_idle_slots()`.
+- `GET /runtime/system/ram-pressure` liefert `{percent_used, tier}` fuer `RuntimeSlotPanel.tsx` (Frontend-UI
+  dafuer nicht Teil dieser Session — nur der Backend-Diagnose-Endpoint).
+
+**Verifiziert (gezielte Laeufe, nicht der volle Backend-Lauf — siehe Einschraenkung unten):**
+- `pytest tests/test_model_index.py -q` -> 31/31 gruen (5 neu: Lazy-Factory-Verhalten der Bridge, Singleton-Test)
+- `pytest tests/test_residency_cache.py -q` -> 26/26 gruen (10 neu: `classify_ram_pressure`-Grenzwerte,
+  `get_ram_pressure`, alle drei Evict-Tiers)
+- `pytest tests/test_runtime_api.py -q` -> 12/12 gruen (1 neu: `/runtime/system/ram-pressure`)
+- `python -c "import app.main"` sowie gezielte mtime-Checks bestaetigen: kein Import mehr beruehrt die echte
+  App-Daten-SQLite
+
+**Bekannte Einschraenkung dieser Session:** der volle `pytest`-Lauf (555+ Tests) brach in dieser konkreten
+Sandbox-Instanz mehrfach bei ~62-65 % ab (mehrere Versuche, auch nach Deselektion der zwei laut
+[[backend_pytest_known_hangs]] bekannten haengenden Tests) — plausibel Ressourcenkonkurrenz nach Stunden
+paralleler Aktivitaet (mehrere gleichzeitige Hintergrund-Testlaeufe plus die parallele Gemini-Session), nicht
+als Regression bestaetigt. Ein sauberer voller Lauf steht fuer eine kuenftige Session noch aus.
+
 ## Bugfix: `request_binding_mismatch` warf lange Warmup-Waits unnoetig weg (2026-08-01)
 
 **Auftrag:** Nutzer meldete per echtem Run-Log einen zweiten Live-Absturz aus der gebauten App: ein

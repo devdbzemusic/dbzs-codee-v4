@@ -43,6 +43,9 @@ class FakeRuntimeService:
     def get_logs(self) -> RuntimeLogsResponse:
         return RuntimeLogsResponse(state="stopped", stderr_tail="probe stderr")
 
+    def get_ram_pressure(self) -> tuple[float | None, str]:
+        return 91.5, "evict_resident"
+
 
 def test_runtime_api_starts_model() -> None:
     service = FakeRuntimeService()
@@ -66,6 +69,17 @@ def test_runtime_api_returns_status() -> None:
     app.dependency_overrides.clear()
     assert response.status_code == 200
     assert response.json()["state"] == "stopped"
+
+
+def test_runtime_api_returns_ram_pressure() -> None:
+    app.dependency_overrides[get_runtime_service] = lambda: FakeRuntimeService()
+    client = TestClient(app)
+
+    response = client.get("/runtime/system/ram-pressure")
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json() == {"percent_used": 91.5, "tier": "evict_resident"}
 
 
 def test_runtime_api_sends_chat_request() -> None:
