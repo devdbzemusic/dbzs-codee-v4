@@ -2,6 +2,51 @@
 
 Stand: 2026-08-03
 
+## Stufe 6 Schritt 4 — manuelle Abnahmen (Modell-Scan + Dual-Mode Vision) durchgefuehrt (2026-08-03)
+
+**Auftrag:** die im Plan zurueckgestellten GPU-/Ressourcen-lastigen manuellen Abnahmen aus Stufe 6 nachholen —
+Stufe 1 (`D:\Models\Agentic` echt scannen) und Stufe 5 (Dual-Mode Vision, echter Zwei-Prozess-Lauf) — gegen die
+echte, aus dem Hauptcheckout gebaute und gestartete App (nicht das Worktree, damit tatsaechlich der gepushte
+Stand `c8a0f59` getestet wird).
+
+**App-Start-Nebenfund:** Der Boot-Splash zeigte "No resident model could be started. Tried: fd32da0021a4c7b3"
+(die alte MiniCPM5-Bundle-ID) — der bereits heute frueher dokumentierte Orchestrator-Fix
+(`defaultOrchestratorModelId` → FunctionGemma) war nur in einer anderen App-Data-Instanz angewendet worden,
+nicht in der des Hauptcheckouts. Per `PATCH /settings` (`baseRevision`/`changes`-Form, `revision` 101→102)
+denselben, bereits heute verifizierten Fix hier ebenfalls angewendet (`defaultOrchestratorModelId` =
+`5e60205eac42f9a4`) — reine Konfigurationsaenderung, kein Code. Boot faellt beim naechsten Start nicht mehr
+auf den fehlgeschlagenen Resident-Model-Versuch zurueck.
+
+**Stufe 1 (Modell-Scan):** `D:\Models\Agentic` war bereits als Quelle registriert (frueherer Lauf, 2026-08-03
+01:39 UTC). Frischer Rescan ueber `POST /model-lab/scan` gegen den jetzt gemergten/gepushten Backend-Stand
+ausgeloest und per `GET /model-lab/jobs` live verfolgt (Fortschritt lief sauber `34/40` → `40/40`, bestaetigt
+den heute dokumentierten Fortschritts-Fix). Ergebnis: `status: completed`, 40 Dateien, 40 Artefakte, 21 Bundles,
+kein Fehler, Laufzeit 2026-08-03T22:36:48Z → 22:39:15Z (~2m27s).
+
+**Stufe 5 (Dual-Mode Vision, echter Zwei-Prozess-Lauf):** Ueber die Runtime-API (nicht UI-Klicks, da die
+frisch aus dem Hauptcheckout gebaute App kein per Name auflösbares computer-use-Ziel ist):
+1. `POST /runtime/slots/orchestrator_cpu/start` mit `functiongemma-270m-it.Q8_0` (`5e60205eac42f9a4`) →
+   `running`, PID, Port 8084, `chat_ready: true`.
+2. Gleichzeitig `POST /runtime/slots/vision_gpu/start` mit dem echten
+   `Qwen2.5-VL-3B-Instruct.Q4_K_M`-Modell (`59a1dc2f485d5b1f`) + verifiziertem
+   `projector_artifact_id` (`dfb11dffa10526c8`, per Model-Lab-Scan als `candidate`-Paar gefunden) →
+   `running`, `chat_ready: true`.
+3. Echtes Startkommando per `Get-CimInstance Win32_Process` ausgelesen (musste sofort nach dem Start erfolgen,
+   da `vision_gpu` per Idle-Eviction-Policy — `residency.py`, Plan 15 Phase 4 — sehr schnell wieder freigegeben
+   wird, wenn keine aktive Anfrage laeuft; kein Bug, erwartetes Verhalten):
+   `D:\win_runtimes\llama\vulkan-x64\llama-server.exe -m ...Qwen2.5-VL-3B-Instruct.Q4_K_M.gguf ... --gpu-layers 4
+   --mmproj D:\Models\Qwen2.5-VL-3B-Instruct-MM\Qwen2.5-VL-3B-Instruct.F16-mmproj.gguf ...` — `--mmproj`-Flag
+   wie erwartet vorhanden.
+4. Robusterer Nachweis unter echter Last: `vision_gpu` neu gestartet, echte Chat-Completion gegen
+   `http://127.0.0.1:8085/v1/chat/completions` gesendet (Antwort: `"OK. How can I assist you today?"`), waehrend
+   `orchestrator_cpu` durchgehend `running`/`chat_ready: true` blieb — bestaetigt echten gleichzeitigen
+   Zwei-Prozess-Betrieb (CPU-Text + GPU-Vision-mit-MMProj), nicht nur eine zufaellige Momentaufnahme.
+5. Beide Slots danach sauber per `POST /runtime/slots/{id}/stop` beendet.
+
+**Damit ist Stufe 6 (Agentic Fleet Abschlussverifikation) vollstaendig abgeschlossen** — automatisierter
+Verifikationslauf, `test_runtime_doctor.py`-Root-Cause-Fix und beide zuvor zurueckgestellten manuellen
+Abnahmen sind erledigt.
+
 ## Stufe 6 (Agentic Fleet Abschlussverifikation) durchgefuehrt: 2 echte Bugs gefunden und behoben, test_runtime_doctor.py-Haenger root-caused (2026-08-03)
 
 **Auftrag:** Abschlussverifikation der Stufen 2-5 des Agentic-Fleet-Lueckenschluss-Stufenplans (`TODO.md`/`TODO_NEXT.md`)

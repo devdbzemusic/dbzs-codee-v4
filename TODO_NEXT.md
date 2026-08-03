@@ -5,7 +5,7 @@ Stand: 2026-08-03
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
 
-## Stufe 6 (Agentic Fleet Abschlussverifikation) — TEILWEISE BEHOBEN
+## Stufe 6 (Agentic Fleet Abschlussverifikation) — VOLLSTAENDIG BEHOBEN
 
 Voller Verifikationslauf gegen den PR-#48-gemergten Stand durchgefuehrt (Hauptcheckout). Dabei zwei echte Bugs
 gefunden und behoben: (1) fehlendes `await` vor `brokerDecision(...)` in `visionContextPackService.ts` — machte
@@ -22,9 +22,15 @@ HANDOVER.md.
 STUFENPLAN.md` existiert in diesem Checkout nicht mehr (per `dd7de6d` aus Git entfernt, auch nicht mehr auf der
 Platte) — Nachverfolgung laeuft ab jetzt ueber `HANDOVER.md`/`TODO_NEXT.md`.
 
+Stufe 1 (`D:\Models\Agentic` real scannen) und Stufe 5 (Dual-Mode-Vision, echter Zwei-Prozess-Lauf mit echtem
+Qwen2.5-VL/MMProj) sind jetzt ebenfalls durchgefuehrt und verifiziert (App aus dem Hauptcheckout gebaut/gestartet,
+`--mmproj`-Flag im echten Launch-Kommando bestaetigt, echte Chat-Antwort waehrend gleichzeitigem
+`orchestrator_cpu`-Betrieb erhalten). Dabei nebenbei gefunden: `defaultOrchestratorModelId` in dieser
+App-Data-Instanz zeigte noch auf die alte MiniCPM5-Bundle-ID (derselbe, heute frueher schon einmal in einer
+anderen Instanz behobene Fehler) — per `PATCH /settings` auf `functiongemma-270m-it.Q8_0` umgestellt. Details
+siehe HANDOVER.md.
+
 **Noch offen:**
-- Stufe 1 (`D:\Models\Agentic` echt scannen) und Stufe 5 (Dual-Mode-Vision, echter Zwei-Prozess-Lauf) — GPU-/
-  Ressourcen-lastige manuelle Abnahmen, bewusst noch nicht durchgefuehrt (Ruecksprache noetig, siehe HANDOVER.md).
 - Neu entdeckt: `test-fixtures/runtime-chat-tuning-lab/models/` fehlt komplett (README verspricht drei
   `.gguf`-Platzhalter, keine im Checkout/Git-Verlauf) — ein Backend-Test schlaegt deswegen fehl
   (`test_runtime_chat_tuning_lab_contains_three_gguf_models`), separat klaeren.
