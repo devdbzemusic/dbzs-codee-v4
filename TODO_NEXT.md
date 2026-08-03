@@ -5,6 +5,17 @@ Stand: 2026-08-03
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
 
+## Residentes-Basismodell-Fehler (MiniCPM5-Tokenizer) — BEHOBEN
+
+`defaultOrchestratorModelId` von MiniCPM5-1B (Tokenizer vom installierten llama-server Build 8454 nicht
+unterstuetzt) auf `functiongemma-270m-it.Q8_0` umgestellt — live getestet vor der Umstellung, per komplettem
+Backend-Neustart verifiziert: `residentModel: "success"`, Status nicht mehr `"degraded"`. Reine
+Config-Aenderung. Details siehe HANDOVER.md.
+
+**Noch offen, bewusst nicht gewaehlt:** llama-server.exe-Upgrade (aktuell Build 8454, neuestes Release
+b10236) wuerde MiniCPM5 zum Laufen bringen, betrifft aber ALLE Modelle im System und braucht danach einen
+breiten Test aller anderen Modelle — Risiko/Aufwand-Tradeoff mit Nutzer abgeklaert, aktuell nicht gewuenscht.
+
 ## Trivialfragen bekamen faelschlich den vollen Tool-Katalog in den Prompt — BEHOBEN
 
 `estimateProviderToolBudget()` hat keinen `taskType`-Parameter — der Tool-Katalog wurde rein basierend auf
