@@ -111,7 +111,16 @@ class ModelLabService:
         total_files = 0
         try:
             for source in sources:
-                output = self.scanner.scan_source(source)
+                completed_before_this_source = total_files
+
+                def _report_progress(done: int, total: int, *, _source=source) -> None:
+                    self.repository.report_scan_progress(
+                        job.id,
+                        total_files=completed_before_this_source + done,
+                        message=f"{_source.name}: {done}/{total} Dateien gescannt (Hash-Berechnung laeuft)",
+                    )
+
+                output = self.scanner.scan_source(source, on_progress=_report_progress)
                 self.repository.save_scan_output(
                     source=source,
                     artifacts=output.artifacts,

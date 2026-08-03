@@ -2,6 +2,34 @@
 
 Stand: 2026-08-03
 
+## Model-Lab-Scan zeigt jetzt echten Fortschritt statt bei 0 zu haengen (2026-08-03)
+
+**Auftrag:** Nutzer bat, den zuvor dokumentierten Root Cause des scheinbar haengenden Model-Lab-Vollscans
+tatsaechlich zu beheben, falls moeglich ("fix the root cause if possible").
+
+**Fix:** `ScanJob` hatte bereits `progress_message`/`total_files`-Felder (frueher per `_ensure_column`-
+Migration ergaenzt), sie wurden waehrend eines laufenden Scans nur nie beschrieben — `total_files` stand
+erst nach dem KOMPLETTEN Scan (inkl. aller SHA-256-Hashes) fest. Rein additiv nachgezogen, kein Schema-
+Wechsel noetig:
+- `ModelLabScanner.scan_source()` nimmt jetzt einen optionalen `on_progress(done, total)`-Callback und ruft
+  ihn nach dem (schnellen) Verzeichnis-Walk sofort mit dem echten `total`, danach nach jeder einzelnen
+  gehashten Datei.
+- Neue schlanke `ModelLabRepository.report_scan_progress()`-Methode schreibt nur `total_files`/
+  `progress_message`, beruehrt nie `status`/`completed_at` — kann also nie mit dem finalen
+  "completed"/"failed"-Write kollidieren.
+- `ModelLabService.run_scan()` verdrahtet den Callback pro Quelle, mit korrekt laufender Summe ueber
+  mehrere Quellen hinweg (Agentic + Models + .ollama nacheinander).
+
+**Wichtig:** das ist kein Deadlock-Fix wie die zwei Boot-Haenger von heute frueh — der Scan selbst bleibt
+inhaerent langsam (volles SHA-256 ueber jede Modelldatei, teils mehrere GB), das war so beabsichtigt/
+notwendig fuer Dedup. Der Fix macht das nur sichtbar statt es zu beschleunigen.
+
+**Verifiziert:** neuer Backend-Test (`test_model_lab_scan_reports_progress_incrementally`) prueft per Spy auf
+`report_scan_progress`, dass jeder Fortschritts-Tick tatsaechlich synchron in der DB landet, nicht nur dass
+die Methode aufgerufen wurde. Live gegen echten Backend-Prozess bestaetigt: Scan der "Agentic"-Quelle
+(35 Dateien) lief ~99s und zeigte dabei per `GET /model-lab/jobs`-Polling durchgehend echten Fortschritt
+(`2/35` -> `35/35`) statt die ganze Zeit bei 0 zu stehen. Voller Backend-Testlauf 615/615 gruen.
+
 ## Rollenmatrix vollstaendig verdrahtet: 2 neue Settings-Felder + 3 tote Routing-Felder repariert, Modelle zertifiziert (2026-08-03)
 
 **Auftrag:** Nutzer gab eine Rollen-/Workflow-/Modellmatrix vor (`Pläne/check/01 DBZS_CODEE_V4_ROLLE_WORKFLOW_MODELL_MATRIX_2026-08-03.md`), zunaechst eine 9-Zeilen-, dann eine ueberarbeitete 9-Zeilen-Tabelle (Chat/Orchestrator/Workflow Routing/Planung/Coding/Debugging/Review/Dokumentation/Kontroll-Fallback). Bat anschliessend explizit um Zertifizierung der zugewiesenen Modelle und danach "mach das so" zur Bestaetigung, die fehlenden Settings-Felder + Routing-Verdrahtung zu ergaenzen.

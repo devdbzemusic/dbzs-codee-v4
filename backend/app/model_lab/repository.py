@@ -390,6 +390,16 @@ class ModelLabRepository:
             )
         return job
 
+    def report_scan_progress(self, job_id: str, *, total_files: int, message: str) -> None:
+        """Lightweight incremental update during a still-running scan -- unlike
+        update_scan_job(), does not touch status/bundle_count/completed_at, so a
+        progress tick can never race the final "completed"/"failed" write."""
+        with sqlite_connection(self.db_path) as conn:
+            conn.execute(
+                "UPDATE scan_jobs SET total_files = ?, progress_message = ? WHERE id = ?",
+                (total_files, message, job_id),
+            )
+
     def update_scan_job(
         self,
         job_id: str,
