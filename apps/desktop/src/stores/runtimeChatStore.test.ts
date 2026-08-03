@@ -618,6 +618,41 @@ describe("useRuntimeChatStore", () => {
     expect(lastRun?.workflowLabel).toBe("Hallo");
   });
 
+  it("does not stuff the tool catalog into the prompt for a plain casual_chat question, even with tools enabled", async () => {
+    // Regression for a live bug report: a non-technical question ("der Satz
+    // des Pythagoras?") got a fabricated "action plan" referencing unrelated
+    // open-project files. taskType correctly classified as casual_chat (not
+    // routed to the coder agent), but estimateProviderToolBudget() has no
+    // taskType input -- it only gates on the session-wide toolsEnabled
+    // permission level, so the full tool catalog was included in the prompt
+    // regardless, and the model followed that framing anyway. This message
+    // deliberately does not match isTrivialConversationMessage's narrow
+    // whitelist (unlike "Hallo" above), so it exercises the real classifier.
+    vi.mocked(backendClient.getRuntimeStatus).mockResolvedValue(runningStatus);
+
+    await useRuntimeChatStore.getState().sendMessage(
+      "der Satz des Pythagoras ?",
+      runningStatus,
+      null,
+      undefined,
+      undefined,
+      "runtime_chat",
+      {
+        agentMode: "auto",
+        toolsEnabled: true,
+        workspaceRoot: "C:/workspace/demo"
+      } as any
+    );
+
+    const sentRequest = sendChatStreamMock.mock.calls[0]?.[0] as
+      | { messages?: Array<{ content?: string }> }
+      | undefined;
+
+    expect(sendChatStreamMock).toHaveBeenCalled();
+    const messageTexts = (sentRequest?.messages ?? []).map((message) => message.content ?? "");
+    expect(messageTexts.some((text) => text.includes("[Tool Catalog]"))).toBe(false);
+  });
+
   it("maps backend 409 runtime errors to a restart hint", async () => {
     vi.mocked(backendClient.getRuntimeStatus)
       .mockResolvedValue(runningStatus);
