@@ -102,7 +102,7 @@ describe("runtimeSlotManager", () => {
     it("sollte Slot starten", async () => {
       const mockStatus: RuntimeSlotStatus = {
         slot_id: "quality_cpu",
-        state: "starting",
+        state: "running",
         provider: "llama.cpp",
         model_id: "qwen2.5-coder-7b",
         model_name: "Qwen2.5-Coder-7B-Instruct",
@@ -147,10 +147,47 @@ describe("runtimeSlotManager", () => {
       expect(result.error).toContain("400");
     });
 
+    it("erkennt einen Ladefehler auch bei HTTP 200, wenn state nicht 'running' ist", async () => {
+      // POST /slots/{id}/start blocks synchronously until llama-server either
+      // becomes reachable or the launch fails, then always answers HTTP 200
+      // with the resulting RuntimeStatus -- a load failure is state:"error"
+      // in an otherwise-ok body, never a non-2xx response. Without this
+      // check, callers treated this as success and only discovered the
+      // (already-known) failure after burning waitForSlotReady's full
+      // timeout on a generic message.
+      const errorStatus: RuntimeSlotStatus = {
+        slot_id: "fast_gpu",
+        state: "error",
+        provider: null,
+        model_id: null,
+        model_name: null,
+        port: null,
+        pid: null,
+        endpoint: null,
+        message: "Model load failed",
+        stderr_tail: "error loading model vocabulary: unknown pre-tokenizer type: 'minicpm5'",
+        device_policy: "auto",
+        gpu_layers: null,
+        context_size: null,
+        chat_ready: false
+      };
+
+      (fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => errorStatus
+      });
+
+      const result = await runtimeSlotManager.startSlot("fast_gpu", "minicpm5-1b");
+
+      expect(result.success).toBe(false);
+      expect(result.status).toEqual(errorStatus);
+      expect(result.error).toContain("unknown pre-tokenizer type: 'minicpm5'");
+    });
+
     it("sendet projector_artifact_id fuer Dual-Mode-Vision-Starts mit (Plan 15, Phase 5)", async () => {
       const mockStatus: RuntimeSlotStatus = {
         slot_id: "vision_gpu",
-        state: "starting",
+        state: "running",
         provider: "llama.cpp",
         model_id: "vision-model",
         model_name: "Vision Model",

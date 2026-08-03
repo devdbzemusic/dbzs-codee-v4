@@ -339,6 +339,26 @@ export const runtimeSlotManager = {
 
       const status = await response.json() as RuntimeSlotStatus;
 
+      // POST /slots/{id}/start blocks synchronously until llama-server either
+      // becomes reachable or the launch attempt fails, then always answers
+      // HTTP 200 with the resulting RuntimeStatus -- a load failure (wrong
+      // model, unsupported tokenizer, OOM, ...) is never a non-2xx response,
+      // it's state:"error"/"stopped" in an otherwise-ok body. Before this
+      // check, that real, already-known, often highly specific failure
+      // (e.g. "unknown pre-tokenizer type") was silently treated as success,
+      // so callers went on to waitForSlotReady() and burned its full timeout
+      // discovering via a generic "not ready" message what the backend had
+      // actually already told us within seconds.
+      if (status.state !== "running") {
+        const detail = [status.message, status.stderr_tail].filter(Boolean).join(" ");
+        return {
+          success: false,
+          slotId,
+          status,
+          error: detail || `Modell konnte nicht geladen werden (Status: ${status.state}).`
+        };
+      }
+
       return {
         success: true,
         slotId,

@@ -5,6 +5,18 @@ Stand: 2026-08-03
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
 
+## Chat-Cold-Start meldet Ladefehler sofort statt vollen Timeout abzuwarten — BEHOBEN
+
+`POST /runtime/slots/{id}/start` blockiert im Backend bis Erfolg/Fehler, antwortet aber IMMER mit HTTP 200
+(Ladefehler = `state: "error"` im Body, nie Non-2xx). `startSlot()` im Frontend pruefte nur `response.ok` —
+ein Ladefehler wurde als Erfolg gewertet, der Aufrufer verbrannte danach den vollen `waitForSlotReady()`-
+Timeout fuer eine generische Meldung statt der echten, sofort verfuegbaren Fehlerursache. Jetzt geprueft:
+`status.state !== "running"` -> sofortiger, praeziser Fehler inkl. `stderr_tail`. Details siehe HANDOVER.md.
+
+**Noch offen:** echte visuelle Lade-Fortschrittsanzeige (Tensor-Ladeprozent o.ae.) braeuchte einen
+asynchronen Slot-Start statt der aktuellen blockierenden Single-Request-Architektur — bewusst nicht
+ungefragt umgesetzt, siehe HANDOVER.md fuer Optionen.
+
 ## Model-Lab-Scan zeigt jetzt echten Fortschritt statt bei 0 zu haengen — BEHOBEN
 
 `ScanJob.total_files`/`progress_message` existierten bereits im Schema, wurden waehrend eines laufenden
