@@ -2,6 +2,34 @@
 
 Stand: 2026-08-03
 
+## Residentes-Basismodell-Fehler behoben: Orchestrator auf kompatibles Modell umgestellt (2026-08-03)
+
+**Auftrag:** "fix Residentes Basis Model issue" — MiniCPM5-1B (Orchestrator-Modell aus der Rollenmatrix) schlug
+beim Boot-Autostart fehl (`residentModel: "failed"`, Backend blieb dauerhaft im "degraded"-Status).
+
+**Root Cause (bereits frueher heute per Live-Trace gefunden):** `error loading model vocabulary: unknown
+pre-tokenizer type: 'minicpm5'` — der installierte llama-server (Build 8454, Commit fb78ad29b) unterstuetzt
+MiniCPM5s Tokenizer-Typ nicht. Kein Code-Bug, sondern eine Modell/Runtime-Versionsinkompatibilitaet.
+
+**Zwei moegliche Fixes mit sehr unterschiedlichem Risiko, per AskUserQuestion abgeklaert** (Nutzer waehlte
+die sichere Option):
+1. Orchestrator-Modell wechseln (gewaehlt) — schnell, risikofrei, betrifft nur diese eine Rolle.
+2. llama-server.exe aktualisieren (nicht gewaehlt) — aktuell 8454, neuestes Release ist b10236 (viele Monate
+   Differenz), wuerde ALLE Modelle im System betreffen, nicht nur MiniCPM5 — deutlich groesseres Risiko ohne
+   breiten Test aller anderen bereits funktionierenden Modelle.
+
+**Fix:** `defaultOrchestratorModelId` auf `functiongemma-270m-it.Q8_0` (`5e60205eac42f9a4`, `D:\Models\`)
+umgestellt — Gemma-basierte Architektur, deutlich verbreiteter/besser unterstuetzt als MiniCPM5s neuerer
+Tokenizer. Vor der Einstellungs-Aenderung live per `POST /runtime/slots/orchestrator_cpu/start` getestet
+(nicht blind angenommen) — laedt sauber, `chat_ready: true`. Zertifiziert (CHAT_VERIFIED,
+TOOL_CALLING_VERIFIED, passendes Ersatz-Bundle da der exakte `D:\Models`-Pfad noch nicht in Model Lab
+katalogisiert war, gleiches Muster wie beim Kontroll-Fallback-Modell frueher heute).
+
+**Verifiziert per komplettem Neustart des Backends** (nicht nur Einzel-Slot-Test): `GET /health/ready` zeigt
+jetzt `"status": "ready"` (vorher dauerhaft `"degraded"`) und `"residentModel": "success"` (vorher
+`"failed"`). Reine Konfigurations-/Datenaenderung, kein Code-Commit noetig — MiniCPM5 bleibt fuer alle
+anderen bereits zugewiesenen Rollen unveraendert (nur Orchestrator betroffen).
+
 ## Trivialfragen bekamen faelschlich den vollen Tool-Katalog in den Prompt gestopft (2026-08-03)
 
 **Auftrag:** Live-Bug-Report per Screenshot — Frage "der Satz des Pythagoras?" bekam als Antwort einen
