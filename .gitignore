@@ -49,9 +49,11 @@ dev-trace-*.log
 .pytest-local-tmp/
 artifacts/
 
-# Local models (but not the backend's own models/ Python source package)
+# Local models (but not the backend's own models/ Python source package,
+# and not the small placeholder .gguf fixtures used by backend tests)
 models/
 !backend/app/models/
+!test-fixtures/runtime-chat-tuning-lab/models/
 
 # Local workspace / dev data
 apps/desktop/electron-data/

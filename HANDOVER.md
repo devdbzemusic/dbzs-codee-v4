@@ -2,6 +2,30 @@
 
 Stand: 2026-08-03
 
+## Fehlende .gguf-Fixture-Dateien ergaenzt: Backend-Suite jetzt vollstaendig gruen (2026-08-03)
+
+**Auftrag:** die in Stufe 6 neu entdeckte Luecke schliessen — `test-fixtures/runtime-chat-tuning-lab/models/`
+existierte trotz README-Verweis ("Enthaelt drei .gguf-Dateien fuer direkte Workspace-Intents wie `count_files`")
+nirgendwo im Checkout oder in der Git-Historie (kein einziger Commit hat sie je hinzugefuegt).
+
+**Klaerung vor dem Fix:** `test_runtime_chat_tuning_lab_fixture.py::test_runtime_chat_tuning_lab_contains_three_
+gguf_models` nennt die exakt erwarteten Pfade; `scenarios.json`s `workspace-count-gguf`-Szenario
+(`workflow: count_files`, `expected.count: 3`, `expected.paths: ["models/qwen","models/utility"]`) bestaetigt:
+die Dateien werden nur fuer eine Datei-/Pfad-Zaehl-Query gebraucht, nie fuer echtes Modell-Laden — dasselbe
+Muster wie `_write_gguf_catalog()` in `test_runtime_doctor.py` (`write_bytes(b"GGUF")`-Platzhalter).
+
+**Fix:** drei Platzhalterdateien mit demselben `GGUF`-Minimalinhalt angelegt:
+- `test-fixtures/runtime-chat-tuning-lab/models/qwen/Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf`
+- `test-fixtures/runtime-chat-tuning-lab/models/qwen/Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf`
+- `test-fixtures/runtime-chat-tuning-lab/models/utility/embedding-small.gguf`
+
+Kein `.gitignore`-Eintrag fuer `*.gguf` vorhanden, also nichts, was das Committen bisher verhindert haette —
+einfach nie angelegt worden.
+
+**Verifiziert:** `test_runtime_chat_tuning_lab_fixture.py` isoliert 3/3 gruen. Kompletter Backend-Lauf jetzt
+**633/633 gruen** in 284.73s (vorher 632/633 mit genau diesem einen Fehlschlag) — Stufe 6 damit restlos
+abgeschlossen, keine bekannten offenen Testluecken mehr.
+
 ## Stufe 6 Schritt 4 — manuelle Abnahmen (Modell-Scan + Dual-Mode Vision) durchgefuehrt (2026-08-03)
 
 **Auftrag:** die im Plan zurueckgestellten GPU-/Ressourcen-lastigen manuellen Abnahmen aus Stufe 6 nachholen —

@@ -30,10 +30,11 @@ App-Data-Instanz zeigte noch auf die alte MiniCPM5-Bundle-ID (derselbe, heute fr
 anderen Instanz behobene Fehler) — per `PATCH /settings` auf `functiongemma-270m-it.Q8_0` umgestellt. Details
 siehe HANDOVER.md.
 
-**Noch offen:**
-- Neu entdeckt: `test-fixtures/runtime-chat-tuning-lab/models/` fehlt komplett (README verspricht drei
-  `.gguf`-Platzhalter, keine im Checkout/Git-Verlauf) — ein Backend-Test schlaegt deswegen fehl
-  (`test_runtime_chat_tuning_lab_contains_three_gguf_models`), separat klaeren.
+Die zuvor fehlende `test-fixtures/runtime-chat-tuning-lab/models/`-Fixture ist ebenfalls ergaenzt (drei
+`GGUF`-Platzhalterdateien, exakt an den vom Test erwarteten Pfaden) — kompletter Backend-Lauf jetzt
+**633/633 gruen**, keine bekannten offenen Testluecken mehr. Details siehe HANDOVER.md.
+
+**Noch offen:** keine bekannten Punkte mehr aus Stufe 6.
 
 ## Residentes-Basismodell-Fehler (MiniCPM5-Tokenizer) — BEHOBEN
 
