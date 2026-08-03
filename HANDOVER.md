@@ -2,6 +2,41 @@
 
 Stand: 2026-08-03
 
+## Chat-Cold-Start meldet Ladefehler sofort statt vollen Timeout abzuwarten (2026-08-03)
+
+**Auftrag:** Nutzer beschwerte sich ueber "ewige Timeouts", die "jeden noch so praezisen Workflow zerstoeren",
+und wollte den Lade-/Aufwaerm-Status von llama-server sichtbar machen, mit Folgeaktionen die erst nach
+echtem chat_ready fortfahren. Live-Trace vom MiniCPM5-1B-Ladefehler (siehe Eintrag unten) als Beispiel.
+
+**Root Cause gefunden:** `POST /runtime/slots/{id}/start` blockiert im Backend synchron
+(`wait_for_runtime_endpoint()`, `time.sleep`-Schleife in `launch.py`) bis llama-server entweder erreichbar
+wird oder der Start fehlschlaegt — und antwortet dabei IMMER mit HTTP 200, auch bei einem Ladefehler
+(`state: "error"` im Body, nie ein Non-2xx-Status). `runtimeSlotManager.startSlot()` (Frontend) hat aber nur
+`response.ok` geprueft — ein Ladefehler (z. B. der bereits bekannte "unknown pre-tokenizer type"-Fehler bei
+MiniCPM5) wurde dadurch faelschlich als Erfolg gewertet. Der Aufrufer ging danach in `waitForSlotReady()`
+und verbrannte dessen vollen Timeout (30-60s+), um am Ende nur eine generische "nicht bereit"-Meldung zu
+zeigen — obwohl der Backend die echte, oft sehr spezifische Fehlermeldung (inkl. `stderr_tail`) schon
+Sekunden vorher im Response-Body mitgeliefert hatte.
+
+**Fix:** `startSlot()` prueft jetzt zusaetzlich `status.state !== "running"` auch bei HTTP 200 und gibt
+`success: false` mit der echten Fehlermeldung (`message` + `stderr_tail`) zurueck, statt sie zu verwerfen.
+Bestehende Aufrufer (Repository-Review-Preflight, On-Demand-Execution) werfen bereits korrekt bei
+`!startResult.success` — sie profitieren automatisch von der praeziseren, sofortigen Fehlermeldung ohne
+eigene Aenderung.
+
+**Noch offen (bewusst nicht in diesem Fix):** echte visuelle Lade-/Aufwaerm-Fortschrittsanzeige (z. B.
+Tensor-Lade-Prozent von llama-server) ist architektonisch teurer — `start_model()` blockiert komplett
+innerhalb eines einzelnen HTTP-Requests, es gibt keinen Zwischenzustand zum Pollen waehrend des Ladens.
+Eine echte Fortschrittsanzeige braeuchte entweder einen asynchronen Slot-Start (Statusaktualisierung waehrend
+des Ladens, analog zum Model-Lab-Scan-Fix oben) oder einen dedizierten SSE-Stream. Nicht ungefragt umgesetzt.
+
+**Verifiziert:** 2 bestehende Tests hatten unrealistische Mocks (`state: "starting"` als finale Antwort,
+obwohl das Backend das nie so liefert) — korrigiert auf `state: "running"`. Neuer Test fuer den echten
+Bug-Fall (HTTP 200 + `state: "error"` + `stderr_tail` mit dem MiniCPM5-Tokenizer-Fehlertext) hinzugefuegt.
+Volle Desktop-Testsuite: 1310/1354 gruen (dieselben 2 vorbestehenden, unabhaengigen
+`chatActions.test.ts`-Fehler; 2 weitere Tests waren im vollen Parallellauf einmalig flaky, liefen isoliert
+beide gruen — bestaetigt Testinfrastruktur-Flakiness, nicht durch diese Aenderung verursacht).
+
 ## Model-Lab-Scan zeigt jetzt echten Fortschritt statt bei 0 zu haengen (2026-08-03)
 
 **Auftrag:** Nutzer bat, den zuvor dokumentierten Root Cause des scheinbar haengenden Model-Lab-Vollscans
