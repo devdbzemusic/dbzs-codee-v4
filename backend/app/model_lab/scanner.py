@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -42,14 +43,25 @@ class ModelLabScanner:
     def __init__(self, analyzer: ModelLabAnalyzer | None = None) -> None:
         self.analyzer = analyzer or ModelLabAnalyzer()
 
-    def scan_source(self, source: ModelSource) -> ScanOutput:
+    def scan_source(
+        self, source: ModelSource, *, on_progress: Callable[[int, int], None] | None = None
+    ) -> ScanOutput:
         root = Path(source.path)
         paths = self._iter_candidate_paths(root, recursive=source.recursive, source=source)
         now = datetime.now(UTC)
-        artifacts = [
-            self._artifact_from_path(path, root=root, source_id=source.id, now=now)
-            for path in paths
-        ]
+        total = len(paths)
+        # _artifact_from_path() SHA-256-hashes each file's full content, which for a
+        # source full of multi-gigabyte GGUF files can legitimately take a long time
+        # (this is not a hang -- see HANDOVER.md 2026-08-03). Report progress after
+        # the cheap directory walk and after every file, so a caller polling the
+        # scan job can tell "still working, N/total done" apart from "stuck".
+        if on_progress is not None:
+            on_progress(0, total)
+        artifacts: list[ModelArtifact] = []
+        for index, path in enumerate(paths):
+            artifacts.append(self._artifact_from_path(path, root=root, source_id=source.id, now=now))
+            if on_progress is not None:
+                on_progress(index + 1, total)
         bundles = self._build_bundles(artifacts, now=now)
         bundle_by_artifact_id = {
             artifact_id: bundle.bundle_id
