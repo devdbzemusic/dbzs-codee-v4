@@ -2,6 +2,42 @@
 
 Stand: 2026-08-03
 
+## Trivialfragen bekamen faelschlich den vollen Tool-Katalog in den Prompt gestopft (2026-08-03)
+
+**Auftrag:** Live-Bug-Report per Screenshot — Frage "der Satz des Pythagoras?" bekam als Antwort einen
+fabrizierten Software-Engineering-"Aktionsplan" (Tests ausfuehren, `ChordProgressionBuilder.tsx`/
+`LanguageContext.tsx`/`MidiContext.tsx` reviewen, Vite-Build pruefen) — voellig unpassend fuer eine reine
+Wissensfrage. Nutzer-Kommentar: "Die ewigen Timeouts zerstoeren jeden noch so praezisen Workflow."
+
+**Zwei Hypothesen empirisch widerlegt, bevor die echte Ursache gefunden wurde** (Nutzer bestaetigte:
+"Automatisch"-Modus war aktiv, nicht "Als Agent"):
+- Direkter Test von `classifyTaskType()`/`shouldUseAgentTurnLoop()` mit den exakten Produktionsparametern
+  (`chatMode=auto` -> `targetAgent=runtime_chat` -> `hasExplicitAgentPrefix=false`) zeigt: Klassifizierung
+  ist korrekt `casual_chat`, Agent-Turn-Loop bleibt aus. Kein Klassifizierungsbug.
+- `stickyTaskType` greift nur bei internen Fortsetzungs-/Follow-up-Fluessen, nicht bei frisch getippten
+  Nachrichten — auch das keine Erklaerung.
+
+**Echte Root Cause:** `estimateProviderToolBudget()` (`providerToolBudget.ts`) hat ueberhaupt keinen
+`taskType`-Parameter — der Tool-Katalog (Werkzeugliste + Tool-Nutzungs-Anweisungen) wird rein basierend auf
+`toolsEnabled` (der session-weiten "Werkzeugrechte"-Berechtigungsstufe) in den System-Prompt gestopft,
+unabhaengig davon, ob DIESE Nachricht ueberhaupt Tools braucht. Obwohl das Routing korrekt das Chat-Modell
+waehlte (nicht Coder), enthielt der Prompt trotzdem den vollen Tool-Katalog — das Modell sah verfuegbare
+Tools und antwortete im Tool-Planungs-Format, mit erfundenem Bezug zu offenen Projekt-Dateien.
+
+**Fix:** in `runtimeChatStore.ts` wird der Tool-Katalog jetzt zusaetzlich unterdrueckt, wenn
+`taskType === "casual_chat"` (die enge, sichere "definitiv keine technische Anfrage"-Klassifizierung) —
+unabhaengig vom Werkzeugrechte-Level. `normal_chat` (aktive Datei vorhanden) bleibt unveraendert, da dort
+Tool-Bedarf plausibler ist.
+
+**Verifiziert:** neuer Regressionstest sendet "der Satz des Pythagoras ?" mit `toolsEnabled: true` +
+`workspaceRoot` gesetzt, prueft dass `[Tool Catalog]` NICHT im gesendeten Prompt vorkommt — per `git stash`
+gegen den alten Code bestaetigt, dass er dort tatsaechlich fehlschlaegt. Volle Desktop-Testsuite 1311/1355
+gruen (dieselben 2 vorbestehenden, unabhaengigen `chatActions.test.ts`-Fehler).
+
+**Diagnosemethode (wiederverwendbar):** statt an der UI zu raten, wurden die echten Klassifizierungsfunktionen
+per temporaerem Vitest-Skript mit exakten Produktionsparametern direkt aufgerufen — lieferte in Minuten
+definitive Antworten statt weiterer Spekulation.
+
 ## Chat-Cold-Start meldet Ladefehler sofort statt vollen Timeout abzuwarten (2026-08-03)
 
 **Auftrag:** Nutzer beschwerte sich ueber "ewige Timeouts", die "jeden noch so praezisen Workflow zerstoeren",

@@ -1977,8 +1977,20 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
             genericPhaseAllowedToolNames
           )
         : genericPhaseAllowedToolNames;
+      // toolsEnabled reflects the session-wide "Werkzeugrechte" permission level,
+      // not whether *this* message needs tools -- estimateProviderToolBudget()
+      // has no taskType input, so it stuffed the full tool catalog + tool-use
+      // framing into the prompt for every message whenever tool permissions
+      // were above "Ask", even a plain factual question correctly classified
+      // as casual_chat. The model then saw tools were available and answered
+      // in a tool-planning format regardless, hallucinating a fake action plan
+      // against unrelated open-project files. casual_chat is the narrow,
+      // confident "definitely not technical" classification (see
+      // classifyTaskType()), so only that one is excluded here -- normal_chat
+      // (active file present) keeps the existing behavior.
+      const toolCatalogRelevantForThisMessage = toolsEnabled && taskType !== "casual_chat";
       const toolEstimate = estimateProviderToolBudget({
-        toolsEnabled,
+        toolsEnabled: toolCatalogRelevantForThisMessage,
         providerId: routing.providerId ?? brokerDecisionFull?.providerId ?? sendOptions?.provider,
         profile,
         workspaceRoot: sendOptions?.workspaceRoot ?? runWorkspaceRoot,

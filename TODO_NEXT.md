@@ -5,6 +5,14 @@ Stand: 2026-08-03
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
 
+## Trivialfragen bekamen faelschlich den vollen Tool-Katalog in den Prompt — BEHOBEN
+
+`estimateProviderToolBudget()` hat keinen `taskType`-Parameter — der Tool-Katalog wurde rein basierend auf
+der session-weiten "Werkzeugrechte"-Berechtigung eingefuegt, unabhaengig vom tatsaechlichen Nachrichteninhalt.
+Eine korrekt als `casual_chat` klassifizierte Wissensfrage bekam trotzdem den vollen Tool-Katalog im Prompt,
+das Modell antwortete daraufhin mit einem erfundenen Aktionsplan gegen unbeteiligte Projektdateien. Jetzt
+wird der Tool-Katalog zusaetzlich unterdrueckt, wenn `taskType === "casual_chat"`. Details siehe HANDOVER.md.
+
 ## Chat-Cold-Start meldet Ladefehler sofort statt vollen Timeout abzuwarten — BEHOBEN
 
 `POST /runtime/slots/{id}/start` blockiert im Backend bis Erfolg/Fehler, antwortet aber IMMER mit HTTP 200
