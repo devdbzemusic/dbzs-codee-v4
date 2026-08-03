@@ -91,7 +91,7 @@ export async function runVisionContextPackPreStep(input: {
 
   let decision;
   try {
-    decision = brokerDecision("image_analysis", input.settings, {
+    decision = await brokerDecision("image_analysis", input.settings, {
       hasImageInput: true,
       requiresVision: true,
       catalog: input.catalog,

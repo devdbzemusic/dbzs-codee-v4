@@ -2,6 +2,80 @@
 
 Stand: 2026-08-03
 
+## Stufe 6 (Agentic Fleet Abschlussverifikation) durchgefuehrt: 2 echte Bugs gefunden und behoben, test_runtime_doctor.py-Haenger root-caused (2026-08-03)
+
+**Auftrag:** Abschlussverifikation der Stufen 2-5 des Agentic-Fleet-Lueckenschluss-Stufenplans (`TODO.md`/`TODO_NEXT.md`)
+nachziehen: voller Testlauf gegen den inzwischen gemergten Stand (PR #48, `main`@`db394b7`), `test_runtime_doctor.py`-Haenger
+root-causen, Ergebnisse dokumentieren.
+
+**Wichtiger Fund vorab:** Das referenzierte Stufenplan-Dokument `Pläne/16 DBZS_CODEE_AGENTIC_FLEET_LUECKENSCHLUSS_STUFENPLAN.md`
+existiert in diesem Checkout nicht mehr — Commit `dd7de6d` ("untrack .codee/ und Pläne/") hat den gesamten `Pläne/`-Ordner
+aus Git entfernt, physisch liegt er auch nicht mehr auf der Platte. Die Nachverfolgung laeuft daher ab jetzt ueber
+`HANDOVER.md`/`TODO_NEXT.md` statt ueber das nicht mehr existierende Dokument.
+
+**Voller Verifikationslauf (Hauptcheckout, frisch aufgesetzte `backend/.venv` + `pnpm install`, da beides fehlte):**
+- Backend `pytest -q`, kompletter `backend/tests`-Ordner inkl. `test_runtime_doctor.py`: **632 passed, 1 failed** in 233s.
+  Der eine Fehlschlag (`test_runtime_chat_tuning_lab_fixture.py::test_runtime_chat_tuning_lab_contains_three_gguf_models`)
+  ist neu entdeckt und unabhaengig von Stufe 6: `test-fixtures/runtime-chat-tuning-lab/models/` mit den laut README
+  erwarteten drei `.gguf`-Platzhalterdateien existiert in diesem Checkout schlicht nicht (kein Git-Verlauf dafuer,
+  keine `.gitignore`-Spur) — bewusst nicht behoben, da unklar ist, ob/wie diese Fixture-Dateien ueberhaupt vorgesehen
+  waren zu committen. Separat nachverfolgen.
+- `pnpm typecheck`: **schlug initial fehl**, siehe Bugfix 1 unten. Nach Fix fehlerfrei.
+- `pnpm test` (voller Desktop-/Shared-Vitest-Lauf): initial 8 fehlgeschlagene Tests, nach Fixes **1334 passed, 2 failed,
+  42 skipped**. Die verbleibenden 2 Fehlschlaege sind dieselben vorbestehenden, unabhaengigen
+  `chatActions.test.ts`-Faelle, die bereits mehrfach heute in diesem Dokument als bekannt dokumentiert sind
+  (`patchState` erwartet `APPLIED`, bekommt `FAILED`) — nicht angefasst.
+
+**Bugfix 1 (echte Produktionsregression, nicht nur Testinfrastruktur):** `visionContextPackService.ts:94` rief
+`brokerDecision(...)` ohne `await` auf. `brokerDecision` ist seit dem Workflow-Authority-Sprint (Teil B, "einzige
+Routing-Wahrheit") `async` und macht einen echten Backend-Call (`backendClient.resolveRuntimeRoute`) — der fehlende
+`await` bedeutete, dass `decision` zur Laufzeit ein unaufgeloestes `Promise`-Objekt war und `decision.slotId`/
+`decision.resolvedModelId`/etc. durchgehend `undefined` lieferten. Die komplette Vision-Context-Pack-Zwei-Modell-Pipeline
+(Plan 07/09, Phase 5) war dadurch seit der Umstellung production-seitig praktisch funktionslos — nicht nur ein
+Typfehler. Fix: `await` ergaenzt (`visionContextPackService.ts:94`). Aufgefallen ausschliesslich, weil dies der erste
+vollstaendige `pnpm typecheck`-Lauf gegen den PR-#48-gemergten Stand war (bisher liefen laut Stufenplan nur gezielte
+Testteilmengen pro Stufe).
+
+**Testfolgen von Bugfix 1:** `visionContextPackService.test.ts` mockte `brokerDecision` nie (rief die echte,
+jetzt-async Funktion auf) — 6 Tests bestanden vorher nur zufaellig, weil das fehlende `await` ihre
+Mock-/Fixture-Daten faktisch wirkungslos machte. Nach dem Await-Fix schlugen sie korrekt fehl (`vision_routing_failed`
+statt der erwarteten spezifischeren Gruende), da `brokerDecision` jetzt wirklich laeuft und ohne Mock einen echten
+Backend-Call versucht. Fix: `brokerDecision` jetzt sauber gemockt (Muster aus
+`stores/runtimeChatStoreRoutingPhase.test.ts` uebernommen: `vi.mock("@/services/modelSelectionBroker", ...)` mit
+gehoistetem `brokerDecisionMock`), neue `baseDecision()`-Fixture fuer eine vollstaendige `ModelSelectionDecision`,
+je Testfall passend mit `mockResolvedValue`/`mockRejectedValue(new BindingModelError(...))` konfiguriert. Alle 11
+Tests der Datei isoliert gruen.
+
+**Bugfix 2 (test_runtime_doctor.py-Haenger root-caused):** 7 von 10 (bzw. alle 11 inkl. Probe-Varianten) Tests hingen
+beim isolierten Einzellauf, nicht nur der urspruenglich vermutete `port_11434`-Ollama-Check (der hat bereits ein
+0.5s-Timeout, war also nicht die Ursache). Tatsaechliche Ursache: `build_runtime_doctor()`, `build_dry_run()` und
+`probe_runtime()` (bei gesetztem `projector_artifact_id`) riefen unconditional `**_model_lab_bridge_kwargs()` auf —
+die **echten**, produktiven `get_shared_model_lab_repository`/`get_settings_service()`-Singletons, unabhaengig vom per
+`tmp_path` isolierten `models_dir` der Tests. Auf dieser Maschine sind reale, teils sehr grosse Modellquellen
+(`D:\Models`, `D:\Models\Agentic`) registriert — derselbe Bug-Typ wie der bereits dokumentierte
+"Splashscreen-Hang" (siehe TODO_NEXT.md), hier aber nie in der Testisolation beruecksichtigt. Bestaetigt durch
+Code-Review: kein Test in der Datei mockt `settings_service`/`model_lab_repository`; `test_model_index.py` zeigt mit
+`test_model_index_ignores_model_lab_by_default` das etablierte Gegenmuster (Bridge ist per Default `None`, muss
+explizit fuer Tests uebergeben werden).
+
+Fix: `build_runtime_doctor()`, `build_dry_run()` und `probe_runtime()` bekommen neue optionale Parameter
+`model_lab_repository`/`settings_service` mit einem Sentinel-Default (`_UNSET`) statt `None` — unterscheidet
+"Aufrufer hat nichts uebergeben" (Produktionsverhalten: echte Bridge wie bisher, einziger Call-Site
+`app/api/runtime.py` bleibt unveraendert) von "Aufrufer will explizit `None`" (Testisolation, analog zu
+`ModelIndexService`s eigenem Opt-in-Muster). Alle 4 Aufrufstellen in `test_runtime_doctor.py` auf
+`model_lab_repository=None, settings_service=None` umgestellt.
+
+**Verifiziert:** `test_runtime_doctor.py` isoliert: **11 passed in 15.80s** (vorher: 7-8 von 11 Tests hingen einzeln,
+kein 12s-Timeout ausreichend). Kompletter Backend-Lauf ohne `--ignore` (siehe oben): 632 passed/1 failed in 233s,
+kein Haenger mehr, kein Sonderfall im CI-Pfad noetig.
+
+**Noch offen (Stufe 6, bewusst nicht in dieser Session):**
+- Stufe 1 (`D:\Models\Agentic` echt scannen) und Stufe 5 (Dual-Mode-Vision, echter Zwei-Prozess-Lauf) sind GPU-/
+  Ressourcen-lastige manuelle Abnahmen — noch nicht durchgefuehrt, siehe TODO_NEXT.md.
+- Die neu entdeckte fehlende `.gguf`-Fixture (`test-fixtures/runtime-chat-tuning-lab/models/`) braucht eine
+  eigene Entscheidung (Platzhalter-Dateien committen? Generator-Skript? Test bewusst skippen?) — separat klaeren.
+- Die 2 vorbestehenden `chatActions.test.ts`-Fehlschlaege bleiben wie bereits mehrfach heute dokumentiert offen.
+
 ## Residentes-Basismodell-Fehler behoben: Orchestrator auf kompatibles Modell umgestellt (2026-08-03)
 
 **Auftrag:** "fix Residentes Basis Model issue" — MiniCPM5-1B (Orchestrator-Modell aus der Rollenmatrix) schlug

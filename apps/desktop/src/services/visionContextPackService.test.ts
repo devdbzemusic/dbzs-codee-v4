@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MultimodalPair, RuntimeSlotStatus } from "@dbzs/shared";
-import type { BrokerModelCatalogEntry } from "@/services/modelSelectionBroker";
+import type { BrokerModelCatalogEntry, ModelSelectionDecision } from "@/services/modelSelectionBroker";
 
-const { getSlotStatusMock, startSlotMock, waitForSlotReadyMock, isSlotReadyMock, sendChatMock } = vi.hoisted(() => ({
-  getSlotStatusMock: vi.fn(),
-  startSlotMock: vi.fn(),
-  waitForSlotReadyMock: vi.fn(),
-  isSlotReadyMock: vi.fn(),
-  sendChatMock: vi.fn()
-}));
+const { getSlotStatusMock, startSlotMock, waitForSlotReadyMock, isSlotReadyMock, sendChatMock, brokerDecisionMock } =
+  vi.hoisted(() => ({
+    getSlotStatusMock: vi.fn(),
+    startSlotMock: vi.fn(),
+    waitForSlotReadyMock: vi.fn(),
+    isSlotReadyMock: vi.fn(),
+    sendChatMock: vi.fn(),
+    brokerDecisionMock: vi.fn()
+  }));
 
 vi.mock("@/services/runtimeSlotManager", () => ({
   runtimeSlotManager: {
@@ -25,12 +27,45 @@ vi.mock("@/services/agentRunService", () => ({
   }
 }));
 
+vi.mock("@/services/modelSelectionBroker", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/services/modelSelectionBroker")>();
+  return {
+    ...actual,
+    brokerDecision: brokerDecisionMock
+  };
+});
+
+import { BindingModelError } from "@/services/modelSelectionBroker";
 import {
   buildVisionContextPackUserPrompt,
   formatVisionContextPackBlock,
   runVisionContextPackPreStep,
   type VisionContextPackBrokerSettings
 } from "@/services/visionContextPackService";
+
+function baseDecision(overrides: Partial<ModelSelectionDecision> = {}): ModelSelectionDecision {
+  return {
+    taskType: "image_analysis",
+    targetAgent: "runtime_chat",
+    slotId: "vision_gpu",
+    modelId: "vision-model-1",
+    modelName: "Vision Model 1",
+    configuredModelId: "vision-model-1",
+    resolvedModelId: "vision-model-1",
+    resolvedModelName: "Vision Model 1",
+    selectionSource: "role_setting",
+    capabilities: ["vision"],
+    hasImageInput: true,
+    requiresVision: true,
+    providerId: "llama-cpp",
+    reason: ["test fixture"],
+    fallbackPolicy: "strict",
+    decisionId: "decision-1",
+    decidedAt: new Date("2026-08-03T00:00:00Z"),
+    decisionSettingsRevision: 1,
+    ...overrides
+  };
+}
 
 function baseSettings(overrides: Partial<VisionContextPackBrokerSettings> = {}): VisionContextPackBrokerSettings {
   return {
@@ -137,6 +172,8 @@ describe("runVisionContextPackPreStep", () => {
   });
 
   it("reports vision_routing_failed when no vision model can be resolved", async () => {
+    brokerDecisionMock.mockRejectedValue(new BindingModelError("no vision model available", "no_model"));
+
     const result = await runVisionContextPackPreStep({
       goal: "Fixe den Bug im Screenshot",
       images: ["data:image/png;base64,AAAA"],
@@ -152,6 +189,7 @@ describe("runVisionContextPackPreStep", () => {
   });
 
   it("analyzes the image with the already-running verified vision model", async () => {
+    brokerDecisionMock.mockResolvedValue(baseDecision());
     getSlotStatusMock.mockResolvedValue(slotStatus());
     sendChatMock.mockResolvedValue({
       message: { id: "resp-1", role: "assistant", content: "Ein rotes Fehler-Badge neben dem Speichern-Button." },
@@ -185,6 +223,7 @@ describe("runVisionContextPackPreStep", () => {
   });
 
   it("starts and waits for the slot when the vision model isn't already serving", async () => {
+    brokerDecisionMock.mockResolvedValue(baseDecision());
     getSlotStatusMock.mockResolvedValue(slotStatus({ state: "stopped", chat_ready: false, model_id: null }));
     startSlotMock.mockResolvedValue({ success: true, slotId: "vision_gpu" });
     waitForSlotReadyMock.mockResolvedValue(slotStatus());
@@ -209,6 +248,7 @@ describe("runVisionContextPackPreStep", () => {
   });
 
   it("reports vision_slot_start_failed when the slot fails to start", async () => {
+    brokerDecisionMock.mockResolvedValue(baseDecision());
     getSlotStatusMock.mockResolvedValue(slotStatus({ state: "stopped", chat_ready: false, model_id: null }));
     startSlotMock.mockResolvedValue({ success: false, slotId: "vision_gpu", error: "port in use" });
 
@@ -226,6 +266,7 @@ describe("runVisionContextPackPreStep", () => {
   });
 
   it("reports vision_slot_not_ready when the slot never becomes ready", async () => {
+    brokerDecisionMock.mockResolvedValue(baseDecision());
     getSlotStatusMock.mockResolvedValue(slotStatus({ state: "stopped", chat_ready: false, model_id: null }));
     startSlotMock.mockResolvedValue({ success: true, slotId: "vision_gpu" });
     waitForSlotReadyMock.mockResolvedValue(null);
@@ -244,6 +285,7 @@ describe("runVisionContextPackPreStep", () => {
   });
 
   it("reports vision_empty_response when the model returns nothing usable", async () => {
+    brokerDecisionMock.mockResolvedValue(baseDecision());
     getSlotStatusMock.mockResolvedValue(slotStatus());
     sendChatMock.mockResolvedValue({
       message: { id: "resp-1", role: "assistant", content: "   " },
@@ -264,6 +306,7 @@ describe("runVisionContextPackPreStep", () => {
   });
 
   it("reports vision_context_pack_failed when the chat call throws", async () => {
+    brokerDecisionMock.mockResolvedValue(baseDecision());
     getSlotStatusMock.mockResolvedValue(slotStatus());
     sendChatMock.mockRejectedValue(new Error("network unreachable"));
 

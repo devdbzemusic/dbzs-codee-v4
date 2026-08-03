@@ -5,18 +5,28 @@ from __future__ import annotations
 import json
 import socket
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 from urllib import error, request
 
 from pydantic import BaseModel, Field
 
 from app.core.config import get_models_dir, get_ollama_dir, get_ollama_models_dir
-from app.model_lab.repository import get_shared_model_lab_repository
+from app.model_lab.repository import ModelLabRepository, get_shared_model_lab_repository
 from app.models.discovery_mode import get_model_discovery_mode
 from app.models.index_service import ModelIndexService
 from app.runtime.launch import build_launch_plan, config_override_from_preset
 from app.runtime.service import RuntimeService
-from app.settings.service import get_settings_service
+from app.settings.service import SettingsService, get_settings_service
+
+# Sentinel distinguishing "caller didn't pass this" (use the real, shared
+# production bridge) from an explicit `None` (test isolation opt-out) — see
+# `test_model_index_ignores_model_lab_by_default` for the same convention on
+# `ModelIndexService` itself. Without this, tests calling `build_runtime_doctor()`
+# always hit the real `get_shared_model_lab_repository`/`get_settings_service()`
+# singletons, which on a real dev machine can point at large, slow-to-scan
+# registered model sources (same class of issue as the earlier Model-Lab
+# splashscreen hang).
+_UNSET: Any = object()
 
 
 def _model_lab_bridge_kwargs() -> dict[str, object]:
@@ -276,6 +286,8 @@ def build_runtime_doctor(
     models_dir: Path | None = None,
     ollama_dir: Path | None = None,
     ollama_models_dir: Path | None = None,
+    model_lab_repository: "ModelLabRepository | Callable[[], ModelLabRepository] | None" = _UNSET,
+    settings_service: "SettingsService | None" = _UNSET,
 ) -> RuntimeDoctorReport:
     models_path = models_dir or get_models_dir()
     ollama_path = ollama_dir or get_ollama_dir()
@@ -315,12 +327,20 @@ def build_runtime_doctor(
         checks.append(_path_check("ollama_models_dir", ollama_models_path))
         checks.append(_port_status(11434))
 
+    if model_lab_repository is _UNSET and settings_service is _UNSET:
+        bridge_kwargs = _model_lab_bridge_kwargs()
+    else:
+        bridge_kwargs = {
+            "model_lab_repository": None if model_lab_repository is _UNSET else model_lab_repository,
+            "settings_service": None if settings_service is _UNSET else settings_service,
+        }
+
     index_service = ModelIndexService(
         models_dir=models_path,
         ollama_dir=ollama_path,
         ollama_models_dir=ollama_models_path,
         discovery_mode=discovery_mode,
-        **_model_lab_bridge_kwargs(),
+        **bridge_kwargs,
     )
     index = index_service.build_index()
     model_entries: list[ModelDoctorEntry] = []
@@ -384,17 +404,27 @@ def build_dry_run(
     models_dir: Path | None = None,
     ollama_dir: Path | None = None,
     ollama_models_dir: Path | None = None,
+    model_lab_repository: "ModelLabRepository | Callable[[], ModelLabRepository] | None" = _UNSET,
+    settings_service: "SettingsService | None" = _UNSET,
 ) -> RuntimeDryRunResponse:
     models_path = models_dir or get_models_dir()
     ollama_path = ollama_dir or get_ollama_dir()
     ollama_models_path = ollama_models_dir or get_ollama_models_dir()
+
+    if model_lab_repository is _UNSET and settings_service is _UNSET:
+        bridge_kwargs = _model_lab_bridge_kwargs()
+    else:
+        bridge_kwargs = {
+            "model_lab_repository": None if model_lab_repository is _UNSET else model_lab_repository,
+            "settings_service": None if settings_service is _UNSET else settings_service,
+        }
 
     index_service = ModelIndexService(
         models_dir=models_path,
         ollama_dir=ollama_path,
         ollama_models_dir=ollama_models_path,
         discovery_mode=get_model_discovery_mode(),
-        **_model_lab_bridge_kwargs(),
+        **bridge_kwargs,
     )
     model = next((item for item in index_service.build_index().models if item.id == model_id), None)
     if model is None:
@@ -431,6 +461,8 @@ def probe_runtime(
     ollama_models_dir: Path | None = None,
     endpoint_verifier: Any | None = None,
     multimodal_verifier: Any | None = None,
+    model_lab_repository: "ModelLabRepository | Callable[[], ModelLabRepository] | None" = _UNSET,
+    settings_service: "SettingsService | None" = _UNSET,
 ) -> RuntimeProbeResponse:
     if not request.allow_start:
         return RuntimeProbeResponse(
@@ -449,12 +481,19 @@ def probe_runtime(
     mmproj_path: str | None = None
     projector_artifact_id = request.projector_artifact_id
     if projector_artifact_id:
+        if model_lab_repository is _UNSET and settings_service is _UNSET:
+            bridge_kwargs = _model_lab_bridge_kwargs()
+        else:
+            bridge_kwargs = {
+                "model_lab_repository": None if model_lab_repository is _UNSET else model_lab_repository,
+                "settings_service": None if settings_service is _UNSET else settings_service,
+            }
         index_service = ModelIndexService(
             models_dir=models_dir or get_models_dir(),
             ollama_dir=ollama_dir or get_ollama_dir(),
             ollama_models_dir=ollama_models_dir or get_ollama_models_dir(),
             discovery_mode=get_model_discovery_mode(),
-            **_model_lab_bridge_kwargs(),
+            **bridge_kwargs,
         )
         index = index_service.build_index()
         pair = next(

@@ -86,7 +86,12 @@ def test_runtime_doctor_with_temp_models_dir(tmp_path: Path) -> None:
     )
     (models_dir / "demo.gguf").write_bytes(b"gguf")
 
-    report = build_runtime_doctor(models_dir=models_dir, ollama_dir=tmp_path / "ollama")
+    report = build_runtime_doctor(
+        models_dir=models_dir,
+        ollama_dir=tmp_path / "ollama",
+        model_lab_repository=None,
+        settings_service=None,
+    )
     assert report.summary
     assert any(check.id == "models_dir" for check in report.checks)
     assert len(report.suggested_profiles) == 3
@@ -96,7 +101,12 @@ def test_runtime_doctor_uses_format_and_runtime_launcher_for_gguf_model(tmp_path
     models_dir = tmp_path / "models"
     _write_gguf_catalog(models_dir)
 
-    report = build_runtime_doctor(models_dir=models_dir, ollama_dir=tmp_path / "ollama")
+    report = build_runtime_doctor(
+        models_dir=models_dir,
+        ollama_dir=tmp_path / "ollama",
+        model_lab_repository=None,
+        settings_service=None,
+    )
     entry = next(item for item in report.models if item.model_id == "coder")
 
     assert entry.format == "gguf"
@@ -113,7 +123,14 @@ def test_runtime_dry_run_uses_runtime_service_command_builder(tmp_path: Path) ->
     models_dir = tmp_path / "models"
     _write_gguf_catalog(models_dir)
 
-    dry = build_dry_run("coder", profile_name="safe_cpu_coder", models_dir=models_dir, ollama_dir=tmp_path / "ollama")
+    dry = build_dry_run(
+        "coder",
+        profile_name="safe_cpu_coder",
+        models_dir=models_dir,
+        ollama_dir=tmp_path / "ollama",
+        model_lab_repository=None,
+        settings_service=None,
+    )
 
     assert "llama-server.exe" in dry.command_preview
     assert "--ctx-size 4096" in dry.command_preview
@@ -126,7 +143,12 @@ def test_runtime_doctor_strict_mode_skips_ollama_checks(tmp_path: Path, monkeypa
     models_dir.mkdir(exist_ok=True)
     monkeypatch.setattr("app.runtime.doctor.get_model_discovery_mode", lambda: "project_local_strict")
 
-    report = build_runtime_doctor(models_dir=models_dir, ollama_dir=tmp_path / "ollama")
+    report = build_runtime_doctor(
+        models_dir=models_dir,
+        ollama_dir=tmp_path / "ollama",
+        model_lab_repository=None,
+        settings_service=None,
+    )
 
     assert not any(check.id in ("ollama_exe", "ollama_models_dir", "port_11434") for check in report.checks)
     assert any(check.id == "ollama_discovery" and check.status == "ok" for check in report.checks)
@@ -137,7 +159,12 @@ def test_runtime_doctor_non_strict_mode_includes_ollama_checks(tmp_path: Path, m
     models_dir.mkdir(exist_ok=True)
     monkeypatch.setattr("app.runtime.doctor.get_model_discovery_mode", lambda: "local_with_ollama")
 
-    report = build_runtime_doctor(models_dir=models_dir, ollama_dir=tmp_path / "ollama")
+    report = build_runtime_doctor(
+        models_dir=models_dir,
+        ollama_dir=tmp_path / "ollama",
+        model_lab_repository=None,
+        settings_service=None,
+    )
 
     assert any(check.id == "ollama_exe" for check in report.checks)
     assert any(check.id == "ollama_models_dir" for check in report.checks)
@@ -235,6 +262,8 @@ def test_runtime_probe_allows_mmproj_pairing_and_passes_mmproj_path(tmp_path: Pa
         models_dir=tmp_path,
         ollama_dir=tmp_path / "ollama",
         ollama_models_dir=tmp_path / "ollama-models",
+        model_lab_repository=None,
+        settings_service=None,
         endpoint_verifier=lambda endpoint: (True, True, ["vision-base"]),
         multimodal_verifier=lambda runtime, endpoint, model_id: (True, "ok"),
     )
@@ -295,6 +324,8 @@ def test_runtime_probe_requires_endpoint_verification_before_marking_pair_verifi
         models_dir=tmp_path,
         ollama_dir=tmp_path / "ollama",
         ollama_models_dir=tmp_path / "ollama-models",
+        model_lab_repository=None,
+        settings_service=None,
         endpoint_verifier=lambda endpoint: (True, False, []),
         multimodal_verifier=lambda runtime, endpoint, model_id: (True, "ok"),
     )
@@ -349,6 +380,8 @@ def test_runtime_probe_requires_multimodal_chat_verification_for_mmproj_pairs(tm
         models_dir=tmp_path,
         ollama_dir=tmp_path / "ollama",
         ollama_models_dir=tmp_path / "ollama-models",
+        model_lab_repository=None,
+        settings_service=None,
         endpoint_verifier=lambda endpoint: (True, True, ["vision-base"]),
         multimodal_verifier=lambda runtime, endpoint, model_id: (False, None),
     )
@@ -408,6 +441,8 @@ def test_runtime_probe_surfaces_multimodal_chat_exception_details(tmp_path: Path
         models_dir=tmp_path,
         ollama_dir=tmp_path / "ollama",
         ollama_models_dir=tmp_path / "ollama-models",
+        model_lab_repository=None,
+        settings_service=None,
         endpoint_verifier=lambda endpoint: (True, True, ["vision-base"]),
         multimodal_verifier=failing_multimodal_verifier,
     )

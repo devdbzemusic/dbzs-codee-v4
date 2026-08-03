@@ -5,6 +5,30 @@ Stand: 2026-08-03
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
 
+## Stufe 6 (Agentic Fleet Abschlussverifikation) — TEILWEISE BEHOBEN
+
+Voller Verifikationslauf gegen den PR-#48-gemergten Stand durchgefuehrt (Hauptcheckout). Dabei zwei echte Bugs
+gefunden und behoben: (1) fehlendes `await` vor `brokerDecision(...)` in `visionContextPackService.ts` — machte
+die Vision-Context-Pack-Pipeline seit dem Routing-Umbau production-seitig faktisch funktionslos, plus 6 dadurch
+zufaellig bestandene Tests korrekt neu gemockt; (2) `test_runtime_doctor.py`-Haenger root-caused und behoben —
+`build_runtime_doctor()`/`build_dry_run()`/`probe_runtime()` griffen unconditional auf die echten,
+produktiven Model-Lab-/Settings-Singletons zu (derselbe Bug-Typ wie der bereits dokumentierte Splashscreen-Hang),
+jetzt per Sentinel-Parameter testisolierbar wie `ModelIndexService` selbst. Kompletter Backend-Lauf jetzt 632/633
+gruen (233s, kein `--ignore` mehr fuer `test_runtime_doctor.py` noetig), `pnpm typecheck` fehlerfrei, `pnpm test`
+1334/1336 gruen (die 2 verbleibenden sind die bereits bekannten `chatActions.test.ts`-Faelle). Details siehe
+HANDOVER.md.
+
+**Wichtig:** Das urspruenglich referenzierte Stufenplan-Dokument `Pläne/16 DBZS_CODEE_AGENTIC_FLEET_LUECKENSCHLUSS_
+STUFENPLAN.md` existiert in diesem Checkout nicht mehr (per `dd7de6d` aus Git entfernt, auch nicht mehr auf der
+Platte) — Nachverfolgung laeuft ab jetzt ueber `HANDOVER.md`/`TODO_NEXT.md`.
+
+**Noch offen:**
+- Stufe 1 (`D:\Models\Agentic` echt scannen) und Stufe 5 (Dual-Mode-Vision, echter Zwei-Prozess-Lauf) — GPU-/
+  Ressourcen-lastige manuelle Abnahmen, bewusst noch nicht durchgefuehrt (Ruecksprache noetig, siehe HANDOVER.md).
+- Neu entdeckt: `test-fixtures/runtime-chat-tuning-lab/models/` fehlt komplett (README verspricht drei
+  `.gguf`-Platzhalter, keine im Checkout/Git-Verlauf) — ein Backend-Test schlaegt deswegen fehl
+  (`test_runtime_chat_tuning_lab_contains_three_gguf_models`), separat klaeren.
+
 ## Residentes-Basismodell-Fehler (MiniCPM5-Tokenizer) — BEHOBEN
 
 `defaultOrchestratorModelId` von MiniCPM5-1B (Tokenizer vom installierten llama-server Build 8454 nicht
