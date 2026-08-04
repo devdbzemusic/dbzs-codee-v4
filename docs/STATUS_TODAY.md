@@ -1,12 +1,27 @@
 # STATUS TODAY
 
-Stand: 2026-08-01
+Stand: 2026-08-04
 
 Repo-Wahrheit: `https://github.com/devdbzemusic/dbzs-codee-v4.git`
 
 ## Stabil
 
-- `origin/main` zeigt nach frischem `git fetch` auf `a98e070` (PR #32 gemergt: Desktop-Bridge-Contracts,
+- `origin/main` zeigt auf `27a89cf`. Seit dem vorherigen Stand (`a98e070`, PR #32) sind 16 weitere PRs
+  gemergt (#33-#48) — im Kern Plan 15 "Agentic Model Fleet Integration" (Model-Lab-Schema v3, Fleet-Routing/
+  -Readiness-Maps, Rollen-/Workflow-Modell-Matrix vollstaendig verdrahtet, RAM-Pressure-Schutz, Dual-Mode
+  Vision Phase 5). Volle PR-fuer-PR-Historie in `TODO.md`.
+- **2026-08-03/04: Stufe 6 (Agentic-Fleet-Abschlussverifikation) durchgefuehrt.** Erster vollstaendiger
+  Testlauf seit dem PR-#48-Merge deckte zwei echte Regressionen auf, die seit Tagen unbemerkt geblieben
+  waren, weil zuvor immer nur gezielte Testteilmengen liefen: (1) fehlendes `await` machte die
+  Vision-Context-Pack-Pipeline funktionslos; (2) der "Übernehmen"-Button (Review→Apply, Kern der sicheren
+  Aenderungskette) warf seit dem 2026-08-02-Sicherheits-Hardening bei jedem Klick einen Fehler. Beide
+  behoben. Mehrere als "bekannt/vorbestehend" abgestempelte Test-Flakes waren ebenfalls echte Bugs
+  (unconditional reale Produktions-Singletons statt Test-Isolation) — root-caused und behoben, Backend-Suite
+  dadurch 250s→170s schneller. Details: `HANDOVER.md`.
+- **2026-08-04: Nacharbeiten.** 13 offene Dependabot-Findings behoben (Versions-Overrides + `cryptography`-
+  Upgrade in `uv.lock`); Dev-Bootstrap automatisiert (`pnpm bootstrap`, `postinstall`-Hook behebt einen
+  zuvor stillen Ausfall des Electron-Binary-Downloads); Fixture-Vollstaendigkeits-Check und
+  Doku-Drift-Check jetzt in `pnpm repo:health`/`ci-local` eingehaengt statt ungenutzt danebenzuliegen.
   IPC-Regressionstests, `POST /embeddings`, `POST /rerank` und die Plan-14-Fortsetzung fuer
   ONNX-/Model-Lab-basierte Embeddings/Reranking)
 - `feature/runtime-chat-ux-overhaul` ist mit `origin/feature/runtime-chat-ux-overhaul` synchron und gegenueber

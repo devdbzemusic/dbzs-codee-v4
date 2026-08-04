@@ -6,8 +6,22 @@ Lokaler Ordnername und einige historische Dokumente verwenden noch `dbzs-codee-p
 
 ## Aktueller Stand
 
-Stand: 2026-08-01
+Stand: 2026-08-04
 
+- `origin/main` zeigt auf `27a89cf` (16 weitere gemergte PRs seit dem 2026-08-01-Stand unten: #33-#48, im
+  Kern Plan 15 "Agentic Model Fleet Integration" — Model-Lab-Schema v3, Fleet-Routing/-Readiness, Rollenmatrix
+  komplett verdrahtet, plus die Runtime-Chat-Overhaul-Folgearbeit aus PR #33). Volle Details je PR in
+  `TODO.md`/`TODO_NEXT.md`, laufender Verlauf in `HANDOVER.md`.
+- **2026-08-03/04-Session (Stufe 6 Agentic-Fleet-Abschlussverifikation + Nacharbeiten):** erster
+  vollstaendiger Testlauf seit dem Merge deckte zwei echte, seit Tagen unbemerkte Regressionen auf und behob
+  sie: (1) eine fehlende `await` machte die Vision-Context-Pack-Pipeline production-seitig funktionslos; (2)
+  der "Übernehmen"-Button (Kern-Sicherheitsfeature Review→Apply) warf seit dem 2026-08-02-Commit bei jedem
+  Klick einen Fehler, weil ein Sicherheits-Hardening den zugehoerigen Button-Handler nicht mitzog. Beide
+  behoben und verifiziert. Zusaetzlich: mehrere "bekannte, vorbestehende" Test-Flakes root-caused (waren
+  echte Bugs — unconditional reale Produktions-Singletons statt Test-Mocks, kein Sandbox-Artefakt),
+  Backend-Suite dadurch 250s→170s schneller; 13 Dependabot-Findings behoben; Dev-Bootstrap automatisiert
+  (`pnpm bootstrap`, `postinstall`-Hook fuer den zuvor stillen Electron-Binary-Download-Ausfall). Details:
+  `HANDOVER.md` (Eintraege ab "Stufe 6").
 - [PR #32](https://github.com/devdbzemusic/dbzs-codee-v4/pull/32) ist gemergt: `origin/main` zeigt nach
   frischem `git fetch` auf `a98e070`. Enthalten sind die Desktop-Bridge-Contracts, IPC-Regressionstests und
   die Plan-14-Fortsetzung fuer echte `POST /embeddings`- und `POST /rerank`-Endpunkte auf Basis des

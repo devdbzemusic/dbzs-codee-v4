@@ -1,6 +1,6 @@
 # TODO
 
-Stand: 2026-08-02
+Stand: 2026-08-04
 
 ## Jetzt direkt
 
