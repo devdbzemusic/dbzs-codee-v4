@@ -10,6 +10,7 @@ export type NotebookTabId =
   | "editor";
 
 const STORAGE_KEY = "dbzs-operations-notebook-tab";
+const SPLIT_STORAGE_KEY = "dbzs-operations-notebook-split-chat-editor";
 
 const NOTEBOOK_TABS: NotebookTabId[] = [
   "mission-control",
@@ -36,18 +37,33 @@ function readPersistedTab(): NotebookTabId {
   return "cdee";
 }
 
+function readPersistedSplit(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  try {
+    return window.localStorage.getItem(SPLIT_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 interface NotebookState {
   activeTab: NotebookTabId;
   runtimeFocusSlotId: string | null;
+  splitChatEditor: boolean;
   setActiveTab: (tab: NotebookTabId) => void;
   focusEditorTab: () => void;
   focusRuntimeSlot: (slotId?: string | null) => void;
   clearRuntimeSlotFocus: () => void;
+  setSplitChatEditor: (value: boolean) => void;
+  toggleSplitChatEditor: () => void;
 }
 
-export const useNotebookStore = create<NotebookState>((set) => ({
+export const useNotebookStore = create<NotebookState>((set, get) => ({
   activeTab: readPersistedTab(),
   runtimeFocusSlotId: null,
+  splitChatEditor: readPersistedSplit(),
   setActiveTab: (tab) => {
     set({ activeTab: tab });
     try {
@@ -80,6 +96,19 @@ export const useNotebookStore = create<NotebookState>((set) => ({
   },
   clearRuntimeSlotFocus: () => {
     set({ runtimeFocusSlotId: null });
+  },
+  setSplitChatEditor: (value) => {
+    set({ splitChatEditor: value });
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(SPLIT_STORAGE_KEY, value ? "1" : "0");
+      }
+    } catch {
+      // ignore persistence failures
+    }
+  },
+  toggleSplitChatEditor: () => {
+    get().setSplitChatEditor(!get().splitChatEditor);
   }
 }));
 

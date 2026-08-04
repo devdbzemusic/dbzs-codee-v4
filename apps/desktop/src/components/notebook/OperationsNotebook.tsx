@@ -38,6 +38,8 @@ export function OperationsNotebook({
 }: OperationsNotebookProps) {
   const activeTab = useNotebookStore((state) => state.activeTab);
   const setActiveTab = useNotebookStore((state) => state.setActiveTab);
+  const splitChatEditor = useNotebookStore((state) => state.splitChatEditor);
+  const toggleSplitChatEditor = useNotebookStore((state) => state.toggleSplitChatEditor);
 
   const tabContent: Record<NotebookTabId, ReactNode> = {
     "mission-control": missionControl,
@@ -48,6 +50,8 @@ export function OperationsNotebook({
     "agent-workbench": agentWorkbench,
     editor
   };
+
+  const showSplitPane = splitChatEditor && (activeTab === "cdee" || activeTab === "editor");
 
   return (
     <section className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-[#091017]">
@@ -72,12 +76,38 @@ export function OperationsNotebook({
               type="button"
             >
               {NOTEBOOK_TAB_LABELS[tabId]}
-              {showDirty ? <span className="ml-1 text-dbzs-amber">*</span> : null}
+              {showDirty ? (
+                <span aria-label="Ungespeicherte Änderungen" className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-dbzs-amber align-middle" />
+              ) : null}
             </button>
           );
         })}
+        <button
+          aria-pressed={splitChatEditor}
+          className={`ml-auto flex shrink-0 items-center gap-1 self-center rounded border px-2 py-1 text-[10px] font-medium transition-colors ${
+            splitChatEditor
+              ? "border-dbzs-cyan/60 bg-dbzs-cyan/10 text-dbzs-cyan"
+              : "border-dbzs-border bg-transparent text-dbzs-muted hover:text-dbzs-text"
+          }`}
+          onClick={toggleSplitChatEditor}
+          title="Chat und Editor nebeneinander anzeigen (Layoutmodus: Chat + Editor)"
+          type="button"
+        >
+          <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+            <rect height="16" rx="1.5" width="18" x="3" y="4" />
+            <path d="M12 4v16" strokeLinecap="round" />
+          </svg>
+          Split
+        </button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{tabContent[activeTab]}</div>
+      {showSplitPane ? (
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden border-r border-dbzs-border">{tabContent.cdee}</div>
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden">{tabContent.editor}</div>
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{tabContent[activeTab]}</div>
+      )}
     </section>
   );
 }
