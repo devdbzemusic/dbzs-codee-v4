@@ -9,6 +9,28 @@ import { useRuntimeChatStore } from "@/stores/runtimeChatStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useEditorStore } from "@/stores/editorStore";
 
+function TraceStatusIcon({ status }: { status: string }) {
+  if (status === "completed") {
+    return (
+      <svg aria-hidden="true" className="h-3 w-3 text-dbzs-green" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+        <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (status === "failed") {
+    return (
+      <svg aria-hidden="true" className="h-3 w-3 text-dbzs-red" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+        <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg aria-hidden="true" className="h-3 w-3 animate-spin text-dbzs-cyan" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function stripPrivateReasoning(content: string): string {
   return content
     .replace(/<(thought|think|analysis|chain-of-thought|reasoning-summary)\b[^>]*>[\s\S]*?<\/\1>/gi, "")
@@ -168,7 +190,7 @@ export function RuntimeChatMessageCard({
               message.traceEvents?.map((event) => (
                 <div className="flex gap-2" key={event.id}>
                   <span>
-                    {event.status === "completed" ? "✓" : event.status === "failed" ? "✗" : "⏳"}
+                    <TraceStatusIcon status={event.status} />
                   </span>
                   <span>
                     <strong>{event.title}</strong> · {event.summary}
@@ -460,8 +482,16 @@ export function RuntimeChatMessageCard({
                   )}
                   {isCompleted && <span className="h-2.5 w-2.5 rounded-full bg-current" />}
                   <span className={isPending ? "" : statusBadgeClass}>{act.title}</span>
-                  {isCompleted && " ✓"}
-                  {isRejected && " ✗"}
+                  {isCompleted && (
+                    <svg aria-hidden="true" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                      <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                  {isRejected && (
+                    <svg aria-hidden="true" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                      <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+                    </svg>
+                  )}
                 </button>
                 {isFailed && act.description && (
                   <span className="mt-0.5 text-[9px] text-dbzs-red">{act.description}</span>
@@ -489,7 +519,13 @@ export function RuntimeChatMessageCard({
               className="rounded border border-dbzs-border/60 px-2.5 py-1 text-[11px] text-dbzs-textSoft transition-colors hover:border-dbzs-cyan/40 hover:text-dbzs-cyan disabled:cursor-not-allowed disabled:opacity-50"
             >
               {act.title}
-              {act.state === "completed" ? " ✓" : ""}
+              {act.state === "completed" ? (
+                <svg aria-hidden="true" className="ml-1 inline-block h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                  <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              ) : (
+                ""
+              )}
             </button>
           ))}
         </div>
