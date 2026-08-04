@@ -71,4 +71,29 @@ describe("WorkspaceExplorer", () => {
     expect(container.textContent).not.toContain("App.tsx");
     expect(container.textContent).toContain("README.md");
   });
+
+  it("opens a real workspace file row and records it in recents", () => {
+    const openWorkspaceFile = vi.fn().mockResolvedValue(undefined);
+    useEditorStore.setState({
+      activeTab: null,
+      openWorkspaceFile
+    } as Partial<ReturnType<typeof useEditorStore.getState>>);
+
+    act(() => {
+      root.render(<WorkspaceExplorer embeddedInPanel />);
+    });
+
+    const fileRow = Array.from(container.querySelectorAll("[role='treeitem']")).find(
+      (item) => item.textContent?.includes("README.md")
+    );
+
+    expect(fileRow).toBeTruthy();
+
+    return act(async () => {
+      fileRow?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }).then(() => {
+      expect(openWorkspaceFile).toHaveBeenCalledWith("C:/repo/README.md");
+      expect(window.localStorage.getItem("dbzs-recent-files-v1") ?? "").toContain("C:/repo/README.md");
+    });
+  });
 });

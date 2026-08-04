@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   WORKBENCH_LAYOUT_PRESET_LABELS,
   WORKBENCH_LAYOUT_PRESET_ORDER,
@@ -84,5 +84,65 @@ describe("workbenchLayoutStore", () => {
       expect(useWorkbenchLayoutStore.getState().activePresetId).toBe(expectedPreset);
       expect(WORKBENCH_LAYOUT_PRESET_LABELS[expectedPreset].length).toBeGreaterThan(0);
     }
+  });
+
+  it("hydrates a persisted preset and sanitized layout fields on module load", async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        shellMode: "classic",
+        activeRailItem: "model-lab",
+        activeInspectorTab: "model",
+        activeDockTab: "jobs",
+        leftSidebarWidth: 360,
+        inspectorWidth: 410,
+        bottomDockHeight: 260,
+        leftSidebarOpen: false,
+        inspectorOpen: true,
+        bottomDockOpen: true,
+        activePresetId: "model-ops"
+      })
+    );
+    vi.resetModules();
+
+    const { useWorkbenchLayoutStore: hydratedStore } = await import("./workbenchLayoutStore");
+
+    expect(hydratedStore.getState()).toMatchObject({
+      shellMode: "classic",
+      activeRailItem: "model-lab",
+      activeInspectorTab: "model",
+      activeDockTab: "jobs",
+      leftSidebarWidth: 360,
+      inspectorWidth: 410,
+      bottomDockHeight: 260,
+      leftSidebarOpen: false,
+      inspectorOpen: true,
+      bottomDockOpen: true,
+      activePresetId: "model-ops"
+    });
+  });
+
+  it("ignores invalid persisted values and falls back to safe defaults", async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        shellMode: "bad",
+        activeRailItem: "unknown",
+        activeInspectorTab: "broken",
+        activeDockTab: "invalid",
+        activePresetId: "missing"
+      })
+    );
+    vi.resetModules();
+
+    const { useWorkbenchLayoutStore: hydratedStore } = await import("./workbenchLayoutStore");
+
+    expect(hydratedStore.getState()).toMatchObject({
+      shellMode: "neural-workbench",
+      activeRailItem: "workspace",
+      activeInspectorTab: "agents",
+      activeDockTab: "terminal",
+      activePresetId: null
+    });
   });
 });
