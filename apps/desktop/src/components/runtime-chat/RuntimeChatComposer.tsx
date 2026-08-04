@@ -136,7 +136,12 @@ export function RuntimeChatComposer({
             }}
             type="button"
           >
-            Anhaengen
+            <span className="inline-flex items-center gap-1">
+              <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3.5 3.5 0 014.95 4.95l-9.2 9.19a1.5 1.5 0 01-2.12-2.12l8.49-8.48" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Anhaengen
+            </span>
           </Button>
           {isSending || isStreaming ? (
             <Button
@@ -146,7 +151,12 @@ export function RuntimeChatComposer({
                 onCancel();
               }}
             >
-              Stopp
+              <span className="inline-flex items-center gap-1">
+                <svg aria-hidden="true" className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+                  <rect height="14" rx="1.5" width="14" x="5" y="5" />
+                </svg>
+                Stopp
+              </span>
             </Button>
           ) : null}
           <Button
@@ -154,7 +164,16 @@ export function RuntimeChatComposer({
             disabled={!runtimeReady || isSending || !canSubmit}
             type="submit"
           >
-            {isSending ? "..." : "Senden"}
+            {isSending ? (
+              "..."
+            ) : (
+              <span className="inline-flex items-center gap-1">
+                <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Senden
+              </span>
+            )}
           </Button>
         </div>
       </div>
