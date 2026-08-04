@@ -1326,7 +1326,7 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
           </span>
           {autoRefresh && (
             <span className="flex items-center gap-1 text-[10px] text-dbzs-green/70">
-              <span aria-hidden="true" className="h-1.5 w-1.5 animate-pulse rounded-full bg-dbzs-green" />
+              <span aria-hidden="true" className="dbzs-animate-status-pulse h-1.5 w-1.5 rounded-full bg-dbzs-green" />
               Auto-Refresh aktiv
             </span>
           )}

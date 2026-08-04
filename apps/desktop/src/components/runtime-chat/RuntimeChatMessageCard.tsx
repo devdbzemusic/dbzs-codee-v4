@@ -395,7 +395,7 @@ export function RuntimeChatMessageCard({
             </span>
           </div>
           <div className="flex items-center gap-2 text-dbzs-textSoft">
-            <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-dbzs-cyan" />
+            <span className="dbzs-animate-status-pulse inline-flex h-2.5 w-2.5 rounded-full bg-dbzs-cyan" />
             <span>Der Patch wird gerade verarbeitet.</span>
           </div>
         </div>
@@ -473,7 +473,7 @@ export function RuntimeChatMessageCard({
                   {isApproved && (
                     <span
                       className={`h-2.5 w-2.5 rounded-full bg-current ${
-                        isApproved ? "animate-ping" : ""
+                        isApproved ? "dbzs-animate-status-ring" : ""
                       }`}
                     />
                   )}

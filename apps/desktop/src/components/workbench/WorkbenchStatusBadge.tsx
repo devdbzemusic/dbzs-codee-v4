@@ -3,7 +3,7 @@ export type UiStatusTone = "neutral" | "info" | "running" | "success" | "warning
 const toneClass: Record<UiStatusTone, string> = {
   neutral: "dbzs-workbench__badge--neutral",
   info: "dbzs-workbench__badge--info",
-  running: "dbzs-workbench__badge--info",
+  running: "dbzs-workbench__badge--running",
   success: "dbzs-workbench__badge--success",
   warning: "dbzs-workbench__badge--warning",
   danger: "dbzs-workbench__badge--danger"

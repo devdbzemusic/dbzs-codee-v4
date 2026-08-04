@@ -430,7 +430,7 @@ const SlotCard: React.FC<SlotCardProps> = ({
   // Status Badge
   const statusStyles: Record<string, string> = {
     stopped: "bg-gray-600 text-white",
-    starting: "bg-blue-600 text-white animate-pulse",
+    starting: "bg-blue-600 text-white",
     running: "bg-green-600 text-white",
     error: "bg-red-600 text-white"
   };

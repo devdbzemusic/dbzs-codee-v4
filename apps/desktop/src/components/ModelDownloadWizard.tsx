@@ -105,7 +105,7 @@ export function ModelDownloadWizard({ onClose }: { onClose: () => void }) {
             </p>
             <div className="h-2 w-full overflow-hidden rounded-full bg-dbzs-border">
               <div
-                className="h-full bg-dbzs-cyan transition-all"
+                className="dbzs-transition-progress h-full bg-dbzs-cyan"
                 style={{ width: `${task.progress}%` }}
               />
             </div>

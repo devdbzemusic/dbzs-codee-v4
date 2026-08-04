@@ -165,7 +165,7 @@ export function CodeeRunLiveBlock({
       <summary className="flex cursor-pointer list-none items-center justify-between border-b border-dbzs-border/60 pb-2">
         <div className="flex items-center gap-2">
           <span className="flex h-2 w-2 relative">
-            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isSuccessfulCompletion ? "bg-green-400" : isFailedTerminal ? "bg-red-400" : "bg-dbzs-cyan"}`}></span>
+            <span className={`dbzs-animate-status-ring absolute inline-flex h-full w-full rounded-full ${isSuccessfulCompletion ? "bg-green-400" : isFailedTerminal ? "bg-red-400" : "bg-dbzs-cyan"}`}></span>
             <span className={`relative inline-flex rounded-full h-2 w-2 ${isSuccessfulCompletion ? "bg-green-500" : isFailedTerminal ? "bg-red-500" : "bg-dbzs-cyan"}`}></span>
           </span>
           <span className="font-bold tracking-wide uppercase text-[10px] text-dbzs-cyan">CODEE RUN</span>
@@ -493,7 +493,7 @@ export function CodeeRunLiveBlock({
         ) : null}
 
         {isSending && run.status !== "completed" && (
-          <div className="flex items-center gap-2 text-dbzs-muted animate-pulse">
+          <div className="flex items-center gap-2 text-dbzs-muted">
             <span className="text-dbzs-cyan">●</span>
             <span>{statusLabel()}</span>
           </div>
@@ -511,7 +511,7 @@ export function CodeeRunLiveBlock({
                   ? "border-green-500/30 bg-green-500/5 text-green-400"
                   : tool.status === "failed"
                   ? "border-red-500/30 bg-red-400/5 text-red-400"
-                  : "border-dbzs-cyan/30 bg-dbzs-cyan/5 animate-pulse text-dbzs-cyan";
+                  : "border-dbzs-cyan/30 bg-dbzs-cyan/5 text-dbzs-cyan";
 
               return (
                 <div key={tool.id} className={`rounded border p-2 text-[10.5px] ${borderCol}`}>

@@ -953,7 +953,7 @@ function AppShell() {
               {workbenchShellMode === "neural-workbench" ? "Classic" : "Neural"}
             </button>
             <button
-              className="flex items-center gap-1.5 rounded border border-dbzs-border bg-dbzs-panelSoft px-2.5 py-1 text-xs text-dbzs-muted hover:bg-dbzs-cyan/10 hover:text-dbzs-cyan hover:border-dbzs-cyan/30 transition-all mr-2"
+              className="dbzs-transition-chrome mr-2 flex items-center gap-1.5 rounded border border-dbzs-border bg-dbzs-panelSoft px-2.5 py-1 text-xs text-dbzs-muted hover:border-dbzs-cyan/30 hover:bg-dbzs-cyan/10 hover:text-dbzs-cyan"
               onClick={() => window.dbzs?.openSettingsWindow?.()}
               title="Einstellungen oeffnen (Ctrl+,)"
               type="button"

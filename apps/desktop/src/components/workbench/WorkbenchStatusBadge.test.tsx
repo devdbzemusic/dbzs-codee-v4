@@ -31,4 +31,12 @@ describe("WorkbenchStatusBadge", () => {
     expect(container.textContent).toContain("Runtime: Modelle bereit");
     expect(container.firstElementChild?.className).toContain("dbzs-workbench__badge--warning");
   });
+
+  it("uses the running tone class for active runtime state", () => {
+    act(() => {
+      root.render(<WorkbenchStatusBadge label="Runtime" tone="running" value="llama aktiv" />);
+    });
+
+    expect(container.firstElementChild?.className).toContain("dbzs-workbench__badge--running");
+  });
 });

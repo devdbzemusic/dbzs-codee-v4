@@ -246,7 +246,7 @@ const JobRow: React.FC<JobRowProps> = ({ job, onClick, onRetry, onCancel }) => {
   const statusStyles: Record<string, string> = {
     queued: "text-blue-400",
     claimed: "text-blue-400",
-    running: "text-purple-400 animate-pulse",
+    running: "text-purple-400",
     waiting_verification: "text-yellow-400",
     completed: "text-green-400",
     failed: "text-red-400",
@@ -314,7 +314,7 @@ const JobRow: React.FC<JobRowProps> = ({ job, onClick, onRetry, onCancel }) => {
         {job.status === "running" && (
           <div className="mt-1 h-1 bg-gray-700 rounded-full overflow-hidden">
             <div
-              className="h-full bg-purple-500 transition-all duration-300"
+              className="dbzs-transition-progress h-full bg-purple-500"
               style={{ width: `${progress}%` }}
             />
           </div>

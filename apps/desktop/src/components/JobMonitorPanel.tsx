@@ -123,7 +123,7 @@ function ProgressBar({ value }: { value: number }) {
   return (
     <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-dbzs-border">
       <div
-        className="h-full rounded-full bg-dbzs-cyan transition-all duration-500"
+        className="dbzs-transition-progress h-full rounded-full bg-dbzs-cyan"
         style={{ width: `${Math.min(100, value)}%` }}
       />
     </div>
@@ -715,7 +715,7 @@ export function JobMonitorPanel() {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${sseConnected ? "bg-emerald-400" : "bg-red-400"}`}></span>
+              <span className={`dbzs-animate-status-ring absolute inline-flex h-full w-full rounded-full ${sseConnected ? "bg-emerald-400" : "bg-red-400"}`}></span>
               <span className={`relative inline-flex rounded-full h-2 w-2 ${sseConnected ? "bg-emerald-500" : "bg-red-500"}`}></span>
             </span>
             <h3 className="text-sm font-semibold tracking-wide text-dbzs-text">Job Monitor</h3>

@@ -61,7 +61,38 @@
 
 /** Status badge pulse — only for active runtime, never loop infinitely on idle */
 .dbzs-animate-runtime-pulse {
-  animation: dbzs-runtime-pulse 2.4s var(--dbzs-ease-standard) infinite;
+  animation: dbzs-runtime-pulse 1.8s var(--dbzs-ease-standard) infinite;
+}
+
+/** Subtle status pulse for active indicators and short-lived busy states */
+.dbzs-animate-status-pulse {
+  animation: dbzs-status-pulse 1.2s var(--dbzs-ease-standard) infinite;
+}
+
+/** Expanding ring for live status dots without a strong glow bloom */
+.dbzs-animate-status-ring {
+  animation: dbzs-status-ring 1.4s var(--dbzs-ease-decelerate) infinite;
+}
+
+/** Short chrome transitions for panels, tabs and buttons */
+.dbzs-transition-chrome {
+  transition-property: background-color, border-color, color, box-shadow, opacity, transform;
+  transition-duration: var(--dbzs-duration-fast);
+  transition-timing-function: var(--dbzs-ease-standard);
+}
+
+/** Near-instant status transitions so state changes remain readable */
+.dbzs-transition-status {
+  transition-property: background-color, border-color, color, opacity;
+  transition-duration: var(--dbzs-duration-fast);
+  transition-timing-function: var(--dbzs-ease-standard);
+}
+
+/** Progress-only transition to avoid broad transition-all usage */
+.dbzs-transition-progress {
+  transition-property: width, transform, opacity;
+  transition-duration: var(--dbzs-duration-normal);
+  transition-timing-function: var(--dbzs-ease-standard);
 }
 
 @keyframes dbzs-slide-in-left {
@@ -80,6 +111,32 @@
 }
 
 @keyframes dbzs-runtime-pulse {
-  0%, 100% { opacity: 1;    }
-  50%       { opacity: 0.55; }
+  0%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 0 rgba(34, 211, 238, 0));
+  }
+  50% {
+    opacity: 0.82;
+    filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.22));
+  }
+}
+
+@keyframes dbzs-status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.68; }
+}
+
+@keyframes dbzs-status-ring {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.32;
+  }
+  70% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
 }

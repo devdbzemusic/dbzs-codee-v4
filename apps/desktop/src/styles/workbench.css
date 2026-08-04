@@ -265,6 +265,7 @@
   gap: 5px;
   color: var(--dbzs-neural-muted);
   white-space: nowrap;
+  transition: color var(--dbzs-transition-fast);
 }
 
 .dbzs-workbench__badge::before {
@@ -275,13 +276,22 @@
   background: currentColor;
   box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
   content: "";
+  transition: background-color var(--dbzs-transition-fast), box-shadow var(--dbzs-transition-fast), opacity var(--dbzs-transition-fast);
 }
 
 .dbzs-workbench__badge--success { color: var(--dbzs-neural-success); }
 .dbzs-workbench__badge--warning { color: var(--dbzs-neural-warning); }
 .dbzs-workbench__badge--danger { color: var(--dbzs-neural-danger); }
 .dbzs-workbench__badge--info { color: var(--dbzs-neural-cyan); }
+.dbzs-workbench__badge--running { color: var(--dbzs-neural-cyan); }
 .dbzs-workbench__badge--neutral { color: var(--dbzs-neural-muted); }
+
+.dbzs-workbench__badge--running::before {
+  animation: dbzs-runtime-pulse 1.8s var(--dbzs-ease-standard) infinite;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, currentColor 14%, transparent),
+    0 0 10px rgba(34, 211, 238, 0.18);
+}
 
 @media (max-width: 1180px) {
   .dbzs-workbench__header {

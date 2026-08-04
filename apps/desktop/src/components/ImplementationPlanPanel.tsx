@@ -155,7 +155,7 @@ export const ImplementationPlanPanel: React.FC<ImplementationPlanPanelProps> = (
           </div>
           <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-blue-500 to-green-500 transition-all duration-300"
+              className="dbzs-transition-progress h-full bg-gradient-to-r from-blue-500 to-green-500"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -298,7 +298,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, isExpanded, onToggle }
     queued: "border-blue-600 bg-blue-900/20",
     blocked: "border-orange-600 bg-orange-900/20",
     ready: "border-green-600 bg-green-900/20",
-    running: "border-purple-600 bg-purple-900/20 animate-pulse",
+    running: "border-purple-600 bg-purple-900/20",
     validating: "border-purple-600 bg-purple-900/20",
     done: "border-green-600 bg-green-900/20",
     failed: "border-red-600 bg-red-900/20",
@@ -334,7 +334,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, isExpanded, onToggle }
   const borderClass = stateStyles[task.state ?? "proposed"];
 
   return (
-    <div className={`rounded border ${borderClass} transition-all`}>
+    <div className={`dbzs-transition-status rounded border ${borderClass}`}>
       {/* Header */}
       <div
         className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-800/50"

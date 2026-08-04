@@ -64,7 +64,7 @@ export function RuntimeChatHeader({
           <div className="truncate text-[10px] text-dbzs-muted">{subtitle}</div>
           {activityHint ? (
             <div className="mt-1 flex items-center gap-1 text-[9px] text-dbzs-cyan">
-              <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-dbzs-cyan" />
+              <span className="dbzs-animate-status-pulse inline-flex h-2 w-2 rounded-full bg-dbzs-cyan" />
               <span className="truncate">{activityHint}</span>
             </div>
           ) : null}
