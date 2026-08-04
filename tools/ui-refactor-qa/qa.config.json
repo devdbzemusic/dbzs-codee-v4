@@ -1,0 +1,80 @@
+{
+  "repository": {
+    "expectedName": "dbzs-code-assistant",
+    "baselineCommit": "a3cb7bed8e075c0ef7f006bf1d4fa65852b36a17",
+    "desktopPackage": "apps/desktop/package.json",
+    "rootPackage": "package.json"
+  },
+  "paths": {
+    "desktopSrc": "apps/desktop/src",
+    "desktopE2e": "apps/desktop/e2e",
+    "artifacts": "artifacts/ui-refactor-qa",
+    "referenceEnv": "DBZS_UI_REFERENCE_ROOT"
+  },
+  "phases": {
+    "baseline": {
+      "requireNeuralShell": false,
+      "requireFeatureFlag": false,
+      "requireVisualSnapshots": false
+    },
+    "migration": {
+      "requireNeuralShell": true,
+      "requireFeatureFlag": true,
+      "requireVisualSnapshots": true
+    },
+    "final": {
+      "requireNeuralShell": true,
+      "requireFeatureFlag": true,
+      "requireVisualSnapshots": true,
+      "requireClassicFallback": false
+    }
+  },
+  "forbiddenReferencePatterns": [
+    "/manus-storage/",
+    "from \"@trpc/",
+    "from '@trpc/",
+    "drizzle-orm",
+    "mysql2",
+    "express",
+    "ManusDialog",
+    "useCodeeWorkbenchController",
+    "codeeWorkbenchModel",
+    "useCodeeFileStorageController"
+  ],
+  "requiredSelectors": {
+    "migration": [
+      "[data-testid=\"dbzs-workbench\"]",
+      "[data-testid=\"workbench-header\"]",
+      "[data-testid=\"activity-rail\"]",
+      "[data-testid=\"workspace-sidebar\"]",
+      "[data-testid=\"primary-workspace\"]",
+      "[data-testid=\"inspector-sidebar\"]",
+      "[data-testid=\"bottom-dock\"]",
+      "[data-testid=\"workbench-statusbar\"]"
+    ],
+    "final": [
+      "[data-testid=\"dbzs-workbench\"]",
+      "[data-testid=\"workbench-header\"]",
+      "[data-testid=\"activity-rail\"]",
+      "[data-testid=\"workspace-sidebar\"]",
+      "[data-testid=\"primary-workspace\"]",
+      "[data-testid=\"inspector-sidebar\"]",
+      "[data-testid=\"bottom-dock\"]",
+      "[data-testid=\"workbench-statusbar\"]",
+      "[data-testid=\"runtime-chat\"]",
+      "[data-testid=\"workspace-explorer\"]"
+    ]
+  },
+  "viewports": [
+    {
+      "name": "1366x768",
+      "width": 1366,
+      "height": 768
+    },
+    {
+      "name": "1920x1080",
+      "width": 1920,
+      "height": 1080
+    }
+  ]
+}

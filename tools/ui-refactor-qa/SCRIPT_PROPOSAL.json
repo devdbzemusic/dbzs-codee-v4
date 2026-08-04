@@ -1,0 +1,9 @@
+{
+  "rootScripts": {
+    "test:ui-refactor": "node tools/ui-refactor-qa/scripts/run-all.mjs",
+    "test:ui-refactor:e2e": "pnpm --filter @dbzs/desktop e2e e2e/ui-refactor"
+  },
+  "desktopScripts": {
+    "e2e:ui-refactor": "playwright test e2e/ui-refactor"
+  }
+}

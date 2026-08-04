@@ -51,7 +51,12 @@
     "repo:health:strict": "node scripts/repo-health/check-file-metrics.mjs && node scripts/repo-health/check-import-boundaries.mjs && node scripts/contracts/verify-runtime-contracts.mjs && node scripts/check-fixture-completeness.mjs",
     "contracts:verify": "node scripts/contracts/verify-runtime-contracts.mjs",
     "ci:local": "bash scripts/ci-local.sh",
-    "ci:local:win": "powershell -ExecutionPolicy Bypass -File scripts/ci-local.ps1"
+    "ci:local:win": "powershell -ExecutionPolicy Bypass -File scripts/ci-local.ps1",
+    "test:ui-refactor": "node tools/ui-refactor-qa/scripts/run-all.mjs",
+    "test:ui-refactor:baseline": "node -e \"process.env.DBZS_UI_QA_PHASE='baseline'; import('./tools/ui-refactor-qa/scripts/run-all.mjs')\"",
+    "test:ui-refactor:migration": "node -e \"process.env.DBZS_UI_QA_PHASE='migration'; import('./tools/ui-refactor-qa/scripts/run-all.mjs')\"",
+    "test:ui-refactor:final": "node -e \"process.env.DBZS_UI_QA_PHASE='final'; import('./tools/ui-refactor-qa/scripts/run-all.mjs')\"",
+    "test:ui-refactor:e2e": "pnpm --filter @dbzs/desktop e2e:ui-refactor"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -33,6 +33,7 @@
     "release:linux": "electron-vite build && electron-builder --linux",
     "release:all": "electron-vite build && electron-builder --win --mac --linux",
     "e2e": "playwright test -c playwright.realcheck.config.ts",
+    "e2e:ui-refactor": "playwright test -c playwright.ui-refactor.config.ts e2e/ui-refactor",
     "e2e:legacy": "playwright test",
     "e2e:install": "playwright install chromium",
     "dev:renderer": "node scripts/dev-renderer.mjs"

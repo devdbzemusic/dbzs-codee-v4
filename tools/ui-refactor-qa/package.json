@@ -1,0 +1,21 @@
+{
+  "name": "@dbzs/ui-refactor-qa",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Automated QA harness for DBZS Codee V4 Neural Workbench refactoring.",
+  "scripts": {
+    "qa": "node scripts/run-all.mjs",
+    "qa:baseline": "cross-env DBZS_UI_QA_PHASE=baseline node scripts/run-all.mjs",
+    "qa:migration": "cross-env DBZS_UI_QA_PHASE=migration node scripts/run-all.mjs",
+    "qa:final": "cross-env DBZS_UI_QA_PHASE=final node scripts/run-all.mjs",
+    "qa:repo": "node scripts/check-repository-baseline.mjs",
+    "qa:reference": "node scripts/check-ui-reference-quarantine.mjs",
+    "qa:shell": "node scripts/check-neural-shell-contract.mjs",
+    "qa:css": "node scripts/check-css-contract.mjs",
+    "qa:changed": "node scripts/check-changed-ui-files.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

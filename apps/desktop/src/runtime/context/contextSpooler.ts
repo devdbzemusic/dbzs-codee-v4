@@ -246,7 +246,7 @@ export class ContextSpooler {
 /**
  * Builds a RuntimeTokenBudget from a model's context window. Ratios default
  * to the spec's worked example (4096 tokens -> 900 output / 300 tool / ~200
- * safety) expressed as ratios so they scale with the model's real context
+ * safety) represented as ratios so they scale with the model's real context
  * size instead of being hardcoded absolutes.
  */
 export function buildTokenBudget(
