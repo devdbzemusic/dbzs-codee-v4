@@ -24,6 +24,7 @@ export function SettingField({ definition, modelOptions = [], modelLabOptionsByK
   const draft = useSettingsDraftStore((state) => state.draft);
   const fieldErrors = useSettingsDraftStore((state) => state.fieldErrors);
   const setDraftField = useSettingsDraftStore((state) => state.setDraftField);
+  const clearDraftField = useSettingsDraftStore((state) => state.clearDraftField);
   const patchSettings = useSettingsStore((state) => state.patchSettings);
 
   const key = definition.key;
@@ -48,8 +49,26 @@ export function SettingField({ definition, modelOptions = [], modelLabOptionsByK
     saveError: error,
     env: envHints,
   });
+  const sourceLabel =
+    status.source === "environment"
+      ? "Environment"
+      : status.source === "settings_file"
+        ? "User Override"
+        : "Default";
+  const restartLabel =
+    definition.restartRequirement === "none"
+      ? "Sofort wirksam"
+      : definition.restartRequirement === "next_run"
+        ? "Ab nächstem Run"
+        : definition.restartRequirement === "runtime_restart"
+          ? "Runtime-Neustart"
+          : definition.restartRequirement === "backend_restart"
+            ? "Backend-Neustart"
+            : "App-Neustart";
   const differsFromDefault =
     JSON.stringify(settings[key]) !== JSON.stringify(definition.defaultValue);
+  const pendingValueDiffersFromSaved =
+    dirty && JSON.stringify(draftValue) !== JSON.stringify(settings[key]);
 
   const resetField = () => {
     if (!editable) return;
@@ -65,6 +84,20 @@ export function SettingField({ definition, modelOptions = [], modelLabOptionsByK
     }
     void patchSettings(changes);
   };
+
+  const validationHints = [
+    definition.validation?.min !== undefined || definition.validation?.max !== undefined
+      ? [
+          definition.validation?.min !== undefined ? `Min ${definition.validation.min}` : null,
+          definition.validation?.max !== undefined ? `Max ${definition.validation.max}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : null,
+    definition.validation?.maxLength !== undefined
+      ? `Max ${definition.validation.maxLength} Zeichen`
+      : null,
+  ].filter(Boolean);
 
   const commitImmediate = (next: AppSettings[typeof key]) => {
     if (
@@ -265,6 +298,24 @@ export function SettingField({ definition, modelOptions = [], modelLabOptionsByK
       <span className="block">
         <span className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-dbzs-text">{definition.label}</span>
+          <span className="border border-dbzs-border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-dbzs-muted">
+            {sourceLabel}
+          </span>
+          {status.source !== "default" ? (
+            <span className="border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-dbzs-cyan">
+              Override
+            </span>
+          ) : null}
+          {dirty ? (
+            <span className="border border-dbzs-amber/40 bg-dbzs-amber/10 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-dbzs-amber">
+              Unsaved
+            </span>
+          ) : null}
+          {definition.restartRequirement !== "none" ? (
+            <span className="border border-dbzs-border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-dbzs-muted">
+              {restartLabel}
+            </span>
+          ) : null}
           {definition.experimental ? (
             <span className="text-[10px] uppercase tracking-wide text-dbzs-amber">Experimental</span>
           ) : null}
@@ -273,6 +324,18 @@ export function SettingField({ definition, modelOptions = [], modelLabOptionsByK
           ) : null}
           {definition.classification === "deprecated" ? (
             <span className="text-[10px] uppercase tracking-wide text-dbzs-amber">Deprecated</span>
+          ) : null}
+          {pendingValueDiffersFromSaved ? (
+            <button
+              className="border border-dbzs-border px-1.5 py-0.5 text-[10px] text-dbzs-muted hover:border-dbzs-cyan/40 hover:text-dbzs-cyan"
+              onClick={(event) => {
+                event.preventDefault();
+                clearDraftField(key);
+              }}
+              type="button"
+            >
+              Änderung verwerfen
+            </button>
           ) : null}
           {editable && differsFromDefault ? (
             <button
@@ -288,6 +351,11 @@ export function SettingField({ definition, modelOptions = [], modelLabOptionsByK
           ) : null}
         </span>
         <span className="mt-1 block text-[10px] leading-4 text-dbzs-muted">{definition.description}</span>
+        {validationHints.length > 0 ? (
+          <span className="mt-1 block text-[10px] leading-4 text-dbzs-muted">
+            Validierung: {validationHints.join(" · ")}
+          </span>
+        ) : null}
       </span>
       {control}
       <span className="mt-2 flex flex-wrap items-center gap-2">

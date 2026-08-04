@@ -86,8 +86,8 @@ export function computeSettingsDiff(
 
 export function buildResetChanges(
   current: AppSettings,
-  scope: "field" | "tab" | "global",
-  target?: keyof AppSettings | SettingsCategory,
+  scope: "field" | "tab" | "keys" | "global",
+  target?: keyof AppSettings | SettingsCategory | Array<keyof AppSettings>,
 ): Partial<AppSettings> {
   if (scope === "field") {
     if (!target || typeof target !== "string") return {};
@@ -104,6 +104,22 @@ export function buildResetChanges(
     const changes: Partial<AppSettings> = {};
     for (const entry of settingsByCategory(category)) {
       if (entry.control === "readonly" || entry.classification === "hard_invariant") {
+        continue;
+      }
+      if (entry.sensitive) {
+        continue;
+      }
+      (changes as Record<string, unknown>)[entry.key] = entry.defaultValue;
+    }
+    return changes;
+  }
+
+  if (scope === "keys") {
+    const keys = Array.isArray(target) ? target : [];
+    const changes: Partial<AppSettings> = {};
+    for (const key of keys) {
+      const entry = getSettingDefinition(key);
+      if (!entry || entry.control === "readonly" || entry.classification === "hard_invariant") {
         continue;
       }
       if (entry.sensitive) {

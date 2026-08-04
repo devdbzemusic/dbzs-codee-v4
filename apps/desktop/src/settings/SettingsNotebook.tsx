@@ -10,10 +10,14 @@ import { SettingsSearch } from "./SettingsSearch";
 import { SettingsTabBar } from "./SettingsTabBar";
 import { SettingsTransferBar } from "./SettingsTransferBar";
 import {
-  SETTINGS_TABS,
-  type SettingsCategory,
-  getSettingDefinition,
-} from "./settingsRegistry";
+  SETTINGS_DISPLAY_CATEGORIES,
+  getDisplayCategoryDefinition,
+  getDisplayCategoryForSetting,
+  getDisplayCategoryKeys,
+  getDisplayCategoryMatchCount,
+  type SettingsDisplayCategory,
+} from "./settingsDisplay";
+import { getSettingDefinition } from "./settingsRegistry";
 import { searchSettings } from "./settingsValidation";
 import { RegistrySettingsTab } from "./tabs/RegistrySettingsTab";
 import { DiagnosticsStorageTab } from "./tabs/DiagnosticsStorageTab";
@@ -51,7 +55,7 @@ function modelLabOptionLabel(entry: ModelLabModel): string {
 }
 
 export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
-  const [activeTab, setActiveTab] = useState<SettingsCategory>("general");
+  const [activeTab, setActiveTab] = useState<SettingsDisplayCategory>("general");
   const [query, setQuery] = useState("");
   const draft = useSettingsDraftStore((state) => state.draft);
   const saving = useSettingsDraftStore((state) => state.saving);
@@ -154,10 +158,29 @@ export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
       searchSettings(query).map((entry) => ({
         key: String(entry.key),
         label: entry.label,
-        category: entry.category,
+        category: getDisplayCategoryDefinition(getDisplayCategoryForSetting(entry.key)).label,
       })),
     [query],
   );
+  const filteredKeys = useMemo(
+    () => new Set(searchSettings(query).map((entry) => String(entry.key))),
+    [query],
+  );
+  const categoryCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        SETTINGS_DISPLAY_CATEGORIES.map((category) => [
+          category.id,
+          getDisplayCategoryMatchCount(
+            category.id,
+            query.trim() ? filteredKeys : undefined,
+          ),
+        ]),
+      ) as Partial<Record<SettingsDisplayCategory, number>>,
+    [filteredKeys, query],
+  );
+  const activeCategoryDefinition = getDisplayCategoryDefinition(activeTab);
+  const activeKeys = useMemo(() => getDisplayCategoryKeys(activeTab), [activeTab]);
 
   const dirtyCount = Object.keys(draft).length;
 
@@ -180,7 +203,7 @@ export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
   const navigateToSetting = (key: string) => {
     const def = getSettingDefinition(key as keyof AppSettings);
     if (def) {
-      setActiveTab(def.category);
+      setActiveTab(getDisplayCategoryForSetting(def.key));
       setQuery("");
       window.requestAnimationFrame(() => {
         document.getElementById(`setting-${key}`)?.scrollIntoView({
@@ -231,34 +254,51 @@ export function SettingsNotebook({ compact = true }: { compact?: boolean }) {
         onNavigate={navigateToSetting}
         value={query}
       />
-      <SettingsTransferBar activeTab={activeTab} />
-      <SettingsTabBar active={activeTab} onChange={setActiveTab} />
+      <SettingsTransferBar activeCategoryLabel={activeCategoryDefinition.label} activeKeys={activeKeys} />
+      <SettingsTabBar active={activeTab} counts={categoryCounts} onChange={setActiveTab} />
       <div className={bodyClassName}>
-        {activeTab === "diagnostics" ? (
-          <DiagnosticsStorageTab />
-        ) : (
-          <div className="space-y-3 border border-dbzs-border bg-dbzs-bg p-3">
-            <div className="flex items-center justify-between gap-2">
-              <h4 className="text-xs font-medium uppercase tracking-wide text-dbzs-muted">
-                {SETTINGS_TABS.find((tab) => tab.id === activeTab)?.label ?? activeTab}
-              </h4>
-              {activeTab === "models" ? (
-                <button
-                  className="border border-dbzs-border px-2 py-1 text-[10px] text-dbzs-muted hover:border-dbzs-cyan/40 disabled:opacity-50"
-                  disabled={modelIndexLoading}
-                  onClick={() => void loadModelIndex()}
-                  type="button"
-                >
-                  {modelIndexLoading ? "Lade…" : "Modellindex aktualisieren"}
-                </button>
-              ) : null}
-            </div>
-            {activeTab === "models" && modelIndexError ? (
-              <p className="text-[11px] text-dbzs-red">Modellindex: {modelIndexError}</p>
-            ) : null}
-            <RegistrySettingsTab category={activeTab} modelLabOptionsByKey={modelLabOptionsByKey} modelOptions={modelOptions} />
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border border-dbzs-border bg-dbzs-bg px-3 py-2">
+          <div>
+            <h4 className="text-xs font-medium uppercase tracking-wide text-dbzs-muted">
+              {activeCategoryDefinition.label}
+            </h4>
+            <p className="mt-1 text-[11px] text-dbzs-muted">
+              {activeCategoryDefinition.description}
+            </p>
           </div>
-        )}
+          {query.trim() ? (
+            <div className="text-[11px] text-dbzs-muted">
+              {categoryCounts[activeTab] ?? 0} Treffer in dieser Kategorie
+            </div>
+          ) : null}
+        </div>
+        {activeTab === "diagnostics" ? <DiagnosticsStorageTab /> : null}
+        <div className="space-y-3 border border-dbzs-border bg-dbzs-bg p-3">
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="text-xs font-medium uppercase tracking-wide text-dbzs-muted">
+              Reale Settings-Felder
+            </h4>
+            {activeTab === "models" ? (
+              <button
+                className="border border-dbzs-border px-2 py-1 text-[10px] text-dbzs-muted hover:border-dbzs-cyan/40 disabled:opacity-50"
+                disabled={modelIndexLoading}
+                onClick={() => void loadModelIndex()}
+                type="button"
+              >
+                {modelIndexLoading ? "Lade…" : "Modellindex aktualisieren"}
+              </button>
+            ) : null}
+          </div>
+          {activeTab === "models" && modelIndexError ? (
+            <p className="text-[11px] text-dbzs-red">Modellindex: {modelIndexError}</p>
+          ) : null}
+          <RegistrySettingsTab
+            category={activeTab}
+            filteredKeys={query.trim() ? filteredKeys : undefined}
+            modelLabOptionsByKey={modelLabOptionsByKey}
+            modelOptions={modelOptions}
+          />
+        </div>
       </div>
       {(settingsError || saveError) && dirtyCount === 0 ? (
         <p className="mt-2 text-[11px] text-dbzs-red">{settingsError ?? saveError}</p>

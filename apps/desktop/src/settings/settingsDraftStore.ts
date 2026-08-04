@@ -9,6 +9,7 @@ interface SettingsDraftState {
   saving: boolean;
   saveError: string | null;
   setDraftField: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
+  clearDraftField: <K extends keyof AppSettings>(key: K) => void;
   discardDraft: () => void;
   applyDraft: () => Promise<boolean>;
   dirtyCount: () => number;
@@ -22,11 +23,23 @@ export const useSettingsDraftStore = create<SettingsDraftState>((set, get) => ({
   dirtyCount: () => Object.keys(get().draft).length,
   setDraftField: (key, value) => {
     set((state) => {
-      const nextDraft = { ...state.draft, [key]: value };
+      const savedValue = useSettingsStore.getState().settings[key];
+      const nextDraft = { ...state.draft };
+      if (JSON.stringify(savedValue) === JSON.stringify(value)) {
+        delete nextDraft[key];
+      } else {
+        nextDraft[key] = value;
+      }
       const errors = validatePatch(nextDraft);
       return { draft: nextDraft, fieldErrors: errors, saveError: null };
     });
   },
+  clearDraftField: (key) =>
+    set((state) => {
+      const nextDraft = { ...state.draft };
+      delete nextDraft[key];
+      return { draft: nextDraft, fieldErrors: validatePatch(nextDraft), saveError: null };
+    }),
   discardDraft: () => set({ draft: {}, fieldErrors: {}, saveError: null }),
   applyDraft: async () => {
     const { draft, fieldErrors } = get();

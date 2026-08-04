@@ -3,7 +3,6 @@ import type { AppSettings } from "@dbzs/shared";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useSettingsDraftStore } from "./settingsDraftStore";
 import { SettingsDiffPreview } from "./SettingsDiffPreview";
-import type { SettingsCategory } from "./settingsRegistry";
 import {
   buildResetChanges,
   buildSettingsExportPayload,
@@ -19,7 +18,13 @@ type PendingAction =
   | { kind: "reset-global"; changes: Partial<AppSettings>; diff: SettingsDiffEntry[] }
   | null;
 
-export function SettingsTransferBar({ activeTab }: { activeTab: SettingsCategory }) {
+export function SettingsTransferBar({
+  activeCategoryLabel,
+  activeKeys,
+}: {
+  activeCategoryLabel: string;
+  activeKeys: Array<keyof AppSettings>;
+}) {
   const settings = useSettingsStore((state) => state.settings);
   const patchSettings = useSettingsStore((state) => state.patchSettings);
   const discardDraft = useSettingsDraftStore((state) => state.discardDraft);
@@ -51,7 +56,7 @@ export function SettingsTransferBar({ activeTab }: { activeTab: SettingsCategory
   };
 
   const previewResetTab = () => {
-    const changes = buildResetChanges(settings, "tab", activeTab);
+    const changes = buildResetChanges(settings, "keys", activeKeys);
     setPending({
       kind: "reset-tab",
       changes,
@@ -124,7 +129,7 @@ export function SettingsTransferBar({ activeTab }: { activeTab: SettingsCategory
           onClick={previewResetTab}
           type="button"
         >
-          Tab zurücksetzen
+          {activeCategoryLabel} zurücksetzen
         </button>
         <button
           className="border border-dbzs-amber/40 px-2 py-1 text-[11px] text-dbzs-amber hover:border-dbzs-amber"

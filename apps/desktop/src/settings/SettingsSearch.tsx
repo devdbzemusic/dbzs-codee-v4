@@ -12,7 +12,7 @@ export function SettingsSearch({
   return (
     <div className="mb-3">
       <label className="block text-xs text-dbzs-muted">
-        Settings suchen
+        Settings suchen und filtern
         <input
           className="mt-2 w-full border border-dbzs-border bg-dbzs-panel px-3 py-2 text-dbzs-text"
           onChange={(event) => onChange(event.currentTarget.value)}
