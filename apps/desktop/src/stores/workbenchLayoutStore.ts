@@ -36,6 +36,87 @@ export type WorkbenchLayoutPreset =
   | "minimal"
   | null;
 
+export const WORKBENCH_LAYOUT_PRESET_ORDER: Array<NonNullable<WorkbenchLayoutPreset>> = [
+  "chat-focus",
+  "code-focus",
+  "review-focus",
+  "agent-ops",
+  "model-ops",
+  "minimal"
+];
+
+export const WORKBENCH_LAYOUT_PRESET_LABELS: Record<NonNullable<WorkbenchLayoutPreset>, string> = {
+  "chat-focus": "Chat Focus",
+  "code-focus": "Code Focus",
+  "review-focus": "Review Focus",
+  "agent-ops": "Agent Ops",
+  "model-ops": "Model Ops",
+  minimal: "Minimal"
+};
+
+export interface WorkbenchLayoutPresetDefinition {
+  activeRailItem: WorkbenchRailItem;
+  activeInspectorTab: WorkbenchInspectorTab;
+  activeDockTab: WorkbenchDockTab;
+  leftSidebarOpen: boolean;
+  inspectorOpen: boolean;
+  bottomDockOpen: boolean;
+}
+
+export const WORKBENCH_LAYOUT_PRESETS: Record<
+  NonNullable<WorkbenchLayoutPreset>,
+  WorkbenchLayoutPresetDefinition
+> = {
+  "chat-focus": {
+    activeRailItem: "chat",
+    activeInspectorTab: "context",
+    activeDockTab: "terminal",
+    leftSidebarOpen: true,
+    inspectorOpen: true,
+    bottomDockOpen: false
+  },
+  "code-focus": {
+    activeRailItem: "workspace",
+    activeInspectorTab: "properties",
+    activeDockTab: "terminal",
+    leftSidebarOpen: true,
+    inspectorOpen: true,
+    bottomDockOpen: false
+  },
+  "review-focus": {
+    activeRailItem: "git",
+    activeInspectorTab: "runtime",
+    activeDockTab: "git",
+    leftSidebarOpen: true,
+    inspectorOpen: true,
+    bottomDockOpen: true
+  },
+  "agent-ops": {
+    activeRailItem: "agent-workbench",
+    activeInspectorTab: "agents",
+    activeDockTab: "output",
+    leftSidebarOpen: true,
+    inspectorOpen: true,
+    bottomDockOpen: true
+  },
+  "model-ops": {
+    activeRailItem: "model-lab",
+    activeInspectorTab: "model",
+    activeDockTab: "jobs",
+    leftSidebarOpen: false,
+    inspectorOpen: true,
+    bottomDockOpen: true
+  },
+  minimal: {
+    activeRailItem: "workspace",
+    activeInspectorTab: "context",
+    activeDockTab: "terminal",
+    leftSidebarOpen: false,
+    inspectorOpen: false,
+    bottomDockOpen: false
+  }
+};
+
 const STORAGE_KEY = "dbzs-workbench-layout-v2";
 
 const VALID_RAIL_ITEMS: WorkbenchRailItem[] = [
@@ -89,7 +170,10 @@ function readPersistedLayout(): Partial<PersistedLayout> {
       leftSidebarOpen: typeof parsed.leftSidebarOpen === "boolean" ? parsed.leftSidebarOpen : true,
       inspectorOpen: typeof parsed.inspectorOpen === "boolean" ? parsed.inspectorOpen : false,
       bottomDockOpen: typeof parsed.bottomDockOpen === "boolean" ? parsed.bottomDockOpen : false,
-      activePresetId: parsed.activePresetId ?? null
+      activePresetId:
+        parsed.activePresetId && WORKBENCH_LAYOUT_PRESET_ORDER.includes(parsed.activePresetId as NonNullable<WorkbenchLayoutPreset>)
+          ? parsed.activePresetId
+          : null
     };
   } catch {
     return {};
@@ -130,6 +214,7 @@ export interface WorkbenchLayoutState {
   setBottomDockOpen: (open: boolean) => void;
   toggleBottomDock: () => void;
   applyPreset: (presetId: WorkbenchLayoutPreset) => void;
+  cyclePreset: () => void;
 }
 
 const initialLayout = readPersistedLayout();
@@ -162,17 +247,16 @@ export const useWorkbenchLayoutStore = create<WorkbenchLayoutState>((set, get) =
   toggleBottomDock: () => { set((s) => ({ bottomDockOpen: !s.bottomDockOpen })); persistLayout(get()); },
 
   applyPreset: (presetId) => {
-    const presets: Record<NonNullable<WorkbenchLayoutPreset>, Partial<WorkbenchLayoutState>> = {
-      "chat-focus":    { leftSidebarOpen: true,  inspectorOpen: true,  bottomDockOpen: false, activeRailItem: "chat"      },
-      "code-focus":    { leftSidebarOpen: true,  inspectorOpen: true,  bottomDockOpen: false, activeRailItem: "workspace" },
-      "review-focus":  { leftSidebarOpen: false, inspectorOpen: true,  bottomDockOpen: false, activeRailItem: "git"       },
-      "agent-ops":     { leftSidebarOpen: true,  inspectorOpen: true,  bottomDockOpen: true,  activeRailItem: "agent-workbench" },
-      "model-ops":     { leftSidebarOpen: false, inspectorOpen: true,  bottomDockOpen: true,  activeRailItem: "runtime"   },
-      "minimal":       { leftSidebarOpen: false, inspectorOpen: false, bottomDockOpen: false  }
-    };
-    if (presetId && presets[presetId]) {
-      set({ ...presets[presetId], activePresetId: presetId });
+    if (presetId && WORKBENCH_LAYOUT_PRESETS[presetId]) {
+      set({ ...WORKBENCH_LAYOUT_PRESETS[presetId], activePresetId: presetId });
       persistLayout(get());
     }
+  },
+
+  cyclePreset: () => {
+    const currentPresetId = get().activePresetId;
+    const currentIndex = currentPresetId ? WORKBENCH_LAYOUT_PRESET_ORDER.indexOf(currentPresetId) : -1;
+    const nextPresetId = WORKBENCH_LAYOUT_PRESET_ORDER[(currentIndex + 1) % WORKBENCH_LAYOUT_PRESET_ORDER.length];
+    get().applyPreset(nextPresetId);
   }
 }));

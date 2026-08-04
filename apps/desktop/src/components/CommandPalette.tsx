@@ -2,6 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAgentRegistryStore } from "@/stores/agentRegistryStore";
 import { useCommandPaletteStore, type RuntimeChatPresetId } from "@/stores/commandPaletteStore";
 import { useJobSpoolerStore } from "@/stores/jobSpoolerStore";
+import {
+  WORKBENCH_LAYOUT_PRESET_LABELS,
+  WORKBENCH_LAYOUT_PRESET_ORDER,
+  useWorkbenchLayoutStore
+} from "@/stores/workbenchLayoutStore";
 import { runAppMenuAction } from "@/hooks/useAppMenuActions";
 import type { AppMenuAction } from "@/types/appMenu";
 import { openPlatformDiagnosticsWindow } from "@/utils/platformDiagnosticsWindow";
@@ -74,6 +79,7 @@ export function CommandPalette() {
   const jobs = useJobSpoolerStore((state) => state.jobs);
   const selectJob = useJobSpoolerStore((state) => state.selectJob);
   const agents = useAgentRegistryStore((state) => state.agents);
+  const applyWorkbenchPreset = useWorkbenchLayoutStore((state) => state.applyPreset);
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -111,6 +117,13 @@ export function CommandPalette() {
         detail: preset.detail,
         action: () => requestRuntimeChatPreset(preset.id)
       })),
+      ...WORKBENCH_LAYOUT_PRESET_ORDER.map((presetId) => ({
+        id: `layout-preset-${presetId}`,
+        label: `Layout: ${WORKBENCH_LAYOUT_PRESET_LABELS[presetId]}`,
+        category: "Layout",
+        detail: "Responsive Fokusmodus anwenden",
+        action: () => applyWorkbenchPreset(presetId)
+      })),
       ...jobs.slice(0, 20).map((job) => ({
         id: `job-${job.id}`,
         label: job.title,
@@ -127,7 +140,7 @@ export function CommandPalette() {
       }))
     ];
     return all.filter((entry) => fuzzyMatch(`${entry.label} ${entry.category} ${entry.detail ?? ""}`, query));
-  }, [agents, jobs, query, requestRuntimeChatCapabilities, requestRuntimeChatPreset, selectJob]);
+  }, [agents, applyWorkbenchPreset, jobs, query, requestRuntimeChatCapabilities, requestRuntimeChatPreset, selectJob]);
 
   useEffect(() => {
     setActiveIndex(0);

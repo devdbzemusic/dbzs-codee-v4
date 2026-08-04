@@ -525,6 +525,7 @@ export function useWorkspaceProjectSync(options: WorkspaceProjectSyncOptions): v
 
 interface AppKeyboardShortcutsOptions {
   handleOpenRuntimeChatWindow: () => Promise<void>;
+  cycleWorkbenchPreset: () => void;
   openCommandPalette: () => void;
   openFile: () => Promise<unknown>;
   saveActiveFile: () => Promise<unknown>;
@@ -532,10 +533,17 @@ interface AppKeyboardShortcutsOptions {
 }
 
 export function useAppKeyboardShortcuts(options: AppKeyboardShortcutsOptions): void {
-  const { handleOpenRuntimeChatWindow, openCommandPalette, openFile, saveActiveFile, saveActiveFileAs } = options;
+  const { cycleWorkbenchPreset, handleOpenRuntimeChatWindow, openCommandPalette, openFile, saveActiveFile, saveActiveFileAs } = options;
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isEditableTarget =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable === true;
+
       if (!event.ctrlKey && !event.metaKey) {
         return;
       }
@@ -546,7 +554,14 @@ export function useAppKeyboardShortcuts(options: AppKeyboardShortcutsOptions): v
         return;
       }
 
+      if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === "l") {
+        event.preventDefault();
+        cycleWorkbenchPreset();
+        return;
+      }
+
       if (!event.ctrlKey) return;
+      if (isEditableTarget) return;
 
       if (event.key >= "1" && event.key <= "5") {
         event.preventDefault();
@@ -595,7 +610,7 @@ export function useAppKeyboardShortcuts(options: AppKeyboardShortcutsOptions): v
 
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [handleOpenRuntimeChatWindow, openCommandPalette, openFile, saveActiveFile, saveActiveFileAs]);
+  }, [cycleWorkbenchPreset, handleOpenRuntimeChatWindow, openCommandPalette, openFile, saveActiveFile, saveActiveFileAs]);
 }
 
 export function useAppGridLayoutVars(

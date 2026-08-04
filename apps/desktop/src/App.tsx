@@ -60,6 +60,7 @@ import {
   AppShellRightSidebar
 } from "@/components/appShellSections";
 import { useDockStore } from "@/stores/dockStore";
+import { useNotebookStore } from "@/stores/notebookStore";
 import {
   CollapsedPanelButton as AppShellCollapsedPanelButton,
   PanelHeader as AppShellPanelHeader,
@@ -96,7 +97,6 @@ import { WorkbenchStatusBadge } from "@/components/workbench/WorkbenchStatusBadg
 import { WorkbenchStatusBar } from "@/components/workbench/WorkbenchStatusBar";
 import { WorkspaceSidebar } from "@/components/workbench/WorkspaceSidebar";
 import { BottomDock } from "@/components/workbench/BottomDock";
-import { useWorkbenchLayout } from "@/hooks/useWorkbenchLayout";
 import { deriveWorkbenchStatus } from "@/hooks/useWorkbenchStatus";
 
 const MIN_SIDE_PANEL_WIDTH = 220;
@@ -176,6 +176,23 @@ const INSPECTOR_TABS: Array<{ id: InspectorTabId; label: string; title: string; 
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function mapWorkbenchInspectorTabToSidebarMode(
+  tab: ReturnType<typeof useWorkbenchLayoutStore.getState>["activeInspectorTab"]
+): InspectorTabId {
+  switch (tab) {
+    case "context":
+    case "runtime":
+    case "diagnostics":
+    case "properties":
+    case "model":
+      return tab;
+    case "git":
+      return "properties";
+    default:
+      return "agents";
+  }
 }
 
 function hasElectronBridge(): boolean {
@@ -504,12 +521,23 @@ function AppShell() {
   const openCommandPalette = useCommandPaletteStore((s) => s.openPalette);
   const workbenchShellMode = useWorkbenchLayoutStore((state) => state.shellMode);
   const workbenchRailItem = useWorkbenchLayoutStore((state) => state.activeRailItem);
+  const workbenchInspectorTab = useWorkbenchLayoutStore((state) => state.activeInspectorTab);
+  const workbenchPresetId = useWorkbenchLayoutStore((state) => state.activePresetId);
+  const workbenchLeftSidebarOpen = useWorkbenchLayoutStore((state) => state.leftSidebarOpen);
+  const workbenchInspectorOpen = useWorkbenchLayoutStore((state) => state.inspectorOpen);
+  const workbenchBottomDockOpen = useWorkbenchLayoutStore((state) => state.bottomDockOpen);
   const setWorkbenchShellMode = useWorkbenchLayoutStore((state) => state.setShellMode);
   const setWorkbenchRailItem = useWorkbenchLayoutStore((state) => state.setActiveRailItem);
+  const setWorkbenchInspectorTab = useWorkbenchLayoutStore((state) => state.setActiveInspectorTab);
+  const setWorkbenchLeftSidebarOpen = useWorkbenchLayoutStore((state) => state.setLeftSidebarOpen);
+  const setWorkbenchInspectorOpen = useWorkbenchLayoutStore((state) => state.setInspectorOpen);
+  const setWorkbenchBottomDockOpen = useWorkbenchLayoutStore((state) => state.setBottomDockOpen);
   const workbenchActiveDockTab = useWorkbenchLayoutStore((state) => state.activeDockTab);
   const setWorkbenchDockTab = useWorkbenchLayoutStore((state) => state.setActiveDockTab);
-
-  const wbLayout = useWorkbenchLayout();
+  const applyWorkbenchPreset = useWorkbenchLayoutStore((state) => state.applyPreset);
+  const cycleWorkbenchPreset = useWorkbenchLayoutStore((state) => state.cyclePreset);
+  const setNotebookActiveTab = useNotebookStore((state) => state.setActiveTab);
+  const setSplitChatEditor = useNotebookStore((state) => state.setSplitChatEditor);
 
   const handleOpenRuntimeChatWindow = async () => {
     try {
@@ -660,12 +688,116 @@ function AppShell() {
   });
 
   useAppKeyboardShortcuts({
+    cycleWorkbenchPreset,
     handleOpenRuntimeChatWindow,
     openCommandPalette,
     openFile,
     saveActiveFile,
     saveActiveFileAs
   });
+
+  useEffect(() => {
+    switch (workbenchPresetId) {
+      case "chat-focus":
+        setNotebookActiveTab("cdee");
+        setSplitChatEditor(false);
+        setRightSidebarMode("context");
+        setLeftPanelCollapsed(false);
+        setRightPanelCollapsed(false);
+        setTerminalCollapsed(true);
+        setDockMode("terminal");
+        break;
+      case "code-focus":
+        setNotebookActiveTab("editor");
+        setSplitChatEditor(true);
+        setRightSidebarMode("properties");
+        setLeftPanelCollapsed(false);
+        setRightPanelCollapsed(false);
+        setTerminalCollapsed(true);
+        setDockMode("terminal");
+        break;
+      case "review-focus":
+        setNotebookActiveTab("editor");
+        setSplitChatEditor(false);
+        setRightSidebarMode("runtime");
+        setLeftPanelCollapsed(false);
+        setRightPanelCollapsed(false);
+        setTerminalCollapsed(false);
+        setDockMode("git");
+        break;
+      case "agent-ops":
+        setNotebookActiveTab("agent-workbench");
+        setSplitChatEditor(false);
+        setRightSidebarMode("agents");
+        setLeftPanelCollapsed(false);
+        setRightPanelCollapsed(false);
+        setTerminalCollapsed(false);
+        setDockMode("output");
+        break;
+      case "model-ops":
+        setNotebookActiveTab("model-lab");
+        setSplitChatEditor(false);
+        setRightSidebarMode("model");
+        setLeftPanelCollapsed(true);
+        setRightPanelCollapsed(false);
+        setTerminalCollapsed(false);
+        setDockMode("output");
+        break;
+      case "minimal":
+        setSplitChatEditor(false);
+        setLeftPanelCollapsed(true);
+        setRightPanelCollapsed(true);
+        setTerminalCollapsed(true);
+        break;
+      default:
+        break;
+    }
+  }, [setDockMode, setNotebookActiveTab, setSplitChatEditor, workbenchPresetId]);
+
+  useEffect(() => {
+    if (workbenchShellMode !== "neural-workbench") {
+      return;
+    }
+    setLeftPanelCollapsed(!workbenchLeftSidebarOpen);
+    setRightPanelCollapsed(!workbenchInspectorOpen);
+    setTerminalCollapsed(!workbenchBottomDockOpen);
+    setRightSidebarMode(mapWorkbenchInspectorTabToSidebarMode(workbenchInspectorTab));
+  }, [
+    workbenchBottomDockOpen,
+    workbenchInspectorOpen,
+    workbenchInspectorTab,
+    workbenchLeftSidebarOpen,
+    workbenchShellMode
+  ]);
+
+  useEffect(() => {
+    if (workbenchShellMode !== "neural-workbench") {
+      return;
+    }
+    setDockMode(
+      workbenchActiveDockTab === "git"
+        ? "git"
+        : workbenchActiveDockTab === "terminal"
+          ? "terminal"
+          : "output"
+    );
+  }, [setDockMode, workbenchActiveDockTab, workbenchShellMode]);
+
+  useEffect(() => {
+    const clampResponsivePanels = () => {
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const maxSideWidth = Math.max(MIN_SIDE_PANEL_WIDTH, Math.min(MAX_SIDE_PANEL_WIDTH, Math.floor(viewportWidth * 0.28)));
+      const maxDockHeight = Math.max(MIN_TERMINAL_HEIGHT, Math.min(MAX_TERMINAL_HEIGHT, Math.floor(viewportHeight * 0.34)));
+      setLeftPanelWidth((value) => clamp(value, MIN_SIDE_PANEL_WIDTH, maxSideWidth));
+      setRightPanelWidth((value) => clamp(value, MIN_SIDE_PANEL_WIDTH, maxSideWidth));
+      setTerminalHeight((value) => clamp(value, MIN_TERMINAL_HEIGHT, maxDockHeight));
+    };
+
+    clampResponsivePanels();
+    window.addEventListener("resize", clampResponsivePanels);
+    return () => window.removeEventListener("resize", clampResponsivePanels);
+  }, []);
 
   useAppGridLayoutVars(visibleLeftWidth, visibleRightWidth, visibleTerminalHeight);
 
@@ -761,18 +893,35 @@ function AppShell() {
       }`}
     >
       <div className="app-shell-grid grid min-h-0 flex-1 overflow-hidden">
-        <header className="flex items-center justify-between border-b border-dbzs-border bg-dbzs-panel px-5">
-          <div className="flex items-center gap-4">
+        <header className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-dbzs-border bg-dbzs-panel px-3 py-2 lg:px-5">
+          <div className="flex min-w-0 items-center gap-4">
             <div className="grid h-9 w-9 place-items-center border border-dbzs-cyan/50 bg-dbzs-cyan/10 text-sm font-semibold text-dbzs-cyan">
               D
             </div>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-base font-semibold tracking-normal">DBZS Code Assistant</h1>
               <p className="text-xs text-dbzs-muted">Lokale AI-Desktop-Foundation - Phase 1</p>
             </div>
           </div>
-
-          <div className="flex items-center gap-3 text-xs">
+ 
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 text-xs">
+            {workbenchShellMode === "neural-workbench" ? (
+              <label className="flex items-center gap-2 rounded border border-dbzs-border bg-dbzs-panelSoft px-2 py-1 text-[11px] text-dbzs-muted">
+                <span className="whitespace-nowrap">Layout</span>
+                <select
+                  className="min-w-0 bg-transparent text-dbzs-text outline-none"
+                  onChange={(event) => applyWorkbenchPreset(event.currentTarget.value as NonNullable<typeof workbenchPresetId>)}
+                  value={workbenchPresetId ?? "chat-focus"}
+                >
+                  <option value="chat-focus">Chat Focus</option>
+                  <option value="code-focus">Code Focus</option>
+                  <option value="review-focus">Review Focus</option>
+                  <option value="agent-ops">Agent Ops</option>
+                  <option value="model-ops">Model Ops</option>
+                  <option value="minimal">Minimal</option>
+                </select>
+              </label>
+            ) : null}
             {workbenchShellMode === "neural-workbench" ? (
               <button
                 className="hidden border border-dbzs-border bg-dbzs-panelSoft px-2.5 py-1 text-xs text-dbzs-muted hover:border-dbzs-cyan/50 hover:text-dbzs-cyan xl:inline-flex"
@@ -780,6 +929,16 @@ function AppShell() {
                 type="button"
               >
                 Quick Open <kbd className="ml-2 font-mono text-[10px]">Ctrl K</kbd>
+              </button>
+            ) : null}
+            {workbenchShellMode === "neural-workbench" ? (
+              <button
+                className="border border-dbzs-border bg-dbzs-panelSoft px-2.5 py-1 text-xs text-dbzs-muted hover:border-dbzs-cyan/50 hover:text-dbzs-cyan"
+                onClick={cycleWorkbenchPreset}
+                title="Layout-Fokus zyklisch wechseln (Ctrl+Alt+L)"
+                type="button"
+              >
+                Fokus wechseln <kbd className="ml-2 font-mono text-[10px]">Ctrl Alt L</kbd>
               </button>
             ) : null}
             <button
@@ -846,14 +1005,20 @@ function AppShell() {
             {leftPanelCollapsed ? (
               <AppShellCollapsedPanelButton
                 label="Workspace oeffnen"
-                onClick={() => setLeftPanelCollapsed(false)}
+                onClick={() => {
+                  setLeftPanelCollapsed(false);
+                  setWorkbenchLeftSidebarOpen(true);
+                }}
                 side="left"
               />
             ) : (
               <>
                 <AppShellPanelHeader
                   description="Projekt, Dateien und Ordner verwalten."
-                  onCollapse={() => setLeftPanelCollapsed(true)}
+                  onCollapse={() => {
+                    setLeftPanelCollapsed(true);
+                    setWorkbenchLeftSidebarOpen(false);
+                  }}
                   title="Workspace"
                 />
                 <div className="panel-scroll min-h-0">
@@ -1056,7 +1221,10 @@ function AppShell() {
                         : "text-dbzs-muted hover:text-dbzs-text"
                     }`}
                     key={tab.id}
-                    onClick={() => setRightSidebarMode(tab.id)}
+                    onClick={() => {
+                      setRightSidebarMode(tab.id);
+                      setWorkbenchInspectorTab(tab.id);
+                    }}
                     title={tab.title}
                     type="button"
                   >
@@ -1066,8 +1234,14 @@ function AppShell() {
                 ))}
               </div>
             }
-            onCollapse={() => setRightPanelCollapsed(true)}
-            onExpand={() => setRightPanelCollapsed(false)}
+            onCollapse={() => {
+              setRightPanelCollapsed(true);
+              setWorkbenchInspectorOpen(false);
+            }}
+            onExpand={() => {
+              setRightPanelCollapsed(false);
+              setWorkbenchInspectorOpen(true);
+            }}
             onResize={startSidePanelResize("right")}
           >
             <div className={`panel-scroll space-y-4 px-4 pb-4 ${rightSidebarMode === "agents" ? "flex min-h-0 flex-1 flex-col" : "hidden"}`}>
@@ -1236,9 +1410,18 @@ function AppShell() {
             </div>
           )}
           onResize={startTerminalResize}
-          onSetDockMode={setDockMode}
+          onSetDockMode={(tab) => {
+            setDockMode(tab);
+            setWorkbenchDockTab(tab === "git" ? "git" : tab === "terminal" ? "terminal" : "output");
+          }}
           onToggleDockMaximized={toggleDockMaximized}
-          onToggleTerminal={() => setTerminalCollapsed((value) => !value)}
+          onToggleTerminal={() => {
+            setTerminalCollapsed((value) => {
+              const nextValue = !value;
+              setWorkbenchBottomDockOpen(!nextValue);
+              return nextValue;
+            });
+          }}
           outputPane={(
             <div className="panel-scroll mx-4 flex-1 space-y-3 pb-3">
               <div className="border border-dbzs-border bg-[#05080c] p-3 font-mono text-xs text-dbzs-muted">

@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useWorkbenchLayoutStore } from "./workbenchLayoutStore";
+import {
+  WORKBENCH_LAYOUT_PRESET_LABELS,
+  WORKBENCH_LAYOUT_PRESET_ORDER,
+  useWorkbenchLayoutStore
+} from "./workbenchLayoutStore";
 
 const STORAGE_KEY = "dbzs-workbench-layout-v2";
 
@@ -67,7 +71,18 @@ describe("workbenchLayoutStore", () => {
       leftSidebarOpen: true,
       inspectorOpen: true,
       bottomDockOpen: false,
-      activeRailItem: "chat"
+      activeRailItem: "chat",
+      activeInspectorTab: "context"
     });
+  });
+
+  it("cycles through all persisted focus presets in order", () => {
+    const store = useWorkbenchLayoutStore.getState();
+
+    for (const expectedPreset of WORKBENCH_LAYOUT_PRESET_ORDER) {
+      store.cyclePreset();
+      expect(useWorkbenchLayoutStore.getState().activePresetId).toBe(expectedPreset);
+      expect(WORKBENCH_LAYOUT_PRESET_LABELS[expectedPreset].length).toBeGreaterThan(0);
+    }
   });
 });

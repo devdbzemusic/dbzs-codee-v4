@@ -18,6 +18,7 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: 'Ctrl+Shift+O', action: 'openProject', description: 'Projekt öffnen', category: 'global' },
   { keys: 'Ctrl+S', action: 'saveFile', description: 'Datei speichern', category: 'global' },
   { keys: 'Ctrl+Shift+S', action: 'saveFileAs', description: 'Speichern unter', category: 'global' },
+  { keys: 'Ctrl+Alt+L', action: 'cycleLayoutPreset', description: 'Layout-Fokusmodus wechseln', category: 'global' },
   { keys: ',', action: 'openSettings', description: 'Settings öffnen', category: 'global' },
   { keys: 'Escape', action: 'closePanel', description: 'Panel schließen', category: 'global' },
   

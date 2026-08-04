@@ -20,7 +20,7 @@
 
 body {
   margin: 0;
-  min-width: 1120px;
+  min-width: 1024px;
   min-height: 720px;
   overflow: hidden;
 }
@@ -87,6 +87,34 @@ body {
 
 .dbzs-workbench-mode .app-shell-grid > header h1 {
   font-size: 14px;
+}
+
+@media (max-width: 1600px) {
+  .app-shell-grid {
+    grid-template-rows: var(--dbzs-grid-rows, 60px minmax(0, 1fr) 176px);
+  }
+
+  .app-main-grid {
+    grid-template-columns: var(--dbzs-grid-columns, 250px minmax(0, 1fr) 300px);
+  }
+
+  .dbzs-workbench-mode .app-main-grid {
+    grid-template-columns: 56px var(--dbzs-grid-columns, 250px minmax(0, 1fr) 300px);
+  }
+}
+
+@media (max-width: 1366px) {
+  .app-shell-grid {
+    grid-template-rows: var(--dbzs-grid-rows, 58px minmax(0, 1fr) 160px);
+  }
+
+  .app-main-grid {
+    grid-template-columns: var(--dbzs-grid-columns, 220px minmax(0, 1fr) 260px);
+  }
+
+  .dbzs-workbench-mode .app-main-grid {
+    grid-template-columns: 48px var(--dbzs-grid-columns, 220px minmax(0, 1fr) 260px);
+  }
 }
 
 .dbzs-workbench-mode .app-footer-grid {
