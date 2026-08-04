@@ -3,18 +3,34 @@ import type { RuntimeChatActivityRun, RuntimeChatActivityStepStatus } from "@/ty
 import { useRuntimeChatStore } from "@/stores/runtimeChatStore";
 import { agentLabel } from "@/services/runtimeChatActivityHelpers";
 
-function stepIcon(status: RuntimeChatActivityStepStatus): string {
+function StepIcon({ status }: { status: RuntimeChatActivityStepStatus }) {
   switch (status) {
     case "running":
-      return "◌";
+      return (
+        <svg aria-hidden="true" className="h-3 w-3 animate-spin text-dbzs-cyan" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round" />
+        </svg>
+      );
     case "done":
-      return "✓";
+      return (
+        <svg aria-hidden="true" className="h-3 w-3 text-dbzs-green" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
     case "error":
-      return "✗";
+      return (
+        <svg aria-hidden="true" className="h-3 w-3 text-dbzs-red" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+        </svg>
+      );
     case "skipped":
-      return "–";
+      return (
+        <svg aria-hidden="true" className="h-3 w-3 text-dbzs-muted/60" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path d="M5 12h14" strokeLinecap="round" />
+        </svg>
+      );
     default:
-      return "·";
+      return <span aria-hidden="true" className="inline-block h-1.5 w-1.5 rounded-full bg-dbzs-muted/40" />;
   }
 }
 
@@ -23,7 +39,7 @@ function stepClass(status: RuntimeChatActivityStepStatus): string {
     case "running":
       return "text-dbzs-cyan";
     case "done":
-      return "text-green-400";
+      return "text-dbzs-green";
     case "error":
       return "text-dbzs-red";
     case "skipped":
@@ -61,7 +77,16 @@ function ActivityRunView({
               : run.summary ?? `${agentLabel(run.targetAgent)} · ${run.steps.length} Schritte`}
           </div>
         </div>
-        <span className="shrink-0 text-[10px] text-dbzs-muted">{expanded ? "▾" : "▸"}</span>
+        <span className="shrink-0 text-dbzs-muted">
+          <svg
+            aria-hidden="true"
+            className={`h-3 w-3 transition-transform ${expanded ? "rotate-90" : ""}`}
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </span>
       </button>
 
       {expanded ? (
@@ -73,7 +98,7 @@ function ActivityRunView({
           {run.steps.map((step) => (
             <div className="rounded border border-dbzs-border/60 bg-dbzs-panelSoft px-2 py-1.5" key={step.id}>
               <div className={`flex items-center gap-2 text-[11px] font-medium ${stepClass(step.status)}`}>
-                <span aria-hidden="true">{stepIcon(step.status)}</span>
+                <StepIcon status={step.status} />
                 <span className="text-dbzs-text">{step.label}</span>
               </div>
               {step.detail ? (
