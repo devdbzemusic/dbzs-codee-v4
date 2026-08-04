@@ -32,7 +32,8 @@
     "release:mac": "electron-vite build && electron-builder --mac",
     "release:linux": "electron-vite build && electron-builder --linux",
     "release:all": "electron-vite build && electron-builder --win --mac --linux",
-    "e2e": "playwright test",
+    "e2e": "playwright test -c playwright.realcheck.config.ts",
+    "e2e:legacy": "playwright test",
     "e2e:install": "playwright install chromium",
     "dev:renderer": "node scripts/dev-renderer.mjs"
   },
