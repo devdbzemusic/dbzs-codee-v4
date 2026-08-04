@@ -1,4 +1,4 @@
-import { lazy, Suspense, type PointerEvent, useEffect, useState } from "react";
+import { lazy, Suspense, type PointerEvent, type ReactNode, useEffect, useState } from "react";
 import {
   type BackendStartupStatus,
   type BootState,
@@ -102,6 +102,86 @@ const MIN_SIDE_PANEL_WIDTH = 220;
 const MAX_SIDE_PANEL_WIDTH = 520;
 const MIN_TERMINAL_HEIGHT = 128;
 const MAX_TERMINAL_HEIGHT = 360;
+
+type InspectorTabId = "agents" | "context" | "runtime" | "diagnostics" | "properties" | "model" | "debug-log";
+
+const INSPECTOR_TABS: Array<{ id: InspectorTabId; label: string; title: string; icon: ReactNode }> = [
+  {
+    id: "agents",
+    label: "Agents",
+    title: "Agent-Registry, Debug-/Planner-/Test-/Review-Agenten und Task-Orchestrierung",
+    icon: (
+      <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <circle cx="12" cy="8" r="3.2" />
+        <path d="M5 20a7 7 0 0114 0" strokeLinecap="round" />
+      </svg>
+    )
+  },
+  {
+    id: "context",
+    label: "Context",
+    title: "Projekt-Gedächtnis: bekannte Probleme, wichtige Dateien, letzte Aufgaben",
+    icon: (
+      <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <path d="M4 19.5A2.5 2.5 0 016.5 17H20" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  },
+  {
+    id: "runtime",
+    label: "Runtime",
+    title: "Review Gate und Agent-Terminal-Ausgabe",
+    icon: (
+      <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  },
+  {
+    id: "diagnostics",
+    label: "Diagnostics",
+    title: "Docs-Analyse und Projekt-Diagnostik",
+    icon: (
+      <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <path d="M12 2a4.5 4.5 0 00-4.5 4.5V9a4 4 0 00-1.5 3.1V17a4.5 4.5 0 004.5 4.5h3A4.5 4.5 0 0018 17v-4.9A4 4 0 0016.5 9V6.5A4.5 4.5 0 0012 2z" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M8 13h1M15 13h1M9 21v-3M15 21v-3" strokeLinecap="round" />
+      </svg>
+    )
+  },
+  {
+    id: "properties",
+    label: "Properties",
+    title: "Datei-Werkzeuge, Pending-Diffs der aktiven Datei",
+    icon: (
+      <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  },
+  {
+    id: "model",
+    label: "Model",
+    title: "Editor-/Runtime-Einstellungen",
+    icon: (
+      <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <rect height="10" rx="2" width="18" x="3" y="7" />
+        <path d="M7 7V5.5A2.5 2.5 0 019.5 3h5A2.5 2.5 0 0117 5.5V7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  },
+  {
+    id: "debug-log",
+    label: "Debug Log",
+    title: "Live-Debug-Log des Backends",
+    icon: (
+      <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <path d="M4 6h16M4 12h16M4 18h10" strokeLinecap="round" />
+      </svg>
+    )
+  }
+];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -320,7 +400,9 @@ function AppShell() {
   const [terminalHeight, setTerminalHeight] = useState(188);
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
-  const [rightSidebarMode, setRightSidebarMode] = useState<"agents" | "debug-log">("agents");
+  const [rightSidebarMode, setRightSidebarMode] = useState<
+    "agents" | "context" | "runtime" | "diagnostics" | "properties" | "model" | "debug-log"
+  >("agents");
   const [terminalCollapsed, setTerminalCollapsed] = useState(false);
   const [standaloneView, setStandaloneView] = useState(readStandaloneView);
   const [runtimeChatWindowOpen, setRuntimeChatWindowOpen] = useState(false);
@@ -968,23 +1050,25 @@ function AppShell() {
 
           <AppShellRightSidebar
             collapsed={rightPanelCollapsed}
-            fillBody={rightSidebarMode === "debug-log"}
+            fillBody
             modeToggle={
-              <div className="flex border border-dbzs-border text-[10px]">
-                <button
-                  className={`flex-1 px-2 py-1 ${rightSidebarMode === "agents" ? "bg-dbzs-cyan/10 text-dbzs-cyan" : "text-dbzs-muted hover:text-dbzs-text"}`}
-                  onClick={() => setRightSidebarMode("agents")}
-                  type="button"
-                >
-                  Agents
-                </button>
-                <button
-                  className={`flex-1 border-l border-dbzs-border px-2 py-1 ${rightSidebarMode === "debug-log" ? "bg-dbzs-cyan/10 text-dbzs-cyan" : "text-dbzs-muted hover:text-dbzs-text"}`}
-                  onClick={() => setRightSidebarMode("debug-log")}
-                  type="button"
-                >
-                  Debug Log
-                </button>
+              <div className="flex flex-wrap gap-0.5 border border-dbzs-border text-[10px]">
+                {INSPECTOR_TABS.map((tab) => (
+                  <button
+                    className={`flex flex-1 items-center justify-center gap-1 px-2 py-1 ${
+                      rightSidebarMode === tab.id
+                        ? "bg-dbzs-cyan/10 text-dbzs-cyan"
+                        : "text-dbzs-muted hover:text-dbzs-text"
+                    }`}
+                    key={tab.id}
+                    onClick={() => setRightSidebarMode(tab.id)}
+                    title={tab.title}
+                    type="button"
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                ))}
               </div>
             }
             onCollapse={() => setRightPanelCollapsed(true)}
@@ -993,8 +1077,8 @@ function AppShell() {
           >
             {rightSidebarMode === "debug-log" ? (
               <DebugLogPanel />
-            ) : (
-              <>
+            ) : null}
+            <div className={`panel-scroll space-y-4 px-4 pb-4 ${rightSidebarMode === "agents" ? "flex min-h-0 flex-1 flex-col" : "hidden"}`}>
               <DebugAgentPanel
                 analyses={debugAnalyses}
                 affectedFiles={debugAffectedFiles}
@@ -1112,6 +1196,8 @@ function AppShell() {
                 stopSelectedAgent={stopSelectedAgent}
                 updateAgent={updateAgent}
               />
+            </div>
+            <div className={`panel-scroll space-y-4 px-4 pb-4 ${rightSidebarMode === "context" ? "flex min-h-0 flex-1 flex-col" : "hidden"}`}>
               <AppShellProjectMemoryPanel
                 error={projectMemoryError}
                 isLoading={projectMemoryLoading}
@@ -1122,7 +1208,12 @@ function AppShell() {
                 onMarkImportantFile={markImportantFile}
                 onRefresh={refreshProjectMemory}
               />
+            </div>
+            <div className={`panel-scroll space-y-4 px-4 pb-4 ${rightSidebarMode === "runtime" ? "flex min-h-0 flex-1 flex-col" : "hidden"}`}>
               <ReviewGatePanel />
+              <TerminalPanel />
+            </div>
+            <div className={`panel-scroll space-y-4 px-4 pb-4 ${rightSidebarMode === "diagnostics" ? "flex min-h-0 flex-1 flex-col" : "hidden"}`}>
               <AppShellDocsAnalysisPanel
                 error={docsAnalysisError}
                 isLoading={docsAnalysisLoading}
@@ -1133,12 +1224,14 @@ function AppShell() {
                 summary={docsSummary}
                 workspaceRoot={docsWorkspaceRoot}
               />
-              <TerminalPanel />
+            </div>
+            <div className={`panel-scroll space-y-4 px-4 pb-4 ${rightSidebarMode === "properties" ? "flex min-h-0 flex-1 flex-col" : "hidden"}`}>
               <DiffPanel />
               <FileToolsPanel />
+            </div>
+            <div className={`panel-scroll space-y-4 px-4 pb-4 ${rightSidebarMode === "model" ? "flex min-h-0 flex-1 flex-col" : "hidden"}`}>
               <AppShellSettingsPanel compact />
-              </>
-            )}
+            </div>
           </AppShellRightSidebar>
         </section>
 
