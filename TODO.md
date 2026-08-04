@@ -168,9 +168,13 @@ Basis: `Pläne/15 DBZS_CODEE_AGENTIC_MODEL_FLEET_INTEGRATION_MASTERPLAN.md`. Bra
 Basis: `HANDOVER.md`, Stand 2026-08-01. `/embeddings` und `/rerank` sind umgesetzt und automatisiert
 verifiziert; offen sind die Anschlussarbeiten, die bewusst nicht in denselben Slice gehoerten:
 
-- [ ] zwei vorbestehend haengende Backend-Tests separat diagnostizieren:
-      `test_model_profiles.py::test_profile_validation` und
-      `test_residency_cache.py::test_sweep_idle_slots_evicts_utility_but_not_keep_resident`
+- [x] **zwei vorbestehend haengende Backend-Tests diagnostiziert und behoben (2026-08-04):** waren keine
+      Logikfehler, sondern beide "haengend"/"flaky" nur wegen unconditional echter
+      `get_shared_model_lab_repository`/`get_settings_service()`-Singletons in `ProfileService.__init__`
+      (`test_profile_validation`: ~71s statt ~0.06s) bzw. echter `D:\win_runtimes`-Scans in
+      `build_launch_plan()` (`test_sweep_idle_slots_evicts_utility_but_not_keep_resident`, Datei-weit via
+      `_new_service()`). Gleiches Sentinel-Isolationsmuster wie beim `test_runtime_doctor.py`-Root-Cause-Fix
+      vom selben Tag angewendet. Beide Tests jetzt durchgehend gruen, kein Diagnosebedarf mehr.
 - [x] RAG `retrieve()` berechnet optional automatisch `query_embedding`, wenn ein
       `defaultEmbeddingModelId` konfiguriert ist; fehlt die Konfiguration/ONNX-Unterstuetzung, bleibt
       lexikalisches Retrieval ohne 400-Failure aktiv.

@@ -1,6 +1,23 @@
 # Handover
 
-Stand: 2026-08-03
+Stand: 2026-08-04
+
+## Zwei seit 2026-08-01 dokumentierte "haengende" Backend-Tests aufgeloest (2026-08-04)
+
+**Bezug:** Der Eintrag weiter unten ("Verifikation: voller Backend-Testlauf 514/514...") markierte
+`test_model_profiles.py::test_profile_validation` und
+`test_residency_cache.py::test_sweep_idle_slots_evicts_utility_but_not_keep_resident` seit dem 2026-08-01 als
+"haengen in dieser Sandbox... noch nicht diagnostiziert/gemeldet — sollten in einer eigenen, fokussierten
+Session untersucht werden (unklar ob Sandbox-spezifisch oder echter Bug)".
+
+**Aufgeloest im Rahmen der Stufe-6-Nacharbeiten (2026-08-03/04):** kein Sandbox-Artefakt und kein Logikfehler —
+beide Tests riefen unconditional die echten, produktiven Model-Lab-/Settings-Singletons bzw. den echten
+`D:\win_runtimes`-Pfad auf (derselbe Bug-Typ, der auch `test_runtime_doctor.py` 15-20s pro Test kostete, siehe
+Eintrag oben). Isoliert per Sentinel-Parameter (`ProfileService`) und `DBZS_WIN_RUNTIMES_DIR`-Env-Var-Fixture
+(`test_residency_cache.py`, `test_nvidia_resource_fit.py` gleich mitgefixt). Vorher/Nachher:
+`test_profile_validation` 71,30s → 0,06s; `test_sweep_idle_slots_evicts_utility_but_not_keep_resident` Teil
+eines 18,47s → 1,59s Dateilaufs. Beide jetzt durchgehend gruen, keine Deselektion mehr noetig. Details zum
+zugrundeliegenden Bug-Muster siehe TODO.md.
 
 ## Fehlende .gguf-Fixture-Dateien ergaenzt: Backend-Suite jetzt vollstaendig gruen (2026-08-03)
 
