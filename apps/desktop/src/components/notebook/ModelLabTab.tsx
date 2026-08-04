@@ -18,6 +18,7 @@ export function ModelLabTab() {
     sources,
     sourceCandidates,
     models,
+    jobs,
     isLoading,
     isScanning,
     error,
@@ -76,6 +77,7 @@ export function ModelLabTab() {
               onScanSource={(sourceId) => void runScan(sourceId)}
               sourceCandidates={sourceCandidates}
               sources={sources}
+              jobs={jobs}
             />
             <ModelLabModelsSection 
               models={models} 

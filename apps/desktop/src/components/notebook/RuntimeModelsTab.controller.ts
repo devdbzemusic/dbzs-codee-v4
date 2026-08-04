@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { RuntimeSlotStatus } from "@dbzs/shared";
 import { backendClient } from "@/services/backendClient";
+import { getAllSlotHealthStates, type SlotHealthState } from "@/services/runtimeProcessSupervisor";
+import { runtimeSlotManager } from "@/services/runtimeSlotManager";
 import { useModelIndexStore } from "@/stores/modelIndexStore";
 import { useRuntimeStore } from "@/stores/runtimeStore";
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -38,6 +41,8 @@ export function useRuntimeModelsTabController() {
   const [pairingEvidence, setPairingEvidence] = useState<Record<string, ProbeEvidenceItem[]>>({});
   const [tuningInProgress, setTuningInProgress] = useState<Record<string, boolean>>({});
   const [tuningFeedback, setTuningFeedback] = useState<Record<string, string>>({});
+  const [slotStatuses, setSlotStatuses] = useState<RuntimeSlotStatus[]>([]);
+  const [slotHealthStates, setSlotHealthStates] = useState<SlotHealthState[]>([]);
   const backendOnline = backendHealth?.status === "ok";
   const models = index?.models ?? [];
   const supportArtifacts = index?.support_artifacts ?? models.filter((model) => model.artifact_type !== "model");
@@ -82,6 +87,29 @@ export function useRuntimeModelsTabController() {
     multimodalPairs,
     sortedVisibleSupportArtifacts
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSlotOperations = async () => {
+      const statuses = await runtimeSlotManager.getAllSlotsStatus().catch(() => []);
+      if (cancelled) {
+        return;
+      }
+      setSlotStatuses(statuses);
+      setSlotHealthStates(getAllSlotHealthStates());
+    };
+
+    void loadSlotOperations();
+    const interval = window.setInterval(() => {
+      void loadSlotOperations();
+    }, 10_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   const onSelectionChange = (artifactId: string, value: string) => {
     setPairingSelections((current) => ({
@@ -240,6 +268,8 @@ export function useRuntimeModelsTabController() {
     supportArtifactStatusSummary,
     supportArtifactSummary,
     supportArtifactsById,
+    slotHealthStates,
+    slotStatuses,
     modelRoleSummary,
     modelRoutingSummary,
     tuningFeedback,

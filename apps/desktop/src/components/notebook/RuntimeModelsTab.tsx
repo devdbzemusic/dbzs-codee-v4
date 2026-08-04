@@ -3,6 +3,7 @@ import { useNotebookStore } from "@/stores/notebookStore";
 import {
   DiagnosticsSection,
   MultimodalPairsSection,
+  RuntimeOperationsSection,
   RuntimeModelsEmptyState,
   RuntimeModelsHeader,
   StartableModelsSection,
@@ -50,6 +51,8 @@ export function RuntimeModelsTab() {
     supportArtifactStatusSummary,
     supportArtifactSummary,
     supportArtifactsById,
+    slotHealthStates,
+    slotStatuses,
     modelRoleSummary,
     modelRoutingSummary,
     tuningFeedback,
@@ -100,6 +103,7 @@ export function RuntimeModelsTab() {
         ) : (
           <div className="space-y-6">
             <DiagnosticsSection issues={diagnosticsIssues} />
+            <RuntimeOperationsSection slotHealthStates={slotHealthStates} slotStatuses={slotStatuses} />
             <StartableModelsSection
               autoTuneModel={autoTuneModel}
               modelRoleSummary={modelRoleSummary}
