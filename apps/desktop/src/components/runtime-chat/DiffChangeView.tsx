@@ -1,15 +1,15 @@
-import type { ReactNode } from "react";
+import React, { type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { RiskBadge, type RiskLevel } from "@/components/ui/RiskBadge";
 
-export function renderColoredDiff(diff: string) {
-  if (!diff.trim()) {
-    return <p className="text-dbzs-muted">Kein Diff vorhanden.</p>;
+export function renderColoredDiff(lines: string[]) {
+  if (lines.length === 0 || (lines.length === 1 && !lines[0].trim())) {
+    return <p className="text-dbzs-muted px-2 py-1.5">Kein Diff vorhanden.</p>;
   }
 
   return (
-    <div className="font-mono text-[10px] leading-relaxed">
-      {diff.split("\n").map((line, index) => {
+    <div className="font-mono text-[10px] leading-relaxed py-1">
+      {lines.map((line, index) => {
         let className = "text-dbzs-muted";
         if (line.startsWith("+") && !line.startsWith("+++")) {
           className = "text-dbzs-green bg-dbzs-green/5";
@@ -71,6 +71,11 @@ export function DiffChangeView({
   resetLabel = "Zurücksetzen",
   extraActions
 }: DiffChangeViewProps) {
+  const [expanded, setExpanded] = useState(false);
+  const lines = diff.split("\n");
+  const needsCollapse = lines.length > 80;
+  const visibleLines = needsCollapse && !expanded ? lines.slice(0, 80) : lines;
+
   return (
     <div className="space-y-2">
       <div className="flex items-start justify-between gap-2">
@@ -117,8 +122,17 @@ export function DiffChangeView({
           {extraActions}
         </div>
       </div>
-      <div className="max-h-72 overflow-auto rounded border border-dbzs-border bg-dbzs-bg">
-        {renderColoredDiff(diff)}
+      <div className="max-h-72 overflow-auto rounded border border-dbzs-border bg-dbzs-bg flex flex-col">
+        {renderColoredDiff(visibleLines)}
+        {needsCollapse && !expanded && (
+          <button
+            className="w-full text-center py-1.5 bg-dbzs-panelSoft/80 border-t border-dbzs-border text-[10px] text-dbzs-cyan hover:text-dbzs-cyan/80 hover:bg-dbzs-panelSoft transition-colors cursor-pointer font-medium"
+            onClick={() => setExpanded(true)}
+            type="button"
+          >
+            Zeige alle {lines.length} Zeilen...
+          </button>
+        )}
       </div>
     </div>
   );

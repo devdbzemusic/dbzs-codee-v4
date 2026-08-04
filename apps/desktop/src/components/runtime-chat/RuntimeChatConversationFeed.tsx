@@ -2,6 +2,7 @@ import React, { memo, useMemo } from "react";
 import type { RuntimeChatMessage, RuntimeChatRun } from "@dbzs/shared";
 import { CodeeRunLiveBlock } from "@/components/chat/CodeeRunLiveBlock";
 import { RuntimeChatMessageCard } from "@/components/runtime-chat/RuntimeChatMessageCard";
+import { LazyCard } from "@/components/runtime-chat/LazyCard";
 import { findLastAssistantMessageIndex } from "@/services/runtimeChatActionSelectors";
 
 function shouldRenderInlineRun(run: RuntimeChatRun, activeRunId: string | null): boolean {
@@ -104,18 +105,20 @@ function RuntimeChatConversationFeedComponent({
 
             return (
               <React.Fragment key={message.id ?? `${message.role}-${index}`}>
-                <RuntimeChatMessageCard
-                  compact={compact}
-                  message={message}
-                  canApply={!isSending}
-                  isStreaming={
-                    isStreaming && index === messages.length - 1 && message.role === "assistant"
-                  }
-                  isSending={isSending}
-                  isLatestAssistantMessage={message.role === "assistant" && index === lastAssistantIndex}
-                  onApply={onApplyAssistantProposal}
-                />
-                {renderRun ? renderRunBlock(userRun) : null}
+                <LazyCard minHeight={compact ? 50 : 80}>
+                  <RuntimeChatMessageCard
+                    compact={compact}
+                    message={message}
+                    canApply={!isSending}
+                    isStreaming={
+                      isStreaming && index === messages.length - 1 && message.role === "assistant"
+                    }
+                    isSending={isSending}
+                    isLatestAssistantMessage={message.role === "assistant" && index === lastAssistantIndex}
+                    onApply={onApplyAssistantProposal}
+                  />
+                  {renderRun ? renderRunBlock(userRun) : null}
+                </LazyCard>
               </React.Fragment>
             );
           })}

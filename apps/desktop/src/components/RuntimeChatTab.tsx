@@ -5,9 +5,10 @@ import {
   type WorkspaceFile,
   type WorkspaceProjectFile
 } from "@dbzs/shared";
-import React, { type ClipboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { type ClipboardEvent, type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useRuntimeChatPendingApprovalCount } from "@/components/RuntimeChatApprovals";
+import { playCyberSound } from "@/utils/soundEffects";
 import { RuntimeChatCapabilitiesOverlay } from "@/components/runtime-chat/RuntimeChatCapabilitiesOverlay";
 import { RuntimeChatComposer } from "@/components/runtime-chat/RuntimeChatComposer";
 import { RuntimeChatConversationFeed } from "@/components/runtime-chat/RuntimeChatConversationFeed";
@@ -124,6 +125,34 @@ export function RuntimeChatTab({
   const [availableProviders, setAvailableProviders] = useState<string[]>(["llama.cpp", "ollama", "antigravity"]);
   const [includeWorkspaceContext, setIncludeWorkspaceContext] = useState(true);
   const [traceCount, setTraceCount] = useState(() => observabilityService.getAllTraces().length);
+
+  const [streamStartTime, setStreamStartTime] = useState<number | null>(null);
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    if (isStreaming) {
+      if (!streamStartTime) {
+        setStreamStartTime(Date.now());
+      }
+      const interval = setInterval(() => {
+        setTick((t) => t + 1);
+      }, 200);
+      return () => clearInterval(interval);
+    } else {
+      setStreamStartTime(null);
+    }
+  }, [isStreaming, streamStartTime]);
+
+  const getLiveSpeed = () => {
+    if (!isStreaming || !streamStartTime) return "";
+    const elapsedSec = (Date.now() - streamStartTime) / 1000;
+    const lastMessage = messages[messages.length - 1];
+    const charCount = lastMessage?.role === "assistant" ? lastMessage.content.length : 0;
+    const tokens = Math.round(charCount / 4);
+    const speed = elapsedSec > 0.2 ? Math.round(tokens / elapsedSec) : 0;
+    return ` · ${tokens} Tok. · ${speed} T/s`;
+  };
+
   const mentionSuggestions = useMemo(() => {
     const at = draft.lastIndexOf("@");
     if (at < 0) return [];
@@ -322,11 +351,21 @@ export function RuntimeChatTab({
     if (!container || !anchor) {
       return;
     }
-    const isNearBottom = anchor.getBoundingClientRect().bottom - container.getBoundingClientRect().bottom < 120;
-    if (isNearBottom || isSending || isStreaming) {
+    const isNearBottom = anchor.getBoundingClientRect().bottom - container.getBoundingClientRect().bottom < 150;
+    const lastMessage = messages[messages.length - 1];
+    const isUserMessage = lastMessage?.role === "user";
+    if (isNearBottom || isUserMessage) {
       anchor.scrollIntoView({ behavior: isStreaming ? "auto" : "smooth", block: "end" });
     }
   }, [currentActivity?.steps.length, isSending, isStreaming, messages.length]);
+
+  const wasStreamingRef = useRef(false);
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming) {
+      playCyberSound("complete");
+    }
+    wasStreamingRef.current = isStreaming;
+  }, [isStreaming]);
 
   useEffect(() => {
     if (detached) {
@@ -352,8 +391,9 @@ export function RuntimeChatTab({
     }
   }, [activeFile, contextHint, detached, isSending, presetRequest, runtimeReady, sendOptions, sendPresetPrompt, status]);
 
-  const submitMessage = () => {
-    const text = draft;
+  const submitMessage = (overrideText?: string) => {
+    playCyberSound("send");
+    const text = typeof overrideText === "string" ? overrideText : draft;
     const trimmedText = text.trim();
     const hasImageInput = attachmentRequiresVision(attachments);
     if (trimmedText.length === 0 && attachments.length === 0) return;
@@ -394,20 +434,11 @@ export function RuntimeChatTab({
     })();
   };
 
-  const handleComposerPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = Array.from(event.clipboardData?.items ?? []);
-    const files = items
-      .filter((item) => item.kind === "file")
-      .map((item) => item.getAsFile())
-      .filter((file): file is File => file instanceof File);
-    if (files.length === 0) {
-      return;
-    }
-    event.preventDefault();
+  const importFiles = (files: File[], sourceLabel: string) => {
     void (async () => {
       try {
         if (!window.dbzs.prepareClipboardChatAttachments) {
-          setContextNote("Clipboard-Dateianhaenge sind in dieser Umgebung nicht verfuegbar.");
+          setContextNote("Dateianhaenge sind in dieser Umgebung nicht verfuegbar.");
           return;
         }
         const prepared = await Promise.all(
@@ -439,13 +470,35 @@ export function RuntimeChatTab({
         setContextNote(
           summarizeAttachmentImport({
             ...result,
-            sourceLabel: "aus der Zwischenablage eingefuegt"
+            sourceLabel
           })
         );
       } catch (error) {
-        setContextNote(error instanceof Error ? error.message : "Dateien aus Zwischenablage konnten nicht gelesen werden.");
+        setContextNote(error instanceof Error ? error.message : `Dateien konnten nicht hinzugefügt werden (${sourceLabel}).`);
       }
     })();
+  };
+
+  const handleComposerPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(event.clipboardData?.items ?? []);
+    const files = items
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file instanceof File);
+    if (files.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    importFiles(files, "aus der Zwischenablage eingefuegt");
+  };
+
+  const handleComposerDrop = (event: DragEvent<HTMLElement>) => {
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    if (files.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    importFiles(files, "per Drag & Drop hinzugefuegt");
   };
 
   const handleOpenAttachmentDialog = () => {
@@ -529,202 +582,191 @@ export function RuntimeChatTab({
   }, [activeFile, contextHint, sendMessage, sendOptions, status]);
 
   const embeddedInPanel = compact && !detached;
-  const shellClass = embeddedInPanel
-    ? "relative border border-dbzs-border bg-dbzs-panelSoft"
+  const layoutClass = embeddedInPanel
+    ? "relative flex h-full min-h-0 flex-col border border-dbzs-border bg-dbzs-panelSoft"
     : compact
       ? "relative flex h-full min-h-0 flex-col overflow-hidden border border-dbzs-border bg-dbzs-panelSoft"
       : "relative mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden border border-dbzs-border bg-dbzs-panelSoft";
 
-  const chatContent = (
-    <>
-      <RuntimeChatHeader
-        title="Runtime Chat"
-        subtitle={statusLabel}
-        activityHint={
-          activeActivity
-            ? workspaceContextStep?.detail ??
-              activeActivity.steps.find((step) => step.status === "running")?.label ??
-              activeActivity.summary ??
-              "Aktivität läuft"
-            : null
-        }
-        selectedProvider={selectedProvider}
-        availableProviders={availableProviders}
-        pendingApprovalCount={pendingApprovalCount}
-        traceCount={traceCount}
-        showPanels={showPanels}
-        showSlotPanel={showSlotPanel}
-        showDiagnostics={showDiagnostics}
-        compact={compact}
-        detached={detached}
-        onProviderChange={setSelectedProvider}
-        onOpenCapabilities={() => setShowCapabilities(true)}
-        onTogglePanels={() => setShowPanels((value) => !value)}
-        onToggleSlots={() => setShowSlotPanel((value) => !value)}
-        onToggleDiagnostics={() => setShowDiagnostics((value) => !value)}
-        onDetach={() => void openRuntimeChatWindow()}
-        onClose={() => void closeRuntimeChatWindow()}
-        onCompactConversation={compactConversation}
-        onClearConversation={clear}
-        canCompactConversation={messages.length >= 6 && !isSending}
-        canClearConversation={messages.length > 0 && !isSending}
-        workspaceLabel={workspaceRoot ? `${workspaceName ?? "WS"} · ${workspaceFiles.length} Dateien` : "Kein Workspace"}
-        activeFileLabel={activeFile?.name ?? "Keine aktive Datei"}
-        contextLabel={contextReadinessHint ?? "Kontext bereit"}
-      />
-
-      <details className="border-b border-dbzs-border bg-dbzs-bg px-2 py-1">
-        <summary className="cursor-pointer text-[10px] text-dbzs-muted">
-          Schnellaktionen & erweiterte Optionen
-        </summary>
-        <div className="mt-2 flex flex-wrap items-center gap-1">
-          {presetEntries.map((preset) => (
-            <button
-              className="rounded border border-dbzs-border bg-dbzs-panelSoft px-1.5 py-0.5 text-[10px] text-dbzs-muted hover:border-dbzs-cyan/40 hover:text-dbzs-cyan disabled:opacity-40"
-              disabled={!runtimeReady || isSending}
-              key={preset.id}
-              onClick={() => runPreset(preset.id)}
-              title={preset.description}
-              type="button"
-            >
-              {preset.label}
-            </button>
-          ))}
-          <span className="ml-auto truncate text-[10px] text-dbzs-muted" title={contextReadinessHint ?? undefined}>
-            {activeFile?.name ?? "keine Datei"} · {workspaceChipLabel}
-          </span>
-        </div>
-      </details>
-
-      {contextReadinessHint ? (
-        <p className="border-b border-dbzs-amber/30 bg-dbzs-amber/5 px-2 py-1 text-[10px] leading-4 text-dbzs-amber">
-          {contextReadinessHint}
-        </p>
-      ) : null}
-
-      {mentionSuggestions.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1 border-b border-dbzs-border bg-dbzs-panel px-2 py-1">
-          <span className="text-[10px] uppercase tracking-wide text-dbzs-muted">Mentions</span>
-          {mentionSuggestions.map((mention) => (
-            <button
-              key={`${mention.type}:${mention.path}`}
-              className="rounded border border-dbzs-border bg-dbzs-bg px-1.5 py-0.5 text-[10px] text-dbzs-muted hover:border-dbzs-cyan/40 hover:text-dbzs-cyan"
-              type="button"
-              onClick={() => setDraft((prev) => insertMention(prev, mention))}
-            >
-              @{mention.type}:{mention.path}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      <RuntimeChatSecondaryPanels
-        compact={compact}
-        showPanels={showPanels}
-        showSlotPanel={showSlotPanel}
-        showDiagnostics={showDiagnostics}
-        queueProposedChanges={queueProposedChanges}
-        workspaceRoot={workspaceRoot}
-        onStatusNote={setContextNote}
-        diagnostics={
-          lastRouting || activeRun?.fallbackRejection || activeRun?.warmupDiagnostics
-            ? ({
-                decision: {
-                  decidedAt: lastBrokerDecision?.decidedAt ?? activeRun?.startedAt ?? new Date().toISOString(),
-                  taskType: lastBrokerDecision?.taskType ?? activeRun?.taskType ?? "unknown",
-                  targetAgent: lastRouting?.targetAgent ?? activeRun?.targetAgentLabel ?? "unknown",
-                  slotId: lastRouting?.slotId || "unknown",
-                  modelId: lastRouting?.modelId ?? "unknown",
-                  modelName: lastRouting?.modelName ?? "unknown",
-                  reason: lastBrokerDecision?.reason ?? `Provider: ${lastRouting?.providerId || "runtime"}`,
-                  source: lastRouting?.selectionSource ?? "automatic"
-                },
-                validation: {
-                  slotReady: status?.state === "running" && !!status?.endpoint,
-                  slotMessage: status?.state === "running" ? "Ready" : "Not running",
-                  memoryAvailable: true,
-                  memoryMessage: "Available",
-                  canStart: status?.state === "running"
-                },
-                errorClassification: error
-                  ? { errorType: "chat_error", errorMessage: error, retryable: false, retryCount: 0 }
-                  : undefined,
-                fallbackRejection: activeRun?.fallbackRejection,
-                warmup: activeRun?.warmupDiagnostics
-              } as RoutingDiagnostics)
-            : null
-        }
-        tokenBudget={activeRun?.tokenBudget}
-        runtimeReady={runtimeReady}
-      />
-
-      <RuntimeChatConversationFeed
-        messages={messages}
-        historicalRuns={historicalRuns}
-        activeRun={activeRun}
-        compact={compact}
-        isSending={isSending}
-        isStreaming={isStreaming}
-        workspaceRoot={workspaceRoot}
-        onApplyAssistantProposal={applyAssistantProposal}
-        onCancelRun={cancelSend}
-        onFixFindings={handleFixFindings}
-        onRerunReview={handleRerunReview}
-        onSelectExample={setDraft}
-      />
-
-      {error ? (
-        <div
-          className="border-t border-dbzs-red/40 bg-dbzs-red/10 px-3 py-2 text-xs leading-5 text-dbzs-red"
-          role="alert"
-        >
-          <strong className="font-medium">Chat-Fehler:</strong> {error}
-        </div>
-      ) : null}
-
-      <div ref={messagesEndRef} />
-
-      <RuntimeChatComposer
-        draft={draft}
-        runtimeReady={runtimeReady}
-        isSending={isSending}
-        isStreaming={isStreaming}
-        chatMode={chatMode}
-        toolProfile={toolProfile}
-        includeWorkspaceContext={includeWorkspaceContext}
-        contextNote={contextNote}
-        attachments={attachments}
-        onDraftChange={setDraft}
-        onSubmit={submitMessage}
-        onCancel={() => cancelSend()}
-        onPasteAttachments={handleComposerPaste}
-        onOpenAttachmentDialog={handleOpenAttachmentDialog}
-        onRemoveAttachment={handleRemoveAttachment}
-        setChatMode={setChatMode}
-        setToolProfile={setToolProfile}
-        setIncludeWorkspaceContext={setIncludeWorkspaceContext}
-      />
-
-      <RuntimeChatCapabilitiesOverlay
-        open={showCapabilities}
-        presetEntries={presetEntries}
-        skills={skills}
-        onClose={() => setShowCapabilities(false)}
-        onSelectPreset={runPreset}
-      />
-    </>
-  );
-
-  if (embeddedInPanel) {
-    return <section className={shellClass}>{chatContent}</section>;
-  }
-
   return (
-    <section className={`flex h-full min-h-0 flex-col ${compact ? "" : "bg-[#091017] p-3"}`}>
-      <div className={shellClass}>
+    <section className={`flex h-full min-h-0 flex-col ${embeddedInPanel ? "" : (compact ? "" : "bg-[#091017] p-3")}`}>
+      <div className={layoutClass}>
+        <RuntimeChatHeader
+          title="Runtime Chat"
+          subtitle={statusLabel}
+          activityHint={
+            activeActivity
+              ? workspaceContextStep?.detail ??
+                activeActivity.steps.find((step) => step.status === "running")?.label ??
+                activeActivity.summary ??
+                "Aktivität läuft"
+              : null
+          }
+          selectedProvider={selectedProvider}
+          availableProviders={availableProviders}
+          pendingApprovalCount={pendingApprovalCount}
+          traceCount={traceCount}
+          showPanels={showPanels}
+          showSlotPanel={showSlotPanel}
+          showDiagnostics={showDiagnostics}
+          compact={compact}
+          detached={detached}
+          onProviderChange={setSelectedProvider}
+          onOpenCapabilities={() => setShowCapabilities(true)}
+          onTogglePanels={() => setShowPanels((value) => !value)}
+          onToggleSlots={() => setShowSlotPanel((value) => !value)}
+          onToggleDiagnostics={() => setShowDiagnostics((value) => !value)}
+          onDetach={() => void openRuntimeChatWindow()}
+          onClose={() => void closeRuntimeChatWindow()}
+          onCompactConversation={compactConversation}
+          onClearConversation={clear}
+          canCompactConversation={messages.length >= 6 && !isSending}
+          canClearConversation={messages.length > 0 && !isSending}
+          workspaceLabel={workspaceRoot ? `${workspaceName ?? "WS"} · ${workspaceFiles.length} Dateien` : "Kein Workspace"}
+          activeFileLabel={activeFile?.name ?? "Keine aktive Datei"}
+          contextLabel={contextReadinessHint ?? "Kontext bereit"}
+        />
+
+        <details className="border-b border-dbzs-border bg-dbzs-bg px-2 py-1 flex-shrink-0">
+          <summary className="cursor-pointer text-[10px] text-dbzs-muted">
+            Schnellaktionen & erweiterte Optionen
+          </summary>
+          <div className="mt-2 flex flex-wrap items-center gap-1">
+            {presetEntries.map((preset) => (
+              <button
+                className="rounded border border-dbzs-border bg-dbzs-panelSoft px-1.5 py-0.5 text-[10px] text-dbzs-muted hover:border-dbzs-cyan/40 hover:text-dbzs-cyan disabled:opacity-40"
+                disabled={!runtimeReady || isSending}
+                key={preset.id}
+                onClick={() => runPreset(preset.id)}
+                title={preset.description}
+                type="button"
+              >
+                {preset.label}
+              </button>
+            ))}
+            <span className="ml-auto truncate text-[10px] text-dbzs-muted" title={contextReadinessHint ?? undefined}>
+              {activeFile?.name ?? "keine Datei"} · {workspaceChipLabel}
+            </span>
+          </div>
+        </details>
+
+        {contextReadinessHint ? (
+          <p className="border-b border-dbzs-amber/30 bg-dbzs-amber/5 px-2 py-1 text-[10px] leading-4 text-dbzs-amber flex-shrink-0">
+            {contextReadinessHint}
+          </p>
+        ) : null}
+
+        {mentionSuggestions.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1 border-b border-dbzs-border bg-dbzs-panel px-2 py-1 flex-shrink-0">
+            <span className="text-[10px] uppercase tracking-wide text-dbzs-muted">Mentions</span>
+            {mentionSuggestions.map((mention) => (
+              <button
+                key={`${mention.type}:${mention.path}`}
+                className="rounded border border-dbzs-border bg-dbzs-bg px-1.5 py-0.5 text-[10px] text-dbzs-muted hover:border-dbzs-cyan/40 hover:text-dbzs-cyan"
+                type="button"
+                onClick={() => setDraft((prev) => insertMention(prev, mention))}
+              >
+                @{mention.type}:{mention.path}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <RuntimeChatSecondaryPanels
+          compact={compact}
+          showPanels={showPanels}
+          showSlotPanel={showSlotPanel}
+          showDiagnostics={showDiagnostics}
+          queueProposedChanges={queueProposedChanges}
+          workspaceRoot={workspaceRoot}
+          onStatusNote={setContextNote}
+          diagnostics={
+            lastRouting || activeRun?.fallbackRejection || activeRun?.warmupDiagnostics
+              ? ({
+                  decision: {
+                    decidedAt: lastBrokerDecision?.decidedAt ?? activeRun?.startedAt ?? new Date().toISOString(),
+                    taskType: lastBrokerDecision?.taskType ?? activeRun?.taskType ?? "unknown",
+                    targetAgent: lastRouting?.targetAgent ?? activeRun?.targetAgentLabel ?? "unknown",
+                    slotId: lastRouting?.slotId || "unknown",
+                    modelId: lastRouting?.modelId ?? "unknown",
+                    modelName: lastRouting?.modelName ?? "unknown",
+                    reason: lastBrokerDecision?.reason ?? `Provider: ${lastRouting?.providerId || "runtime"}`,
+                    source: lastRouting?.selectionSource ?? "automatic"
+                  },
+                  validation: {
+                    slotReady: status?.state === "running" && !!status?.endpoint,
+                    slotMessage: status?.state === "running" ? "Ready" : "Not running",
+                    memoryAvailable: true,
+                    memoryMessage: "Available",
+                    canStart: status?.state === "running"
+                  },
+                  errorClassification: error
+                    ? { errorType: "chat_error", errorMessage: error, retryable: false, retryCount: 0 }
+                    : undefined,
+                  fallbackRejection: activeRun?.fallbackRejection,
+                  warmup: activeRun?.warmupDiagnostics
+                } as RoutingDiagnostics)
+              : null
+          }
+          tokenBudget={activeRun?.tokenBudget}
+          runtimeReady={runtimeReady}
+        />
+
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" ref={scrollContainerRef}>
-          {chatContent}
+          <RuntimeChatConversationFeed
+            messages={messages}
+            historicalRuns={historicalRuns}
+            activeRun={activeRun}
+            compact={compact}
+            isSending={isSending}
+            isStreaming={isStreaming}
+            workspaceRoot={workspaceRoot}
+            onApplyAssistantProposal={applyAssistantProposal}
+            onCancelRun={cancelSend}
+            onFixFindings={handleFixFindings}
+            onRerunReview={handleRerunReview}
+            onSelectExample={setDraft}
+          />
+          {error ? (
+            <div
+              className="border-t border-dbzs-red/40 bg-dbzs-red/10 px-3 py-2 text-xs leading-5 text-dbzs-red"
+              role="alert"
+            >
+              <strong className="font-medium">Chat-Fehler:</strong> {error}
+            </div>
+          ) : null}
+          <div ref={messagesEndRef} />
         </div>
+
+        <RuntimeChatComposer
+          draft={draft}
+          runtimeReady={runtimeReady}
+          isSending={isSending}
+          isStreaming={isStreaming}
+          chatMode={chatMode}
+          toolProfile={toolProfile}
+          includeWorkspaceContext={includeWorkspaceContext}
+          contextNote={contextNote ? `${contextNote}${getLiveSpeed()}` : (isStreaming ? `Streaming${getLiveSpeed()}` : null)}
+          attachments={attachments}
+          onDraftChange={setDraft}
+          onSubmit={(currentText) => submitMessage(currentText)}
+          onCancel={() => cancelSend()}
+          onPasteAttachments={handleComposerPaste}
+          onDropAttachments={handleComposerDrop}
+          onOpenAttachmentDialog={handleOpenAttachmentDialog}
+          onRemoveAttachment={handleRemoveAttachment}
+          setChatMode={setChatMode}
+          setToolProfile={setToolProfile}
+          setIncludeWorkspaceContext={setIncludeWorkspaceContext}
+        />
+
+        <RuntimeChatCapabilitiesOverlay
+          open={showCapabilities}
+          presetEntries={presetEntries}
+          skills={skills}
+          onClose={() => setShowCapabilities(false)}
+          onSelectPreset={runPreset}
+        />
       </div>
     </section>
   );

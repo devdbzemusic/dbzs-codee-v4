@@ -376,7 +376,7 @@ export {
 const MAX_CONTEXT_CHARS = 16_000;
 const MAX_HISTORY_MESSAGES = 50;
 const TOOLS_ENABLED_STORAGE_KEY = "dbzs-runtime-chat-tools-enabled";
-const STREAMING_UI_THROTTLE_MS = 40;
+const STREAMING_UI_THROTTLE_MS = 80;
 
 const runsAbortControllers: Record<string, AbortController> = {};
 
@@ -532,6 +532,7 @@ export interface RuntimeChatState {
   compactConversation: () => void;
   clear: () => void;
   clearActivityHistory: () => void;
+  editMessage: (messageId: string, content: string) => void;
   cancelSend: (runId?: string) => void;
   toggleSkill: (skillId: string) => void;
   setToolsEnabled: (enabled: boolean) => void;
@@ -672,7 +673,19 @@ async function applyPlanningRelevanceGate(input: {
 }
 
 export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
-  messages: [],
+  messages: (() => {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const saved = window.localStorage.getItem("dbzs-runtime-chat-messages");
+        if (saved) {
+          return JSON.parse(saved);
+        }
+      }
+    } catch (e) {
+      console.warn("Could not restore chat history", e);
+    }
+    return [];
+  })(),
   isSending: false,
   isStreaming: false,
   error: null,
@@ -3269,7 +3282,15 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
       lastActivity: null,
       activeRun: null,
       historicalRuns: {}
-    })
+    }),
+
+  editMessage: (messageId, content) => {
+    const { messages } = get();
+    const index = messages.findIndex((m) => m.id === messageId);
+    if (index === -1) return;
+    const updated = { ...messages[index], content };
+    set({ messages: [...messages.slice(0, index), updated] });
+  }
 }));
 
 registerIdleEvictionActiveRunGuard(() => {
@@ -3278,3 +3299,17 @@ registerIdleEvictionActiveRunGuard(() => {
 });
 startWorkModelIdleWatcher();
 startRuntimeProcessSupervisor();
+
+if (typeof window !== "undefined") {
+  let lastMessages = useRuntimeChatStore.getState().messages;
+  useRuntimeChatStore.subscribe((state) => {
+    if (state.messages !== lastMessages) {
+      lastMessages = state.messages;
+      try {
+        window.localStorage.setItem("dbzs-runtime-chat-messages", JSON.stringify(state.messages));
+      } catch (e) {
+        console.warn("Could not save chat history", e);
+      }
+    }
+  });
+}

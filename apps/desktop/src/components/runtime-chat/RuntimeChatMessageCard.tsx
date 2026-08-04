@@ -1,6 +1,6 @@
 import type { RuntimeChatMessage } from "@dbzs/shared";
 import { workspaceScopeId } from "@dbzs/shared";
-import { useMemo } from "react";
+import { useMemo, memo } from "react";
 import { MessageMarkdown } from "@/components/chat/MessageMarkdown";
 import { RuntimeChatAttachmentPreview } from "@/components/runtime-chat/RuntimeChatAttachmentPreview";
 import { getFollowUpChatActions, getRequiredChatActions, getRuntimeAgentActionsForMessage, getTransportActionTone, hasPendingRuntimeActionKind, isRejectTransportAction } from "@/services/runtimeChatActionSelectors";
@@ -38,7 +38,7 @@ export function stripPrivateReasoning(content: string): string {
     .trim();
 }
 
-export function RuntimeChatMessageCard({
+function RuntimeChatMessageCardComponent({
   message,
   canApply,
   compact = false,
@@ -160,7 +160,7 @@ export function RuntimeChatMessageCard({
     <div className={`rounded ${cardClass} px-2 py-1.5`}>
       <div className="mb-0.5 flex items-center gap-2 text-[10px]">
         <span
-          className={`rounded px-1 py-0.5 font-medium ${
+          className={`rounded px-1.5 py-0.5 font-medium inline-flex items-center gap-1 ${
             isUser
               ? "bg-dbzs-border/40 text-dbzs-text"
               : isAssistant
@@ -170,7 +170,23 @@ export function RuntimeChatMessageCard({
                   : "bg-dbzs-muted/20 text-dbzs-muted"
           }`}
         >
+          {isAssistant && (
+            <svg className="h-2.5 w-2.5 animate-pulse text-dbzs-cyan" viewBox="0 0 100 100" fill="currentColor">
+              <circle cx="50" cy="50" r="30" />
+            </svg>
+          )}
+          {isUser && (
+            <svg className="h-2.5 w-2.5 text-dbzs-textSoft" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          )}
           {isUser ? "Du" : isAssistant ? "Assistent" : isQuestionPrompt ? "Rueckfrage" : "System"}
+          {isStreaming && (
+            <span className="flex h-1.5 w-1.5 relative ml-0.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-dbzs-cyan opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-dbzs-cyan"></span>
+            </span>
+          )}
         </span>
       </div>
 
@@ -533,3 +549,5 @@ export function RuntimeChatMessageCard({
     </div>
   );
 }
+
+export const RuntimeChatMessageCard = memo(RuntimeChatMessageCardComponent);

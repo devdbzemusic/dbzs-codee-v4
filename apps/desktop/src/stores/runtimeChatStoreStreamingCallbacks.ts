@@ -32,30 +32,27 @@ export function createStreamingResponseCallbacks(input: {
 
   return {
     onDelta: (delta: string, totalLength: number) => {
-      input.updateActiveRun((run) => {
-        const shouldCountFirstToken = !run.firstTokenAt && isModelContentDelta(delta);
-        const withToken = shouldCountFirstToken
-          ? { ...run, firstTokenAt: new Date().toISOString() }
-          : run;
-        const updatedEvents = shouldCountFirstToken
-          ? appendRunEvent(run, "model.first_token", "Erstes Token empfangen").events
-          : run.events;
+      const shouldCountFirstToken = !input.conversationControlV2Enabled
+        ? false // v1 handled differently or not needed
+        : isModelContentDelta(delta);
 
-        if (shouldCountFirstToken) {
-          input.onStreamTokenActivity();
-        }
-
-        return {
-          ...withToken,
-          events: updatedEvents
-        };
-      });
+      if (shouldCountFirstToken) {
+        input.updateActiveRun((run) => {
+          if (run.firstTokenAt) return run;
+          return {
+            ...run,
+            firstTokenAt: new Date().toISOString(),
+            events: appendRunEvent(run, "model.first_token", "Erstes Token empfangen").events
+          };
+        });
+        input.onStreamTokenActivity();
+      }
 
       streamedContent += delta;
-      if (input.conversationControlV2Enabled) {
-        const now = Date.now();
-        if (now - lastStreamUiUpdateAt >= input.streamingUiThrottleMs) {
-          lastStreamUiUpdateAt = now;
+      const now = Date.now();
+      if (now - lastStreamUiUpdateAt >= input.streamingUiThrottleMs) {
+        lastStreamUiUpdateAt = now;
+        if (input.conversationControlV2Enabled) {
           input.set((state) => ({
             messages: state.messages.map((message, index) =>
               index === state.messages.length - 1 && message.role === "assistant"
@@ -67,41 +64,41 @@ export function createStreamingResponseCallbacks(input: {
                 : message
             )
           }));
-        }
-      } else {
-        const { reasoningSummary, planProposal, cleanContent } = extractReasoningSummary(streamedContent);
-        input.set((state) => ({
-          messages: state.messages.map((message, index) =>
-            index === state.messages.length - 1 && message.role === "assistant"
-              ? mergeStreamingAssistantMessage({
-                  message,
-                  content: cleanContent,
-                  reasoningSummary,
-                  planProposal
-                })
-              : message
-          ),
-          planProposalsById:
-            planProposal && !state.planProposalsById[planProposal.id]
-              ? { ...state.planProposalsById, [planProposal.id]: planProposal }
-              : state.planProposalsById
-        }));
-
-        if (planProposal) {
+        } else {
+          const { reasoningSummary, planProposal, cleanContent } = extractReasoningSummary(streamedContent);
           input.set((state) => ({
-            lastActivity: state.lastActivity
-              ? {
-                  ...state.lastActivity,
-                  summary: `Plan erkannt: ${planProposal.title}`
-                }
-              : state.lastActivity,
-            activeRun: state.activeRun
-              ? {
-                  ...appendRunEvent(state.activeRun, "chat.accepted", "Planfreigabe erwartet"),
-                  status: "waiting_for_plan_approval"
-                }
-              : state.activeRun
+            messages: state.messages.map((message, index) =>
+              index === state.messages.length - 1 && message.role === "assistant"
+                ? mergeStreamingAssistantMessage({
+                    message,
+                    content: cleanContent,
+                    reasoningSummary,
+                    planProposal
+                  })
+                : message
+            ),
+            planProposalsById:
+              planProposal && !state.planProposalsById[planProposal.id]
+                ? { ...state.planProposalsById, [planProposal.id]: planProposal }
+                : state.planProposalsById
           }));
+
+          if (planProposal) {
+            input.set((state) => ({
+              lastActivity: state.lastActivity
+                ? {
+                    ...state.lastActivity,
+                    summary: `Plan erkannt: ${planProposal.title}`
+                  }
+                : state.lastActivity,
+              activeRun: state.activeRun
+                ? {
+                    ...appendRunEvent(state.activeRun, "chat.accepted", "Planfreigabe erwartet"),
+                    status: "waiting_for_plan_approval"
+                  }
+                : state.activeRun
+            }));
+          }
         }
       }
 

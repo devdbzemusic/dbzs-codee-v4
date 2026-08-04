@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import type { RuntimeStatus } from "@dbzs/shared";
 import type { RoutingDiagnostics } from "@/types/runtimeRoutingDiagnostics";
 import { RuntimeChatWorkflowPanels } from "@/components/runtime-chat/RuntimeChatWorkflowPanels";
@@ -15,7 +15,7 @@ type QueueProposedChanges = ReturnType<typeof useEditorStore.getState>["queuePro
  * "Sekundäre Panels & Diagnose" heading that mixed decision-critical
  * workflow UI with pure technical diagnostics.
  */
-export function RuntimeChatSecondaryPanels({
+function RuntimeChatSecondaryPanelsComponent({
   compact,
   showPanels,
   showSlotPanel,
@@ -78,3 +78,5 @@ export function RuntimeChatSecondaryPanels({
     </div>
   );
 }
+
+export const RuntimeChatSecondaryPanels = memo(RuntimeChatSecondaryPanelsComponent);

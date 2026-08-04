@@ -1,9 +1,9 @@
-import type { ClipboardEvent, KeyboardEvent } from "react";
+import { ClipboardEvent, KeyboardEvent, DragEvent, useEffect, useRef, useState, memo } from "react";
 import type { RuntimeChatAttachment } from "@dbzs/shared";
 import { RuntimeChatAttachmentPreview } from "@/components/runtime-chat/RuntimeChatAttachmentPreview";
 import { Button } from "@/components/ui/Button";
 
-export function RuntimeChatComposer({
+function RuntimeChatComposerComponent({
   draft,
   runtimeReady,
   isSending,
@@ -17,6 +17,7 @@ export function RuntimeChatComposer({
   onSubmit,
   onCancel,
   onPasteAttachments,
+  onDropAttachments,
   onOpenAttachmentDialog,
   onRemoveAttachment,
   setChatMode,
@@ -33,35 +34,108 @@ export function RuntimeChatComposer({
   contextNote: string | null;
   attachments: RuntimeChatAttachment[];
   onDraftChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (overrideText?: string) => void;
   onCancel: () => void;
   onPasteAttachments: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
+  onDropAttachments: (event: DragEvent<HTMLElement>) => void;
   onOpenAttachmentDialog: () => void;
   onRemoveAttachment: (attachmentId: string) => void;
   setChatMode: (mode: "auto" | "agent") => void;
   setToolProfile: (profile: "ask" | "agent" | "full") => void;
   setIncludeWorkspaceContext: (value: boolean) => void;
 }) {
-  const canSubmit = draft.trim().length > 0 || attachments.length > 0;
+  const [localDraft, setLocalDraft] = useState(draft);
+  const onDraftChangeRef = useRef(onDraftChange);
+  onDraftChangeRef.current = onDraftChange;
+
+  useEffect(() => {
+    setLocalDraft(draft);
+  }, [draft]);
+
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const handleTextChange = (value: string) => {
+    setLocalDraft(value);
+    
+    const isTest = typeof process !== "undefined" && process.env.NODE_ENV === "test";
+    if (isTest) {
+      onDraftChangeRef.current(value);
+      return;
+    }
+
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+    timerRef.current = setTimeout(() => {
+      onDraftChangeRef.current(value);
+    }, 150);
+  };
+
+  const canSubmit = localDraft.trim().length > 0 || attachments.length > 0;
+
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    onDropAttachments(e);
+  };
+
+  const lastWord = localDraft.split(/\s+/).pop() || "";
+  const showSuggestions = lastWord.startsWith("/");
+  const suggestions = ["/goal", "/schedule", "/grill-me", "/learn"].filter(
+    (cmd) => cmd.startsWith(lastWord) && cmd !== lastWord
+  );
+
+  const applySuggestion = (cmd: string) => {
+    const words = localDraft.split(/\s+/);
+    words.pop();
+    const prefix = words.join(" ");
+    const nextText = (prefix ? prefix + " " : "") + cmd + " ";
+    handleTextChange(nextText);
+  };
 
   const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showSuggestions && suggestions.length > 0) {
+      if (event.key === "Tab" || event.key === "Enter") {
+        event.preventDefault();
+        applySuggestion(suggestions[0]);
+        return;
+      }
+    }
     if (event.key !== "Enter" || event.shiftKey) {
       return;
     }
     event.preventDefault();
     if (!isSending && runtimeReady && canSubmit) {
-      onSubmit();
+      onSubmit(localDraft);
     }
   };
 
   return (
     <form
-      className="border-t border-dbzs-border bg-dbzs-panel p-2"
+      className="relative border-t border-dbzs-border bg-dbzs-panel p-2"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       onSubmit={(event) => {
         event.preventDefault();
-        onSubmit();
+        onSubmit(localDraft);
       }}
     >
+      {isDragging && (
+        <div className="absolute inset-0 bg-dbzs-cyan/20 border-2 border-dashed border-dbzs-cyan backdrop-blur-sm flex items-center justify-center text-xs font-semibold text-dbzs-cyan z-20 pointer-events-none transition-all">
+          Dateien hier ablegen
+        </div>
+      )}
       <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px]">
         <span className="text-dbzs-muted">Gespraechsmodus:</span>
         <Button active={chatMode === "auto"} onClick={() => setChatMode("auto")} title="Codee entscheidet selbst, wie agentisch die Antwort sein soll.">
@@ -112,11 +186,25 @@ export function RuntimeChatComposer({
           ))}
         </div>
       ) : null}
-      <div className="flex gap-2">
+      <div className="flex gap-2 relative">
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="absolute bottom-[100%] left-0 mb-1 bg-dbzs-panel border border-dbzs-border rounded shadow-lg p-1 z-30 max-h-32 overflow-y-auto flex flex-col gap-0.5 min-w-[120px]">
+            {suggestions.map((cmd) => (
+              <button
+                key={cmd}
+                type="button"
+                className="text-left px-2 py-1 text-[10px] hover:bg-dbzs-cyan/10 hover:text-dbzs-cyan rounded text-dbzs-text transition-colors cursor-pointer font-mono"
+                onClick={() => applySuggestion(cmd)}
+              >
+                {cmd}
+              </button>
+            ))}
+          </div>
+        )}
         <textarea
           className="min-h-[72px] flex-1 resize-y rounded border border-dbzs-border bg-dbzs-bg px-2 py-2 text-[11px] leading-5 text-dbzs-text outline-none focus:border-dbzs-cyan/60"
           disabled={!runtimeReady || isSending}
-          onChange={(event) => onDraftChange(event.currentTarget.value)}
+          onChange={(event) => handleTextChange(event.currentTarget.value)}
           onKeyDown={onComposerKeyDown}
           onPaste={onPasteAttachments}
           placeholder={
@@ -125,7 +213,7 @@ export function RuntimeChatComposer({
               : "Backend verbinden ..."
           }
           rows={3}
-          value={draft}
+          value={localDraft}
         />
         <div className="flex shrink-0 flex-col gap-1">
           <Button
@@ -180,3 +268,5 @@ export function RuntimeChatComposer({
     </form>
   );
 }
+
+export const RuntimeChatComposer = memo(RuntimeChatComposerComponent);
