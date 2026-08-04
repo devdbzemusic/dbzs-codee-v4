@@ -142,4 +142,18 @@ describe("CodeeRunLiveBlock review UX", () => {
     expect(container.textContent).toContain("Run im degradierten Modus fortgesetzt");
     expect(container.textContent).toContain("Residenter Fallback aktiv");
   });
+
+  it("zeigt bei status='timeout' eine explizite Zeitüberschreitungs-Meldung statt 'Wartet...'", () => {
+    const run = makeRun({
+      status: "timeout",
+      finishedAt: new Date("2026-07-23T10:00:30.000Z").toISOString()
+    });
+    act(() => {
+      root.render(<CodeeRunLiveBlock run={run} onCancel={() => {}} isSending={false} />);
+    });
+
+    expect(container.textContent).toContain("Zeitüberschreitung");
+    expect(container.textContent).not.toContain("Wartet...");
+  });
 });
+

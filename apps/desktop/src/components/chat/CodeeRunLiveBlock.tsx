@@ -77,12 +77,31 @@ export function CodeeRunLiveBlock({
         return "Empfängt Antwort...";
       case "running_tools":
         return "Führt Tools aus...";
+      case "waiting_for_plan_approval":
+        return "Wartet auf Plan-Freigabe...";
+      case "waiting_for_patch_approval":
+        return "Wartet auf Patch-Freigabe...";
+      case "waiting_for_command_approval":
+        return "Wartet auf Befehls-Freigabe...";
+      case "waiting_for_web_approval":
+        return "Wartet auf Web-Freigabe...";
+      case "waiting_for_user_answer":
+        return "Wartet auf Antwort...";
+      case "resuming":
+      case "resuming_after_plan_approval":
+        return "Setzt fort...";
       case "completed":
-        return isSuccessfulCompletion ? "Antwort erfolgreich abgeschlossen" : "Abgeschlossen";
+        return isSuccessfulCompletion ? "Antwort erfolgreich abgeschlossen" : "Abgeschlossen mit Einschränkungen";
       case "cancelled":
         return "Abgebrochen";
       case "failed":
         return "Fehlgeschlagen";
+      // Ein Timeout ist ein Fehlerfall, kein Wartezustand — darf niemals als
+      // "Wartet..." erscheinen, da sonst ein hängender Run wie eine laufende
+      // Anfrage wirkt (siehe Phase-6-Statusvertrag: Timeouts/Teilfehler dürfen
+      // keine grünen/neutralen Erfolgsmarkierungen erhalten).
+      case "timeout":
+        return "Zeitüberschreitung — Run wurde abgebrochen";
       default:
         return "Wartet...";
     }
