@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   AgentCreateRequest,
   AgentHealthInfo,
@@ -17,6 +17,23 @@ import type {
 import { ContextMenu } from "@/components/ui/ContextMenu";
 import { backendClient } from "@/services/backendClient";
 import { SettingsNotebook } from "@/settings";
+
+function panelStatusTone(state: string): string {
+  switch (state) {
+    case "running":
+      return "border-dbzs-cyan/40 bg-dbzs-cyan/10 text-dbzs-cyan";
+    case "error":
+      return "border-dbzs-red/40 bg-dbzs-red/10 text-dbzs-red";
+    case "stopped":
+      return "border-dbzs-border bg-dbzs-bg text-dbzs-muted";
+    default:
+      return "border-dbzs-border bg-dbzs-bg text-dbzs-muted";
+  }
+}
+
+function formatPanelDate(value?: string | null): string {
+  return value ? new Date(value).toLocaleString("de-DE") : "-";
+}
 
 export function TestAgentPanel({
   allowedCommands,
@@ -39,10 +56,18 @@ export function TestAgentPanel({
   stage: "idle" | "running" | "completed";
   summary: string;
 }) {
+  const canStop = Boolean(currentRun && currentRun.status === "running");
+
   return (
     <section className="border border-dbzs-border bg-dbzs-panelSoft p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-medium">Test Agent</h3>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-dbzs-muted">Agent Workbench · Checks</div>
+          <h3 className="mt-1 text-sm font-medium text-dbzs-text">Test Agent</h3>
+          <p className="mt-1 text-[11px] text-dbzs-muted">
+            Separater Command-Runner für Prüfungen. Kein Job-Status, keine Queue-Metadaten.
+          </p>
+        </div>
         <button
           className="border border-dbzs-cyan/50 bg-dbzs-cyan/10 px-2 py-1 text-xs text-dbzs-cyan disabled:opacity-40"
           disabled={stage === "running"}
@@ -53,13 +78,33 @@ export function TestAgentPanel({
         </button>
       </div>
 
-      <div className="mt-3 text-[11px] text-dbzs-muted">
-        Status: {currentRun ? currentRun.status : stage}
-        {currentRun ? ` - ${currentRun.label}` : ""}
-        {currentRun && currentRun.exitCode !== null ? ` - exit ${currentRun.exitCode}` : ""}
+      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
+        <div className="border border-dbzs-border bg-dbzs-bg px-2 py-1.5">
+          <div className="uppercase tracking-[0.12em] text-dbzs-muted">Runner</div>
+          <div className="mt-1 text-dbzs-text">{stage}</div>
+        </div>
+        <div className="border border-dbzs-border bg-dbzs-bg px-2 py-1.5">
+          <div className="uppercase tracking-[0.12em] text-dbzs-muted">Command</div>
+          <div className="mt-1 truncate text-dbzs-text">{currentRun?.label ?? "-"}</div>
+        </div>
+        <div className="border border-dbzs-border bg-dbzs-bg px-2 py-1.5">
+          <div className="uppercase tracking-[0.12em] text-dbzs-muted">Status</div>
+          <div className="mt-1 text-dbzs-text">{currentRun?.status ?? stage}</div>
+        </div>
+        <div className="border border-dbzs-border bg-dbzs-bg px-2 py-1.5">
+          <div className="uppercase tracking-[0.12em] text-dbzs-muted">Exit</div>
+          <div className="mt-1 text-dbzs-text">{currentRun?.exitCode ?? "-"}</div>
+        </div>
       </div>
 
-      <div className="mt-2 max-h-32 space-y-1 overflow-y-auto">
+      <div className="mt-3 rounded border border-dbzs-border bg-dbzs-bg p-2">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-[11px] uppercase tracking-[0.12em] text-dbzs-muted">Verfügbare Checks</span>
+          <span className={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.12em] ${panelStatusTone(currentRun?.status ?? stage)}`}>
+            {canStop ? "live" : "idle"}
+          </span>
+        </div>
+        <div className="max-h-32 space-y-1 overflow-y-auto">
         {allowedCommands.map((command) => (
           <button
             className="w-full border border-dbzs-border bg-dbzs-bg px-2 py-1 text-left text-xs text-dbzs-text disabled:opacity-40"
@@ -71,11 +116,12 @@ export function TestAgentPanel({
             {command.label}
           </button>
         ))}
+        </div>
       </div>
 
       <button
         className="mt-2 w-full border border-dbzs-red/40 bg-dbzs-red/10 px-2 py-1 text-xs text-dbzs-red disabled:opacity-40"
-        disabled={!currentRun || currentRun.status !== "running"}
+        disabled={!canStop}
         onClick={onStop}
         type="button"
       >
@@ -155,6 +201,10 @@ export function AgentRegistryPanel({
   const [editCommand, setEditCommand] = useState("");
   const [editArgs, setEditArgs] = useState("");
   const [editCwd, setEditCwd] = useState("");
+  const [agentSearch, setAgentSearch] = useState("");
+  const [stateFilter, setStateFilter] = useState<"all" | "running" | "stopped" | "error">("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | AgentRecord["role"]>("all");
+  const [sortMode, setSortMode] = useState<"name" | "status" | "updated">("status");
 
   useEffect(() => {
     if (!selectedAgent) {
@@ -178,18 +228,83 @@ export function AgentRegistryPanel({
     setAgentHealth(null);
   }, [loadSelectedAgentLogs, selectedAgentId]);
 
+  const roleOptions = useMemo(
+    () => Array.from(new Set(agents.map((agent) => agent.role))).sort((left, right) => left.localeCompare(right)),
+    [agents]
+  );
+
+  const statusCounts = useMemo(
+    () =>
+      agents.reduce<Record<string, number>>((acc, agent) => {
+        acc[agent.status.state] = (acc[agent.status.state] ?? 0) + 1;
+        return acc;
+      }, {}),
+    [agents]
+  );
+
+  const filteredAgents = useMemo(() => {
+    const query = agentSearch.trim().toLowerCase();
+    return [...agents]
+      .filter((agent) => (stateFilter === "all" ? true : agent.status.state === stateFilter))
+      .filter((agent) => (roleFilter === "all" ? true : agent.role === roleFilter))
+      .filter((agent) => {
+        if (!query) {
+          return true;
+        }
+        return [agent.name, agent.id, agent.role, agent.description, agent.command]
+          .filter(Boolean)
+          .some((value) => value.toLowerCase().includes(query));
+      })
+      .sort((left, right) => {
+        if (sortMode === "updated") {
+          return right.updated_at.localeCompare(left.updated_at);
+        }
+        if (sortMode === "status") {
+          return left.status.state.localeCompare(right.status.state) || left.name.localeCompare(right.name);
+        }
+        return left.name.localeCompare(right.name);
+      });
+  }, [agentSearch, agents, roleFilter, sortMode, stateFilter]);
+
   return (
     <section className="border border-dbzs-border bg-dbzs-panelSoft p-4">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-medium">Agent Registry</h3>
-        <button
-          className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-xs text-dbzs-muted disabled:opacity-40"
-          disabled={isLoading || isMutating}
-          onClick={() => void onRefresh()}
-          type="button"
-        >
-          Aktualisieren
-        </button>
+      <div className="flex flex-col gap-3 rounded border border-dbzs-border bg-dbzs-bg p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-dbzs-muted">Agent Workbench · Registry</div>
+            <h3 className="mt-1 text-sm font-medium text-dbzs-text">Agent Registry</h3>
+            <p className="mt-1 text-[11px] text-dbzs-muted">
+              Live-Status, Rollen, Logs und Start/Stop für registrierte Agenten. Workflow-Handoffs und Modellbindung sind hier nicht Teil der verfügbaren Datenstruktur.
+            </p>
+          </div>
+          <button
+            className="border border-dbzs-border bg-dbzs-panel px-2 py-1 text-xs text-dbzs-muted disabled:opacity-40"
+            disabled={isLoading || isMutating}
+            onClick={() => void onRefresh()}
+            type="button"
+          >
+            Aktualisieren
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
+          <div className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-1.5">
+            <div className="uppercase tracking-[0.12em] text-dbzs-muted">Agenten</div>
+            <div className="mt-1 text-sm text-dbzs-text">{agents.length}</div>
+          </div>
+          <div className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-1.5">
+            <div className="uppercase tracking-[0.12em] text-dbzs-muted">Running</div>
+            <div className="mt-1 text-sm text-dbzs-cyan">{statusCounts.running ?? 0}</div>
+          </div>
+          <div className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-1.5">
+            <div className="uppercase tracking-[0.12em] text-dbzs-muted">Stopped</div>
+            <div className="mt-1 text-sm text-dbzs-text">{statusCounts.stopped ?? 0}</div>
+          </div>
+          <div className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-1.5">
+            <div className="uppercase tracking-[0.12em] text-dbzs-muted">Error</div>
+            <div className="mt-1 text-sm text-dbzs-red">{statusCounts.error ?? 0}</div>
+          </div>
+        </div>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -220,13 +335,58 @@ export function AgentRegistryPanel({
         Agent anlegen
       </button>
 
-      <div className="mt-3 max-h-40 space-y-1 overflow-y-auto">
-        {agents.length === 0 ? (
+      <div className="mt-3 rounded border border-dbzs-border bg-dbzs-bg p-2">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <input
+            aria-label="Agenten suchen"
+            className="border border-dbzs-border bg-dbzs-panel px-2 py-1 text-xs text-dbzs-text"
+            onChange={(event) => setAgentSearch(event.currentTarget.value)}
+            placeholder="Suchen: Name, Rolle, Command"
+            value={agentSearch}
+          />
+          <select
+            aria-label="Agent-Status filtern"
+            className="border border-dbzs-border bg-dbzs-panel px-2 py-1 text-xs text-dbzs-text"
+            onChange={(event) => setStateFilter(event.currentTarget.value as typeof stateFilter)}
+            value={stateFilter}
+          >
+            <option value="all">Alle Stati</option>
+            <option value="running">Running</option>
+            <option value="stopped">Stopped</option>
+            <option value="error">Error</option>
+          </select>
+          <select
+            aria-label="Agent-Rolle filtern"
+            className="border border-dbzs-border bg-dbzs-panel px-2 py-1 text-xs text-dbzs-text"
+            onChange={(event) => setRoleFilter(event.currentTarget.value as typeof roleFilter)}
+            value={roleFilter}
+          >
+            <option value="all">Alle Rollen</option>
+            {roleOptions.map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Agenten sortieren"
+            className="border border-dbzs-border bg-dbzs-panel px-2 py-1 text-xs text-dbzs-text"
+            onChange={(event) => setSortMode(event.currentTarget.value as typeof sortMode)}
+            value={sortMode}
+          >
+            <option value="status">Sortierung: Status</option>
+            <option value="updated">Sortierung: Update</option>
+            <option value="name">Sortierung: Name</option>
+          </select>
+        </div>
+
+        <div className="mt-3 max-h-56 space-y-1 overflow-y-auto">
+        {filteredAgents.length === 0 ? (
           <p className="text-xs text-dbzs-muted">Noch keine Agenten registriert.</p>
         ) : (
-          agents.map((agent) => (
+          filteredAgents.map((agent) => (
             <button
-              className={`w-full border px-2 py-2 text-left text-xs ${selectedAgentId === agent.id ? "border-dbzs-cyan/60 bg-dbzs-cyan/10 text-dbzs-text" : "border-dbzs-border bg-dbzs-bg text-dbzs-muted"}`}
+              className={`w-full border px-2 py-2 text-left text-xs ${selectedAgentId === agent.id ? "border-dbzs-cyan/60 bg-dbzs-cyan/10 text-dbzs-text" : "border-dbzs-border bg-dbzs-panel text-dbzs-muted"}`}
               key={agent.id}
               onClick={() => onSelect(agent.id)}
               onContextMenu={(event) => {
@@ -235,14 +395,28 @@ export function AgentRegistryPanel({
               }}
               type="button"
             >
-              <div className="truncate font-medium">{agent.name}</div>
-              <div className="mt-1 flex justify-between gap-2 text-[11px]">
-                <span>{agent.role}</span>
-                <span>{agent.status.state}</span>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{agent.name}</div>
+                  <div className="mt-1 truncate text-[10px] text-dbzs-muted">{agent.id}</div>
+                </div>
+                <span className={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.12em] ${panelStatusTone(agent.status.state)}`}>
+                  {agent.status.state}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1 text-[10px]">
+                <span className="rounded border border-dbzs-border bg-dbzs-bg px-1.5 py-0.5">{agent.role}</span>
+                {agent.enabled ? (
+                  <span className="rounded border border-dbzs-cyan/30 bg-dbzs-cyan/10 px-1.5 py-0.5 text-dbzs-cyan">enabled</span>
+                ) : (
+                  <span className="rounded border border-dbzs-border bg-dbzs-bg px-1.5 py-0.5">disabled</span>
+                )}
+                {agent.status.pid ? <span className="rounded border border-dbzs-border bg-dbzs-bg px-1.5 py-0.5">pid {agent.status.pid}</span> : null}
               </div>
             </button>
           ))
         )}
+        </div>
       </div>
 
       <div className="mt-3 space-y-1 border border-dbzs-border bg-dbzs-bg p-2">
@@ -287,6 +461,25 @@ export function AgentRegistryPanel({
 
       {selectedAgent ? (
         <div className="mt-3 space-y-2 border border-dbzs-border bg-dbzs-bg p-2">
+          <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
+            <div className="border border-dbzs-border bg-dbzs-panel px-2 py-1.5">
+              <div className="uppercase tracking-[0.12em] text-dbzs-muted">Rolle</div>
+              <div className="mt-1 text-dbzs-text">{selectedAgent.role}</div>
+            </div>
+            <div className="border border-dbzs-border bg-dbzs-panel px-2 py-1.5">
+              <div className="uppercase tracking-[0.12em] text-dbzs-muted">Status</div>
+              <div className="mt-1 text-dbzs-text">{selectedAgent.status.state}</div>
+            </div>
+            <div className="border border-dbzs-border bg-dbzs-panel px-2 py-1.5">
+              <div className="uppercase tracking-[0.12em] text-dbzs-muted">Erstellt</div>
+              <div className="mt-1 text-dbzs-text">{formatPanelDate(selectedAgent.created_at)}</div>
+            </div>
+            <div className="border border-dbzs-border bg-dbzs-panel px-2 py-1.5">
+              <div className="uppercase tracking-[0.12em] text-dbzs-muted">Aktualisiert</div>
+              <div className="mt-1 text-dbzs-text">{formatPanelDate(selectedAgent.updated_at)}</div>
+            </div>
+          </div>
+
           <input aria-label="Agent-Name" className="w-full border border-dbzs-border bg-dbzs-panel px-2 py-1 text-xs text-dbzs-text" onChange={(event) => setEditName(event.currentTarget.value)} value={editName} />
           <input aria-label="Agent-Beschreibung" className="w-full border border-dbzs-border bg-dbzs-panel px-2 py-1 text-xs text-dbzs-text" onChange={(event) => setEditDescription(event.currentTarget.value)} placeholder="Beschreibung" value={editDescription} />
           <input aria-label="Agent-Befehl" className="w-full border border-dbzs-border bg-dbzs-panel px-2 py-1 text-xs text-dbzs-text" onChange={(event) => setEditCommand(event.currentTarget.value)} value={editCommand} />
@@ -307,6 +500,21 @@ export function AgentRegistryPanel({
             {selectedAgent.status.pid ? ` (pid ${selectedAgent.status.pid})` : ""}
             {selectedAgent.status.message ? ` - ${selectedAgent.status.message}` : ""}
           </p>
+
+          <div className="grid gap-2 md:grid-cols-3">
+            <div className="border border-dbzs-border bg-dbzs-panel p-2 text-[11px] text-dbzs-muted">
+              <div className="uppercase tracking-[0.12em]">Modellbindung</div>
+              <p className="mt-1">Keine Modell-ID/-Name im AgentRecord vorhanden.</p>
+            </div>
+            <div className="border border-dbzs-border bg-dbzs-panel p-2 text-[11px] text-dbzs-muted">
+              <div className="uppercase tracking-[0.12em]">Toolrechte</div>
+              <p className="mt-1">Keine Tool-Scopes oder Rechtefelder in Registry/Logs verfügbar.</p>
+            </div>
+            <div className="border border-dbzs-border bg-dbzs-panel p-2 text-[11px] text-dbzs-muted">
+              <div className="uppercase tracking-[0.12em]">Handoffs / Trajectory</div>
+              <p className="mt-1">Für Registry-Agenten existiert hier keine direkte Datenquelle.</p>
+            </div>
+          </div>
 
           <div className="space-y-1 border border-dbzs-border bg-dbzs-panel p-2">
             <div className="flex items-center justify-between gap-2">

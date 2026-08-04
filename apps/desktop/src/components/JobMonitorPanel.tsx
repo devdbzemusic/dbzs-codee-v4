@@ -7,7 +7,6 @@ import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useToastStore } from "@/stores/toastStore";
 import { useJobTemplates } from "@/hooks/useJobTemplates";
 import { autoPriority } from "@/utils/autoPriority";
-import { useSseJobUpdates, isSseConnected } from "@/services/sseClient";
 import { useRuntimeChatStore } from "@/stores/runtimeChatStore";
 import { TrajectoryMiniPanel } from "@/components/TrajectoryMiniPanel";
 import { openPlatformDiagnosticsWindow } from "@/utils/platformDiagnosticsWindow";
@@ -40,6 +39,14 @@ const VERIFYABLE_STATUSES = new Set(["running", "waiting_verification"]);
 
 const POLL_INTERVAL_MS = 5000;
 const DETAIL_POLL_INTERVAL_MS = 5000;
+const JOB_BUCKETS = [
+  { key: "queue", title: "Queue", statuses: ["queued", "claimed"] as const },
+  { key: "running", title: "Running", statuses: ["running"] as const },
+  { key: "waiting", title: "Waiting", statuses: ["waiting_verification"] as const },
+  { key: "completed", title: "Completed", statuses: ["completed"] as const },
+  { key: "failed", title: "Failed", statuses: ["failed"] as const },
+  { key: "cancelled", title: "Cancelled", statuses: ["cancelled"] as const }
+] as const;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -76,6 +83,27 @@ function hasPassedVerification(verifications: Array<{ verdict: string }>): boole
 
 function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
+}
+
+function statusLabel(status: string): string {
+  switch (status) {
+    case "queued":
+      return "Queue";
+    case "claimed":
+      return "Claimed";
+    case "running":
+      return "Running";
+    case "waiting_verification":
+      return "Waiting";
+    case "completed":
+      return "Completed";
+    case "failed":
+      return "Failed";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return status;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -454,6 +482,8 @@ export function JobMonitorPanel() {
   const [gitCommitMsg, setGitCommitMsg] = useState("");
   const [gitFlowMessage, setGitFlowMessage] = useState<string | null>(null);
   const [gitFlowWorking, setGitFlowWorking] = useState(false);
+  const [jobSearch, setJobSearch] = useState("");
+  const [jobSort, setJobSort] = useState<"priority" | "updated" | "created" | "title">("priority");
 
   // Refs to avoid stale closures in polling intervals
   const isMutatingRef = useRef(isMutating);
@@ -518,6 +548,46 @@ export function JobMonitorPanel() {
   const counts = useMemo(
     () => jobs.reduce<Record<string, number>>((acc, j) => { acc[j.status] = (acc[j.status] ?? 0) + 1; return acc; }, {}),
     [jobs]
+  );
+
+  const visibleJobs = useMemo(() => {
+    const query = jobSearch.trim().toLowerCase();
+    return [...jobs]
+      .filter((job) => {
+        if (!query) {
+          return true;
+        }
+        return [
+          job.title,
+          job.id,
+          job.task_type,
+          job.assigned_agent_role ?? "",
+          job.assigned_worker ?? "",
+          job.error_message ?? ""
+        ].some((value) => value.toLowerCase().includes(query));
+      })
+      .sort((left, right) => {
+        switch (jobSort) {
+          case "title":
+            return left.title.localeCompare(right.title);
+          case "created":
+            return right.created_at.localeCompare(left.created_at);
+          case "updated":
+            return right.updated_at.localeCompare(left.updated_at);
+          case "priority":
+          default:
+            return right.priority - left.priority || right.created_at.localeCompare(left.created_at);
+        }
+      });
+  }, [jobSearch, jobSort, jobs]);
+
+  const groupedJobs = useMemo(
+    () =>
+      JOB_BUCKETS.map((bucket) => ({
+        ...bucket,
+        jobs: visibleJobs.filter((job) => (bucket.statuses as readonly string[]).includes(job.status))
+      })),
+    [visibleJobs]
   );
 
   const filteredArtifacts = useMemo(() => {
@@ -666,8 +736,30 @@ export function JobMonitorPanel() {
         </div>
 
         <p className="text-[11px] text-dbzs-muted leading-relaxed">
-          Zentrales Cockpit zur Abarbeitung im Hintergrund. Agenten ziehen sich („claimen“) offene Jobs, verarbeiten sie modular offline und erzeugen validierte Patches.
+          Zentrales Cockpit für echte Queue-/Jobzustände. Workflow-Boards, Agent-Registry und Test-Runs bleiben bewusst separat.
         </p>
+
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+          <input
+            className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-1 text-xs text-dbzs-text"
+            onChange={(event) => setJobSearch(event.currentTarget.value)}
+            placeholder="Jobs suchen: Titel, ID, Rolle, Worker"
+            value={jobSearch}
+          />
+          <select
+            className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-1 text-xs text-dbzs-text"
+            onChange={(event) => setJobSort(event.currentTarget.value as typeof jobSort)}
+            value={jobSort}
+          >
+            <option value="priority">Sortierung: Priorität</option>
+            <option value="updated">Sortierung: Update</option>
+            <option value="created">Sortierung: Erstellung</option>
+            <option value="title">Sortierung: Titel</option>
+          </select>
+          <div className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-1 text-[11px] text-dbzs-muted">
+            Retry via echter API nur für stale/requeue vorhanden. Direkter Cancel-Endpunkt für Jobs ist derzeit nicht verfügbar.
+          </div>
+        </div>
 
         {/* Live Admin Maintenance Row */}
         <div className="flex items-center justify-between border-t border-dbzs-border/40 pt-2 mt-1 gap-2 text-[10px]">
@@ -702,15 +794,15 @@ export function JobMonitorPanel() {
       </div>
 
       {/* Status counters */}
-      <div className="grid grid-cols-4 gap-1.5 text-[11px]">
-        {(["queued", "running", "completed", "failed"] as const).map((s) => (
+      <div className="grid grid-cols-2 gap-1.5 text-[11px] md:grid-cols-4">
+        {(["queued", "running", "waiting_verification", "failed"] as const).map((s) => (
           <button
             className={`rounded border px-2 py-1 text-left transition ${selectedStatus === s ? statusBadgeClass(s) : "border-dbzs-border bg-dbzs-bg text-dbzs-muted hover:border-dbzs-cyan"}`}
             key={s}
             onClick={() => setStatusFilter(s)}
             type="button"
           >
-            <div className="uppercase tracking-[0.1em]">{s}</div>
+            <div className="uppercase tracking-[0.1em]">{statusLabel(s)}</div>
             <div className="text-sm font-bold">{counts[s] ?? 0}</div>
           </button>
         ))}
@@ -835,60 +927,76 @@ export function JobMonitorPanel() {
       {error && <p className="text-xs text-red-400">{error}</p>}
 
       {/* Job list */}
-      <div className="space-y-1">
-        {jobs.length === 0 ? (
+      <div className="space-y-3">
+        {visibleJobs.length === 0 ? (
           <div className="rounded border border-dashed border-dbzs-border bg-dbzs-bg p-4 text-center text-xs text-dbzs-muted">
             Keine Jobs — erstelle einen Job oben oder starte einen Agenten.
           </div>
         ) : (
-          jobs.map((job) => {
-            const isSelected = selectedJobId === job.id;
-            const progressValue = isSelected ? selectedJobMaxProgress : 0;
-            return (
-              <div
-                className={`cursor-pointer rounded border px-3 py-2 text-xs transition ${
-                  isSelected
-                    ? "border-dbzs-cyan bg-dbzs-cyan/5 text-dbzs-text"
-                    : "border-dbzs-border bg-dbzs-bg text-dbzs-muted hover:border-dbzs-border/80 hover:bg-dbzs-panelSoft"
-                }`}
-                key={job.id}
-                onClick={() => void selectJob(job.id)}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); void selectJob(job.id); } }}
-                role="button"
-                tabIndex={0}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="min-w-0 truncate font-medium text-dbzs-text">{job.title}</span>
-                  <StatusBadge status={job.status} />
+          groupedJobs.map((bucket) =>
+            bucket.jobs.length > 0 ? (
+              <div className="rounded border border-dbzs-border bg-dbzs-bg" key={bucket.key}>
+                <div className="flex items-center justify-between border-b border-dbzs-border px-3 py-2 text-[11px]">
+                  <span className="uppercase tracking-[0.12em] text-dbzs-muted">{bucket.title}</span>
+                  <span className="text-dbzs-text">{bucket.jobs.length}</span>
                 </div>
-                <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-dbzs-muted">
-                  <span>P{job.priority}</span>
-                  <span>{job.attempt_count}/{job.max_attempts} Versuche</span>
-                  {job.assigned_agent_role && <span>{job.assigned_agent_role}</span>}
-                  {job.assigned_worker && <span className="truncate max-w-24">{job.assigned_worker}</span>}
+                <div className="space-y-1 p-2">
+                  {bucket.jobs.map((job) => {
+                    const isSelected = selectedJobId === job.id;
+                    const progressValue = isSelected ? selectedJobMaxProgress : 0;
+                    return (
+                      <div
+                        className={`cursor-pointer rounded border px-3 py-2 text-xs transition ${
+                          isSelected
+                            ? "border-dbzs-cyan bg-dbzs-cyan/5 text-dbzs-text"
+                            : "border-dbzs-border bg-dbzs-panelSoft text-dbzs-muted hover:border-dbzs-border/80 hover:bg-dbzs-panel"
+                        }`}
+                        key={job.id}
+                        onClick={() => void selectJob(job.id)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); void selectJob(job.id); } }}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="block truncate font-medium text-dbzs-text">{job.title}</span>
+                            <span className="mt-1 block truncate text-[10px] text-dbzs-muted">{job.id}</span>
+                          </div>
+                          <StatusBadge status={job.status} />
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-dbzs-muted">
+                          <span>P{job.priority}</span>
+                          <span>{job.attempt_count}/{job.max_attempts} Versuche</span>
+                          <span>{job.task_type}</span>
+                          {job.assigned_agent_role && <span>{job.assigned_agent_role}</span>}
+                          {job.assigned_worker && <span className="truncate max-w-24">{job.assigned_worker}</span>}
+                        </div>
+                        {isSelected && progressValue > 0 && <ProgressBar value={progressValue} />}
+                        {isSelected && ACTIVE_STATUSES.has(job.status) ? (
+                          <div className="mt-2 space-y-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} role="presentation">
+                            <div className="flex flex-wrap gap-1">
+                              <button className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-0.5 text-[10px] text-dbzs-muted disabled:opacity-40 hover:text-dbzs-text" disabled={isMutating || !workerReady} onClick={() => void quickProgress(job)} title="Fortschritt 50%" type="button">WIP</button>
+                              <button className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-0.5 text-[10px] text-dbzs-muted disabled:opacity-40 hover:text-dbzs-text" disabled={isMutating || !workerReady || !canQuickVerify(job)} onClick={() => void quickVerification(job)} title="Zur Verifikation" type="button">Verify</button>
+                              <button className="border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-[10px] text-green-400 disabled:opacity-40" disabled={isMutating || !workerReady || !canQuickDone(job)} onClick={() => void quickComplete(job)} title="Abschließen" type="button">Done</button>
+                              <button className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-0.5 text-[10px] text-dbzs-muted disabled:opacity-40 hover:text-dbzs-text" disabled={isMutating} onClick={() => void quickLogArtifact(job)} title="Log-Artefakt" type="button">Log</button>
+                            </div>
+                            {isMutating ? (
+                              <p className="text-[10px] text-dbzs-muted">Aktion läuft …</p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {isSelected && TERMINAL_STATUSES.has(job.status) ? (
+                          <p className="mt-2 text-[10px] text-dbzs-muted">
+                            Terminaler Jobstatus — Details und Artefakte unten.
+                          </p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
-                {isSelected && progressValue > 0 && <ProgressBar value={progressValue} />}
-                {isSelected && ACTIVE_STATUSES.has(job.status) ? (
-                  <div className="mt-2 space-y-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} role="presentation">
-                    <div className="flex flex-wrap gap-1">
-                      <button className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-0.5 text-[10px] text-dbzs-muted disabled:opacity-40 hover:text-dbzs-text" disabled={isMutating || !workerReady} onClick={() => void quickProgress(job)} title="Fortschritt 50%" type="button">WIP</button>
-                      <button className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-0.5 text-[10px] text-dbzs-muted disabled:opacity-40 hover:text-dbzs-text" disabled={isMutating || !workerReady || !canQuickVerify(job)} onClick={() => void quickVerification(job)} title="Zur Verifikation" type="button">Verify</button>
-                      <button className="border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-[10px] text-green-400 disabled:opacity-40" disabled={isMutating || !workerReady || !canQuickDone(job)} onClick={() => void quickComplete(job)} title="Abschließen" type="button">Done</button>
-                      <button className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-0.5 text-[10px] text-dbzs-muted disabled:opacity-40 hover:text-dbzs-text" disabled={isMutating} onClick={() => void quickLogArtifact(job)} title="Log-Artefakt" type="button">Log</button>
-                    </div>
-                    {isMutating ? (
-                      <p className="text-[10px] text-dbzs-muted">Aktion läuft …</p>
-                    ) : null}
-                  </div>
-                ) : null}
-                {isSelected && TERMINAL_STATUSES.has(job.status) ? (
-                  <p className="mt-2 text-[10px] text-dbzs-muted">
-                    Job abgeschlossen — Details und Artefakte unten im Panel.
-                  </p>
-                ) : null}
               </div>
-            );
-          })
+            ) : null
+          )
         )}
       </div>
 
@@ -956,7 +1064,7 @@ export function JobMonitorPanel() {
               {/* Output artifacts — most important, shown first */}
               {filteredArtifacts.filter((a) => a.kind === "output").length > 0 && (
                 <div>
-                  <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.12em] text-green-400">Agent Output</div>
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.12em] text-green-400">Artifacts · Output</div>
                   <div className="space-y-1">
                     {filteredArtifacts.filter((a) => a.kind === "output").map((a) => (
                       <ExpandableArtifact key={a.id} name={a.name} kind={a.kind} content={a.content} jobId={selectedJob.id} />
@@ -967,7 +1075,7 @@ export function JobMonitorPanel() {
 
               {/* Waypoint timeline */}
               <div>
-                <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-dbzs-muted">Verlauf</div>
+                <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-dbzs-muted">Job-Verlauf</div>
                 <WaypointTimeline events={selectedJobDetail.events} />
               </div>
 
