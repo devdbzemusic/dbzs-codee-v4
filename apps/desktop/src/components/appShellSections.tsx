@@ -21,6 +21,7 @@ import {
   PanelTitle,
   ResizeHandle
 } from "@/components/appShellPrimitives";
+import { DOCK_TABS, DOCK_TAB_LABELS, type DockTabId } from "@/stores/dockStore";
 
 export function AppShellRightSidebar({
   collapsed,
@@ -82,14 +83,28 @@ export function AppShellRightSidebar({
 export function AppShellFooter({
   rightPanelCollapsed,
   terminalCollapsed,
-  terminalContent,
+  dockMode,
+  dockMaximized,
+  onSetDockMode,
+  onToggleDockMaximized,
+  terminalPane,
+  debugConsolePane,
+  outputPane,
+  gitPane,
   systemLoading,
   onResize,
   onToggleTerminal
 }: {
   rightPanelCollapsed: boolean;
   terminalCollapsed: boolean;
-  terminalContent: ReactNode;
+  dockMode: DockTabId;
+  dockMaximized: boolean;
+  onSetDockMode: (tab: DockTabId) => void;
+  onToggleDockMaximized: () => void;
+  terminalPane: ReactNode;
+  debugConsolePane: ReactNode;
+  outputPane: ReactNode;
+  gitPane: ReactNode;
   systemLoading: boolean;
   onResize: (event: React.PointerEvent<HTMLButtonElement>) => void;
   onToggleTerminal: () => void;
@@ -102,12 +117,65 @@ export function AppShellFooter({
         side="top"
       />
       <section className="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-dbzs-border">
-        <PanelHeader
-          description={terminalCollapsed ? "" : "Ausfuehrung wird erst mit Sicherheitspruefung aktiviert."}
-          onCollapse={onToggleTerminal}
-          title="Terminal / Logs / Git"
-        />
-        {terminalCollapsed ? null : terminalContent}
+        <div className="flex h-9 shrink-0 items-center gap-0.5 border-b border-dbzs-border px-2">
+          {DOCK_TABS.map((tabId) => (
+            <button
+              className={`shrink-0 rounded px-2 py-1 text-[10px] font-medium transition-colors ${
+                dockMode === tabId
+                  ? "bg-dbzs-cyan/10 text-dbzs-cyan"
+                  : "text-dbzs-muted hover:text-dbzs-text"
+              }`}
+              key={tabId}
+              onClick={() => onSetDockMode(tabId)}
+              type="button"
+            >
+              {DOCK_TAB_LABELS[tabId]}
+            </button>
+          ))}
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <button
+              aria-pressed={dockMaximized}
+              className="rounded p-1 text-dbzs-muted hover:text-dbzs-text"
+              onClick={onToggleDockMaximized}
+              title={dockMaximized ? "Dock verkleinern" : "Dock maximieren"}
+              type="button"
+            >
+              <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                {dockMaximized ? (
+                  <path d="M9 15l-6 6M9 15v5m0-5H4M15 9l6-6M15 9V4m0 5h5" strokeLinecap="round" strokeLinejoin="round" />
+                ) : (
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" strokeLinecap="round" strokeLinejoin="round" />
+                )}
+              </svg>
+            </button>
+            <button
+              className="rounded p-1 text-dbzs-muted hover:text-dbzs-text"
+              onClick={onToggleTerminal}
+              title={terminalCollapsed ? "Dock einblenden" : "Dock einklappen"}
+              type="button"
+            >
+              <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                <path d={terminalCollapsed ? "M6 9l6-6 6 6M6 15l6 6 6-6" : "M6 15l6-6 6 6"} strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        {terminalCollapsed ? null : (
+          <>
+            <div className={`min-h-0 flex-1 overflow-hidden ${dockMode === "terminal" ? "flex flex-col" : "hidden"}`}>
+              {terminalPane}
+            </div>
+            <div className={`min-h-0 flex-1 overflow-hidden ${dockMode === "debug-console" ? "flex flex-col" : "hidden"}`}>
+              {debugConsolePane}
+            </div>
+            <div className={`min-h-0 flex-1 overflow-hidden ${dockMode === "output" ? "flex flex-col" : "hidden"}`}>
+              {outputPane}
+            </div>
+            <div className={`min-h-0 flex-1 overflow-hidden ${dockMode === "git" ? "flex flex-col" : "hidden"}`}>
+              {gitPane}
+            </div>
+          </>
+        )}
       </section>
 
       <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
@@ -123,3 +191,4 @@ export function AppShellFooter({
     </footer>
   );
 }
+

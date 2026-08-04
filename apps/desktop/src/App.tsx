@@ -59,6 +59,7 @@ import {
   AppShellFooter,
   AppShellRightSidebar
 } from "@/components/appShellSections";
+import { useDockStore } from "@/stores/dockStore";
 import {
   CollapsedPanelButton as AppShellCollapsedPanelButton,
   PanelHeader as AppShellPanelHeader,
@@ -103,7 +104,7 @@ const MAX_SIDE_PANEL_WIDTH = 520;
 const MIN_TERMINAL_HEIGHT = 128;
 const MAX_TERMINAL_HEIGHT = 360;
 
-type InspectorTabId = "agents" | "context" | "runtime" | "diagnostics" | "properties" | "model" | "debug-log";
+type InspectorTabId = "agents" | "context" | "runtime" | "diagnostics" | "properties" | "model";
 
 const INSPECTOR_TABS: Array<{ id: InspectorTabId; label: string; title: string; icon: ReactNode }> = [
   {
@@ -168,16 +169,6 @@ const INSPECTOR_TABS: Array<{ id: InspectorTabId; label: string; title: string; 
       <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
         <rect height="10" rx="2" width="18" x="3" y="7" />
         <path d="M7 7V5.5A2.5 2.5 0 019.5 3h5A2.5 2.5 0 0117 5.5V7" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    )
-  },
-  {
-    id: "debug-log",
-    label: "Debug Log",
-    title: "Live-Debug-Log des Backends",
-    icon: (
-      <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-        <path d="M4 6h16M4 12h16M4 18h10" strokeLinecap="round" />
       </svg>
     )
   }
@@ -398,10 +389,14 @@ function AppShell() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(280);
   const [rightPanelWidth, setRightPanelWidth] = useState(360);
   const [terminalHeight, setTerminalHeight] = useState(188);
+  const dockMode = useDockStore((state) => state.activeTab);
+  const setDockMode = useDockStore((state) => state.setActiveTab);
+  const dockMaximized = useDockStore((state) => state.maximized);
+  const toggleDockMaximized = useDockStore((state) => state.toggleMaximized);
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
   const [rightSidebarMode, setRightSidebarMode] = useState<
-    "agents" | "context" | "runtime" | "diagnostics" | "properties" | "model" | "debug-log"
+    "agents" | "context" | "runtime" | "diagnostics" | "properties" | "model"
   >("agents");
   const [terminalCollapsed, setTerminalCollapsed] = useState(false);
   const [standaloneView, setStandaloneView] = useState(readStandaloneView);
@@ -573,7 +568,7 @@ function AppShell() {
   });
   const visibleLeftWidth = leftPanelCollapsed ? 44 : leftPanelWidth;
   const visibleRightWidth = rightPanelCollapsed ? 44 : rightPanelWidth;
-  const visibleTerminalHeight = terminalCollapsed ? 42 : terminalHeight;
+  const visibleTerminalHeight = terminalCollapsed ? 42 : dockMaximized ? 520 : terminalHeight;
   const pendingProposedChanges = Object.values(proposedChanges)
     .filter((change) => change.status === "pending")
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
@@ -1075,9 +1070,6 @@ function AppShell() {
             onExpand={() => setRightPanelCollapsed(false)}
             onResize={startSidePanelResize("right")}
           >
-            {rightSidebarMode === "debug-log" ? (
-              <DebugLogPanel />
-            ) : null}
             <div className={`panel-scroll space-y-4 px-4 pb-4 ${rightSidebarMode === "agents" ? "flex min-h-0 flex-1 flex-col" : "hidden"}`}>
               <DebugAgentPanel
                 analyses={debugAnalyses}
@@ -1211,7 +1203,6 @@ function AppShell() {
             </div>
             <div className={`panel-scroll space-y-4 px-4 pb-4 ${rightSidebarMode === "runtime" ? "flex min-h-0 flex-1 flex-col" : "hidden"}`}>
               <ReviewGatePanel />
-              <TerminalPanel />
             </div>
             <div className={`panel-scroll space-y-4 px-4 pb-4 ${rightSidebarMode === "diagnostics" ? "flex min-h-0 flex-1 flex-col" : "hidden"}`}>
               <AppShellDocsAnalysisPanel
@@ -1236,13 +1227,20 @@ function AppShell() {
         </section>
 
         <AppShellFooter
+          debugConsolePane={<DebugLogPanel />}
+          dockMaximized={dockMaximized}
+          dockMode={dockMode}
+          gitPane={(
+            <div className="panel-scroll mx-4 flex-1 space-y-3 pb-3">
+              <GitPanel />
+            </div>
+          )}
           onResize={startTerminalResize}
+          onSetDockMode={setDockMode}
+          onToggleDockMaximized={toggleDockMaximized}
           onToggleTerminal={() => setTerminalCollapsed((value) => !value)}
-          rightPanelCollapsed={rightPanelCollapsed}
-          systemLoading={isLoading}
-          terminalCollapsed={terminalCollapsed}
-          terminalContent={(
-            <div className="panel-scroll mx-4 space-y-3 pb-3">
+          outputPane={(
+            <div className="panel-scroll mx-4 flex-1 space-y-3 pb-3">
               <div className="border border-dbzs-border bg-[#05080c] p-3 font-mono text-xs text-dbzs-muted">
                 <p>{">"} DBZS Phase 1 gestartet</p>
                 <p>{">"} Backend Health: {backendStatusLabel}</p>
@@ -1255,7 +1253,14 @@ function AppShell() {
                 {taskBoardError ? <p className="text-dbzs-red">{">"} Tasks: {taskBoardError}</p> : null}
                 {docsAnalysisError ? <p className="text-dbzs-red">{">"} Docs: {docsAnalysisError}</p> : null}
               </div>
-              <GitPanel />
+            </div>
+          )}
+          rightPanelCollapsed={rightPanelCollapsed}
+          systemLoading={isLoading}
+          terminalCollapsed={terminalCollapsed}
+          terminalPane={(
+            <div className="panel-scroll mx-4 flex-1 space-y-3 pb-3">
+              <TerminalPanel />
             </div>
           )}
         />
