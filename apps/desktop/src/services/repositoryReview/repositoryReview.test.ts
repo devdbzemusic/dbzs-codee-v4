@@ -495,6 +495,22 @@ describe("RepositoryReviewOrchestrator", () => {
 });
 
 describe("resolveReviewOutcome — Timeout-Batches", () => {
+  const minQuality = {
+    analyzerCoverage: 1,
+    reviewedFileCount: 3,
+    plannedFileCount: 3,
+    findingCount: 0,
+    uniqueFindingTitles: 0,
+    uniqueCategories: 0,
+    uniqueSeverities: 0,
+    repeatedGenericFindingRatio: 0,
+    securityCoverage: "not_run" as const,
+    architectureCoverage: "not_run" as const,
+    performanceCoverage: "not_run" as const,
+    confidence: "high" as const,
+    warnings: []
+  };
+
   it("gibt 'partial' zurück wenn mindestens ein Batch timed out", () => {
     const outcome = resolveReviewOutcome({
       completedBatches: 3,
@@ -502,7 +518,7 @@ describe("resolveReviewOutcome — Timeout-Batches", () => {
       timedOutBatches: 1,
       diagnostics: [],
       checks: [],
-      quality: null
+      quality: minQuality
     });
     expect(outcome).toBe("partial");
   });
@@ -514,7 +530,7 @@ describe("resolveReviewOutcome — Timeout-Batches", () => {
       timedOutBatches: 0,
       diagnostics: [],
       checks: [],
-      quality: null
+      quality: minQuality
     });
     expect(outcome).not.toBe("partial");
   });

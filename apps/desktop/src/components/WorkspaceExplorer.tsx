@@ -1,4 +1,4 @@
-import { type DragEvent, type KeyboardEvent, type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_CONTEXT_EXCLUDED_DIRECTORIES,
   type ReviewArtifactSummary,
@@ -721,80 +721,150 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
 
   return (
     <div
-      className={embeddedInPanel ? "flex flex-col" : "flex h-full min-h-0 flex-col"}
+      className={embeddedInPanel ? "flex flex-col" : "flex h-full min-h-0 flex-col bg-dbzs-panel"}
       onContextMenu={(e) => openContextMenu(e, null)}
       onKeyDown={handleKeyDown}
       tabIndex={0}
     >
-      {/* ---- Header ---- */}
-      <div className="shrink-0 border-b border-dbzs-border px-3 py-2 space-y-2">
-        {/* Row 1: title + controls */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <h2 className="text-xs font-semibold uppercase text-dbzs-text">Explorer</h2>
+      {/* ════════════════════════════════════════════════
+          HEADER — title row + toolbar
+          ════════════════════════════════════════════════ */}
+      <header className="shrink-0 border-b border-dbzs-border bg-dbzs-panelSoft">
+        {/* Row 1: title + icon-buttons */}
+        <div className="flex h-9 items-center justify-between px-3">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <svg
+              aria-hidden="true"
+              className="h-3.5 w-3.5 shrink-0 text-dbzs-cyan"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              viewBox="0 0 24 24"
+            >
+              <path d="M3 7h18M3 12h18M3 17h18" strokeLinecap="round" />
+            </svg>
+            <h2 className="truncate text-[11px] font-semibold uppercase tracking-widest text-dbzs-muted">
+              Explorer
+            </h2>
+          </div>
+          <div className="flex items-center gap-0.5">
+            {/* Expand all */}
+            <button
+              aria-label="Alle aufklappen"
+              className="grid h-6 w-6 place-items-center rounded text-dbzs-muted transition-colors hover:bg-dbzs-cyan/10 hover:text-dbzs-cyan"
+              onClick={expandAll}
+              title="Alle aufklappen"
+              type="button"
+            >
+              <svg fill="none" height="11" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="11">
+                <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+              </svg>
+            </button>
+            {/* Collapse all */}
+            <button
+              aria-label="Alle einklappen"
+              className="grid h-6 w-6 place-items-center rounded text-dbzs-muted transition-colors hover:bg-dbzs-cyan/10 hover:text-dbzs-cyan"
+              onClick={collapseAll}
+              title="Alle einklappen"
+              type="button"
+            >
+              <svg fill="none" height="11" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="11">
+                <path d="M5 12h14" strokeLinecap="round" />
+              </svg>
+            </button>
+            {/* Compact toggle */}
+            <button
+              aria-label={compactMode ? "Entspannter Modus" : "Kompakter Modus"}
+              aria-pressed={compactMode}
+              className={`grid h-6 w-6 place-items-center rounded transition-colors ${
+                compactMode
+                  ? "bg-dbzs-cyan/10 text-dbzs-cyan"
+                  : "text-dbzs-muted hover:bg-dbzs-cyan/10 hover:text-dbzs-cyan"
+              }`}
+              onClick={toggleCompact}
+              title={compactMode ? "Entspannter Modus" : "Kompakter Modus"}
+              type="button"
+            >
+              <svg fill="none" height="11" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="11">
+                <path d="M4 6h16M4 10h16M4 14h16M4 18h16" strokeLinecap="round" />
+              </svg>
+            </button>
+            {/* Auto-refresh toggle */}
+            <button
+              aria-label={autoRefresh ? "Auto-Refresh deaktivieren" : "Auto-Refresh aktivieren"}
+              aria-pressed={autoRefresh}
+              className={`grid h-6 w-6 place-items-center rounded transition-colors ${
+                autoRefresh
+                  ? "bg-dbzs-green/10 text-dbzs-green"
+                  : "text-dbzs-muted hover:bg-dbzs-cyan/10 hover:text-dbzs-cyan"
+              }`}
+              onClick={() => setAutoRefresh((v) => !v)}
+              title={autoRefresh ? "Auto-Refresh an (alle 10s)" : "Auto-Refresh aus"}
+              type="button"
+            >
+              <svg fill="none" height="11" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="11">
+                <path d="M4 4v6h6" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M20 20v-6h-6" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L4 10M19 14l-1.64 4.36A9 9 0 0 1 3.51 15" strokeLinecap="round" />
+              </svg>
+            </button>
+            {/* Help tooltip */}
             <span
-              aria-label="Hilfe"
-              className="has-help-tooltip inline-grid h-4 w-4 place-items-center rounded-full border border-dbzs-border text-[10px] text-dbzs-muted"
-              data-help="Linksklick öffnet/klappt auf, Rechtsklick = Menü, Doppelklick = Umbenennen, Ctrl+Klick = Mehrfachauswahl"
+              aria-label="Explorer-Steuerung: Linksklick öffnet/klappt auf, Rechtsklick = Menü, Doppelklick = Umbenennen, Ctrl+Klick = Mehrfachauswahl"
+              className="has-help-tooltip grid h-6 w-6 place-items-center rounded text-[9px] text-dbzs-muted/50 hover:text-dbzs-muted"
+              data-help="Linksklick öffnet/klappt auf · Rechtsklick = Menü · Doppelklick = Umbenennen · Ctrl+Klick = Mehrfachauswahl"
               role="img"
               tabIndex={0}
             >?</span>
           </div>
-          <div className="flex items-center gap-1">
-            <button
-              className="border border-dbzs-border bg-dbzs-bg px-1.5 py-0.5 text-[10px] text-dbzs-muted hover:text-dbzs-text"
-              onClick={expandAll}
-              title="Alle aufklappen"
-              type="button"
-            >⊞</button>
-            <button
-              className="border border-dbzs-border bg-dbzs-bg px-1.5 py-0.5 text-[10px] text-dbzs-muted hover:text-dbzs-text"
-              onClick={collapseAll}
-              title="Alle einklappen"
-              type="button"
-            >⊟</button>
-            <button
-              className={`border border-dbzs-border px-1.5 py-0.5 text-[10px] ${compactMode ? "bg-dbzs-cyan/10 text-dbzs-cyan" : "bg-dbzs-bg text-dbzs-muted hover:text-dbzs-text"}`}
-              onClick={toggleCompact}
-              title={compactMode ? "Entspannter Modus" : "Kompakter Modus"}
-              type="button"
-            >≡</button>
-            <button
-              className={`border border-dbzs-border px-1.5 py-0.5 text-[10px] ${autoRefresh ? "bg-dbzs-green/10 text-dbzs-green" : "bg-dbzs-bg text-dbzs-muted hover:text-dbzs-text"}`}
-              onClick={() => setAutoRefresh((v) => !v)}
-              title={autoRefresh ? "Auto-Refresh an (alle 10s)" : "Auto-Refresh aus"}
-              type="button"
-            >↻</button>
+        </div>
+
+        {/* Row 2: Sticky project header + breadcrumb */}
+        {state.projectName && (
+          <div className="border-t border-dbzs-border/50 bg-dbzs-bg/30 px-3 py-1.5">
+            <p className="truncate text-[11px] font-medium text-dbzs-text">
+              {state.projectName}
+            </p>
+            {breadcrumb && breadcrumb.length > 0 && (
+              <div className="mt-0.5 flex flex-wrap items-center gap-0.5 text-[10px] text-dbzs-muted">
+                {breadcrumb.map((part, i) => (
+                  <span key={i} className="flex items-center gap-0.5">
+                    {i > 0 && <span className="opacity-30 select-none">›</span>}
+                    <span className={i === breadcrumb.length - 1 ? "text-dbzs-cyan" : ""}>{part}</span>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
-        {/* Row 2: project name + breadcrumb */}
-        <div className="min-w-0">
-          <p className="truncate text-[11px] text-dbzs-muted">{state.projectName ?? "Kein Projekt"}</p>
-          {breadcrumb && breadcrumb.length > 0 && (
-            <div className="mt-0.5 flex items-center gap-0.5 flex-wrap text-[10px] text-dbzs-muted">
-              {breadcrumb.map((part, i) => (
-                <span key={i} className="flex items-center gap-0.5">
-                  {i > 0 && <span className="opacity-40">›</span>}
-                  <span className={i === breadcrumb.length - 1 ? "text-dbzs-cyan" : ""}>{part}</span>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Row 3: filter input + type dropdown */}
-        <div className="flex gap-1">
-          <input
-            aria-label="Dateinamen filtern"
-            className="flex-1 border border-dbzs-border bg-dbzs-bg px-2 py-0.5 text-[11px] text-dbzs-text placeholder:text-dbzs-muted"
-            onChange={(e) => setFilterQuery(e.target.value)}
-            placeholder="Filtern…"
-            value={filterQuery}
-          />
+        {/* Row 3: filter */}
+        <div className="flex gap-1 border-t border-dbzs-border/50 px-2 py-1.5">
+          <div className="relative flex-1">
+            <svg
+              aria-hidden="true"
+              className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-dbzs-muted/50"
+              fill="none"
+              height="10"
+              stroke="currentColor"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+              width="10"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="M21 21l-4.35-4.35" strokeLinecap="round" />
+            </svg>
+            <input
+              aria-label="Dateinamen filtern"
+              className="h-6 w-full rounded border border-dbzs-border bg-dbzs-bg pl-6 pr-2 text-[11px] text-dbzs-text placeholder:text-dbzs-muted/50 focus:border-dbzs-cyan/50 focus:outline-none"
+              onChange={(e) => setFilterQuery(e.target.value)}
+              placeholder="Filtern…"
+              value={filterQuery}
+            />
+          </div>
           <select
             aria-label="Dateityp filtern"
-            className="border border-dbzs-border bg-dbzs-bg px-1 py-0.5 text-[11px] text-dbzs-text"
+            className="h-6 rounded border border-dbzs-border bg-dbzs-bg px-1 text-[11px] text-dbzs-text focus:border-dbzs-cyan/50 focus:outline-none"
             onChange={(e) => setTypeFilter(e.target.value)}
             value={typeFilter}
           >
@@ -805,86 +875,162 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
           </select>
         </div>
 
-        {/* Row 4: actions */}
-        <div className="flex gap-1 flex-wrap">
-          <button className="border border-dbzs-border bg-dbzs-bg px-2 py-0.5 text-[11px] text-dbzs-muted hover:text-dbzs-text" disabled={isLoading} onClick={() => void createProject()} type="button">Neues Projekt</button>
-          <button className="border border-dbzs-border bg-dbzs-bg px-2 py-0.5 text-[11px] text-dbzs-muted hover:text-dbzs-text" disabled={isLoading} onClick={() => void openWorkspace()} type="button">Öffnen</button>
-          {state.projectPath ? (
+        {/* Row 4: action buttons */}
+        <div className="flex flex-wrap gap-1 border-t border-dbzs-border/50 px-2 py-1.5">
+          <ExplorerActionBtn disabled={isLoading} onClick={() => void createProject()}>
+            <svg fill="none" height="9" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="9">
+              <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+            </svg>
+            Projekt
+          </ExplorerActionBtn>
+          <ExplorerActionBtn disabled={isLoading} onClick={() => void openWorkspace()}>
+            <svg fill="none" height="9" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="9">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+            Öffnen
+          </ExplorerActionBtn>
+          {state.projectPath && (
             <>
-              <button className="border border-dbzs-border bg-dbzs-bg px-2 py-0.5 text-[11px] text-dbzs-muted hover:text-dbzs-text" disabled={isLoading} onClick={() => void useWorkspaceStore.getState().createNewFile()} type="button">Datei neu</button>
-              <button className="border border-dbzs-border bg-dbzs-bg px-2 py-0.5 text-[11px] text-dbzs-muted hover:text-dbzs-text" disabled={isLoading} onClick={() => void useWorkspaceStore.getState().createNewFolder()} type="button">Neuer Ordner</button>
-              <button className="border border-dbzs-border bg-dbzs-bg px-2 py-0.5 text-[11px] text-dbzs-muted hover:text-dbzs-text" disabled={isLoading} onClick={() => void scanFiles()} type="button">Scannen</button>
-              <button className="border border-dbzs-border bg-dbzs-bg px-2 py-0.5 text-[11px] text-dbzs-muted hover:text-dbzs-text" disabled={isLoading} onClick={() => void useWorkspaceStore.getState().saveWorkspace()} type="button">Workspace speichern</button>
+              <ExplorerActionBtn disabled={isLoading} onClick={() => void useWorkspaceStore.getState().createNewFile()}>
+                Datei neu
+              </ExplorerActionBtn>
+              <ExplorerActionBtn disabled={isLoading} onClick={() => void useWorkspaceStore.getState().createNewFolder()}>
+                Ordner neu
+              </ExplorerActionBtn>
+              <ExplorerActionBtn disabled={isLoading} onClick={() => void scanFiles()}>
+                <svg fill="none" height="9" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="9">
+                  <path d="M4 4v6h6" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M20 20v-6h-6" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M20.49 9A9 9 0 0 0 5.64 5.64L4 10M19 14l-1.64 4.36A9 9 0 0 1 3.51 15" strokeLinecap="round" />
+                </svg>
+                Scan
+              </ExplorerActionBtn>
+              <ExplorerActionBtn disabled={isLoading} onClick={() => void useWorkspaceStore.getState().saveWorkspace()}>
+                Speichern
+              </ExplorerActionBtn>
             </>
-          ) : null}
+          )}
         </div>
 
-        {/* Batch actions when multi-selected */}
+        {/* Batch selection bar */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-2 border border-dbzs-amber/30 bg-dbzs-amber/5 px-2 py-1 text-[11px] text-dbzs-amber">
-            <span>{selectedIds.size} ausgewählt</span>
-            <button className="hover:underline" onClick={() => void handleBatchDelete()} type="button">Alle löschen</button>
-            <button className="hover:underline ml-auto" onClick={() => setSelectedIds(new Set())} type="button">✕</button>
+          <div className="flex items-center gap-2 border-t border-dbzs-amber/20 bg-dbzs-amber/5 px-3 py-1 text-[11px] text-dbzs-amber">
+            <span className="font-medium">{selectedIds.size} ausgewählt</span>
+            <button
+              className="ml-1 rounded px-1.5 py-0.5 hover:bg-dbzs-amber/10 hover:underline"
+              onClick={() => void handleBatchDelete()}
+              type="button"
+            >
+              Löschen
+            </button>
+            <button
+              className="ml-auto grid h-4 w-4 place-items-center rounded hover:bg-dbzs-amber/10"
+              onClick={() => setSelectedIds(new Set())}
+              type="button"
+              aria-label="Auswahl aufheben"
+            >
+              <svg fill="none" height="8" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" width="8">
+                <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+              </svg>
+            </button>
           </div>
         )}
 
-        {/* Undo delete */}
+        {/* Undo delete bar */}
         {lastDeletedItem && (
-          <div className="flex items-center justify-between gap-2 border border-dbzs-border bg-dbzs-panelSoft px-2 py-1 text-[11px] text-dbzs-muted">
-            <span className="min-w-0 truncate">Gelöscht: {lastDeletedItem.label}</span>
-            <button className="border border-dbzs-border bg-dbzs-bg px-2 py-0.5 text-[10px] text-dbzs-text" disabled={actionBusy} onClick={() => void handleRestoreDelete()} type="button">Rückgängig</button>
+          <div className="flex items-center justify-between gap-2 border-t border-dbzs-border bg-dbzs-panelSoft px-3 py-1 text-[11px] text-dbzs-muted">
+            <span className="min-w-0 truncate">
+              Gelöscht: <span className="text-dbzs-text">{lastDeletedItem.label}</span>
+            </span>
+            <button
+              className="shrink-0 rounded border border-dbzs-border bg-dbzs-bg px-2 py-0.5 text-[10px] text-dbzs-text hover:border-dbzs-cyan/40 hover:text-dbzs-cyan disabled:opacity-40"
+              disabled={actionBusy}
+              onClick={() => void handleRestoreDelete()}
+              type="button"
+            >
+              Rückgängig
+            </button>
           </div>
         )}
-      </div>
+      </header>
 
-      {/* ---- Patch preview ---- */}
+      {/* ════════════════════════════════════════════════
+          PATCH PREVIEW
+          ════════════════════════════════════════════════ */}
       {pendingPatch && (
-        <div className="shrink-0 border-b border-dbzs-border bg-dbzs-panelSoft px-3 py-2 text-xs text-dbzs-muted">
-          <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="shrink-0 border-b border-dbzs-border bg-dbzs-panelSoft">
+          <div className="flex items-center justify-between gap-2 px-3 py-2">
             <div className="min-w-0">
-              <div className="truncate text-dbzs-text">Diff-Vorschau: {pendingPatch.label}</div>
-              <div className="text-[11px]">Änderung erst nach Bestätigung angewendet.</div>
+              <div className="truncate text-[11px] font-medium text-dbzs-text">
+                Diff-Vorschau: {pendingPatch.label}
+              </div>
+              <div className="text-[10px] text-dbzs-muted">
+                Änderung erst nach Bestätigung angewendet.
+              </div>
             </div>
-            <div className="flex items-center gap-1">
-              <button className="border border-dbzs-border bg-dbzs-bg px-2 py-0.5 text-[11px] text-dbzs-text disabled:opacity-50" disabled={actionBusy} onClick={() => void handleApplyPatch()} type="button">Anwenden</button>
-              <button className="border border-dbzs-border bg-dbzs-bg px-2 py-0.5 text-[11px] text-dbzs-text disabled:opacity-50" disabled={actionBusy} onClick={() => setPendingPatch(null)} type="button">Verwerfen</button>
-              <button className="border border-dbzs-border bg-dbzs-bg px-2 py-0.5 text-[11px] text-dbzs-text disabled:opacity-50" disabled={actionBusy} onClick={() => void handleRestorePatch()} type="button">Snapshot</button>
+            <div className="flex shrink-0 items-center gap-1">
+              <ExplorerActionBtn disabled={actionBusy} onClick={() => void handleApplyPatch()}>
+                Anwenden
+              </ExplorerActionBtn>
+              <ExplorerActionBtn disabled={actionBusy} onClick={() => setPendingPatch(null)}>
+                Verwerfen
+              </ExplorerActionBtn>
+              <ExplorerActionBtn disabled={actionBusy} onClick={() => void handleRestorePatch()}>
+                Snapshot
+              </ExplorerActionBtn>
             </div>
           </div>
-          <textarea
-            className="h-20 w-full resize-y border border-dbzs-border bg-dbzs-bg p-2 text-[11px] text-dbzs-text"
-            onChange={(e) => void handlePatchContentChange(e.target.value)}
-            value={pendingPatch.afterContent}
-          />
-          <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap border border-dbzs-border bg-dbzs-bg p-2 text-[10px] text-dbzs-text">{pendingPatch.diff}</pre>
+          <div className="px-3 pb-2">
+            <textarea
+              className="h-20 w-full resize-y rounded border border-dbzs-border bg-dbzs-bg p-2 text-[11px] text-dbzs-text focus:border-dbzs-cyan/50 focus:outline-none"
+              onChange={(e) => void handlePatchContentChange(e.target.value)}
+              value={pendingPatch.afterContent}
+            />
+            <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded border border-dbzs-border bg-dbzs-bg p-2 text-[10px] text-dbzs-text">
+              {pendingPatch.diff}
+            </pre>
+          </div>
         </div>
       )}
 
-      {/* ---- Tree list ---- */}
+      {/* ════════════════════════════════════════════════
+          TREE LIST
+          ════════════════════════════════════════════════ */}
       <div
         className={embeddedInPanel ? "py-1 text-xs" : "min-h-0 flex-1 overflow-auto py-1 text-xs"}
         ref={listRef}
       >
+        {/* ── Codee Artifacts ── */}
         {reviewArtifacts.length > 0 && !filterQuery && typeFilter === "all" && (
-          <div className="mb-2 border-b border-dbzs-border/60 pb-1">
-            <div className="px-3 py-0.5 text-[10px] uppercase tracking-wide text-dbzs-cyan">
-              CODEE ARTEFAKTE
-            </div>
-            <div className="px-3 py-0.5 text-[10px] text-dbzs-muted">Reviews</div>
+          <div className="mb-1.5">
+            <ExplorerSectionHeader label="Codee Artefakte" />
+            <div className="px-2 pt-0.5 text-[10px] text-dbzs-muted/60">Reviews</div>
             {reviewArtifacts.map((review) => (
-              <div className="mx-2 mb-1 rounded border border-dbzs-border/70 bg-dbzs-panelSoft px-2 py-1" key={review.reviewId}>
+              <div
+                className="mx-2 mb-1 rounded border border-dbzs-border/50 bg-dbzs-bg/40 px-2 py-1.5"
+                key={review.reviewId}
+              >
                 <div className="truncate text-[10px] font-medium text-dbzs-text">
-                  {review.reviewId} · {review.outcome ?? review.status}
+                  {review.reviewId}
+                  <span className="ml-1.5 text-dbzs-muted/60">{review.outcome ?? review.status}</span>
                 </div>
                 <div className="mt-1 flex flex-wrap gap-1">
-                  <button className="text-[10px] text-dbzs-cyan hover:underline" onClick={() => void openReviewArtifact(review.reviewId, "report")} type="button">
+                  <button
+                    className="rounded px-1.5 py-0.5 text-[10px] text-dbzs-cyan hover:bg-dbzs-cyan/10"
+                    onClick={() => void openReviewArtifact(review.reviewId, "report")}
+                    type="button"
+                  >
                     Report
                   </button>
-                  <button className="text-[10px] text-dbzs-cyan hover:underline" onClick={() => void openReviewArtifact(review.reviewId, "findings")} type="button">
+                  <button
+                    className="rounded px-1.5 py-0.5 text-[10px] text-dbzs-cyan hover:bg-dbzs-cyan/10"
+                    onClick={() => void openReviewArtifact(review.reviewId, "findings")}
+                    type="button"
+                  >
                     Findings
                   </button>
                   <button
-                    className="text-[10px] text-dbzs-cyan hover:underline"
+                    className="rounded px-1.5 py-0.5 text-[10px] text-dbzs-cyan hover:bg-dbzs-cyan/10"
                     onClick={() => state.projectPath && void window.dbzs.revealReviewArtifacts?.(state.projectPath, review.reviewId)}
                     type="button"
                   >
@@ -893,80 +1039,131 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
                 </div>
               </div>
             ))}
+            <div className="my-1 border-t border-dbzs-border/40" />
           </div>
         )}
 
-        {/* Pinned files */}
+        {/* ── Pinned files ── */}
         {pinnedRows.length > 0 && (
           <div className="mb-1">
-            <div className="px-3 py-0.5 text-[10px] uppercase tracking-wide text-dbzs-muted opacity-60">Angeheftet</div>
+            <ExplorerSectionHeader label="Angeheftet" />
             {pinnedRows.map((f) => {
               const chip = fileChip(f);
               const isActive = activeTab?.type === "file" && activeTab.path === f.path;
               return (
                 <button
-                  className={`flex ${rowHeight} w-full items-center gap-2 px-2 text-left ${isActive ? "bg-dbzs-cyan/10 text-dbzs-text" : "text-dbzs-muted hover:bg-dbzs-panelSoft hover:text-dbzs-text"}`}
+                  className={`flex ${rowHeight} w-full items-center gap-2 pl-3 pr-2 text-left transition-colors ${
+                    isActive
+                      ? "bg-dbzs-cyan/10 text-dbzs-text"
+                      : "text-dbzs-muted hover:bg-dbzs-panelSoft hover:text-dbzs-text"
+                  }`}
                   key={f.path}
                   onClick={() => void openFile(f)}
                   onContextMenu={(e) => { const node = rows.find((r) => r.file?.path === f.path); openContextMenu(e, node ?? null); }}
                   type="button"
                 >
-                  <span className={`w-7 shrink-0 text-[10px] ${chip.color}`}>📌</span>
-                  <span className="truncate">{f.name}</span>
+                  <span className="shrink-0 text-[10px] text-dbzs-amber">📌</span>
+                  <span className={`shrink-0 w-5 text-[10px] ${chip.color}`}>{chip.label}</span>
+                  <span className="min-w-0 truncate text-[11px]">{f.name}</span>
                 </button>
               );
             })}
           </div>
         )}
 
-        {/* Recent files */}
+        {/* ── Recent files ── */}
         {recentRows.length > 0 && !filterQuery && typeFilter === "all" && (
           <div className="mb-1">
-            <div className="px-3 py-0.5 text-[10px] uppercase tracking-wide text-dbzs-muted opacity-60">Zuletzt geöffnet</div>
+            <ExplorerSectionHeader label="Zuletzt geöffnet" />
             {recentRows.slice(0, 5).map((f) => {
               const chip = fileChip(f);
               const isActive = activeTab?.type === "file" && activeTab.path === f.path;
               return (
                 <button
-                  className={`flex ${rowHeight} w-full items-center gap-2 px-2 text-left ${isActive ? "bg-dbzs-cyan/10 text-dbzs-text" : "text-dbzs-muted hover:bg-dbzs-panelSoft hover:text-dbzs-text"}`}
+                  className={`flex ${rowHeight} w-full items-center gap-2 pl-3 pr-2 text-left transition-colors ${
+                    isActive
+                      ? "bg-dbzs-cyan/10 text-dbzs-text"
+                      : "text-dbzs-muted hover:bg-dbzs-panelSoft hover:text-dbzs-text"
+                  }`}
                   key={f.path}
                   onClick={() => void openFile(f)}
                   type="button"
                 >
-                  <span className={`w-7 shrink-0 text-[10px] ${chip.color}`}>🕐</span>
-                  <span className="truncate">{f.name}</span>
+                  <span className="shrink-0 text-[10px] text-dbzs-muted/50">🕐</span>
+                  <span className={`shrink-0 w-5 text-[10px] ${chip.color}`}>{chip.label}</span>
+                  <span className="min-w-0 truncate text-[11px]">{f.name}</span>
                 </button>
               );
             })}
           </div>
         )}
 
-        {(pinnedRows.length > 0 || recentRows.length > 0) && !filterQuery && <div className="my-1 border-t border-dbzs-border" />}
+        {(pinnedRows.length > 0 || recentRows.length > 0) && !filterQuery && (
+          <div className="my-1 border-t border-dbzs-border/40" />
+        )}
 
-        {/* Main tree */}
+        {/* ── Main tree ── */}
         {rows.length === 0 ? (
           <div className="px-3 py-4 text-dbzs-muted">
-            {isLoading ? "Scanne Projekt…" : filterQuery ? "Keine Treffer." : state.projectPath ? (
-              <div className="space-y-2">
+            {isLoading ? (
+              <div className="flex items-center gap-2 text-[11px]">
+                <svg className="h-3.5 w-3.5 animate-spin text-dbzs-cyan" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round" />
+                </svg>
+                Scanne Projekt…
+              </div>
+            ) : filterQuery ? (
+              <div className="text-[11px]">
+                <div className="text-dbzs-muted">Keine Treffer für „{filterQuery}"</div>
+                <button
+                  className="mt-2 text-[10px] text-dbzs-cyan hover:underline"
+                  onClick={() => setFilterQuery("")}
+                  type="button"
+                >
+                  Filter zurücksetzen
+                </button>
+              </div>
+            ) : state.projectPath ? (
+              <div className="space-y-2 text-[11px]">
                 <p>Workspace offen, Dateibaum leer.</p>
-                <div className="rounded border border-dbzs-border bg-dbzs-panelSoft p-2 text-[11px]">
-                  <div className="uppercase tracking-wide">Pfad</div>
+                <div className="rounded border border-dbzs-border bg-dbzs-bg/50 p-2">
+                  <div className="text-[10px] uppercase tracking-wide text-dbzs-muted/60">Pfad</div>
                   <div className="mt-0.5 break-all text-dbzs-text">{state.projectPath}</div>
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  <button className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-1 text-[11px] text-dbzs-text" onClick={() => void scanFiles()} type="button">Erneut scannen</button>
-                  <button className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-1 text-[11px] text-dbzs-text" onClick={() => setShowScanDiag((v) => !v)} type="button">Diagnose</button>
-                  <button className="border border-dbzs-border bg-dbzs-panelSoft px-2 py-1 text-[11px] text-dbzs-text disabled:opacity-50" disabled={actionBusy} onClick={() => void handleScanDiag()} type="button">Git-Status prüfen</button>
+                  <ExplorerActionBtn onClick={() => void scanFiles()}>Erneut scannen</ExplorerActionBtn>
+                  <ExplorerActionBtn onClick={() => setShowScanDiag((v) => !v)}>Diagnose</ExplorerActionBtn>
+                  <ExplorerActionBtn disabled={actionBusy} onClick={() => void handleScanDiag()}>
+                    Git-Status
+                  </ExplorerActionBtn>
                 </div>
-                <div className="text-[11px]">Ignoriert: {SCAN_IGNORED.join(", ")}</div>
+                <div className="text-[10px] text-dbzs-muted/50">
+                  Ignoriert: {SCAN_IGNORED.join(", ")}
+                </div>
                 {showScanDiag && (
-                  <div className="rounded border border-dbzs-border bg-dbzs-panelSoft p-2 text-[11px]">
+                  <div className="rounded border border-dbzs-border bg-dbzs-bg/50 p-2 text-[11px]">
                     <div>Status: {status} · Dateien: {files.length}</div>
-                    {scanDiagOutput && <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap border border-dbzs-border bg-dbzs-bg p-1 text-[10px]">{scanDiagOutput}</pre>}
+                    {scanDiagOutput && (
+                      <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap border border-dbzs-border bg-dbzs-bg p-1 text-[10px]">
+                        {scanDiagOutput}
+                      </pre>
+                    )}
                   </div>
                 )}
               </div>
-            ) : "Noch kein Projekt geöffnet."}
+            ) : (
+              <div className="space-y-3 text-[11px]">
+                <div className="text-dbzs-muted">Noch kein Projekt geöffnet.</div>
+                <div className="flex gap-1">
+                  <ExplorerActionBtn disabled={isLoading} onClick={() => void createProject()}>
+                    Neues Projekt
+                  </ExplorerActionBtn>
+                  <ExplorerActionBtn disabled={isLoading} onClick={() => void openWorkspace()}>
+                    Öffnen
+                  </ExplorerActionBtn>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           rows.map((node, rowIndex) => {
@@ -980,15 +1177,21 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
             const isRenaming = inlineRenameId === node.id;
             const chip = node.type === "file" && node.file ? fileChip(node.file) : null;
             const isPinned = node.type === "file" && node.file && pinned.has(node.file.path);
+            // Indentation via inline style for correct depth rendering
+            const indent = node.depth * 12;
 
             return (
               <div
-                className={`workspace-tree-row has-help-tooltip flex ${rowHeight} w-full items-center gap-1.5 px-2 text-left transition-colors ${
-                  isDragTarget ? "bg-dbzs-cyan/20 border border-dashed border-dbzs-cyan" :
-                  isSelected ? "bg-dbzs-amber/10 text-dbzs-text" :
-                  isActive ? "bg-dbzs-cyan/10 text-dbzs-text" :
-                  isFocused ? "bg-dbzs-panelSoft text-dbzs-text outline outline-1 outline-dbzs-cyan/40" :
-                  "text-dbzs-muted hover:bg-dbzs-panelSoft hover:text-dbzs-text"
+                className={`workspace-tree-row has-help-tooltip group flex ${rowHeight} w-full items-center gap-1 pr-2 text-left transition-colors ${
+                  isDragTarget
+                    ? "bg-dbzs-cyan/20 outline outline-1 outline-dashed outline-dbzs-cyan/60"
+                    : isSelected
+                    ? "bg-dbzs-amber/10 text-dbzs-text"
+                    : isActive
+                    ? "bg-dbzs-cyan/[0.12] text-dbzs-text"
+                    : isFocused
+                    ? "bg-dbzs-panelSoft text-dbzs-text outline outline-1 outline-dbzs-cyan/30"
+                    : "text-dbzs-muted hover:bg-dbzs-panelSoft hover:text-dbzs-text"
                 }`}
                 data-depth={Math.min(node.depth, 20)}
                 data-help={node.type === "file" ? node.file?.relativePath : `${node.path} (${folderStats?.files ?? 0} Dateien)`}
@@ -1004,20 +1207,30 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
                 onMouseEnter={(e) => { setFocusedIndex(rowIndex); handleMouseEnterFile(e, node); }}
                 onMouseLeave={handleMouseLeaveFile}
                 role="button"
+                style={{ paddingLeft: `${indent + 8}px` }}
                 tabIndex={-1}
               >
-                {/* Expand/collapse icon */}
-                <span className={`w-6 shrink-0 text-[10px] ${chip ? chip.color : "text-dbzs-muted"}`}>
-                  {node.type === "folder"
-                    ? (collapsed.has(node.id) ? "▶" : "▼")
-                    : chip?.label ?? "?"}
+                {/* Expand/collapse chevron or file type icon */}
+                <span className={`shrink-0 text-[10px] ${chip ? chip.color : "text-dbzs-muted/60"}`}>
+                  {node.type === "folder" ? (
+                    <svg
+                      aria-hidden="true"
+                      className={`h-2.5 w-2.5 transition-transform ${collapsed.has(node.id) ? "" : "rotate-90"}`}
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  ) : (
+                    chip?.label ?? "·"
+                  )}
                 </span>
 
-                {/* Name (or inline rename input) */}
+                {/* Name or inline rename input */}
                 {isRenaming ? (
                   <input
                     autoFocus
-                    className="flex-1 border border-dbzs-cyan/60 bg-dbzs-bg px-1 py-0 text-xs text-dbzs-text outline-none"
+                    className="min-w-0 flex-1 rounded border border-dbzs-cyan/60 bg-dbzs-bg px-1 py-0 text-[11px] text-dbzs-text outline-none"
                     onBlur={() => void commitInlineRename()}
                     onChange={(e) => setInlineRenameValue(e.target.value)}
                     onKeyDown={(e) => {
@@ -1028,27 +1241,45 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
                     value={inlineRenameValue}
                   />
                 ) : (
-                  <span className="min-w-0 flex-1 truncate">{node.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-[11px]">{node.name}</span>
                 )}
 
                 {/* Pin indicator */}
-                {isPinned && <span className="text-[9px] text-dbzs-amber opacity-70">📌</span>}
+                {isPinned && (
+                  <span aria-label="Angeheftet" className="shrink-0 text-[9px] text-dbzs-amber/70">📌</span>
+                )}
 
                 {/* Git badge */}
                 {gitBadge && (
-                  <span className={`shrink-0 text-[10px] font-bold ${
-                    gitBadge === "M" ? "text-dbzs-amber" :
-                    gitBadge === "+" ? "text-dbzs-green" :
-                    gitBadge === "U" ? "text-dbzs-muted" :
-                    gitBadge === "D" ? "text-dbzs-red" :
-                    gitBadge === "!" ? "text-red-400" :
-                    "text-dbzs-muted"
-                  }`}>{gitBadge}</span>
+                  <span
+                    className={`shrink-0 text-[10px] font-semibold tabular-nums ${
+                      gitBadge === "M" ? "text-dbzs-amber" :
+                      gitBadge === "+" ? "text-dbzs-green" :
+                      gitBadge === "U" ? "text-dbzs-muted/60" :
+                      gitBadge === "D" ? "text-dbzs-red" :
+                      gitBadge === "R" ? "text-dbzs-cyan/70" :
+                      gitBadge === "!" ? "text-red-400" :
+                      "text-dbzs-muted"
+                    }`}
+                    title={
+                      gitBadge === "M" ? "Geändert" :
+                      gitBadge === "+" ? "Hinzugefügt" :
+                      gitBadge === "U" ? "Unverfolgt" :
+                      gitBadge === "D" ? "Gelöscht" :
+                      gitBadge === "R" ? "Umbenannt" :
+                      gitBadge === "!" ? "Konflikt" :
+                      ""
+                    }
+                  >
+                    {gitBadge}
+                  </span>
                 )}
 
-                {/* Folder stats mini */}
+                {/* Folder file count */}
                 {node.type === "folder" && folderStats && (
-                  <span className="shrink-0 text-[9px] text-dbzs-muted/60">{folderStats.files}</span>
+                  <span className="shrink-0 text-[9px] text-dbzs-muted/40 tabular-nums">
+                    {folderStats.files}
+                  </span>
                 )}
               </div>
             );
@@ -1056,19 +1287,42 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
         )}
       </div>
 
-      {/* ---- Status bar ---- */}
-      {(status === "empty" && !error) && (
-        <div className="shrink-0 border-t border-dbzs-border px-3 py-1 text-[11px] text-dbzs-muted">Keine scanbaren Dateien.</div>
-      )}
-      {error && <div className="shrink-0 border-t border-dbzs-border px-3 py-1 text-[11px] text-dbzs-red">{error}</div>}
-      {actionError && <div className="shrink-0 border-t border-dbzs-border px-3 py-1 text-[11px] text-dbzs-red">{actionError}</div>}
-      {rows.length > 0 && !filterQuery && (
-        <div className="shrink-0 border-t border-dbzs-border px-3 py-1 text-[10px] text-dbzs-muted/60">
-          {files.length} Dateien · {autoRefresh ? "Auto-Refresh aktiv" : "manuell"}
+      {/* ════════════════════════════════════════════════
+          STATUS BAR
+          ════════════════════════════════════════════════ */}
+      <footer className="shrink-0 border-t border-dbzs-border bg-dbzs-panelSoft">
+        {/* Error messages */}
+        {(error ?? actionError) && (
+          <div className="flex items-center gap-2 border-b border-dbzs-border px-3 py-1 text-[11px] text-dbzs-red">
+            <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path clipRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" fillRule="evenodd" />
+            </svg>
+            <span className="truncate">{error ?? actionError}</span>
+          </div>
+        )}
+        {/* Empty scan result */}
+        {status === "empty" && !error && (
+          <div className="px-3 py-1 text-[11px] text-dbzs-muted">
+            Keine scanbaren Dateien.
+          </div>
+        )}
+        {/* File count + refresh indicator */}
+        <div className="flex items-center justify-between px-3 py-1">
+          <span className="text-[10px] text-dbzs-muted/50 tabular-nums">
+            {files.length} {files.length === 1 ? "Datei" : "Dateien"}
+          </span>
+          {autoRefresh && (
+            <span className="flex items-center gap-1 text-[10px] text-dbzs-green/70">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-dbzs-green" />
+              Auto
+            </span>
+          )}
         </div>
-      )}
+      </footer>
 
-      {/* ---- Context menu ---- */}
+      {/* ════════════════════════════════════════════════
+          CONTEXT MENU
+          ════════════════════════════════════════════════ */}
       {contextMenu && (
         <ContextMenu
           items={buildWorkspaceExplorerCommands(
@@ -1121,42 +1375,112 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
         />
       )}
 
-      {/* ---- Move dialog (#11) ---- */}
+      {/* ════════════════════════════════════════════════
+          MOVE DIALOG
+          ════════════════════════════════════════════════ */}
       {moveDialogNode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-80 border border-dbzs-border bg-dbzs-panel p-4 shadow-panel">
-            <h3 className="text-xs font-semibold text-dbzs-text mb-3">"{moveDialogNode.name}" verschieben</h3>
-            <label className="block text-[11px] text-dbzs-muted mb-1">Zielordner (relativer Pfad)</label>
-            <select
-              className="w-full border border-dbzs-border bg-dbzs-bg px-2 py-1 text-xs text-dbzs-text mb-3"
-              onChange={(e) => setMoveTarget(e.target.value)}
-              value={moveTarget}
-            >
-              <option value="">— Ordner wählen —</option>
-              {allFolderIds(tree).map((fid) => (
-                <option key={fid} value={fid}>{fid}</option>
-              ))}
-            </select>
-            <div className="flex gap-2">
-              <button className="flex-1 border border-dbzs-cyan/50 bg-dbzs-cyan/10 px-2 py-1 text-xs text-dbzs-cyan disabled:opacity-40" disabled={!moveTarget || actionBusy} onClick={() => void handleMove()} type="button">Verschieben</button>
-              <button className="flex-1 border border-dbzs-border bg-dbzs-bg px-2 py-1 text-xs text-dbzs-muted" onClick={() => setMoveDialogNode(null)} type="button">Abbrechen</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-80 rounded border border-dbzs-border bg-dbzs-panel shadow-panel">
+            <div className="border-b border-dbzs-border px-4 py-3">
+              <h3 className="text-xs font-semibold text-dbzs-text">
+                „{moveDialogNode.name}" verschieben
+              </h3>
+            </div>
+            <div className="px-4 py-3">
+              <label className="mb-1.5 block text-[11px] text-dbzs-muted">
+                Zielordner (relativer Pfad)
+              </label>
+              <select
+                className="w-full rounded border border-dbzs-border bg-dbzs-bg px-2 py-1.5 text-[11px] text-dbzs-text focus:border-dbzs-cyan/50 focus:outline-none"
+                onChange={(e) => setMoveTarget(e.target.value)}
+                value={moveTarget}
+              >
+                <option value="">— Ordner wählen —</option>
+                {allFolderIds(tree).map((fid) => (
+                  <option key={fid} value={fid}>{fid}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2 border-t border-dbzs-border px-4 py-3">
+              <button
+                className="flex-1 rounded border border-dbzs-cyan/40 bg-dbzs-cyan/10 px-2 py-1.5 text-[11px] text-dbzs-cyan hover:bg-dbzs-cyan/20 disabled:opacity-40"
+                disabled={!moveTarget || actionBusy}
+                onClick={() => void handleMove()}
+                type="button"
+              >
+                Verschieben
+              </button>
+              <button
+                className="flex-1 rounded border border-dbzs-border bg-dbzs-bg px-2 py-1.5 text-[11px] text-dbzs-muted hover:text-dbzs-text"
+                onClick={() => setMoveDialogNode(null)}
+                type="button"
+              >
+                Abbrechen
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ---- Hover preview (#18) ---- */}
+      {/* ════════════════════════════════════════════════
+          HOVER PREVIEW
+          ════════════════════════════════════════════════ */}
       {hoverPreview && (
         <div
-          className="pointer-events-none fixed z-40 w-72 border border-dbzs-border bg-dbzs-panel shadow-panel"
-          style={{ left: Math.min(hoverPreview.x + 12, window.innerWidth - 300), top: Math.min(hoverPreview.y, window.innerHeight - 200) }}
+          className="pointer-events-none fixed z-40 w-72 rounded border border-dbzs-border bg-dbzs-panel shadow-panel"
+          style={{
+            left: Math.min(hoverPreview.x + 12, window.innerWidth - 300),
+            top: Math.min(hoverPreview.y, window.innerHeight - 200)
+          }}
         >
-          <div className="border-b border-dbzs-border px-2 py-1 text-[10px] text-dbzs-muted">Vorschau</div>
-          <pre className="max-h-40 overflow-hidden p-2 text-[10px] text-dbzs-text leading-4 whitespace-pre-wrap break-words">
-            {hoverPreview.loading ? "Lädt…" : (hoverPreview.content ?? "Kein Inhalt")}
+          <div className="border-b border-dbzs-border px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-dbzs-muted/60">
+            Vorschau
+          </div>
+          <pre className="max-h-40 overflow-hidden whitespace-pre-wrap break-words p-2 text-[10px] leading-4 text-dbzs-text">
+            {hoverPreview.loading ? (
+              <span className="text-dbzs-muted/60">Lädt…</span>
+            ) : (
+              hoverPreview.content ?? <span className="text-dbzs-muted/40">Kein Inhalt</span>
+            )}
           </pre>
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Local helper sub-components
+// ---------------------------------------------------------------------------
+
+function ExplorerSectionHeader({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-0.5">
+      <span className="text-[10px] font-semibold uppercase tracking-widest text-dbzs-muted/50">
+        {label}
+      </span>
+      <div className="h-px flex-1 bg-dbzs-border/40" />
+    </div>
+  );
+}
+
+function ExplorerActionBtn({
+  children,
+  disabled,
+  onClick
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      className="flex items-center gap-1 rounded border border-dbzs-border bg-dbzs-bg px-2 py-0.5 text-[11px] text-dbzs-muted transition-colors hover:border-dbzs-cyan/30 hover:bg-dbzs-cyan/5 hover:text-dbzs-text disabled:cursor-not-allowed disabled:opacity-40"
+      disabled={disabled}
+      onClick={onClick}
+      type="button"
+    >
+      {children}
+    </button>
   );
 }
