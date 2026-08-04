@@ -5,6 +5,8 @@
   "description": "DBZS Code Assistant desktop foundation.",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/ensure-electron-binary.mjs",
+    "bootstrap": "powershell -ExecutionPolicy Bypass -File scripts/bootstrap-dev-env.ps1",
     "dev": "powershell -ExecutionPolicy Bypass -File start-dev.ps1",
     "Desktop:dev": "powershell -ExecutionPolicy Bypass -File start-dev.ps1",
     "dev:desktop": "powershell -ExecutionPolicy Bypass -File start-dev.ps1",
