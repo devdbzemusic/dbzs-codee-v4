@@ -1,9 +1,19 @@
 # TODO_NEXT
 
-Stand: 2026-08-03
+Stand: 2026-08-04
 
 Kurzer, konkreter Einstiegspunkt fuer die naechste Session. Fuer den vollen Kontext siehe `HANDOVER.md`
 (neuester Eintrag oben) und `TODO.md`.
+
+## "Übernehmen"-Button (approve_patch) war seit 2026-08-02 kaputt — BEHOBEN
+
+Echter Produktionsbug, kein Test-Flake: seit Commit `dd7de6d` (2026-08-02) warf jeder Klick auf "Übernehmen"
+`patch_not_explicitly_approved`, weil der Handler fuer `action.kind === "approve_patch"` nie explizit
+`approvePatch()` vor `applyPatch()` aufrief, nachdem derselbe Commit den stillen Auto-Approve-Fallback in
+`applyPatchAction()` entfernt hatte. Die zwei zugehoerigen `chatActions.test.ts`-Fehlschlaege waren seitdem
+als "bekannt, unabhaengig" dokumentiert statt root-caused. Fix: expliziter `approvePatch()`-Aufruf ergaenzt.
+`chatActions.test.ts` 26/26, voller `pnpm test`-Lauf 1336/1336 (keine bekannten Frontend-Fehler mehr). Details
+siehe HANDOVER.md.
 
 ## Stufe 6 (Agentic Fleet Abschlussverifikation) — VOLLSTAENDIG BEHOBEN
 

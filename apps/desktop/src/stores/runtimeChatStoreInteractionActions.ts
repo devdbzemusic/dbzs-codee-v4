@@ -288,6 +288,16 @@ export async function handleChatActionAction(
           );
         }
       } else if (action.kind === "approve_patch") {
+        // applyPatchAction() used to auto-approve internally when patchState
+        // wasn't already "APPROVED"; that silent fallback was intentionally
+        // replaced with a hard throw (patch_not_explicitly_approved, commit
+        // dd7de6d, 2026-08-02) so applying without approval is never silent.
+        // This one-click "Übernehmen" action kind still needs both steps --
+        // do the explicit approval here instead of relying on the removed
+        // fallback (previously missed, breaking every approve_patch click).
+        if (get().patchState !== "APPROVED") {
+          await get().approvePatch();
+        }
         await get().applyPatch();
       } else if (action.kind === "approve_plan") {
         const planProposalId = typeof action.payload?.planProposalId === "string" ? action.payload.planProposalId : null;

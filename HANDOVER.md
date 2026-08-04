@@ -2,6 +2,41 @@
 
 Stand: 2026-08-04
 
+## Echter Produktionsbug: "Übernehmen"-Button (approve_patch) seit 2026-08-02 kaputt — behoben (2026-08-04)
+
+**Schweregrad:** Hoch — betrifft den Kern-Workflow der sicheren Aenderungskette (Review → **Apply** → Test →
+Rollback), das zentrale Sicherheitsversprechen der App laut README.
+
+**Auftrag:** Root-Cause fuer die zwei seit Tagen als "bekannt, unabhaengig" dokumentierten
+`chatActions.test.ts`-Fehlschlaege finden (Anlass: nach dem heutigen Muster — beide bisher "unerklaerten"
+Backend-Testfehler waren derselbe reale Bug, siehe Eintrag oben — war ein frischer Blick auf die
+Frontend-Aequivalente faellig).
+
+**Root Cause:** Commit `dd7de6d` (2026-08-02, derselbe Commit, der `Pläne/` aus Git entfernte) ersetzte in
+`applyPatchAction()` (`runtimeChatStorePatchActions.ts`) einen stillen Auto-Approve-Fallback
+(`if (patchState !== "APPROVED") { await approvePatchAction(set, get); }`) durch einen harten Fehler
+(`throw new Error("patch_not_explicitly_approved")`) — bewusste Sicherheitsverschaerfung, damit ein Apply ohne
+Freigabe nie still durchlaeuft. Aber: `runtimeChatStoreInteractionActions.ts`s Handler fuer
+`action.kind === "approve_patch"` (der eigentliche "Übernehmen"-Button, der in einem Klick freigeben+anwenden
+soll) rief weiterhin nur `get().applyPatch()` auf — nie `approvePatch()` zuvor. Seit diesem Commit warf also
+**jeder Klick auf "Übernehmen" einen `patch_not_explicitly_approved`-Fehler**, sichtbar als "Patch Apply
+fehlgeschlagen: patch_not_explicitly_approved" im Chat. Der zugehoerige Test (`chatActions.test.ts`) hat das
+korrekt sofort erkannt — wurde aber als "vorbestehend, themenfremd" fehlgedeutet statt als echte Regression
+untersucht.
+
+**Fix:** `interactionActions.ts`s `approve_patch`-Handler ruft jetzt explizit `await get().approvePatch()`
+(falls `patchState !== "APPROVED"`) vor `await get().applyPatch()` — stellt das urspruengliche
+"ein Klick = freigeben+anwenden"-Verhalten wieder her, aber explizit statt ueber den entfernten stillen
+Fallback, im Einklang mit der urspruenglichen Haertungsabsicht von `dd7de6d`.
+
+**Verifiziert:** `chatActions.test.ts` 26/26 gruen (vorher 24/26). Voller `pnpm test`-Lauf: **1336/1336 gruen**
+(vorher 1334/1336) — keine bekannten Frontend-Testfehler mehr. `pnpm typecheck` weiterhin sauber.
+
+**Lehre:** "seit Wochen bekannter, vorbestehender Fehler, nicht mein Regressionsschaden" ist eine gefaehrliche
+Standardannahme — sowohl dieser als auch die zwei oben aufgeloesten Backend-Faelle waren echte, aktuelle Bugs
+mit klarer Root Cause, keine Sandbox-Artefakte. Ein kurzer `git log -L`/Bisect-Blick haette das in Minuten
+statt Wochen gezeigt.
+
 ## Zwei seit 2026-08-01 dokumentierte "haengende" Backend-Tests aufgeloest (2026-08-04)
 
 **Bezug:** Der Eintrag weiter unten ("Verifikation: voller Backend-Testlauf 514/514...") markierte
