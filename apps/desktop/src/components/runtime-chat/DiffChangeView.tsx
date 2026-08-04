@@ -85,17 +85,33 @@ export function DiffChangeView({
         <div className="flex shrink-0 items-center gap-1">
           {onApply ? (
             <Button variant="primary" disabled={busy} onClick={onApply}>
-              {applyLabel}
+              <span className="inline-flex items-center gap-1">
+                <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {applyLabel}
+              </span>
             </Button>
           ) : null}
           {onReject ? (
             <Button disabled={busy} onClick={onReject}>
-              {rejectLabel}
+              <span className="inline-flex items-center gap-1">
+                <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+                </svg>
+                {rejectLabel}
+              </span>
             </Button>
           ) : null}
           {onReset ? (
             <Button disabled={busy} onClick={onReset}>
-              {resetLabel}
+              <span className="inline-flex items-center gap-1">
+                <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M3 3v5h5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {resetLabel}
+              </span>
             </Button>
           ) : null}
           {extraActions}
