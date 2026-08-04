@@ -17,7 +17,7 @@ export function ModelDownloadWizard({ onClose }: { onClose: () => void }) {
     if (!repoId.trim() || !filename.trim() || !destDir.trim()) return;
     setError(null);
     try {
-      const result = await backendClient.startModelDownload!({
+      const result = await backendClient.startModelDownload({
         repo_id: repoId.trim(),
         filename: filename.trim(),
         dest_dir: destDir.trim(),
@@ -34,7 +34,7 @@ export function ModelDownloadWizard({ onClose }: { onClose: () => void }) {
     setPolling(true);
     const interval = setInterval(async () => {
       try {
-        const t = await backendClient.getModelDownloadStatus!(taskId);
+        const t = await backendClient.getModelDownloadStatus(taskId);
         setTask(t);
         if (t.state === "completed" || t.state === "failed") {
           clearInterval(interval);

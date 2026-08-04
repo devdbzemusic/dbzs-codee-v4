@@ -132,9 +132,9 @@ export function parseNativeToolCallsFromMessage(message: {
     }
     try {
       const input = JSON.parse(call.function?.arguments ?? "{}") as Record<string, unknown>;
-      calls.push({ name: name as ToolName, input });
+      calls.push({ name: name, input });
     } catch {
-      calls.push({ name: name as ToolName, input: {} });
+      calls.push({ name: name, input: {} });
     }
   }
 

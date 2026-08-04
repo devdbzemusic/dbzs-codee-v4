@@ -2,6 +2,21 @@
 
 Stand: 2026-08-04
 
+## Neu offen: ESLint-Erstlauf-Backlog (2026-08-04)
+
+Basis: `eslint.config.mjs` (neu, siehe HANDOVER.md). Infrastruktur steht, `pnpm lint` laeuft non-blocking in
+`ci-local.ps1`/`.sh` (Schritt 15) mit — die eigentliche Aufraeumarbeit ist bewusst nicht Teil dieser Session:
+
+- [ ] `no-floating-promises`/`no-misused-promises` (21+27 Vorkommen) einzeln triagieren: pro Fundstelle
+      entscheiden `void`-markieren (bewusstes Fire-and-Forget) vs. echten Fehlerpfad ergaenzen. Stichprobe
+      (`observabilityService.ts`) deutet auf ueberwiegend harmlose Faelle hin, aber nicht alle 48 geprueft.
+      Danach Regeln von `warn` auf `error` hochstufen.
+- [ ] verbleibende 48 sonstige "error"-Funde (`no-useless-assignment`, `no-useless-escape`,
+      `preserve-caught-error`, `no-control-regex`, `no-unexpected-multiline`) einzeln durchgehen — nicht
+      auto-fixbar, brauchen Blick auf jede Stelle einzeln.
+- [ ] sobald der Backlog leer ist: `pnpm lint` von "informational, non-blocking" auf echten Gate-Schritt in
+      `ci-local.ps1`/`.sh` umstellen (aktuell Schritt 15, siehe Kommentar dort).
+
 ## Jetzt direkt
 
 Statusvokabular (projektweit): `SERVICE_VERIFIED` → `UI_VERIFIED` → `INSTALLER_VERIFIED` → `PERSONAL_STABLE`.

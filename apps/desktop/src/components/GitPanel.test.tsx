@@ -6,13 +6,13 @@ import { useGitStore } from "@/stores/gitStore";
 
 declare global {
   // React checks this flag to know whether act() is supported by the test environment.
-  // eslint-disable-next-line no-var
+   
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
 function findButtonByText(container: HTMLElement, text: string): HTMLButtonElement | null {
   const buttons = Array.from(container.querySelectorAll("button"));
-  return (buttons.find((button) => button.textContent?.trim() === text) as HTMLButtonElement | undefined) ?? null;
+  return (buttons.find((button) => button.textContent?.trim() === text)) ?? null;
 }
 
 describe("GitPanel", () => {

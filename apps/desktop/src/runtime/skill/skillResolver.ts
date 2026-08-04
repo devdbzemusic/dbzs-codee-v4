@@ -93,8 +93,8 @@ export function resolveSkills(
   const selectedEntries = entries.filter((entry) => selected.has(entry.skill.manifest.id));
   for (let index = 0; index < selectedEntries.length; index += 1) {
     for (let rightIndex = index + 1; rightIndex < selectedEntries.length; rightIndex += 1) {
-      const left = selectedEntries[index]!.skill.manifest;
-      const right = selectedEntries[rightIndex]!.skill.manifest;
+      const left = selectedEntries[index].skill.manifest;
+      const right = selectedEntries[rightIndex].skill.manifest;
       const isConflict =
         left.compatibility.conflictsWith.includes(right.id) ||
         right.compatibility.conflictsWith.includes(left.id) ||

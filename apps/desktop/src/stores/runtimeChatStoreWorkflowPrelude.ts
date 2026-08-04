@@ -174,7 +174,7 @@ export async function resolveWorkflowPreludeAction(input: {
 
   let activeTaskContract = workflowOutcome.activeTaskContract;
   const executionIntent = workflowOutcome.executionIntent;
-  let workflowAssignment = workflowOutcome.workflowAssignment;
+  const workflowAssignment = workflowOutcome.workflowAssignment;
   const workspaceRootForWorkflow = workflowOutcome.workspaceRootForWorkflow;
   const continuation = {
     useActiveContract: workflowOutcome.continuationUseActiveContract,

@@ -23,7 +23,7 @@ export class McpToolProvider implements ToolRegistryProvider {
   list(): ToolDefinition[] {
     return this.tools.map((tool) => {
       const toolName = `mcp_${this.serverId}_${tool.name}`.replace(/[^a-z0-9_]/gi, "_").toLowerCase();
-      const metadata = createMcpToolMetadata(toolName as ToolName, tool.description, tool.inputSchema);
+      const metadata = createMcpToolMetadata(toolName, tool.description, tool.inputSchema);
       return metadataToToolDefinition(metadata);
     });
   }

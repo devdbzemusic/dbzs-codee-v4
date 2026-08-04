@@ -5,7 +5,7 @@ import { TrajectoryMiniPanel } from "./TrajectoryMiniPanel";
 import { trajectoryService } from "@/services/trajectoryService";
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 

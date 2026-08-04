@@ -7,7 +7,7 @@ import { RuntimeChatMessageCard } from "@/components/runtime-chat/RuntimeChatMes
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 

@@ -11,7 +11,7 @@ function mockResponse(content: string, toolCalls?: Array<{ id: string; type: str
     } as RuntimeChatResponse["message"],
     model_id: "test",
     model_name: "test"
-  } as RuntimeChatResponse;
+  };
 }
 
 describe("runAgentTurnEngine execution no-action", () => {

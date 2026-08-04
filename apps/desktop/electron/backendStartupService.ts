@@ -528,7 +528,7 @@ export class BackendStartupService {
           PYTHONUNBUFFERED: "1"
         },
         windowsHide: true
-      }) as ChildProcessWithoutNullStreams;
+      });
     }
 
     const launch = resolveDevBackendLaunch(this.config.devBackendCwd, this.config.port);
@@ -556,7 +556,7 @@ export class BackendStartupService {
       },
       windowsHide: true,
       shell: launch.shell
-    }) as ChildProcessWithoutNullStreams;
+    });
   }
 
   private attachProcessHandlers(process: ChildProcessWithoutNullStreams): void {

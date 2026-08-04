@@ -83,7 +83,7 @@ export async function prepareSkillRuntime(input: {
     .filter((skill): skill is CodeeSkillPackage => Boolean(skill));
   if (packages.length === 0) return null;
 
-  const commonAgent = packages[0]!.manifest.targetAgents.find((agent) =>
+  const commonAgent = packages[0].manifest.targetAgents.find((agent) =>
     packages.every((skill) => skill.manifest.targetAgents.includes(agent))
   );
   if (!commonAgent) return null;
@@ -99,7 +99,7 @@ export async function prepareSkillRuntime(input: {
   const resumable = input.workspaceRoot
     ? (await window.dbzs.listSkillRuns?.(input.workspaceRoot))
       ?.filter((candidate) =>
-        candidate.skillId === packages[0]!.manifest.id &&
+        candidate.skillId === packages[0].manifest.id &&
         candidate.status === "awaiting_user"
       )
       .sort((left, right) => right.activatedAt.localeCompare(left.activatedAt))[0]
@@ -114,8 +114,8 @@ export async function prepareSkillRuntime(input: {
     ]
   } : {
     id: createId(),
-    skillId: packages[0]!.manifest.id,
-    skillVersion: packages[0]!.manifest.version,
+    skillId: packages[0].manifest.id,
+    skillVersion: packages[0].manifest.version,
     workspaceId: input.workspaceRoot ? workspaceScopeId(input.workspaceRoot) : undefined,
     runId: input.runtimeRunId,
     goal: input.userMessage,
@@ -149,9 +149,9 @@ export async function prepareSkillRuntime(input: {
     await window.dbzs.saveSkillRun(
       input.workspaceRoot,
       run,
-      packages[0]!.manifest,
+      packages[0].manifest,
       capsules,
-      packages[0]!.instructions
+      packages[0].instructions
     );
   }
   await emitSkillEvents(run, resumable?.events.length ?? 0);

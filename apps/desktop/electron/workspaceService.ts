@@ -69,7 +69,7 @@ function isWindowsLikePath(targetPath: string): boolean {
 }
 
 function resolveWorkspacePath(workspaceRoot: string, candidatePath: string): {
-  pathModule: typeof path.posix | typeof path.win32;
+  pathModule: typeof path.posix  ;
   resolvedRoot: string;
   resolvedCandidate: string;
 } {
@@ -82,7 +82,7 @@ function resolveWorkspacePath(workspaceRoot: string, candidatePath: string): {
   return { pathModule, resolvedRoot, resolvedCandidate };
 }
 
-function isPathInsideWorkspace(root: string, candidate: string, pathModule: typeof path.posix | typeof path.win32): boolean {
+function isPathInsideWorkspace(root: string, candidate: string, pathModule: typeof path.posix  ): boolean {
   const normalizedRoot = pathModule.normalize(root);
   const normalizedCandidate = pathModule.normalize(candidate);
   const relative = pathModule.relative(normalizedRoot, normalizedCandidate);

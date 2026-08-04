@@ -414,7 +414,7 @@ function buildDiagnostics(
     runId: input.runId,
     modelId: input.modelId ?? "",
     modelName: input.modelName ?? "",
-    slotId: (input.slotId as RuntimeSlotId | string | null | undefined) ?? "",
+    slotId: (input.slotId) ?? "",
     finishReason: input.finishReason ?? undefined,
     rawContentLength: raw.length,
     rawContentPreview: raw ? redactPreview(raw) : undefined,

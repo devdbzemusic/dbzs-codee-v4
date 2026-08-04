@@ -109,7 +109,7 @@ export interface ToolExecutionLog {
   /** Zeitpunkt */
   timestamp: string;
   /** Name des Tools */
-  toolName: ToolName | string;
+  toolName: ToolName  ;
   /** Input-Parameter (ohne Secrets) */
   input: Record<string, unknown>;
   /** Output-Ergebnis */
@@ -265,7 +265,7 @@ export function createAgentHandoffLog(input: {
  * Erstellt ein ToolExecutionLog.
  */
 export function createToolExecutionLog(input: {
-  toolName: ToolName | string;
+  toolName: ToolName  ;
   input: Record<string, unknown>;
   runId: string;
   turn?: number;
@@ -275,7 +275,7 @@ export function createToolExecutionLog(input: {
     timestamp: new Date().toISOString(),
     toolName: input.toolName,
     input: sanitizeInputForLogging(input.input),
-    output: null as unknown,
+    output: null,
     durationMs: 0,
     status: "ok",
     runId: input.runId,

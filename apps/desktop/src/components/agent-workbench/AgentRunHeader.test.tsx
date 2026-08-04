@@ -5,7 +5,7 @@ import type { AgentRun } from "@dbzs/shared";
 import { AgentRunHeader } from "./AgentRunHeader";
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 

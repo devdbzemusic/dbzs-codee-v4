@@ -20,7 +20,7 @@ vi.mock("@/stores/modelIndexStore", () => ({
 
 describe("handleResidentFallback", () => {
   const mockAppendRunEvent = vi.fn((run) => run);
-  const mockUpdateActiveRun = vi.fn((updater) => updater({} as never));
+  const mockUpdateActiveRun = vi.fn((updater) => updater({}));
   const abortController = new AbortController();
 
   const initialRoute: RuntimeChatRoutingInfo = {

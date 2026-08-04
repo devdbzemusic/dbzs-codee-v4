@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BudgetItem } from "./BudgetItem";
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 

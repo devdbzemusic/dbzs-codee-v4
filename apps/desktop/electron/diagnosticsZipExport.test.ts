@@ -100,7 +100,7 @@ describe("buildFullDiagnosticsZip", () => {
     expect(byName["crash.log"]).toContain("activeRuns=run-1");
     expect(byName["settings.json"]).not.toContain("sk-abcdefghijklmnop");
     expect(byName["settings.json"]).toContain("[REDACTED]");
-    expect(JSON.parse(byName["model-index.json"]!)).toEqual({ models: [{ id: "coder.gguf" }] });
+    expect(JSON.parse(byName["model-index.json"])).toEqual({ models: [{ id: "coder.gguf" }] });
   });
 
   it("substitutes a placeholder when crash.log doesn't exist yet", () => {
@@ -121,7 +121,7 @@ describe("buildFullDiagnosticsZip", () => {
     const entries = readStoredZipEntries(zip);
     const byName = Object.fromEntries(entries.map((e) => [e.name, e.content.toString("utf-8")]));
     expect(Object.keys(byName)).toContain("slot-health.json");
-    expect(JSON.parse(byName["slot-health.json"]!)).toEqual([
+    expect(JSON.parse(byName["slot-health.json"])).toEqual([
       { slotId: "fast_gpu", restartAttempts: 1, budgetExhausted: false }
     ]);
   });

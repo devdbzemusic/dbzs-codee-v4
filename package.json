@@ -29,6 +29,8 @@
     "test:capabilities:live": "pnpm --filter @dbzs/desktop test:capabilities:live",
     "test:capabilities:all": "powershell -ExecutionPolicy Bypass -File scripts/run-capability-tests.ps1",
     "typecheck": "pnpm --filter @dbzs/shared typecheck && pnpm --filter @dbzs/desktop typecheck",
+    "lint": "eslint apps/desktop/src apps/desktop/electron packages/shared/src",
+    "lint:fix": "eslint apps/desktop/src apps/desktop/electron packages/shared/src --fix",
     "smoke:backend": "cd backend && uv run python scripts/smoke_backend.py",
     "smoke:packaging": "cd backend && uv run python build.py",
     "doctor": "powershell -ExecutionPolicy Bypass -File scripts/doctor.ps1",
@@ -52,9 +54,14 @@
     "ci:local:win": "powershell -ExecutionPolicy Bypass -File scripts/ci-local.ps1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^24.10.1",
     "electron": "^42.5.0",
+    "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.9.0",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.65.0",
     "vite": "^7.3.6"
   },
   "packageManager": "pnpm@11.7.0"

@@ -8,7 +8,7 @@ import { useJobSpoolerStore } from "@/stores/jobSpoolerStore";
 
 declare global {
   // React checks this flag to know whether act() is supported by the test environment.
-  // eslint-disable-next-line no-var
+   
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 

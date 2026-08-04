@@ -91,7 +91,7 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => ({
     }));
 
     try {
-      const result = (await terminalExec(parseStructuredCommandLine(cleanCommand, activeSession.cwd))) as TerminalExecResult;
+      const result = (await terminalExec(parseStructuredCommandLine(cleanCommand, activeSession.cwd)));
       const outputChunk = [
         `$ ${cleanCommand}`,
         result.stdout.trim(),

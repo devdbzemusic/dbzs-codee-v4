@@ -94,8 +94,8 @@ function chunkPaths(paths: string[], size: number): string[][] {
     chunks.push(paths.slice(index, index + size));
   }
   if (chunks.length > 1 && (chunks.at(-1)?.length ?? 0) < MIN_BATCH) {
-    const previous = chunks[chunks.length - 2]!;
-    const tail = chunks[chunks.length - 1]!;
+    const previous = chunks[chunks.length - 2];
+    const tail = chunks[chunks.length - 1];
     while (tail.length < MIN_BATCH && previous.length > MIN_BATCH) {
       tail.unshift(previous.pop()!);
     }

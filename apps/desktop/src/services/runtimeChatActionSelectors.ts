@@ -48,8 +48,8 @@ export function getTransportActionTone(action: TransportChatAction): {
   colorClass: string;
   statusBadgeClass: string;
 } {
-  let colorClass = "border-dbzs-cyan text-dbzs-cyan bg-dbzs-cyan/5 hover:bg-dbzs-cyan/10";
-  let statusBadgeClass = "text-dbzs-cyan";
+  const colorClass = "border-dbzs-cyan text-dbzs-cyan bg-dbzs-cyan/5 hover:bg-dbzs-cyan/10";
+  const statusBadgeClass = "text-dbzs-cyan";
 
   if (action.kind === "show_diff") {
     return {

@@ -96,7 +96,7 @@ export function buildProviderRequestPrelude(input: {
     providerRequestDiagnostics: {
       ...providerRequestDiagnostics,
       preflight: providerPreflight
-    } as unknown as Record<string, unknown>
+    }
   }));
 
   return { providerRequestDiagnostics, providerPreflight };
@@ -132,7 +132,7 @@ export function handleProviderPreflightFailure(input: {
         providerRequestDiagnostics: {
           ...input.providerRequestDiagnostics,
           preflight: input.providerPreflight
-        } as unknown as Record<string, unknown>,
+        },
         error: { code: preflightReason, message: preflightMsg, phase: "provider_preflight" }
       },
       "chat.failed",
@@ -220,7 +220,7 @@ export async function validateRequestExecutionBinding(input: {
       ...input.providerRequestDiagnostics,
       preflight: input.providerPreflight,
       bindingDiagnostics: bindingCheck.diagnostics
-    } as unknown as Record<string, unknown>
+    }
   }));
 
   if (!bindingCheck.ok) {
@@ -235,7 +235,7 @@ export async function validateRequestExecutionBinding(input: {
             ...input.providerRequestDiagnostics,
             preflight: input.providerPreflight,
             bindingDiagnostics: bindingCheck.diagnostics
-          } as unknown as Record<string, unknown>,
+          },
           error: { code: "request_binding_mismatch", message: mismatchMsg, phase: "binding" }
         },
         "chat.failed",
@@ -245,13 +245,13 @@ export async function validateRequestExecutionBinding(input: {
     return {
       ok: false,
       slotBindingState,
-      bindingDiagnostics: bindingCheck.diagnostics as unknown,
+      bindingDiagnostics: bindingCheck.diagnostics,
     };
   }
 
   return {
     ok: true,
     slotBindingState,
-    bindingDiagnostics: bindingCheck.diagnostics as unknown
+    bindingDiagnostics: bindingCheck.diagnostics
   };
 }

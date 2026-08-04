@@ -67,7 +67,7 @@ export function isDemoPlaceholderValue(value: string): boolean {
 }
 
 export function groundToolCall(input: {
-  toolName: ToolName | string;
+  toolName: ToolName  ;
   toolInput: Record<string, unknown>;
   goalText: string;
   workspaceRoot?: string | null;

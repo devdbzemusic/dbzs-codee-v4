@@ -154,7 +154,7 @@ export function resolveCanonicalWorkflowAssignment(
     phasePolicyFor(workflowKind, requestedPhase) ??
     policy.phases[policy.initialPhase] ??
     null;
-  let phase = phasePolicy?.phase ?? policy.initialPhase;
+  const phase = phasePolicy?.phase ?? policy.initialPhase;
 
   if (requestedPhase && !phasePolicyFor(workflowKind, requestedPhase)) {
     normalizationReasons.push("requested_phase_not_in_workflow");

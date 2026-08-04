@@ -968,7 +968,7 @@ export function JobMonitorPanel() {
               {/* Waypoint timeline */}
               <div>
                 <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-dbzs-muted">Verlauf</div>
-                <WaypointTimeline events={selectedJobDetail.events as Parameters<typeof WaypointTimeline>[0]["events"]} />
+                <WaypointTimeline events={selectedJobDetail.events} />
               </div>
 
               {/* All artifacts with filter */}

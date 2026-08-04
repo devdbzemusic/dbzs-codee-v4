@@ -96,7 +96,7 @@ export function buildResetChanges(
       return {};
     }
     const key = def.key;
-    return { [key]: def.defaultValue } as Partial<AppSettings>;
+    return { [key]: def.defaultValue };
   }
 
   if (scope === "tab") {

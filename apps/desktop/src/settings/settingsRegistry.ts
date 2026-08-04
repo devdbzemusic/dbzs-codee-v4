@@ -67,7 +67,7 @@ const d = DEFAULT_SETTINGS;
 function def<K extends keyof AppSettings>(
   partial: SettingDefinition<AppSettings[K]>,
 ): SettingDefinition {
-  return partial as SettingDefinition;
+  return partial;
 }
 
 export const SETTINGS_REGISTRY: SettingDefinition[] = [

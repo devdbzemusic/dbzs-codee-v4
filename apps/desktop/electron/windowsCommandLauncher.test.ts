@@ -10,14 +10,14 @@ describe("windowsCommandLauncher", () => {
   it("resolves ComSpec when it points at absolute cmd.exe", () => {
     const launcher = resolveWindowsCommandLauncher({
       ComSpec: "C:\\Windows\\System32\\cmd.exe"
-    } as NodeJS.ProcessEnv);
+    });
     expect(launcher.toLowerCase()).toContain("cmd.exe");
   });
 
   it("falls back to System32 cmd.exe for invalid ComSpec", () => {
     const launcher = resolveWindowsCommandLauncher({
       ComSpec: "powershell.exe"
-    } as NodeJS.ProcessEnv);
+    });
     expect(launcher).toBe("C:\\Windows\\System32\\cmd.exe");
   });
 
@@ -33,7 +33,7 @@ describe("windowsCommandLauncher", () => {
   it("builds ComSpec /d /s /c invocation for npm", () => {
     const invocation = buildWindowsCommandInvocation("npm", ["test"], {
       ComSpec: "C:\\Windows\\System32\\cmd.exe"
-    } as NodeJS.ProcessEnv);
+    });
     expect(invocation.file.toLowerCase()).toContain("cmd.exe");
     expect(invocation.args.slice(0, 3)).toEqual(["/d", "/s", "/c"]);
     expect(invocation.args[3]).toBe("npm test");

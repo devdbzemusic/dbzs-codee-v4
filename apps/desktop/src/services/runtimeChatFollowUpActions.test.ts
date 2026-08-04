@@ -22,7 +22,7 @@ describe("buildFollowUpActions", () => {
     const actions = buildFollowUpActions(baseContext());
     expect(actions).toHaveLength(3);
     expect(actions.map((a) => a.kind)).toEqual(["continue_task", "show_next_steps", "new_task"]);
-    expect(actions[0]!.title).toBe("Vertiefen");
+    expect(actions[0].title).toBe("Vertiefen");
   });
 
   it('Plan zeigt "Plan umsetzen"', () => {
@@ -41,7 +41,7 @@ describe("buildFollowUpActions", () => {
   it('fehlgeschlagener Run zeigt "Erneut versuchen"', () => {
     const actions = buildFollowUpActions(baseContext({ outcome: "generation_failed" }));
     expect(actions.map((a) => a.kind)).toEqual(["retry_run", "inspect_result"]);
-    expect(actions[0]!.title).toBe("Erneut versuchen");
+    expect(actions[0].title).toBe("Erneut versuchen");
   });
 
   it("needs_user_input erzeugt keine konkurrierenden Vorschlaege", () => {
@@ -131,8 +131,8 @@ describe("buildFollowUpActions", () => {
     );
 
     expect(actions.map((a) => a.title)).toEqual(["Aktion vorbereiten", "Mit Tools erneut", "Nur analysieren"]);
-    expect(actions[0]!.payload.recoveryKind).toBe("no_action_output");
-    expect(actions[0]!.payload.prompt).toContain("Wandle das jetzt in eine sichere CODEE-Aktion um.");
+    expect(actions[0].payload.recoveryKind).toBe("no_action_output");
+    expect(actions[0].payload.prompt).toContain("Wandle das jetzt in eine sichere CODEE-Aktion um.");
   });
 
   it("execution_no_action ohne Code-Spuren bietet Retry und Analyse an", () => {
@@ -164,13 +164,13 @@ describe("attachFollowUpActionsToMessages", () => {
 
   it("attaches follow-up actions to the target message", () => {
     const result = attachFollowUpActionsToMessages(baseInput());
-    expect(result[0]!.actions).toHaveLength(3);
+    expect(result[0].actions).toHaveLength(3);
   });
 
   it("is idempotent when called twice on the same message", () => {
     const once = attachFollowUpActionsToMessages(baseInput());
     const twice = attachFollowUpActionsToMessages({ ...baseInput(), messages: once });
-    expect(twice[0]!.actions).toHaveLength(3);
+    expect(twice[0].actions).toHaveLength(3);
   });
 
   it("returns the original messages array when the target message is not found", () => {
@@ -210,7 +210,7 @@ describe("attachFollowUpActionsToMessages", () => {
       finalizedAssistantMessage: message,
       run: { id: "run-1", outcome: "success" } as unknown as RuntimeChatRun
     });
-    const actions = result[0]!.actions ?? [];
+    const actions = result[0].actions ?? [];
     expect(actions.map((a) => a.kind)).toContain("continue_task");
     expect(actions.find((a) => a.kind === "continue_task")!.title).toBe("Fehler beheben");
   });
@@ -226,7 +226,7 @@ describe("attachFollowUpActionsToMessages", () => {
       messages: [message],
       finalizedAssistantMessage: message
     });
-    const actions = result[0]!.actions ?? [];
+    const actions = result[0].actions ?? [];
     expect(actions.find((a) => a.kind === "continue_task")!.title).toBe("Vertiefen");
   });
 });

@@ -66,5 +66,15 @@ Step 14 "Docs drift check (warn-only)"
 # manually, without blocking the gate on doc staleness alone.
 node scripts/check-docs-drift.mjs
 
+Step 15 "Lint (informational, non-blocking)"
+# eslint.config.mjs added 2026-08-04. First full-codebase run found ~50
+# pre-existing errors and ~1100 warnings across the existing codebase --
+# deliberately not gating the build on day one. Surfaced here so the count
+# is visible and doesn't silently grow; promote to a hard gate once swept.
+pnpm lint
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "lint found issues (non-blocking for now, see output above)" -ForegroundColor Yellow
+}
+
 Write-Host ""
 Write-Host "=== CI LOCAL (required-gates) PASSED ===" -ForegroundColor Green

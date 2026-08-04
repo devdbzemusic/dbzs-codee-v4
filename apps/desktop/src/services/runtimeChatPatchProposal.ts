@@ -86,8 +86,8 @@ export function normalizeProposeFileChangesToolOutput(input: {
   const proposalId = createRuntimePatchId("runtime-patch");
 
   const changes: AgentFileChangeProposal[] = parsed.changes.map((change, index) => {
-    const changeType = change.change_type as AgentFileChangeType;
-    const riskLevel = change.risk_level as AgentPatchRiskLevel;
+    const changeType = change.change_type;
+    const riskLevel = change.risk_level;
     const proposedContent = changeType === "delete" ? undefined : change.proposed_content;
     return {
       id: `${proposalId}-change-${index + 1}`,

@@ -19,7 +19,7 @@ export class ToolRegistry {
   private generation = 0;
 
   register<TInput, TOutput>(definition: ToolDefinition<TInput, TOutput>): void {
-    this.definitions.set(definition.name, definition as ToolDefinition);
+    this.definitions.set(definition.name, definition);
     this.generation += 1;
   }
 

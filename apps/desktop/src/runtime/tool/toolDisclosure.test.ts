@@ -49,7 +49,7 @@ describe("toolDisclosure", () => {
     const deferred = exposure.deferrableNames[0];
     expect(deferred).toBeTruthy();
 
-    const check = isToolExposed("agent", fullContext, deferred!);
+    const check = isToolExposed("agent", fullContext, deferred);
     expect(check.allowed).toBe(false);
     expect(check.reason).toContain("tool_search");
   });

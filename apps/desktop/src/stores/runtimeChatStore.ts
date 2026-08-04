@@ -1018,7 +1018,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
       .filter((part): part is string => Boolean(part))
       .join("\n\n");
     const requestUserImages = collectAttachmentImageDataUrls(sendOptions?.attachments ?? []);
-    let activity = initialActivity;
+    const activity = initialActivity;
     let ragResult: RagRetrievalResponse | null = null;
     runsAbortControllers[initialRun.id] = runAbortController;
     const {
@@ -1268,7 +1268,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
                   { id: createMessageId("review-user"), role: "user", content: user }
                 ],
                 model_id: routing.modelId ?? brokerDecisionFull?.resolvedModelId ?? null,
-                slot_id: (contextSlotId as RuntimeSlotId | null) ?? null,
+                slot_id: (contextSlotId) ?? null,
                 decision_id: brokerDecisionFull?.decisionId ?? null,
                 run_id: initialRun.id,
                 routing_reason: "repository_review_batch",
@@ -2384,7 +2384,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
         routing = preparation.routing;
         bindingDecision = preparation.bindingDecision;
         contextSlotId = preparation.contextSlotId;
-        let slotId: RuntimeSlotId = preparation.slotId as RuntimeSlotId;
+        let slotId: RuntimeSlotId = preparation.slotId;
         const currentSlotStatus = preparation.currentSlotStatus;
         let modelToStart = preparation.modelToStart;
         const launchProfile = preparation.launchProfile;
@@ -2558,11 +2558,11 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
         const bindingPrelude = await validateRequestExecutionBinding({
           stepLabel: "Agent-Turn starten",
           slotValidationEnabled,
-          contextSlotId: contextSlotId as RuntimeSlotId | null,
+          contextSlotId: contextSlotId,
           routingModelId: routing.modelId,
           initialRunId: initialRun.id,
           preparedRequest,
-          bindingDecision: bindingDecision!,
+          bindingDecision: bindingDecision,
           providerRequestDiagnostics,
           providerPreflight,
           updateActiveRun,
@@ -2643,7 +2643,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
           workspaceRoot: sendOptions?.workspaceRoot ?? null,
           initialRunId: initialRun.id,
           routing,
-          contextSlotId: contextSlotId as RuntimeSlotId | null,
+          contextSlotId: contextSlotId,
           safeTraceEvents,
           ragManifest: ragResult?.manifest,
           ragSourceReferences: ragResult?.sourceReferences,
@@ -2667,7 +2667,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
                 ? formatActiveTaskContractBlock(activeTaskContract, trimmedContent)
                 : `[ACTIVE TASK]\n${trimmedContent}`,
               routing,
-              slotId: contextSlotId as RuntimeSlotId | null,
+              slotId: contextSlotId,
               decisionId: brokerDecisionFull?.decisionId ?? initialRun.id,
               signal: runAbortController.signal,
               traceEvents: safeTraceEvents
@@ -2771,11 +2771,11 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
       const streamBindingPrelude = await validateRequestExecutionBinding({
         stepLabel: "Modell-Anfrage senden",
         slotValidationEnabled,
-        contextSlotId: contextSlotId as RuntimeSlotId | null,
+        contextSlotId: contextSlotId,
         routingModelId: routing.modelId,
         initialRunId: initialRun.id,
         preparedRequest,
-        bindingDecision: bindingDecision!,
+        bindingDecision: bindingDecision,
         providerRequestDiagnostics,
         providerPreflight,
         updateActiveRun,
@@ -2908,7 +2908,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
                 ? formatActiveTaskContractBlock(activeTaskContract, trimmedContent)
                 : `[ACTIVE TASK]\n${trimmedContent}`,
               routing,
-              slotId: contextSlotId as RuntimeSlotId | null,
+              slotId: contextSlotId,
               decisionId: brokerDecisionFull?.decisionId ?? initialRun.id,
               signal: runAbortController.signal,
               traceEvents: safeTraceEvents
@@ -2943,7 +2943,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
         streamToolNames,
         completedToolCalls: runtimeToolSummaries.length,
         routing,
-        contextSlotId: contextSlotId as RuntimeSlotId | null,
+        contextSlotId: contextSlotId,
         executionIntentForTurn,
         trimmedContent,
         toolsEnabled,

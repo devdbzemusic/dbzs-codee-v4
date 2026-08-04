@@ -107,7 +107,7 @@ export async function prepareOnDemandRuntimeAction(input: {
   }
 
   const backendUrl = useSettingsStore.getState().settings.backendUrl || "http://localhost:8000";
-  let slotId = contextSlotId;
+  const slotId = contextSlotId;
   const currentSlotStatus = await runtimeSlotManager.getSlotStatus(slotId);
   let modelToStart = bindingDecision.resolvedModelId || routing.modelId;
   if (!modelToStart || modelToStart === "default") {

@@ -155,7 +155,7 @@ export class RepositoryReviewOrchestrator {
 
   async start(request: RepositoryReviewRequest): Promise<RepositoryReviewRunResult> {
     const reviewId = this.createReviewId();
-    let state = createInitialReviewState({
+    const state = createInitialReviewState({
       reviewId,
       workspaceId: request.workspaceId,
       workspaceRoot: request.workspaceRoot

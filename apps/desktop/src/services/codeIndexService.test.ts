@@ -30,8 +30,8 @@ describe("CodeIndexService", () => {
       }
     ];
 
-    filesByPath[workspaceFiles[0]!.path] = {
-      name: workspaceFiles[0]!.name,
+    filesByPath[workspaceFiles[0].path] = {
+      name: workspaceFiles[0].name,
       language: "typescript",
       content: [
         "import { apiClient } from '../core/apiClient';",
@@ -46,8 +46,8 @@ describe("CodeIndexService", () => {
       ].join("\n")
     };
 
-    filesByPath[workspaceFiles[1]!.path] = {
-      name: workspaceFiles[1]!.name,
+    filesByPath[workspaceFiles[1].path] = {
+      name: workspaceFiles[1].name,
       language: "typescript",
       content: [
         "import { UserService, fetchUserService } from '../services/userService';",
@@ -58,8 +58,8 @@ describe("CodeIndexService", () => {
       ].join("\n")
     };
 
-    filesByPath[workspaceFiles[2]!.path] = {
-      name: workspaceFiles[2]!.name,
+    filesByPath[workspaceFiles[2].path] = {
+      name: workspaceFiles[2].name,
       language: "typescript",
       content: [
         "import { useMemo } from 'react';",

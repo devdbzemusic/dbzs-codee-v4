@@ -37,9 +37,9 @@ describe("DesktopToolAdapterBridge workspace policy", () => {
     });
     window.dbzs = {
       readProjectFile: vi.fn().mockResolvedValue({
-        path: files[0]!.path,
-        name: files[0]!.name,
-        language: files[0]!.language,
+        path: files[0].path,
+        name: files[0].name,
+        language: files[0].language,
         content: "export const App = true;"
       })
     } as unknown as typeof window.dbzs;

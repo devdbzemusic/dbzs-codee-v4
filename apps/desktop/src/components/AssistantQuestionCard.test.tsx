@@ -5,7 +5,7 @@ import type { AssistantAnswer, AssistantQuestion } from "@dbzs/shared";
 import { AssistantQuestionCard } from "./AssistantQuestionCard";
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 

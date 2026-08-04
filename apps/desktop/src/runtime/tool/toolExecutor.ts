@@ -208,7 +208,7 @@ export class ToolExecutor {
       }
       case "tool_call": {
         const value = ToolInputSchemaByName.tool_call.parse(input);
-        const targetName = value.name as ToolName;
+        const targetName = value.name;
         const ctx = request.bridgeContext;
         if (!ctx) {
           throw new Error("Bridge context missing for tool_call.");

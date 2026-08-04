@@ -9,11 +9,11 @@ import type {
 
 export const orchestrationClient = {
   listTools: (): Promise<ToolCatalogResponse> =>
-    backendClient.listOrchestrationTools() as Promise<ToolCatalogResponse>,
+    backendClient.listOrchestrationTools(),
   prepareContext: (request: ContextPrepareRequest): Promise<ContextPrepareResponse> =>
-    backendClient.prepareOrchestrationContext(request) as Promise<ContextPrepareResponse>,
+    backendClient.prepareOrchestrationContext(request),
   executeTool: (request: ToolExecutionRequest): Promise<ToolExecutionResponse> =>
-    backendClient.executeOrchestrationTool(request) as Promise<ToolExecutionResponse>
+    backendClient.executeOrchestrationTool(request)
 };
 
 export function shouldRunWorkspaceListTool(content: string): boolean {

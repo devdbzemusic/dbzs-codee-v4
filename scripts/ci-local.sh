@@ -61,5 +61,16 @@ pnpm audit --prod --audit-level moderate
 step 14 "Docs drift check (warn-only)"
 node scripts/check-docs-drift.mjs
 
+step 15 "Lint (informational, non-blocking)"
+# eslint.config.mjs added 2026-08-04, deliberately not gating the build yet
+# (see scripts/ci-local.ps1 for why). set +e/-e brackets this one step so
+# `set -euo pipefail` at the top of this script doesn't abort on lint errors.
+set +e
+pnpm lint
+if [ $? -ne 0 ]; then
+  echo "lint found issues (non-blocking for now, see output above)"
+fi
+set -e
+
 echo ""
 echo "=== CI LOCAL (required-gates) PASSED ==="

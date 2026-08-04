@@ -44,7 +44,7 @@ describe("settings contract registry", () => {
     const errors = validatePatch({
       idleUnloadWorkModelsMinutes: 999,
       editorFontSize: 8,
-    } as Partial<AppSettings>);
+    });
     expect(errors.idleUnloadWorkModelsMinutes).toBeTruthy();
     expect(errors.editorFontSize).toBeTruthy();
   });

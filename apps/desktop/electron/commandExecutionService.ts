@@ -545,7 +545,7 @@ export class CommandExecutionService {
         }
         const enriched = buildSpawnDiagnostics({
           ...diagnostics,
-          error: error as NodeJS.ErrnoException
+          error: error
         });
         current.logs.stderr += `${formatSpawnDiagnostics(enriched)}\n${error.message}\n`;
         this.finishRun(runId, (status) => {
@@ -692,7 +692,7 @@ export class CommandExecutionService {
       }
       const enriched = buildSpawnDiagnostics({
         ...diagnostics,
-        error: error as NodeJS.ErrnoException
+        error: error
       });
       current.logs.stderr += `${formatSpawnDiagnostics(enriched)}\n${error.message}\n`;
       this.finishRun(runId, (status) => ({

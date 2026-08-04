@@ -56,7 +56,7 @@ describe("SettingField", () => {
       deleteTask: vi.fn(),
       analyzeDocs: vi.fn(),
       generateDocs: vi.fn()
-    } as unknown as typeof window.dbzs;
+    };
   });
 
   it("keeps select changes in the local draft while the backend is offline", () => {

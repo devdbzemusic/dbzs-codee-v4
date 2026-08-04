@@ -6,12 +6,12 @@ import type { ToolResult } from "@/runtime/tool/toolContracts";
 function makeResult(status: "ok" | "error", output?: unknown, errorMessage?: string): ToolResult {
   return {
     requestId: "req-1",
-    toolName: "run_terminal_command" as any,
+    toolName: "run_terminal_command",
     status,
     startedAt: "2026-01-01T00:00:00Z",
     finishedAt: "2026-01-01T00:00:01Z",
     output,
-    error: errorMessage ? { message: errorMessage, code: "failed" as any, retryable: false } : undefined
+    error: errorMessage ? { message: errorMessage, code: "failed", retryable: false } : undefined
   };
 }
 

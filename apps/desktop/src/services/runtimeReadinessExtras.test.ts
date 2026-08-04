@@ -85,7 +85,7 @@ describe("runtimeSlotExecutionState", () => {
       chat_ready: true,
       active_requests: 0,
       ...overrides
-    }) as RuntimeSlotStatus;
+    });
 
   it("rejects binding mismatches and busy slots", () => {
     const mismatch = gateSlotForRequest({

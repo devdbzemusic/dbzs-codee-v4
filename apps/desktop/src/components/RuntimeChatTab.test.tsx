@@ -386,7 +386,7 @@ describe("RuntimeChatTab file attachments", () => {
 
     const sendButton = Array.from(container.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("Senden")
-    ) as HTMLButtonElement | undefined;
+    );
     expect(sendButton?.disabled).toBe(false);
 
     await act(async () => {
@@ -434,7 +434,7 @@ describe("RuntimeChatTab file attachments", () => {
       );
     });
 
-    const textarea = container.querySelector("textarea") as HTMLTextAreaElement | null;
+    const textarea = container.querySelector("textarea");
     expect(textarea).toBeTruthy();
 
     await act(async () => {
@@ -458,7 +458,7 @@ describe("RuntimeChatTab file attachments", () => {
     });
 
     expect(sendMessageMock).toHaveBeenCalledOnce();
-    expect((container.querySelector("textarea") as HTMLTextAreaElement | null)?.value).toBe("Bitte pruefe den Fehler.");
+    expect((container.querySelector("textarea"))?.value).toBe("Bitte pruefe den Fehler.");
     expect(container.textContent).toContain("Anfrage konnte nicht gesendet werden.");
 
     root.unmount();

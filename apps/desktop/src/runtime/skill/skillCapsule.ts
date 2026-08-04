@@ -25,7 +25,7 @@ function expectedOutputs(skill: CodeeSkillPackage): string[] {
 
 export function buildSkillCapsule(
   skill: CodeeSkillPackage,
-  targetAgent = skill.manifest.targetAgents[0]!
+  targetAgent = skill.manifest.targetAgents[0]
 ): ActiveSkillCapsule {
   const capsule: ActiveSkillCapsule = {
     skillId: skill.manifest.id,
@@ -52,7 +52,7 @@ export function intersectSkillTools(capsules: ActiveSkillCapsule[]): SkillToolNa
   if (capsules.length === 0) return [];
   return capsules.slice(1).reduce(
     (current, capsule) => current.filter((name) => capsule.allowedTools.includes(name)),
-    [...capsules[0]!.allowedTools]
+    [...capsules[0].allowedTools]
   );
 }
 

@@ -85,7 +85,7 @@ describe("LLM review parser and diagnostics", () => {
   it("weist das Modell an, bei fehlenden Findings ein leeres Array statt Prosa zurückzugeben", async () => {
     const chat = vi.fn().mockResolvedValue("[]");
     await createLlmBatchAnalyzer(chat)(input);
-    const firstCallPrompt = chat.mock.calls[0]![0] as { system: string; user: string };
+    const firstCallPrompt = chat.mock.calls[0][0] as { system: string; user: string };
     expect(firstCallPrompt.system).toMatch(/empty array/i);
     expect(firstCallPrompt.system).toContain("[]");
   });

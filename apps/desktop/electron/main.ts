@@ -1090,7 +1090,7 @@ ipcMain.handle("dbzs:skills:import", async () => {
     properties: ["openDirectory"]
   });
   if (result.canceled || result.filePaths.length !== 1) return null;
-  return skillPackageService().importDirectory(result.filePaths[0]!);
+  return skillPackageService().importDirectory(result.filePaths[0]);
 });
 
 ipcMain.handle(
@@ -1411,7 +1411,7 @@ ipcMain.handle("dbzs:terminal:session:start", async (_event, sessionId: string, 
     shell: false,
     windowsHide: true,
     env: { ...process.env, TERM: "xterm-256color" }
-  }) as ChildProcessWithoutNullStreams;
+  });
 
   terminalSessions.set(sessionId, child);
 
@@ -1494,7 +1494,7 @@ ipcMain.handle("dbzs:research:fetch", async (_event, request: AgentWebFetchReque
 
 ipcMain.handle("dbzs:git:repository-status", async (_event, workspaceRoot: string) => {
   const workspace = requireActiveWorkspace(workspaceRoot);
-  return gitService.getRepositoryStatus(workspace, await gitTimeoutMs()) as Promise<GitRepositoryStatus>;
+  return gitService.getRepositoryStatus(workspace, await gitTimeoutMs());
 });
 
 ipcMain.handle("dbzs:git:current-branch", async (_event, workspaceRoot: string) => {
@@ -1508,7 +1508,7 @@ ipcMain.handle("dbzs:git:changed-files", async (_event, workspaceRoot: string) =
   const workspace = requireActiveWorkspace(workspaceRoot);
   const isRepo = await gitService.validateGitRepository(workspace, await gitTimeoutMs());
   if (!isRepo) return [];
-  return gitService.getChangedFiles(workspace, await gitTimeoutMs()) as Promise<GitStatusEntry[]>;
+  return gitService.getChangedFiles(workspace, await gitTimeoutMs());
 });
 
 ipcMain.handle("dbzs:git:diff", async (_event, workspaceRoot: string, filePath?: string) => {
@@ -1527,7 +1527,7 @@ ipcMain.handle("dbzs:git:diff", async (_event, workspaceRoot: string, filePath?:
 
 ipcMain.handle("dbzs:git:diff-summary", async (_event, workspaceRoot: string) => {
   const workspace = requireActiveWorkspace(workspaceRoot);
-  return gitService.getDiffSummary(workspace, await gitTimeoutMs()) as Promise<GitDiffSummary[]>;
+  return gitService.getDiffSummary(workspace, await gitTimeoutMs());
 });
 
 ipcMain.handle("dbzs:git:commit-suggestion", async (_event, workspaceRoot: string) => {
@@ -1535,7 +1535,7 @@ ipcMain.handle("dbzs:git:commit-suggestion", async (_event, workspaceRoot: strin
   const isRepo = await gitService.validateGitRepository(workspace, await gitTimeoutMs());
   if (!isRepo) return null;
   const diffSummary = await gitService.getDiffSummary(workspace, await gitTimeoutMs());
-  return gitService.suggestCommitMessage(diffSummary) as Promise<GitCommitSuggestion>;
+  return gitService.suggestCommitMessage(diffSummary);
 });
 
 ipcMain.handle("dbzs:git:validate-repository", async (_event, workspaceRoot: string) => {
@@ -1547,7 +1547,7 @@ ipcMain.handle(
   "dbzs:commit-assistant:suggestions",
   async (_event, workspaceRoot: string, context?: CommitAssistantContext) => {
     const workspace = requireActiveWorkspace(workspaceRoot);
-    return commitAssistantService.suggestCommitMessages(workspace, context) as Promise<CommitMessageSuggestion[]>;
+    return commitAssistantService.suggestCommitMessages(workspace, context);
   }
 );
 
@@ -1559,7 +1559,7 @@ ipcMain.handle("dbzs:commit-assistant:validate", async (_event, workspaceRoot: s
 
 ipcMain.handle("dbzs:commit-assistant:create", async (_event, workspaceRoot: string, request: CommitRequest) => {
   const workspace = requireActiveWorkspace(workspaceRoot);
-  return commitAssistantService.createCommit(workspace, request) as Promise<CommitResult>;
+  return commitAssistantService.createCommit(workspace, request);
 });
 
 ipcMain.handle(
@@ -1573,18 +1573,18 @@ ipcMain.handle(
     options?: { relatedRunId?: string; relatedChangeIds?: string[] }
   ) => {
     const workspace = requireActiveWorkspace(workspaceRoot);
-    return restorePointService.createRestorePoint(workspace, filePaths, reason, label, options) as Promise<RestorePoint>;
+    return restorePointService.createRestorePoint(workspace, filePaths, reason, label, options);
   }
 );
 
 ipcMain.handle("dbzs:restore-points:list", async (_event, workspaceRoot: string) => {
   const workspace = requireActiveWorkspace(workspaceRoot);
-  return restorePointService.listRestorePoints(workspace) as Promise<RestorePoint[]>;
+  return restorePointService.listRestorePoints(workspace);
 });
 
 ipcMain.handle("dbzs:restore-points:restore", async (_event, workspaceRoot: string, restorePointId: string) => {
   const workspace = requireActiveWorkspace(workspaceRoot);
-  return restorePointService.restorePoint(workspace, restorePointId) as Promise<RestoreResult>;
+  return restorePointService.restorePoint(workspace, restorePointId);
 });
 
 ipcMain.handle("dbzs:restore-points:delete", async (_event, workspaceRoot: string, restorePointId: string) => {

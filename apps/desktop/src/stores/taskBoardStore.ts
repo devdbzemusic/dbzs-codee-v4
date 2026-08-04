@@ -82,7 +82,7 @@ export const useTaskBoardStore = create<TaskBoardState>((set, get) => ({
   linkJob: async (taskId, jobId) => {
     set({ isMutating: true, error: null });
     try {
-      const task = await backendClient.linkJobToTask!(taskId, jobId);
+      const task = await backendClient.linkJobToTask(taskId, jobId);
       set({ tasks: upsertTask(get().tasks, task), isMutating: false });
     } catch (error) {
       set({
@@ -94,7 +94,7 @@ export const useTaskBoardStore = create<TaskBoardState>((set, get) => ({
   unlinkJob: async (taskId, jobId) => {
     set({ isMutating: true, error: null });
     try {
-      const task = await backendClient.unlinkJobFromTask!(taskId, jobId);
+      const task = await backendClient.unlinkJobFromTask(taskId, jobId);
       set({ tasks: upsertTask(get().tasks, task), isMutating: false });
     } catch (error) {
       set({

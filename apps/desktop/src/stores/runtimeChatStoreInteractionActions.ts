@@ -180,12 +180,12 @@ export async function continueAgentRunAfterPlanApprovalAction(
     activeRun: state.activeRun
       ? updateRunStatus(
           appendRunEvent(
-            appendRunEvent(state.activeRun as never, "chat.accepted", "Plan freigegeben, Lauf wird fortgesetzt"),
+            appendRunEvent(state.activeRun, "chat.accepted", "Plan freigegeben, Lauf wird fortgesetzt"),
             "routing.completed",
             `Handoff Planner → Coder (${handoff.coderModelId || "defaultCoderModelId"}) · Intent ${handoff.executionIntent}`
           ),
           "resuming_after_plan_approval"
-        ) as never
+        )
       : nextRun
   }));
 
@@ -393,9 +393,9 @@ export async function handleChatActionAction(
           return {
             activeRun: state.activeRun
               ? (updateRunStatus(
-                  appendRunEvent(state.activeRun as never, "chat.cancelled", "Plan abgelehnt"),
+                  appendRunEvent(state.activeRun, "chat.cancelled", "Plan abgelehnt"),
                   "cancelled"
-                ) as never)
+                ))
               : state.activeRun,
             planProposalsById: nextPlanProposalsById,
             ...withSyncedMessages(state, state.messages, nextPlanProposalsById)
@@ -450,7 +450,7 @@ export async function submitAssistantAnswerAction(
     return;
   }
 
-  const requestId = typeof action.payload?.requestId === "string" ? (action.payload.requestId as string) : null;
+  const requestId = typeof action.payload?.requestId === "string" ? (action.payload.requestId) : null;
   const question = action.payload?.question as import("@dbzs/shared").AssistantQuestion | undefined;
   const isWorkflowScope = question?.requiredField === "workflow_scope_decision";
 
@@ -513,7 +513,7 @@ export async function submitAssistantAnswerAction(
     const rehydrated = get().rehydratedPendingQuestion;
     if (
       await handleRehydratedAssistantAnswerFlow({
-        rehydrated: rehydrated as RehydratedPendingQuestionState | null,
+        rehydrated: rehydrated,
         question,
         answer,
         sendMessage: sendFollowupMessage

@@ -2,6 +2,49 @@
 
 Stand: 2026-08-04
 
+## ESLint erstmals eingerichtet (2026-08-04)
+
+**Auftrag:** Ausgangspunkt war der heutige `visionContextPackService.ts`-Bug (fehlendes `await`, siehe Eintrag
+weiter unten) — die Frage, ob `@typescript-eslint/no-floating-promises` das frueher gefangen haette. Beim
+Nachschauen: es gab im gesamten Projekt **noch gar kein ESLint** — keine Config, keine Dependency, kein
+Skript, weder root noch in `apps/desktop`/`packages/shared`.
+
+**Aufgesetzt:** `eslint.config.mjs` (Flat Config, ESLint 10 + typescript-eslint 8), typisiertes Linting ueber
+explizite `project`-Pfade (`apps/desktop/tsconfig.web.json`, `apps/desktop/tsconfig.node.json`,
+`packages/shared/tsconfig.json`) statt `projectService`-Auto-Discovery — `apps/desktop/tsconfig.json` extended
+nur `tsconfig.web.json` und referenziert `tsconfig.node.json` (deckt `electron/**` ab) nirgendwo, daher haette
+Auto-Discovery `electron/**` nie gefunden (112 Parsing-Fehler im ersten Lauf, jetzt 0). `pnpm lint`/
+`pnpm lint:fix` neu, `postinstall`-Hook unangetastet.
+
+**Erster Vollcodebasis-Lauf:** 377 Errors, 900 Warnings (686 Dateien, 282 betroffen). Sichere, mechanische
+Funde per `--fix` bereinigt (`prefer-const`, `no-useless-escape`, `no-useless-assignment`,
+ungenutzte `eslint-disable`-Kommentare) — dabei 2 echte Regressionen durch `--fix` selbst gefunden und
+gezielt zurueckgesetzt: `no-unnecessary-type-assertion` entfernte in `RuntimeSlotPanel.test.tsx` und
+`skillsLoader.ts` zwei tatsaechlich noetige Type-Casts (`Element`->`.click()`, `import.meta.glob`-Ergebnis),
+`pnpm typecheck` deckte das sofort auf. Kein Autofix-Ergebnis blind vertraut, jede Runde gegen Typecheck
+verifiziert.
+
+**`no-floating-promises`/`no-misused-promises`:** die eigentliche Zielregel. 21 bzw. 27 Vorkommen im ersten
+Lauf. Stichprobe (`observabilityService.ts`, 7 Treffer in einer Datei) zeigte: die geflaggte `persistTrace()`
+hat einen eigenen vollstaendigen `try/catch` und kann nie tatsaechlich rejecten — technisch korrekt geflaggt,
+praktisch harmlos, keine Wiederholung des `approve_patch`-Bug-Musters. Da eine vollstaendige Einzelpruefung
+aller 48 Treffer den Rahmen dieser Session gesprengt haette, bewusst auf `warn` statt `error` gesetzt (siehe
+Kommentar in `eslint.config.mjs`) — sichtbar, nicht blockierend. Alle anderen "error"-Regeln aus dem
+`recommendedTypeChecked`-Preset, die nicht direkt das Ziel waren, ebenfalls auf `warn` heruntergestuft, um das
+Signal nicht in ~1000 vorbestehenden Fundstellen zu ertraenken.
+
+**Verbleibende 48 echte "error"-Funde** (`no-useless-assignment`, `no-useless-escape`,
+`preserve-caught-error`, `no-control-regex`, `no-unexpected-multiline`, `no-require-imports` in einer
+vendorierten `.system/openai-docs/`-Datei — die jetzt aus dem Lint-Scope ausgeschlossen ist): nicht
+auto-fixbar, brauchen Einzelpruefung. Bewusst nicht blind gefixt.
+
+**CI-Einbindung:** `pnpm lint` als Schritt 15 in `ci-local.ps1`/`.sh` — bewusst non-blocking (Warnung statt
+Build-Abbruch), analog zum Doku-Drift-Check, da ein Erstlauf mit ~50 Errors/~1100 Warnings sonst sofort jeden
+lokalen CI-Gate-Lauf rot faerben wuerde, ohne dass das aktionabel waere.
+
+**Verifiziert:** `pnpm typecheck` fehlerfrei, `pnpm test` 1336/1336 nach allen Autofixes und Config-Aenderungen.
+
+
 ## Echter Produktionsbug: "Übernehmen"-Button (approve_patch) seit 2026-08-02 kaputt — behoben (2026-08-04)
 
 **Schweregrad:** Hoch — betrifft den Kern-Workflow der sicheren Aenderungskette (Review → **Apply** → Test →

@@ -56,7 +56,7 @@ export function isReviewRemediationSelection(
     typeof item.workspaceId === "string" &&
     (typeof item.reviewId === "string" || item.reviewId === null) &&
     typeof item.scope === "string" &&
-    VALID_SCOPES.has(item.scope as ReviewRemediationSelectionScope) &&
+    VALID_SCOPES.has(item.scope) &&
     Array.isArray(item.selectedFindingIds) &&
     item.selectedFindingIds.every((id) => typeof id === "string") &&
     typeof item.reviewConfirmed === "boolean" &&

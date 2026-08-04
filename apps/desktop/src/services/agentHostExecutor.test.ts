@@ -50,7 +50,7 @@ describe("agentHostExecutor", () => {
         diff: "+export const ok = true;",
         restorePointId: "rp-1"
       })
-    } as Window["dbzs"];
+    };
   });
 
   it("dispatches apply_patch via safe patch bridge", async () => {

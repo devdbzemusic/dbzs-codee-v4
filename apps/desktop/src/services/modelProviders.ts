@@ -89,7 +89,7 @@ export const llamaCppProvider: ModelProvider = {
           id: `llama-cpp:${m.id}`,
           providerId: "llama-cpp" as const,
           name: m.name,
-          capabilities: ((m.capabilities as ModelCapability[] | undefined) ?? ["chat"]) as ModelCapability[],
+          capabilities: ((m.capabilities as ModelCapability[] | undefined) ?? ["chat"]),
           isLocal: true,
           enabled: true
         } satisfies RegisteredModel));

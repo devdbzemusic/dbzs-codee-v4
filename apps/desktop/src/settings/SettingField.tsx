@@ -28,7 +28,7 @@ export function SettingField({ definition, modelOptions = [], modelLabOptionsByK
 
   const key = definition.key;
   const draftValue = draft[key];
-  const value = (draftValue !== undefined ? draftValue : settings[key]) as AppSettings[typeof key];
+  const value = (draftValue !== undefined ? draftValue : settings[key]);
   const dirty = draftValue !== undefined;
   const error = fieldErrors[String(key)];
   const editable = isEditableClassification(definition.classification) && definition.control !== "readonly";
@@ -74,7 +74,7 @@ export function SettingField({ definition, modelOptions = [], modelLabOptionsByK
         definition.control === "model_select" ||
         definition.control === "model_lab_select")
     ) {
-      void patchSettings({ [key]: next } as Partial<AppSettings>);
+      void patchSettings({ [key]: next });
       return;
     }
     setDraftField(key, next);
@@ -95,7 +95,7 @@ export function SettingField({ definition, modelOptions = [], modelLabOptionsByK
             disabled={!editable}
             id={`setting-${String(key)}-input`}
             onChange={(event) =>
-              commitImmediate(event.currentTarget.checked as AppSettings[typeof key])
+              commitImmediate(event.currentTarget.checked)
             }
             type="checkbox"
           />
@@ -167,7 +167,7 @@ export function SettingField({ definition, modelOptions = [], modelLabOptionsByK
           className={inputClass}
           disabled={!editable}
           onChange={(event) =>
-            commitImmediate(event.currentTarget.value as AppSettings[typeof key])
+            commitImmediate(event.currentTarget.value)
           }
           value={String(value ?? definition.defaultValue ?? "")}
         >
@@ -185,7 +185,7 @@ export function SettingField({ definition, modelOptions = [], modelLabOptionsByK
           className={inputClass}
           disabled={!editable}
           onChange={(event) =>
-            commitImmediate(event.currentTarget.value as AppSettings[typeof key])
+            commitImmediate(event.currentTarget.value)
           }
           value={String(value ?? "")}
         >
@@ -204,7 +204,7 @@ export function SettingField({ definition, modelOptions = [], modelLabOptionsByK
           className={inputClass}
           disabled={!editable}
           onChange={(event) =>
-            commitImmediate(event.currentTarget.value as AppSettings[typeof key])
+            commitImmediate(event.currentTarget.value)
           }
           value={String(value ?? "")}
         >

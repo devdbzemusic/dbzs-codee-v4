@@ -135,8 +135,8 @@ export function searchDeferredTools(
 
 export function describeDeferredTool(name: string): Record<string, unknown> | null {
   const registry = getRuntimeKernel().tools.registry;
-  if (!registry.has(name as ToolName)) {
-    const builtin = getBuiltinMetadata(name as ToolName);
+  if (!registry.has(name)) {
+    const builtin = getBuiltinMetadata(name);
     if (!builtin) {
       return null;
     }
@@ -147,8 +147,8 @@ export function describeDeferredTool(name: string): Record<string, unknown> | nu
     };
   }
 
-  const definition = registry.get(name as ToolName);
-  const builtin = getBuiltinMetadata(name as ToolName);
+  const definition = registry.get(name);
+  const builtin = getBuiltinMetadata(name);
   return {
     name: definition.name,
     description: definition.modelDescription,

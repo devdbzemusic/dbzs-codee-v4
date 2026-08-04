@@ -48,7 +48,7 @@ describe("repro guitar-bass-academy repository review", () => {
       result.progress.reportPath!
     );
     expect(report).toMatch(/Repository Review Report/);
-    // eslint-disable-next-line no-console
+     
     console.log(
       JSON.stringify(
         {

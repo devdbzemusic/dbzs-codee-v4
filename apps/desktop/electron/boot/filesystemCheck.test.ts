@@ -115,7 +115,7 @@ describe("runFilesystemCheck", () => {
       userDataDir,
       env: {
         DBZS_WIN_RUNTIMES_DIR: runtimeRoot
-      } as NodeJS.ProcessEnv,
+      },
       platform: "win32"
     });
 

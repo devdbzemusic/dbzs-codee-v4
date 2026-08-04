@@ -150,7 +150,7 @@ describe("CommandExecutionService", () => {
       await startedPromise;
 
       expect(spawnImpl).toHaveBeenCalled();
-      const [file, args, options] = spawnImpl.mock.calls[0]!;
+      const [file, args, options] = spawnImpl.mock.calls[0];
       expect(String(file).toLowerCase()).toContain("cmd.exe");
       expect(args.slice(0, 3)).toEqual(["/d", "/s", "/c"]);
       expect(String(args[3])).toContain("npm");

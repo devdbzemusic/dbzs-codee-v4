@@ -49,7 +49,7 @@ describe("runtimeChatActionSelectors", () => {
     expect(transportActions).toHaveLength(1);
     expect(runtimeActions).toHaveLength(1);
     expect(hasPendingRuntimeActionKind(runtimeActions, "command")).toBe(true);
-    expect(isRejectTransportAction(transportActions[0]!)).toBe(false);
+    expect(isRejectTransportAction(transportActions[0])).toBe(false);
   });
 
   it("filters answer_question out of transport chips", () => {
@@ -141,9 +141,9 @@ describe("runtimeChatActionSelectors", () => {
     const followUps = getFollowUpChatActions(message);
 
     expect(required).toHaveLength(1);
-    expect(required[0]!.kind).toBe("approve_patch");
+    expect(required[0].kind).toBe("approve_patch");
     expect(followUps).toHaveLength(1);
-    expect(followUps[0]!.kind).toBe("continue_task");
+    expect(followUps[0].kind).toBe("continue_task");
   });
 
   it("finds the last assistant message even when trailing system messages follow it", () => {
