@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 export type ButtonSize = "sm" | "md";
@@ -31,21 +31,22 @@ const SIZE_CLASS: Record<ButtonSize, string> = {
  * variations) across the composer, patch panel, approval cards, and header
  * toggles.
  */
-export function Button({
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({
   variant = "secondary",
   size = "sm",
   active = false,
   children,
   ...rest
-}: ButtonProps) {
+}, ref) {
   const variantClass = active ? ACTIVE_CLASS : VARIANT_CLASS[variant];
   return (
     <button
       className={`rounded border ${variantClass} ${SIZE_CLASS[size]} font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40`}
+      ref={ref}
       type="button"
       {...rest}
     >
       {children}
     </button>
   );
-}
+});

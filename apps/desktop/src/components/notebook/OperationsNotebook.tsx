@@ -79,6 +79,7 @@ export function OperationsNotebook({
               {showDirty ? (
                 <span aria-label="Ungespeicherte Änderungen" className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-dbzs-amber align-middle" />
               ) : null}
+              {showDirty ? <span className="sr-only">Ungespeicherte Änderungen</span> : null}
             </button>
           );
         })}

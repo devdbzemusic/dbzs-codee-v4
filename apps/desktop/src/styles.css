@@ -20,8 +20,8 @@
 
 body {
   margin: 0;
-  min-width: 1024px;
-  min-height: 720px;
+  min-width: 320px;
+  min-height: 320px;
   overflow: hidden;
 }
 
@@ -133,7 +133,8 @@ button:disabled {
 }
 
 select:focus,
-input:focus {
+input:focus,
+textarea:focus {
   outline: 2px solid rgba(33, 214, 199, 0.5);
   outline-offset: 2px;
 }
@@ -156,4 +157,46 @@ input:focus {
 .panel-scroll::-webkit-scrollbar-thumb {
   background: rgba(33, 214, 199, 0.45);
   border: 2px solid rgba(16, 27, 38, 0.85);
+}
+
+@media (forced-colors: active) {
+  :root {
+    color-scheme: dark;
+  }
+
+  body,
+  .dbzs-workbench,
+  .dbzs-workbench-mode,
+  .dbzs-workbench__header,
+  .dbzs-workbench__status,
+  .dbzs-workbench__workspace,
+  .dbzs-workbench__primary,
+  .dbzs-workbench__inspector,
+  .dbzs-workbench__dock,
+  [role="dialog"],
+  [role="menu"] {
+    background: Canvas !important;
+    color: CanvasText !important;
+    border-color: CanvasText !important;
+  }
+
+  button,
+  input,
+  select,
+  textarea,
+  summary {
+    forced-color-adjust: auto;
+    border: 1px solid ButtonText !important;
+  }
+
+  .dbzs-workbench__badge::before,
+  .rounded-full,
+  [class*="bg-dbzs-"] {
+    forced-color-adjust: auto;
+  }
+
+  :focus-visible {
+    outline: 2px solid Highlight !important;
+    outline-offset: 2px;
+  }
 }

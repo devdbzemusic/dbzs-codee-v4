@@ -59,7 +59,7 @@ describe("WorkspaceExplorer", () => {
     expect(container.textContent).toContain("App.tsx");
     expect(container.textContent).toContain("README.md");
 
-    const srcRow = Array.from(container.querySelectorAll("[role='button']")).find(
+    const srcRow = Array.from(container.querySelectorAll("[role='treeitem']")).find(
       (item) => item.textContent?.includes("src")
     );
     expect(srcRow).toBeTruthy();

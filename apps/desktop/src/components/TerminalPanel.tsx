@@ -22,11 +22,16 @@ export function TerminalPanel() {
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
   const [sessionActive, setSessionActive] = useState(false);
+  const [liveMessage, setLiveMessage] = useState("Terminal bereit.");
   const outputRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const appendLines = useCallback((text: string, stream: "stdout" | "stderr" | "system") => {
     const newLines = text.split(/\r?\n/).map((t) => ({ id: lineCounter++, text: t, stream }));
+    const announcement = [...newLines].reverse().find((line) => line.text.trim());
+    if (announcement && stream !== "stdout") {
+      setLiveMessage(announcement.text);
+    }
     setLines((prev) => [...prev.slice(-500), ...newLines]);
   }, []);
 
@@ -142,6 +147,9 @@ export function TerminalPanel() {
 
   return (
     <section className="border border-dbzs-border bg-dbzs-panelSoft p-4">
+      <div aria-atomic="true" aria-live="polite" className="sr-only">
+        {liveMessage}
+      </div>
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="text-sm font-medium">Terminal</h3>
         <div className="flex items-center gap-1">
@@ -163,6 +171,7 @@ export function TerminalPanel() {
             </button>
           )}
           <button
+            aria-label="Terminal-Ausgabe löschen"
             className="border border-dbzs-border bg-dbzs-bg px-2 py-0.5 text-[11px] text-dbzs-muted hover:text-dbzs-text"
             onClick={clearOutput}
             type="button"
@@ -198,6 +207,7 @@ export function TerminalPanel() {
           {sessionActive ? "$" : ">"}
         </span>
         <input
+          aria-label={sessionActive ? "Shell-Befehl eingeben" : "Einmal-Befehl eingeben"}
           ref={inputRef}
           className="min-w-0 flex-1 border border-dbzs-border bg-dbzs-bg px-2 py-1 font-mono text-[11px] text-dbzs-text placeholder:text-dbzs-muted focus:outline-none focus:ring-1 focus:ring-dbzs-cyan/50 disabled:opacity-50"
           disabled={running}
@@ -209,6 +219,7 @@ export function TerminalPanel() {
           value={input}
         />
         <button
+          aria-label="Befehl ausführen"
           className="shrink-0 border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[11px] text-dbzs-text hover:bg-dbzs-panel disabled:opacity-50"
           disabled={running || !input.trim()}
           onClick={() => void runCommand()}

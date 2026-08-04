@@ -7,9 +7,16 @@
 }
 
 .dbzs-workbench button:focus-visible,
+.dbzs-workbench [role="button"]:focus-visible,
+.dbzs-workbench [role="tab"]:focus-visible,
+.dbzs-workbench [role="menuitem"]:focus-visible,
+.dbzs-workbench [role="treeitem"]:focus-visible,
+.dbzs-workbench [tabindex="0"]:focus-visible,
 .dbzs-workbench input:focus-visible,
 .dbzs-workbench select:focus-visible,
-.dbzs-workbench textarea:focus-visible {
+.dbzs-workbench textarea:focus-visible,
+.dbzs-workbench summary:focus-visible {
   outline: 2px solid var(--dbzs-neural-cyan);
   outline-offset: 2px;
+  box-shadow: 0 0 0 1px rgba(5, 12, 18, 0.95);
 }

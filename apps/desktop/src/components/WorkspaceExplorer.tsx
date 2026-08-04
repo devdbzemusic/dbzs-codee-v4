@@ -9,6 +9,7 @@ import { useGitStore } from "@/stores/gitStore";
 import { useToastStore } from "@/stores/toastStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { ContextMenu } from "@/components/ui/ContextMenu";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import {
   allFolderIds,
   buildTree,
@@ -150,10 +151,13 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
   // --- Hover preview (#18) ---
   const [hoverPreview, setHoverPreview] = useState<HoverPreview | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const moveDialogRef = useRef<HTMLDivElement | null>(null);
+  const moveSelectRef = useRef<HTMLSelectElement | null>(null);
 
   // --- Move dialog (#11) ---
   const [moveDialogNode, setMoveDialogNode] = useState<TreeNode | null>(null);
   const [moveTarget, setMoveTarget] = useState("");
+  useFocusTrap(moveDialogRef, Boolean(moveDialogNode), () => setMoveDialogNode(null), moveSelectRef);
 
   // --- Auto refresh (#17) ---
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -997,8 +1001,11 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
           TREE LIST
           ════════════════════════════════════════════════ */}
       <div
+        aria-activedescendant={focusedIndex >= 0 && rows[focusedIndex] ? `workspace-treeitem-${rows[focusedIndex].id}` : undefined}
+        aria-label="Workspace-Dateibaum"
         className={embeddedInPanel ? "py-1 text-xs" : "min-h-0 flex-1 overflow-auto py-1 text-xs"}
         ref={listRef}
+        role="tree"
       >
         {/* ── Codee Artifacts ── */}
         {reviewArtifacts.length > 0 && !filterQuery && typeFilter === "all" && (
@@ -1206,7 +1213,13 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
                 onDrop={(e) => void handleDrop(e, node)}
                 onMouseEnter={(e) => { setFocusedIndex(rowIndex); handleMouseEnterFile(e, node); }}
                 onMouseLeave={handleMouseLeaveFile}
-                role="button"
+                aria-current={isActive ? "true" : undefined}
+                aria-expanded={node.type === "folder" ? !collapsed.has(node.id) : undefined}
+                aria-label={node.type === "file" ? `Datei ${node.name}` : `Ordner ${node.name}`}
+                aria-selected={isSelected || isActive}
+                aria-level={node.depth + 1}
+                id={`workspace-treeitem-${node.id}`}
+                role="treeitem"
                 style={{ paddingLeft: `${indent + 8}px` }}
                 tabIndex={-1}
               >
@@ -1313,8 +1326,8 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
           </span>
           {autoRefresh && (
             <span className="flex items-center gap-1 text-[10px] text-dbzs-green/70">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-dbzs-green" />
-              Auto
+              <span aria-hidden="true" className="h-1.5 w-1.5 animate-pulse rounded-full bg-dbzs-green" />
+              Auto-Refresh aktiv
             </span>
           )}
         </div>
@@ -1379,10 +1392,17 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
           MOVE DIALOG
           ════════════════════════════════════════════════ */}
       {moveDialogNode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-80 rounded border border-dbzs-border bg-dbzs-panel shadow-panel">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onMouseDown={() => setMoveDialogNode(null)} role="presentation">
+          <div
+            aria-labelledby="workspace-move-dialog-title"
+            aria-modal="true"
+            className="w-80 rounded border border-dbzs-border bg-dbzs-panel shadow-panel"
+            onMouseDown={(event) => event.stopPropagation()}
+            ref={moveDialogRef}
+            role="dialog"
+          >
             <div className="border-b border-dbzs-border px-4 py-3">
-              <h3 className="text-xs font-semibold text-dbzs-text">
+              <h3 className="text-xs font-semibold text-dbzs-text" id="workspace-move-dialog-title">
                 „{moveDialogNode.name}" verschieben
               </h3>
             </div>
@@ -1393,6 +1413,7 @@ export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel
               <select
                 className="w-full rounded border border-dbzs-border bg-dbzs-bg px-2 py-1.5 text-[11px] text-dbzs-text focus:border-dbzs-cyan/50 focus:outline-none"
                 onChange={(e) => setMoveTarget(e.target.value)}
+                ref={moveSelectRef}
                 value={moveTarget}
               >
                 <option value="">— Ordner wählen —</option>

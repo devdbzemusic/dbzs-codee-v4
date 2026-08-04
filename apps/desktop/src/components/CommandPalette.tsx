@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAgentRegistryStore } from "@/stores/agentRegistryStore";
 import { useCommandPaletteStore, type RuntimeChatPresetId } from "@/stores/commandPaletteStore";
 import { useJobSpoolerStore } from "@/stores/jobSpoolerStore";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import {
   WORKBENCH_LAYOUT_PRESET_LABELS,
   WORKBENCH_LAYOUT_PRESET_ORDER,
@@ -82,6 +83,9 @@ export function CommandPalette() {
   const applyWorkbenchPreset = useWorkbenchLayoutStore((state) => state.applyPreset);
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap(dialogRef, open, closePalette, inputRef);
 
   useEffect(() => {
     if (open) {
@@ -181,16 +185,21 @@ export function CommandPalette() {
       <div className="absolute inset-0 bg-black/60" />
 
       <div
+        ref={dialogRef}
         className="relative z-10 w-full max-w-xl overflow-hidden rounded-lg border border-dbzs-border bg-dbzs-panel shadow-2xl"
         onClick={(event) => event.stopPropagation()}
         onKeyDown={handleKeyDown}
         role="dialog"
         aria-label="Befehlspalette"
+        aria-modal="true"
       >
         <div className="flex items-center gap-3 border-b border-dbzs-border px-4 py-3">
           <span className="text-sm text-dbzs-muted">⌕</span>
           <input
             ref={inputRef}
+            aria-autocomplete="list"
+            aria-controls="command-palette-results"
+            aria-label="Befehle, Jobs und Agenten durchsuchen"
             className="flex-1 bg-transparent text-sm text-dbzs-text placeholder:text-dbzs-muted focus:outline-none"
             onChange={(event) => setQuery(event.currentTarget.value)}
             placeholder="Suchen — Jobs, Agents, Aktionen…"
@@ -200,23 +209,26 @@ export function CommandPalette() {
           <kbd className="rounded border border-dbzs-border px-1.5 py-0.5 text-[10px] text-dbzs-muted">Esc</kbd>
         </div>
 
-        <div className="max-h-80 overflow-y-auto py-1">
+        <div className="max-h-80 overflow-y-auto py-1" id="command-palette-results" role="listbox" aria-label="Suchtreffer">
           {entries.length === 0 ? (
             <p className="px-4 py-6 text-center text-xs text-dbzs-muted">Keine Treffer für „{query}“</p>
           ) : (
             entries.map((entry, index) => (
               <button
+                aria-selected={index === activeIndex}
                 className={`flex w-full items-center gap-3 px-4 py-2 text-left text-xs transition ${
                   index === activeIndex
                     ? "bg-dbzs-cyan/10 text-dbzs-cyan"
                     : "text-dbzs-text hover:bg-dbzs-panelSoft"
                 }`}
+                id={`command-palette-entry-${entry.id}`}
                 key={entry.id}
                 onClick={() => {
                   entry.action();
                   closePalette();
                 }}
                 onMouseEnter={() => setActiveIndex(index)}
+                role="option"
                 type="button"
               >
                 <span className="w-16 shrink-0 text-[10px] uppercase tracking-[0.1em] text-dbzs-muted">{entry.category}</span>

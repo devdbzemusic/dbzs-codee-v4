@@ -23,12 +23,14 @@ export function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-[9999] flex w-full max-w-sm flex-col gap-2">
+    <div aria-atomic="false" aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-[9999] flex w-full max-w-sm flex-col gap-2">
       {toasts.map((toast) => (
         <div
+          aria-atomic="true"
+          aria-live={toast.kind === "error" ? "assertive" : "polite"}
           className={`pointer-events-auto flex items-start gap-3 rounded border px-4 py-3 shadow-lg ${kindClass(toast.kind)}`}
           key={toast.id}
-          role="alert"
+          role={toast.kind === "error" ? "alert" : "status"}
         >
           <span className="shrink-0 text-sm font-bold" aria-hidden="true">{kindIcon(toast.kind)}</span>
           <div className="min-w-0 flex-1">

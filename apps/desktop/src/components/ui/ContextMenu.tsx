@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 export interface ContextMenuItem {
   label: string;
@@ -16,7 +17,9 @@ export interface ContextMenuProps {
 
 export function ContextMenu({ items, onClose, x, y }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const firstItemRef = useRef<HTMLButtonElement | null>(null);
   const [position, setPosition] = useState({ x, y });
+  useFocusTrap(ref, true, onClose, firstItemRef);
 
   useEffect(() => {
     const menu = ref.current;
@@ -38,11 +41,6 @@ export function ContextMenu({ items, onClose, x, y }: ContextMenuProps) {
     };
 
     document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    });
 
     return () => {
       document.removeEventListener("mousedown", onPointerDown);
@@ -54,20 +52,26 @@ export function ContextMenu({ items, onClose, x, y }: ContextMenuProps) {
   return (
     <div
       className="fixed z-50 min-w-52 border border-dbzs-border bg-dbzs-panel py-1 text-xs shadow-panel"
+      role="menu"
+      aria-label="Kontextmenü"
       ref={ref}
       style={{ left: position.x, top: position.y }}
+      tabIndex={-1}
     >
       {items.map((item, index) => item === null ? (
-        <div className="my-1 border-t border-dbzs-border" key={`separator-${index}`} />
+        <div className="my-1 border-t border-dbzs-border" key={`separator-${index}`} role="separator" />
       ) : (
         <button
+          aria-disabled={item.disabled}
           className={`block w-full px-3 py-1 text-left hover:bg-dbzs-panelSoft disabled:opacity-40 ${item.danger ? "text-dbzs-red" : "text-dbzs-muted hover:text-dbzs-text"}`}
           disabled={item.disabled}
           key={`${item.label}-${index}`}
+          ref={index === 0 ? firstItemRef : undefined}
           onClick={() => {
             void item.action();
             onClose();
           }}
+          role="menuitem"
           type="button"
         >
           {item.label}

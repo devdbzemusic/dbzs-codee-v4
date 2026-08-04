@@ -1,6 +1,8 @@
+import { useRef } from "react";
 import { Button, RiskBadge, SectionCard } from "@/components/ui";
 import type { RuntimeChatPresetId } from "@/stores/commandPaletteStore";
 import type { RuntimeChatSkill } from "@/services/runtimeChatSkills";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 interface RuntimeChatCapabilitiesOverlayProps {
   open: boolean;
@@ -32,13 +34,24 @@ export function RuntimeChatCapabilitiesOverlay({
   onClose,
   onSelectPreset
 }: RuntimeChatCapabilitiesOverlayProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  useFocusTrap(dialogRef, open, onClose, closeButtonRef);
+
   if (!open) {
     return null;
   }
 
   return (
-    <div className="absolute inset-0 z-20 flex items-start justify-center bg-black/60 px-3 py-4">
-      <div className="max-h-full w-full max-w-4xl overflow-y-auto rounded-lg border border-dbzs-border bg-[#091017] p-3 shadow-2xl">
+    <div className="absolute inset-0 z-20 flex items-start justify-center bg-black/60 px-3 py-4" onMouseDown={onClose} role="presentation">
+      <div
+        aria-label="Fähigkeiten, Presets und Modus-Hilfen"
+        aria-modal="true"
+        className="max-h-full w-full max-w-4xl overflow-y-auto rounded-lg border border-dbzs-border bg-[#091017] p-3 shadow-2xl"
+        onMouseDown={(event) => event.stopPropagation()}
+        ref={dialogRef}
+        role="dialog"
+      >
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-dbzs-text">Was kann ich hier tun?</h2>
@@ -46,7 +59,7 @@ export function RuntimeChatCapabilitiesOverlay({
               Diese Ansicht bündelt Presets, Skills und die wichtigsten Modus-Erklärungen an einer Stelle.
             </p>
           </div>
-          <Button onClick={onClose}>Schließen</Button>
+          <Button aria-label="Fähigkeiten-Overlay schließen" onClick={onClose} ref={closeButtonRef}>Schließen</Button>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[1.1fr_1fr]">

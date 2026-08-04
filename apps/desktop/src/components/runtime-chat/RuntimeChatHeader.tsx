@@ -71,6 +71,7 @@ export function RuntimeChatHeader({
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
           <select
+            aria-label="Provider für die Chat-Anfrage"
             className="rounded border border-dbzs-border bg-dbzs-panelSoft px-1.5 py-0.5 text-[10px] text-dbzs-text"
             onChange={(event) => onProviderChange(event.target.value)}
             title="Provider für die Chat-Anfrage"
@@ -83,7 +84,7 @@ export function RuntimeChatHeader({
             ))}
           </select>
           {pendingApprovalCount > 0 ? (
-            <span className="rounded border border-dbzs-cyan/40 bg-dbzs-cyan/10 px-1.5 py-0.5 text-[10px] text-dbzs-cyan">
+            <span aria-label={`${pendingApprovalCount} offene Freigaben`} className="rounded border border-dbzs-cyan/40 bg-dbzs-cyan/10 px-1.5 py-0.5 text-[10px] text-dbzs-cyan">
               {pendingApprovalCount}
             </span>
           ) : null}
@@ -117,13 +118,13 @@ export function RuntimeChatHeader({
             </Button>
           ) : null}
           {detached ? (
-            <Button onClick={onClose} title="Abgedocktes Fenster schließen">
+            <Button aria-label="Abgedocktes Fenster schließen" onClick={onClose} title="Abgedocktes Fenster schließen">
               <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
               </svg>
             </Button>
           ) : (
-            <Button variant="primary" onClick={onDetach} title="In eigenem Fenster öffnen">
+            <Button aria-label="Runtime Chat in eigenem Fenster öffnen" variant="primary" onClick={onDetach} title="In eigenem Fenster öffnen">
               <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path d="M18 13v6a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h6M15 3h6v6M10 14L21 3" strokeLinecap="round" strokeLinejoin="round" />
               </svg>

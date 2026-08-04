@@ -76,6 +76,7 @@ export function EditorTabPanel({
           {activeTab?.isDirty ? (
             <span aria-label="Ungespeicherte Änderungen" className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-dbzs-amber align-middle" title="Ungespeicherte Änderungen" />
           ) : null}
+          {activeTab?.isDirty ? <span className="sr-only">Ungespeicherte Änderungen</span> : null}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -143,13 +144,14 @@ export function EditorTabPanel({
                 setContextMenu({ x: event.clientX, y: event.clientY, tabId: tab.id });
               }}
             >
-              <button className="flex items-center gap-1.5 px-3" onClick={() => selectTab(tab.id)} type="button">
+              <button aria-current={activeTab?.id === tab.id ? "page" : undefined} aria-label={`${tab.name}${tab.isDirty ? " – ungespeicherte Änderungen" : ""}`} className="flex items-center gap-1.5 px-3" onClick={() => selectTab(tab.id)} type="button">
                 {tab.isDirty ? (
                   <span aria-hidden="true" className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-dbzs-amber" />
                 ) : null}
                 {tab.name}
               </button>
               <button
+                aria-label={`${tab.name} schließen`}
                 className="border-l border-dbzs-border px-2 text-dbzs-muted hover:text-dbzs-text"
                 onClick={() => closeTab(tab.id)}
                 title="Tab schliessen"
