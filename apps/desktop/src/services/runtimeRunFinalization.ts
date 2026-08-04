@@ -92,7 +92,8 @@ export interface FinalizeRuntimeRunInput {
 
 export interface FinalizeRuntimeRunResult {
   outcome: RuntimeRunOutcome;
-  status: "completed" | "failed" | "cancelled" | "waiting_for_plan_approval";
+  /** Terminal UI status. "timeout" distinguishes a timed-out run from a generic failure. */
+  status: "completed" | "failed" | "timeout" | "cancelled" | "waiting_for_plan_approval";
   finalAnswerDelivered: boolean;
   userMessage: string;
   error: RuntimeRunError | null;
@@ -381,9 +382,24 @@ export function finalizeRuntimeRun(input: FinalizeRuntimeRunInput): FinalizeRunt
     pipeline.finalAnswerDelivered = true;
   }
 
+  const TIMEOUT_OUTCOMES: ReadonlySet<RuntimeRunOutcome> = new Set([
+    "first_token_timeout",
+    "process_start_timeout",
+    "endpoint_ready_timeout",
+    "model_load_timeout",
+    "prompt_eval_timeout",
+    "stream_idle_timeout",
+    "generation_timeout"
+  ]);
+
   const result: FinalizeRuntimeRunResult = {
     outcome,
-    status: outcome === "success" ? "completed" : "failed",
+    status:
+      outcome === "success"
+        ? "completed"
+        : TIMEOUT_OUTCOMES.has(outcome)
+        ? "timeout"
+        : "failed",
     finalAnswerDelivered: pipeline.finalAnswerDelivered,
     userMessage:
       outcome === "success"

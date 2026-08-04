@@ -226,6 +226,8 @@ export class RepositoryReviewOrchestrator {
     let productionReadiness: ProductionReadinessAssessment | undefined;
     const reviewedPaths = new Set<string>();
     const completed = new Set(state.completedBatchIds);
+    /** Batch-IDs die durch Timeout fehlschlugen — nicht durch Analyseversagen. */
+    const timedOut = new Set<string>();
 
     const emit = (
       status: RepositoryReviewPlan["status"],
@@ -467,7 +469,13 @@ export class RepositoryReviewOrchestrator {
             findingCount: batchFindings.length
           });
         } catch (error) {
-          console.error(`[Review] Batch analysis failed for ${batch.batchId}`, { error });
+          const isTimeout =
+            error instanceof Error &&
+            (error.message.includes("timed out") || error.message.toLowerCase().includes("timeout"));
+          console.error(`[Review] Batch analysis ${isTimeout ? "timed out" : "failed"} for ${batch.batchId}`, { error });
+          if (isTimeout) {
+            timedOut.add(batch.batchId);
+          }
           diagnostics.push({
             batchId: batch.batchId,
             llmAttempted: true,
@@ -481,7 +489,7 @@ export class RepositoryReviewOrchestrator {
           state.analyzerDiagnostics = diagnostics;
           state.updatedAt = new Date().toISOString();
           await saveReviewState(this.io, request.workspaceRoot, state);
-          // Mark as completed to skip on resume, but diagnostics will show failure
+          // Mark as completed to skip on resume, but timedOut set ensures partial outcome
           completed.add(batch.batchId);
           continue;
         }
@@ -516,6 +524,7 @@ export class RepositoryReviewOrchestrator {
       const outcome = resolveReviewOutcome({
         completedBatches: completed.size,
         plannedBatches: plan.batches.length,
+        timedOutBatches: timedOut.size,
         diagnostics,
         checks,
         quality

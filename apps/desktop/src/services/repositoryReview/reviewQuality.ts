@@ -157,6 +157,7 @@ export function resolveReviewOutcome(input: {
   failed?: boolean;
   completedBatches: number;
   plannedBatches: number;
+  timedOutBatches?: number;
   diagnostics: ReviewBatchAnalyzerDiagnostics[];
   checks: ExecutedReviewCheck[];
   quality: ReviewQualityAssessment;
@@ -164,6 +165,11 @@ export function resolveReviewOutcome(input: {
   if (input.cancelled) return "cancelled";
   if (input.failed || input.plannedBatches === 0) return "failed";
   if (input.completedBatches < input.plannedBatches) return "partial";
+
+  // Batch-Timeouts führen zu "partial", nicht zu "completed_with_warnings".
+  // Ein Timeout ist kein normales Analyseversagen — er bedeutet, dass Teile
+  // des Repositories gar nicht analysiert wurden.
+  if ((input.timedOutBatches ?? 0) > 0) return "partial";
 
   const successfulLlm = input.diagnostics.filter((entry) => entry.llmSucceeded).length;
   const llmFindings = input.diagnostics.reduce((sum, entry) => sum + entry.llmFindingCount, 0);

@@ -20,6 +20,7 @@ import {
   runReviewCommands,
   splitReviewBatch
 } from "@/services/repositoryReview";
+import { resolveReviewOutcome } from "@/services/repositoryReview/reviewQuality";
 import type { ReviewWorkspaceFileEntry, ReviewWorkspaceIO } from "@/services/repositoryReview/types";
 
 function createMemoryIO(files: Record<string, string>): ReviewWorkspaceIO {
@@ -490,5 +491,31 @@ describe("RepositoryReviewOrchestrator", () => {
       "rev-ws"
     );
     expect(mismatched.outcome).toBe("inventory_failed");
+  });
+});
+
+describe("resolveReviewOutcome — Timeout-Batches", () => {
+  it("gibt 'partial' zurück wenn mindestens ein Batch timed out", () => {
+    const outcome = resolveReviewOutcome({
+      completedBatches: 3,
+      plannedBatches: 3,
+      timedOutBatches: 1,
+      diagnostics: [],
+      checks: [],
+      quality: null
+    });
+    expect(outcome).toBe("partial");
+  });
+
+  it("gibt kein 'partial' zurück wenn kein Batch timed out", () => {
+    const outcome = resolveReviewOutcome({
+      completedBatches: 3,
+      plannedBatches: 3,
+      timedOutBatches: 0,
+      diagnostics: [],
+      checks: [],
+      quality: null
+    });
+    expect(outcome).not.toBe("partial");
   });
 });

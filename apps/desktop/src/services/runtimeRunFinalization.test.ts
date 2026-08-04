@@ -196,4 +196,37 @@ describe("runtimeRunFinalization", () => {
       )
     ).toBe(true);
   });
+
+  it("setzt status 'timeout' für Timeout-Outcomes und 'failed' für alle anderen Fehler", () => {
+    const timeoutOutcomes = [
+      "first_token_timeout",
+      "process_start_timeout",
+      "endpoint_ready_timeout",
+      "model_load_timeout",
+      "prompt_eval_timeout",
+      "stream_idle_timeout",
+      "generation_timeout"
+    ] as const;
+    for (const outcome of timeoutOutcomes) {
+      resetRuntimeRunFinalizationForTests();
+      const result = finalizeRuntimeRun({
+        runId: `run-${outcome}`,
+        outcome,
+        finalAnswer: "",
+        agentTurnCount: 0
+      });
+      expect(result.status, `outcome=${outcome} sollte status='timeout' liefern`).toBe("timeout");
+    }
+  });
+
+  it("setzt status 'failed' für non-timeout Fehler-Outcomes", () => {
+    resetRuntimeRunFinalizationForTests();
+    const result = finalizeRuntimeRun({
+      runId: "run-generate-failed",
+      outcome: "generation_failed",
+      finalAnswer: "",
+      agentTurnCount: 1
+    });
+    expect(result.status).toBe("failed");
+  });
 });
