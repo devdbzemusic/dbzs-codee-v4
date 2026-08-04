@@ -46,7 +46,7 @@ import {
 function baseDecision(overrides: Partial<ModelSelectionDecision> = {}): ModelSelectionDecision {
   return {
     taskType: "image_analysis",
-    targetAgent: "runtime_chat",
+    targetAgent: "default",
     slotId: "vision_gpu",
     modelId: "vision-model-1",
     modelName: "Vision Model 1",

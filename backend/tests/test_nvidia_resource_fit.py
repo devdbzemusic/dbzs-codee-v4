@@ -12,6 +12,14 @@ from app.models.profile_service import ProfileService
 from app.models.index_service import ModelIndexService
 
 
+@pytest.fixture(autouse=True)
+def _isolate_win_runtimes_discovery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # See the identical fixture in tests/test_runtime_doctor.py -- keeps
+    # ProfileService()/RuntimeService()'s OpenSSL/llama-runtime discovery off
+    # the real, potentially large D:\win_runtimes on this machine.
+    monkeypatch.setenv("DBZS_WIN_RUNTIMES_DIR", str(tmp_path / "win_runtimes"))
+
+
 def test_gpu_role_detection_nvidia_amd_wmic():
     # Mock platform to Windows
     with patch("platform.system", return_value="Windows"), \
@@ -40,7 +48,7 @@ def test_gpu_role_detection_nvidia_amd_wmic():
 
 
 def test_vram_estimation_gpu_vs_cpu(tmp_path: Path):
-    profile_service = ProfileService(tmp_path)
+    profile_service = ProfileService(tmp_path, model_lab_repository=None, settings_service=None)
     
     # Create index with a mock model
     mock_model_index = MagicMock()
@@ -91,7 +99,7 @@ def test_vram_estimation_gpu_vs_cpu(tmp_path: Path):
 
 
 def test_vram_limit_validation(tmp_path: Path):
-    profile_service = ProfileService(tmp_path)
+    profile_service = ProfileService(tmp_path, model_lab_repository=None, settings_service=None)
     
     # 1. Profile within limits
     safe_profile = ServerProfile(

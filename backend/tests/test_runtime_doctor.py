@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from app.runtime.doctor import (
     RuntimeProbeRequest,
     build_dry_run,
@@ -8,6 +10,18 @@ from app.runtime.doctor import (
     probe_runtime,
 )
 from app.runtime.schemas import RuntimeStatus
+
+
+@pytest.fixture(autouse=True)
+def _isolate_win_runtimes_discovery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # get_win_runtimes_dir() defaults to the real, potentially large D:\win_runtimes
+    # on this machine. Several code paths this module exercises fall back to it
+    # independently (first_win_llama_runtime_dir() in build_runtime_doctor(),
+    # ModelIndexService.build_index()'s own runtime-dir resolution, and
+    # build_launch_plan()'s OpenSSL DLL discovery) -- an empty, isolated dir here
+    # keeps every one of those near-instant instead of walking a real multi-GB
+    # tree (previously ~15-20s for whichever test in this file ran first).
+    monkeypatch.setenv("DBZS_WIN_RUNTIMES_DIR", str(tmp_path / "win_runtimes"))
 
 
 def _write_gguf_catalog(models_dir: Path) -> None:

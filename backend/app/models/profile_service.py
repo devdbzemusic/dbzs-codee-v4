@@ -7,9 +7,9 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Callable, Optional
 
-from app.model_lab.repository import get_shared_model_lab_repository
+from app.model_lab.repository import ModelLabRepository, get_shared_model_lab_repository
 from app.models.index_service import ModelIndexService
 from app.models.schemas import IndexedModel
 from app.models.profiles import (
@@ -23,19 +23,39 @@ from app.models.profiles import (
     get_default_profiles,
 )
 from app.runtime.schemas import RuntimeStatus, RuntimeState
-from app.settings.service import get_settings_service
+from app.settings.service import SettingsService, get_settings_service
+
+# Sentinel distinguishing "caller didn't pass this" (use the real, shared
+# production bridge) from an explicit `None` (test isolation opt-out) -- same
+# convention as build_runtime_doctor() in app/runtime/doctor.py, added after
+# test_model_profiles.py's unconditional real-singleton use turned out to be
+# why test_profile_validation took ~71s in isolation (and was flaky/slow in
+# full-suite runs) despite being logically correct.
+_UNSET: Any = object()
 
 
 class ProfileService:
     """Manages server profiles and coordinated multi-model startup."""
 
-    def __init__(self, config_dir: Path):
+    def __init__(
+        self,
+        config_dir: Path,
+        model_lab_repository: "ModelLabRepository | Callable[[], ModelLabRepository] | None" = _UNSET,
+        settings_service: "SettingsService | None" = _UNSET,
+    ):
         self.config_dir = config_dir
         self.config_file = config_dir / "model_profiles.json"
-        self.model_index_service = ModelIndexService(
-            model_lab_repository=get_shared_model_lab_repository,
-            settings_service=get_settings_service(),
-        )
+        if model_lab_repository is _UNSET and settings_service is _UNSET:
+            bridge_kwargs = {
+                "model_lab_repository": get_shared_model_lab_repository,
+                "settings_service": get_settings_service(),
+            }
+        else:
+            bridge_kwargs = {
+                "model_lab_repository": None if model_lab_repository is _UNSET else model_lab_repository,
+                "settings_service": None if settings_service is _UNSET else settings_service,
+            }
+        self.model_index_service = ModelIndexService(**bridge_kwargs)
         self.active_profile: Optional[ServerProfile] = None
         self.model_instances: dict[str, RuntimeStatus] = {}
         self._load_or_create_config()

@@ -295,6 +295,15 @@ def build_runtime_doctor(
     from app.runtime.win_runtimes import first_win_llama_runtime_dir
 
     bundled_llama = models_path / "llama.cpp-win-runtime" / "llama-server.exe"
+    # Both this call AND ModelIndexService.build_index() (below) AND
+    # build_launch_plan()'s OpenSSL DLL resolution independently fall back to
+    # get_win_runtimes_dir() (real D:\win_runtimes on this machine, ~15-20s
+    # uncached recursive walk the first time any of them run in a process --
+    # module-level caches in win_runtimes.py make repeats free). A per-call
+    # override parameter here wouldn't cover the other two call sites, so
+    # isolate via the DBZS_WIN_RUNTIMES_DIR env var instead (see
+    # get_win_runtimes_dir() in app/core/config.py) -- tests do this with
+    # monkeypatch.setenv.
     discovered_runtime = first_win_llama_runtime_dir()
     llama_server = (
         bundled_llama

@@ -18,6 +18,15 @@ from app.runtime.schemas import RuntimeChatMessage, RuntimeChatRequest
 from app.runtime.service import RuntimeService
 
 
+@pytest.fixture(autouse=True)
+def _isolate_win_runtimes_discovery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # See the identical fixture in tests/test_runtime_doctor.py: start_model()'s
+    # build_launch_plan() resolves OpenSSL DLLs via the real, potentially large
+    # D:\win_runtimes on this machine unless overridden -- this is why
+    # test_compatible_runtime_reused_no_duplicate_process took ~13.6s alone.
+    monkeypatch.setenv("DBZS_WIN_RUNTIMES_DIR", str(tmp_path / "win_runtimes"))
+
+
 class FakeProcess:
     def __init__(self, exit_code: int | None = None) -> None:
         self.pid = 42

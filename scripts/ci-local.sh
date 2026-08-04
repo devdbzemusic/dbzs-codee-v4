@@ -58,5 +58,8 @@ pnpm doctor:backend
 step 13 "Dependency audit"
 pnpm audit --prod --audit-level moderate
 
+step 14 "Docs drift check (warn-only)"
+node scripts/check-docs-drift.mjs
+
 echo ""
 echo "=== CI LOCAL (required-gates) PASSED ==="

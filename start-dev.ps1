@@ -1,5 +1,15 @@
 ﻿# DBZS Code Assistant - Dev-Start (Direct Electron)
-$node       = "C:\Users\ralle\AppData\Local\Zed\node\node-v24.11.0-win-x64\node.exe"
+$fallbackNode = "C:\Users\ralle\AppData\Local\Zed\node\node-v24.11.0-win-x64\node.exe"
+$node = (Get-Command node -ErrorAction SilentlyContinue).Source
+if (-not $node) {
+  if (Test-Path $fallbackNode) {
+    Write-Host ">>> node nicht im PATH, nutze bekannten Fallback-Pfad" -ForegroundColor Yellow
+    $node = $fallbackNode
+  } else {
+    Write-Host "FEHLER: node weder im PATH noch am bekannten Fallback-Pfad gefunden" -ForegroundColor Red
+    exit 1
+  }
+}
 $backendDir = Join-Path $PSScriptRoot "backend"
 $desktopDir = Join-Path $PSScriptRoot "apps\desktop"
 $backendPython = Join-Path $backendDir ".venv\Scripts\python.exe"

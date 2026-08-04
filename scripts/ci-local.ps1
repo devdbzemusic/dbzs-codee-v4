@@ -59,5 +59,12 @@ Run "doctor:backend" { pnpm doctor:backend }
 Step 13 "Dependency audit"
 Run "audit" { pnpm audit --prod --audit-level moderate }
 
+Step 14 "Docs drift check (warn-only)"
+# Non-strict by design (see scripts/check-docs-drift.mjs) -- surfaces "Stand:"-
+# date drift across README.md/TODO.md/HANDOVER.md/docs/STATUS_TODAY.md in
+# every local CI run instead of only when someone remembers to run it
+# manually, without blocking the gate on doc staleness alone.
+node scripts/check-docs-drift.mjs
+
 Write-Host ""
 Write-Host "=== CI LOCAL (required-gates) PASSED ===" -ForegroundColor Green

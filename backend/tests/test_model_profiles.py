@@ -17,6 +17,16 @@ from app.models.profile_service import ProfileService
 from app.runtime.schemas import RuntimeStatus
 
 
+@pytest.fixture(autouse=True)
+def _isolate_win_runtimes_discovery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # See the identical fixture in tests/test_runtime_doctor.py: without this,
+    # get_win_runtimes_dir() falls back to the real D:\win_runtimes on this
+    # machine, which is why test_profile_validation alone took ~71s despite
+    # passing -- ModelIndexService's own runtime-dir resolution and
+    # build_launch_plan()'s OpenSSL DLL discovery both walk it uncached.
+    monkeypatch.setenv("DBZS_WIN_RUNTIMES_DIR", str(tmp_path / "win_runtimes"))
+
+
 def test_default_profiles_exist():
     """Test that default profiles are created."""
     profiles = get_default_profiles()
@@ -29,7 +39,7 @@ def test_default_profiles_exist():
 def test_profile_service_init():
     """Test ProfileService initialization."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        service = ProfileService(Path(tmpdir))
+        service = ProfileService(Path(tmpdir), model_lab_repository=None, settings_service=None)
         assert service.active_profile is not None
         profiles = service.list_profiles()
         assert len(profiles) > 0
@@ -38,7 +48,7 @@ def test_profile_service_init():
 def test_profile_service_list_profiles():
     """Test listing profiles."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        service = ProfileService(Path(tmpdir))
+        service = ProfileService(Path(tmpdir), model_lab_repository=None, settings_service=None)
         profiles = service.list_profiles()
         assert "chat-focused" in profiles
         assert "balanced" in profiles
@@ -47,7 +57,7 @@ def test_profile_service_list_profiles():
 def test_profile_service_get_profile():
     """Test getting a profile by name."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        service = ProfileService(Path(tmpdir))
+        service = ProfileService(Path(tmpdir), model_lab_repository=None, settings_service=None)
         profile = service.get_profile("chat-focused")
         assert profile is not None
         assert profile.name == "chat-focused"
@@ -57,7 +67,7 @@ def test_profile_service_get_profile():
 def test_profile_service_set_active_profile():
     """Test setting active profile."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        service = ProfileService(Path(tmpdir))
+        service = ProfileService(Path(tmpdir), model_lab_repository=None, settings_service=None)
         
         # Change to different profile
         result = service.set_active_profile("heavy-compute")
@@ -72,7 +82,7 @@ def test_profile_service_set_active_profile():
 def test_profile_service_get_models_for_task():
     """Test getting models for a specific task."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        service = ProfileService(Path(tmpdir))
+        service = ProfileService(Path(tmpdir), model_lab_repository=None, settings_service=None)
         service.set_active_profile("chat-focused")
         
         models = service.get_models_for_task("chat")
@@ -86,7 +96,7 @@ def test_profile_service_get_models_for_task():
 def test_profile_service_get_highest_priority_model():
     """Test getting highest priority model for a task."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        service = ProfileService(Path(tmpdir))
+        service = ProfileService(Path(tmpdir), model_lab_repository=None, settings_service=None)
         service.set_active_profile("balanced")
         
         model = service.get_highest_priority_model_for_task("chat")
@@ -97,7 +107,7 @@ def test_profile_service_get_highest_priority_model():
 def test_profile_service_register_model_instance():
     """Test registering a model instance."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        service = ProfileService(Path(tmpdir))
+        service = ProfileService(Path(tmpdir), model_lab_repository=None, settings_service=None)
         
         status = RuntimeStatus(
             state="running",
@@ -115,7 +125,7 @@ def test_profile_service_register_model_instance():
 def test_profile_validation():
     """Test profile resource validation."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        service = ProfileService(Path(tmpdir))
+        service = ProfileService(Path(tmpdir), model_lab_repository=None, settings_service=None)
         profile = service.get_profile("chat-focused")
         
         is_valid, error_msg = service.validate_profile_resources(profile)
@@ -126,7 +136,7 @@ def test_profile_validation():
 def test_profile_estimate_resources():
     """Test resource estimation for a profile."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        service = ProfileService(Path(tmpdir))
+        service = ProfileService(Path(tmpdir), model_lab_repository=None, settings_service=None)
         service.set_active_profile("chat-focused")
         
         resources = service.estimate_total_resource_usage()
@@ -142,12 +152,12 @@ def test_profile_persistence():
         tmppath = Path(tmpdir)
         
         # Create and save config
-        service1 = ProfileService(tmppath)
+        service1 = ProfileService(tmppath, model_lab_repository=None, settings_service=None)
         service1.set_active_profile("heavy-compute")
         service1.save_config()
-        
+
         # Load in new service instance
-        service2 = ProfileService(tmppath)
+        service2 = ProfileService(tmppath, model_lab_repository=None, settings_service=None)
         assert service2.active_profile.name == "heavy-compute"
 
 

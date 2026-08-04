@@ -50,7 +50,13 @@ dev-trace-*.log
 artifacts/
 
 # Local models (but not the backend's own models/ Python source package,
-# and not the small placeholder .gguf fixtures used by backend tests)
+# and not the small placeholder .gguf fixtures used by backend tests).
+# NOTE: this pattern matches ANY directory literally named "models" at any
+# depth. If you add a new fixture/package with such a directory whose
+# contents should be tracked, add a `!path/to/it/models/` negation here —
+# otherwise files silently never get committed (this already happened once,
+# see the runtime-chat-tuning-lab negation below and scripts/check-fixture-
+# completeness.mjs, which would now catch a recurrence).
 models/
 !backend/app/models/
 !test-fixtures/runtime-chat-tuning-lab/models/

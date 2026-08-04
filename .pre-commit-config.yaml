@@ -17,6 +17,18 @@ repos:
         always_run: true
         stages: [commit]
 
+      - id: backend-test
+        name: Tests (Backend)
+        # Previously missing: the frontend "test" hook above never covered
+        # backend/, so a backend-only regression (e.g. a hanging/slow test
+        # from an unmocked production singleton, as found 2026-08-03/04)
+        # could pass this gate even with pre-commit active.
+        entry: backend/.venv/Scripts/python.exe -m pytest -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [commit]
+
       - id: black
         name: Python Format (Black)
         entry: black
