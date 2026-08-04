@@ -1,0 +1,78 @@
+/* ==========================================================
+   DBZS Neural Workbench — Motion Tokens
+   ========================================================== */
+
+:root {
+  /* Durations */
+  --dbzs-duration-instant:   50ms;
+  --dbzs-duration-fast:     120ms;
+  --dbzs-duration-normal:   200ms;
+  --dbzs-duration-slow:     320ms;
+  --dbzs-duration-enter:    240ms;
+  --dbzs-duration-exit:     160ms;
+
+  /* Easing */
+  --dbzs-ease-standard:  cubic-bezier(0.4, 0, 0.2, 1);
+  --dbzs-ease-decelerate:cubic-bezier(0, 0, 0.2, 1);  /* entering elements */
+  --dbzs-ease-accelerate:cubic-bezier(0.4, 0, 1, 1);  /* exiting elements */
+  --dbzs-ease-spring:    cubic-bezier(0.34, 1.56, 0.64, 1); /* subtle bounce */
+
+  /* Compound shorthands */
+  --dbzs-transition-fast:   var(--dbzs-duration-fast) var(--dbzs-ease-standard);
+  --dbzs-transition-normal: var(--dbzs-duration-normal) var(--dbzs-ease-standard);
+  --dbzs-transition-enter:  var(--dbzs-duration-enter) var(--dbzs-ease-decelerate);
+  --dbzs-transition-exit:   var(--dbzs-duration-exit) var(--dbzs-ease-accelerate);
+}
+
+/* ── Reduced motion override ───────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dbzs-duration-fast:   0ms;
+    --dbzs-duration-normal: 0ms;
+    --dbzs-duration-slow:   0ms;
+    --dbzs-duration-enter:  0ms;
+    --dbzs-duration-exit:   0ms;
+  }
+}
+
+/* ── Permitted animation classes ───────────────────────── */
+
+/** Panel slide-in from left */
+.dbzs-animate-slide-in-left {
+  animation: dbzs-slide-in-left var(--dbzs-duration-enter) var(--dbzs-ease-decelerate) both;
+}
+
+/** Panel slide-in from right */
+.dbzs-animate-slide-in-right {
+  animation: dbzs-slide-in-right var(--dbzs-duration-enter) var(--dbzs-ease-decelerate) both;
+}
+
+/** Panel fade-in */
+.dbzs-animate-fade-in {
+  animation: dbzs-fade-in var(--dbzs-duration-normal) var(--dbzs-ease-decelerate) both;
+}
+
+/** Status badge pulse — only for active runtime, never loop infinitely on idle */
+.dbzs-animate-runtime-pulse {
+  animation: dbzs-runtime-pulse 2.4s var(--dbzs-ease-standard) infinite;
+}
+
+@keyframes dbzs-slide-in-left {
+  from { transform: translateX(-8px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes dbzs-slide-in-right {
+  from { transform: translateX(8px); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+
+@keyframes dbzs-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes dbzs-runtime-pulse {
+  0%, 100% { opacity: 1;    }
+  50%       { opacity: 0.55; }
+}

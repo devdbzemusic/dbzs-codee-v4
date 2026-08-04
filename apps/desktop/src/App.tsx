@@ -77,6 +77,7 @@ import {
 } from "@/hooks/useAppShellLifecycle";
 import { useJobSpoolerStore } from "@/stores/jobSpoolerStore";
 import { useCommandPaletteStore } from "@/stores/commandPaletteStore";
+import { useWorkbenchLayoutStore } from "@/stores/workbenchLayoutStore";
 import { backendClient } from "@/services/backendClient";
 import { backendUiStatus, formatBootStateForUi } from "@/services/bootUiFormatter";
 import { RuntimeChatTab } from "@/components/RuntimeChatTab";
@@ -89,6 +90,13 @@ import {
 import {
   openRuntimeChatWindow
 } from "@/utils/runtimeChatWindow";
+import { ActivityRail } from "@/components/workbench/ActivityRail";
+import { WorkbenchStatusBadge } from "@/components/workbench/WorkbenchStatusBadge";
+import { WorkbenchStatusBar } from "@/components/workbench/WorkbenchStatusBar";
+import { WorkspaceSidebar } from "@/components/workbench/WorkspaceSidebar";
+import { BottomDock } from "@/components/workbench/BottomDock";
+import { useWorkbenchLayout } from "@/hooks/useWorkbenchLayout";
+import { deriveWorkbenchStatus } from "@/hooks/useWorkbenchStatus";
 
 const MIN_SIDE_PANEL_WIDTH = 220;
 const MAX_SIDE_PANEL_WIDTH = 520;
@@ -288,6 +296,7 @@ function AppShell() {
     summary: testAgentSummary
   } = useTestAgentStore();
   const {
+    currentBranch,
     repositoryStatus: gitRepositoryStatus,
     diffSummary: gitDiffSummary,
     selectedDiff: gitSelectedDiff,
@@ -416,6 +425,14 @@ function AppShell() {
   }, [addRecentTask, plannerPlan]);
 
   const openCommandPalette = useCommandPaletteStore((s) => s.openPalette);
+  const workbenchShellMode = useWorkbenchLayoutStore((state) => state.shellMode);
+  const workbenchRailItem = useWorkbenchLayoutStore((state) => state.activeRailItem);
+  const setWorkbenchShellMode = useWorkbenchLayoutStore((state) => state.setShellMode);
+  const setWorkbenchRailItem = useWorkbenchLayoutStore((state) => state.setActiveRailItem);
+  const workbenchActiveDockTab = useWorkbenchLayoutStore((state) => state.activeDockTab);
+  const setWorkbenchDockTab = useWorkbenchLayoutStore((state) => state.setActiveDockTab);
+
+  const wbLayout = useWorkbenchLayout();
 
   const handleOpenRuntimeChatWindow = async () => {
     try {
@@ -462,6 +479,16 @@ function AppShell() {
         : "offline";
   const readyLocalModels =
     (modelIndex?.summary.llama_server_ready ?? 0) + (modelIndex?.summary.ollama_ready ?? 0);
+
+  const { items: statusItems, workspaceLabel } = deriveWorkbenchStatus({
+    backendStartupStatus: effectiveBackendStartupStatus,
+    runtimeState: runtimeStatus?.state,
+    runtimeProvider: runtimeStatus?.provider ?? null,
+    readyLocalModels,
+    totalModels: modelIndex?.summary.total,
+    modelIndexLoading,
+    workspaceName: workspaceState.projectName
+  });
   const visibleLeftWidth = leftPanelCollapsed ? 44 : leftPanelWidth;
   const visibleRightWidth = rightPanelCollapsed ? 44 : rightPanelWidth;
   const visibleTerminalHeight = terminalCollapsed ? 42 : terminalHeight;
@@ -651,7 +678,11 @@ function AppShell() {
   };
 
   return (
-    <main className="flex h-screen min-h-0 flex-col overflow-hidden bg-dbzs-bg text-dbzs-text">
+    <main
+      className={`flex h-screen min-h-0 flex-col overflow-hidden bg-dbzs-bg text-dbzs-text ${
+        workbenchShellMode === "neural-workbench" ? "dbzs-workbench-mode" : ""
+      }`}
+    >
       <div className="app-shell-grid grid min-h-0 flex-1 overflow-hidden">
         <header className="flex items-center justify-between border-b border-dbzs-border bg-dbzs-panel px-5">
           <div className="flex items-center gap-4">
@@ -665,6 +696,26 @@ function AppShell() {
           </div>
 
           <div className="flex items-center gap-3 text-xs">
+            {workbenchShellMode === "neural-workbench" ? (
+              <button
+                className="hidden border border-dbzs-border bg-dbzs-panelSoft px-2.5 py-1 text-xs text-dbzs-muted hover:border-dbzs-cyan/50 hover:text-dbzs-cyan xl:inline-flex"
+                onClick={openCommandPalette}
+                type="button"
+              >
+                Quick Open <kbd className="ml-2 font-mono text-[10px]">Ctrl K</kbd>
+              </button>
+            ) : null}
+            <button
+              className="border border-dbzs-border bg-dbzs-panelSoft px-2.5 py-1 text-xs text-dbzs-muted hover:border-dbzs-cyan/50 hover:text-dbzs-cyan"
+              onClick={() =>
+                setWorkbenchShellMode(
+                  workbenchShellMode === "neural-workbench" ? "classic" : "neural-workbench"
+                )
+              }
+              type="button"
+            >
+              {workbenchShellMode === "neural-workbench" ? "Classic" : "Neural"}
+            </button>
             <button
               className="flex items-center gap-1.5 rounded border border-dbzs-border bg-dbzs-panelSoft px-2.5 py-1 text-xs text-dbzs-muted hover:bg-dbzs-cyan/10 hover:text-dbzs-cyan hover:border-dbzs-cyan/30 transition-all mr-2"
               onClick={() => window.dbzs?.openSettingsWindow?.()}
@@ -707,6 +758,13 @@ function AppShell() {
         </header>
 
         <section className="app-main-grid grid min-h-0 overflow-hidden">
+          {workbenchShellMode === "neural-workbench" ? (
+            <ActivityRail
+              activeItem={workbenchRailItem}
+              branchLabel={currentBranch || gitRepositoryStatus?.currentBranch || "workspace"}
+              onSelect={setWorkbenchRailItem}
+            />
+          ) : null}
           <aside className="relative flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-dbzs-border bg-dbzs-panel">
             {leftPanelCollapsed ? (
               <AppShellCollapsedPanelButton
@@ -1108,10 +1166,12 @@ function AppShell() {
             </div>
           )}
         />
+        {workbenchShellMode === "neural-workbench" ? (
+          <WorkbenchStatusBar items={statusItems} workspaceLabel={workspaceLabel} />
+        ) : null}
       </div>
       <ToastContainer />
       <CommandPalette />
     </main>
   );
 }
-

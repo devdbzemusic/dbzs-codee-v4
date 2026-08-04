@@ -1,0 +1,15 @@
+.dbzs-workbench {
+  color: var(--dbzs-neural-text);
+  background:
+    radial-gradient(circle at 76% 0%, rgba(7, 87, 106, 0.21), transparent 30rem),
+    radial-gradient(circle at 0% 100%, rgba(8, 52, 67, 0.18), transparent 36rem),
+    linear-gradient(135deg, var(--dbzs-neural-night-0) 0%, #050c12 44%, var(--dbzs-neural-night-0) 100%);
+}
+
+.dbzs-workbench button:focus-visible,
+.dbzs-workbench input:focus-visible,
+.dbzs-workbench select:focus-visible,
+.dbzs-workbench textarea:focus-visible {
+  outline: 2px solid var(--dbzs-neural-cyan);
+  outline-offset: 2px;
+}

@@ -1,0 +1,24 @@
+:root {
+  --dbzs-neural-night-0: #03070a;
+  --dbzs-neural-night-1: #050a0f;
+  --dbzs-neural-night-2: #08121a;
+  --dbzs-neural-panel: rgba(10, 21, 29, 0.9);
+  --dbzs-neural-panel-raised: rgba(13, 24, 33, 0.94);
+  --dbzs-neural-border: rgba(116, 159, 177, 0.22);
+  --dbzs-neural-border-strong: rgba(70, 197, 208, 0.38);
+  --dbzs-neural-cyan: #21d6c7;
+  --dbzs-neural-text: #e6f3f5;
+  --dbzs-neural-muted: #8ca7af;
+  --dbzs-neural-success: #7bdd95;
+  --dbzs-neural-warning: #f1b355;
+  --dbzs-neural-danger: #fb7171;
+  --dbzs-neural-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --dbzs-neural-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --z-base: 0;
+  --z-panel: 10;
+  --z-sticky: 20;
+  --z-popover: 100;
+  --z-command-palette: 200;
+  --z-dialog: 300;
+  --z-toast: 400;
+}

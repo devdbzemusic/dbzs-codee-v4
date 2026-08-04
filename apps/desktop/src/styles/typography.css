@@ -1,0 +1,85 @@
+/* ==========================================================
+   DBZS Neural Workbench — Typography Tokens
+   ========================================================== */
+
+:root {
+  /* Font families */
+  --dbzs-font-ui: system-ui, "Segoe UI", Roboto, sans-serif;
+  --dbzs-font-mono: "Cascadia Code", "Fira Code", "JetBrains Mono", ui-monospace, monospace;
+
+  /* Type scale — fluid between 1280px and 1920px */
+  --dbzs-text-2xs: 0.625rem;   /* 10px — badge counters, status tags */
+  --dbzs-text-xs:  0.6875rem;  /* 11px — secondary labels, tooltips */
+  --dbzs-text-sm:  0.75rem;    /* 12px — standard UI text, panel content */
+  --dbzs-text-base: 0.8125rem; /* 13px — chat messages, editor default */
+  --dbzs-text-md:  0.875rem;   /* 14px — section headings, list items */
+  --dbzs-text-lg:  1rem;       /* 16px — panel titles, modal headings */
+  --dbzs-text-xl:  1.125rem;   /* 18px — primary view headers */
+  --dbzs-text-2xl: 1.25rem;    /* 20px — page-level titles */
+
+  /* Line heights */
+  --dbzs-leading-tight:  1.25;
+  --dbzs-leading-snug:   1.375;
+  --dbzs-leading-normal: 1.5;
+  --dbzs-leading-relaxed:1.625;
+
+  /* Letter spacing */
+  --dbzs-tracking-tighter: -0.02em;
+  --dbzs-tracking-tight:   -0.01em;
+  --dbzs-tracking-normal:   0;
+  --dbzs-tracking-wide:     0.025em;
+  --dbzs-tracking-wider:    0.05em;
+  --dbzs-tracking-caps:     0.08em;  /* for uppercase section labels */
+
+  /* Font weights */
+  --dbzs-weight-normal:    400;
+  --dbzs-weight-medium:    500;
+  --dbzs-weight-semibold:  600;
+  --dbzs-weight-bold:      700;
+}
+
+/* ── Semantic role classes ─────────────────────────────── */
+
+.dbzs-label-caps {
+  font-size: var(--dbzs-text-xs);
+  font-weight: var(--dbzs-weight-semibold);
+  letter-spacing: var(--dbzs-tracking-caps);
+  text-transform: uppercase;
+  line-height: var(--dbzs-leading-tight);
+}
+
+.dbzs-label-sm {
+  font-size: var(--dbzs-text-xs);
+  font-weight: var(--dbzs-weight-medium);
+  line-height: var(--dbzs-leading-snug);
+}
+
+.dbzs-body-sm {
+  font-size: var(--dbzs-text-sm);
+  font-weight: var(--dbzs-weight-normal);
+  line-height: var(--dbzs-leading-normal);
+}
+
+.dbzs-body {
+  font-size: var(--dbzs-text-base);
+  font-weight: var(--dbzs-weight-normal);
+  line-height: var(--dbzs-leading-normal);
+}
+
+.dbzs-heading-panel {
+  font-size: var(--dbzs-text-md);
+  font-weight: var(--dbzs-weight-semibold);
+  line-height: var(--dbzs-leading-tight);
+}
+
+.dbzs-mono {
+  font-family: var(--dbzs-font-mono);
+  font-size: var(--dbzs-text-sm);
+  line-height: var(--dbzs-leading-relaxed);
+}
+
+.dbzs-mono-xs {
+  font-family: var(--dbzs-font-mono);
+  font-size: var(--dbzs-text-xs);
+  line-height: var(--dbzs-leading-normal);
+}
