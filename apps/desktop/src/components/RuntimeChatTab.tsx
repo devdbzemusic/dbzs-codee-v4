@@ -5,7 +5,8 @@ import {
   type WorkspaceFile,
   type WorkspaceProjectFile
 } from "@dbzs/shared";
-import React, { type ClipboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import React, { type ClipboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useRuntimeChatPendingApprovalCount } from "@/components/RuntimeChatApprovals";
 import { RuntimeChatCapabilitiesOverlay } from "@/components/runtime-chat/RuntimeChatCapabilitiesOverlay";
 import { RuntimeChatComposer } from "@/components/runtime-chat/RuntimeChatComposer";
@@ -77,22 +78,40 @@ export function RuntimeChatTab({
   workspaceFiles
 }: RuntimeChatTabProps) {
   const {
+    activeRun,
     cancelSend,
     clear,
     compactConversation,
     currentActivity,
     error,
+    historicalRuns,
     isSending,
     isStreaming,
     lastRouting,
     messages,
     sendMessage,
     sendPresetPrompt,
-    toolProfile,
     setToolProfile,
-    activeRun,
-    historicalRuns
-  } = useRuntimeChatStore();
+    toolProfile
+  } = useRuntimeChatStore(
+    useShallow((state) => ({
+      activeRun: state.activeRun,
+      cancelSend: state.cancelSend,
+      clear: state.clear,
+      compactConversation: state.compactConversation,
+      currentActivity: state.currentActivity,
+      error: state.error,
+      historicalRuns: state.historicalRuns,
+      isSending: state.isSending,
+      isStreaming: state.isStreaming,
+      lastRouting: state.lastRouting,
+      messages: state.messages,
+      sendMessage: state.sendMessage,
+      sendPresetPrompt: state.sendPresetPrompt,
+      setToolProfile: state.setToolProfile,
+      toolProfile: state.toolProfile
+    }))
+  );
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<RuntimeChatAttachment[]>([]);
   const [contextNote, setContextNote] = useState<string | null>(null);
@@ -203,17 +222,20 @@ export function RuntimeChatTab({
     return bootStateLabel;
   }, [activeRun, backendStartupStatus, isSending, lastRouting]);
 
-  const sendOptions = {
-    includeWorkspaceContext,
-    workspaceRoot,
-    workspaceName,
-    workspaceFiles,
-    contextHint,
-    indexedFileCount: codeIndexService.getIndexedFiles().length,
-    toolProfile,
-    agentMode: chatMode,
-    provider: selectedProvider
-  };
+  const sendOptions = useMemo(
+    () => ({
+      includeWorkspaceContext,
+      workspaceRoot,
+      workspaceName,
+      workspaceFiles,
+      contextHint,
+      indexedFileCount: codeIndexService.getIndexedFiles().length,
+      toolProfile,
+      agentMode: chatMode,
+      provider: selectedProvider
+    }),
+    [chatMode, contextHint, includeWorkspaceContext, selectedProvider, toolProfile, workspaceFiles, workspaceName, workspaceRoot]
+  );
 
   const appendAttachments = (nextAttachments: RuntimeChatAttachment[]) => {
     if (nextAttachments.length === 0) {
@@ -458,7 +480,7 @@ export function RuntimeChatTab({
     });
   };
 
-  const applyAssistantProposal = (proposal: string) => {
+  const applyAssistantProposal = useCallback((proposal: string) => {
     if (isSending || !workspaceRoot) {
       return;
     }
@@ -475,12 +497,36 @@ export function RuntimeChatTab({
       setContextNote("Freigabe angefordert.");
       setShowPanels(true);
     })();
-  };
+  }, [activeFile, includeWorkspaceContext, isSending, requestTakeoverApproval, workspaceFiles, workspaceName, workspaceRoot]);
 
-  const runPreset = (preset: keyof typeof PRESET_MESSAGES) => {
+  const runPreset = useCallback((preset: keyof typeof PRESET_MESSAGES) => {
     setShowCapabilities(false);
     void sendPresetPrompt(preset, status, activeFile, null, contextHint, sendOptions);
-  };
+  }, [activeFile, contextHint, sendOptions, sendPresetPrompt, status]);
+
+  const handleFixFindings = useCallback((reviewId: string) => {
+    void sendMessage(
+      `Findings beheben\nReview-ID: ${reviewId}`,
+      status,
+      activeFile,
+      null,
+      contextHint,
+      "runtime_chat",
+      sendOptions
+    );
+  }, [activeFile, contextHint, sendMessage, sendOptions, status]);
+
+  const handleRerunReview = useCallback(() => {
+    void sendMessage(
+      "Mache einen vollständigen Repository Review.",
+      status,
+      activeFile,
+      null,
+      contextHint,
+      "runtime_chat",
+      sendOptions
+    );
+  }, [activeFile, contextHint, sendMessage, sendOptions, status]);
 
   const embeddedInPanel = compact && !detached;
   const shellClass = embeddedInPanel
@@ -622,28 +668,8 @@ export function RuntimeChatTab({
         workspaceRoot={workspaceRoot}
         onApplyAssistantProposal={applyAssistantProposal}
         onCancelRun={cancelSend}
-        onFixFindings={(reviewId) =>
-          void sendMessage(
-            `Findings beheben\nReview-ID: ${reviewId}`,
-            status,
-            activeFile,
-            null,
-            contextHint,
-            "runtime_chat",
-            sendOptions
-          )
-        }
-        onRerunReview={() =>
-          void sendMessage(
-            "Mache einen vollständigen Repository Review.",
-            status,
-            activeFile,
-            null,
-            contextHint,
-            "runtime_chat",
-            sendOptions
-          )
-        }
+        onFixFindings={handleFixFindings}
+        onRerunReview={handleRerunReview}
         onSelectExample={setDraft}
       />
 

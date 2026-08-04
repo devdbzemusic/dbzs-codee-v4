@@ -15,9 +15,10 @@ function makeSystemLine(text: string): TerminalLine {
 }
 
 const SESSION_ID = "dbzs-terminal-main";
+const MAX_TERMINAL_LINES = 500;
 
 export function TerminalPanel() {
-  const { state } = useWorkspaceStore();
+  const projectPath = useWorkspaceStore((store) => store.state.projectPath);
   const [lines, setLines] = useState<TerminalLine[]>([makeSystemLine("Terminal bereit. Befehl eingeben und Enter drücken.")]);
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
@@ -32,7 +33,10 @@ export function TerminalPanel() {
     if (announcement && stream !== "stdout") {
       setLiveMessage(announcement.text);
     }
-    setLines((prev) => [...prev.slice(-500), ...newLines]);
+    setLines((prev) => {
+      const merged = [...prev, ...newLines];
+      return merged.length > MAX_TERMINAL_LINES ? merged.slice(merged.length - MAX_TERMINAL_LINES) : merged;
+    });
   }, []);
 
   useEffect(() => {
@@ -74,7 +78,7 @@ export function TerminalPanel() {
       return;
     }
 
-    const cwd = state.projectPath ?? undefined;
+    const cwd = projectPath ?? undefined;
     const result = await window.dbzs.terminalSessionStart(SESSION_ID, cwd);
     if (result.started) {
       setSessionActive(true);
@@ -116,7 +120,7 @@ export function TerminalPanel() {
 
     setRunning(true);
     try {
-      const cwd = state.projectPath;
+      const cwd = projectPath;
       if (!cwd) {
         throw new Error("Kein aktiver Workspace.");
       }

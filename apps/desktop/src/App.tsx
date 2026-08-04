@@ -1,4 +1,5 @@
 import { lazy, Suspense, type PointerEvent, type ReactNode, useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   type BackendStartupStatus,
   type BootState,
@@ -269,7 +270,18 @@ function AppShell() {
   useAppMenuActions();
 
   const { backendHealth, backendStartupStatus, error, isLoading, loadInitialState, setBackendStartupStatus, setError, settings } =
-    useSettingsStore();
+    useSettingsStore(
+      useShallow((state) => ({
+        backendHealth: state.backendHealth,
+        backendStartupStatus: state.backendStartupStatus,
+        error: state.error,
+        isLoading: state.isLoading,
+        loadInitialState: state.loadInitialState,
+        setBackendStartupStatus: state.setBackendStartupStatus,
+        setError: state.setError,
+        settings: state.settings
+      }))
+    );
 
   const {
     activePendingChange,
@@ -289,14 +301,42 @@ function AppShell() {
     selectTab,
     tabs,
     updateActiveContent
-  } = useEditorStore();
+  } = useEditorStore(
+    useShallow((state) => ({
+      activePendingChange: state.activePendingChange,
+      activeTab: state.activeTab,
+      applyPendingChange: state.applyPendingChange,
+      closeTab: state.closeTab,
+      discardPendingChange: state.discardPendingChange,
+      error: state.error,
+      isBusy: state.isBusy,
+      openFile: state.openFile,
+      openWorkspaceFile: state.openWorkspaceFile,
+      proposedChanges: state.proposedChanges,
+      rejectProposedChange: state.rejectProposedChange,
+      restoreSnapshot: state.restoreSnapshot,
+      saveActiveFile: state.saveActiveFile,
+      saveActiveFileAs: state.saveActiveFileAs,
+      selectTab: state.selectTab,
+      tabs: state.tabs,
+      updateActiveContent: state.updateActiveContent
+    }))
+  );
   const {
     error: modelIndexError,
     index: modelIndex,
     isLoading: modelIndexLoading,
     loadModelIndex,
     primaryCodingModel
-  } = useModelIndexStore();
+  } = useModelIndexStore(
+    useShallow((state) => ({
+      error: state.error,
+      index: state.index,
+      isLoading: state.isLoading,
+      loadModelIndex: state.loadModelIndex,
+      primaryCodingModel: state.primaryCodingModel
+    }))
+  );
   const {
     error: runtimeError,
     isLoading: runtimeLoading,
@@ -304,8 +344,19 @@ function AppShell() {
     startModel,
     status: runtimeStatus,
     stopModel
-  } = useRuntimeStore();
-  const { jobs, loadJobs } = useJobSpoolerStore();
+  } = useRuntimeStore(
+    useShallow((state) => ({
+      error: state.error,
+      isLoading: state.isLoading,
+      loadStatus: state.loadStatus,
+      startModel: state.startModel,
+      status: state.status,
+      stopModel: state.stopModel
+    }))
+  );
+  const { jobs, loadJobs } = useJobSpoolerStore(
+    useShallow((state) => ({ jobs: state.jobs, loadJobs: state.loadJobs }))
+  );
   const {
     agents,
     createAgent,
@@ -324,7 +375,27 @@ function AppShell() {
     startSelectedAgent,
     stopSelectedAgent,
     updateAgent
-  } = useAgentRegistryStore();
+  } = useAgentRegistryStore(
+    useShallow((state) => ({
+      agents: state.agents,
+      createAgent: state.createAgent,
+      error: state.error,
+      isLoading: state.isLoading,
+      isLoadingLogs: state.isLoadingLogs,
+      isMutating: state.isMutating,
+      loadAgents: state.loadAgents,
+      loadSelectedAgentLogs: state.loadSelectedAgentLogs,
+      logs: state.logs,
+      deleteSelectedAgent: state.deleteSelectedAgent,
+      setSelectedAgentEnabled: state.setSelectedAgentEnabled,
+      selectAgent: state.selectAgent,
+      selectedAgent: state.selectedAgent,
+      selectedAgentId: state.selectedAgentId,
+      startSelectedAgent: state.startSelectedAgent,
+      stopSelectedAgent: state.stopSelectedAgent,
+      updateAgent: state.updateAgent
+    }))
+  );
   const {
     addKnownIssue,
     addRecentTask,
@@ -336,7 +407,20 @@ function AppShell() {
     loadMemory: loadProjectMemory,
     refreshMemory: refreshProjectMemory,
     setDetectedWorkspaceData
-  } = useProjectKnowledgeStore();
+  } = useProjectKnowledgeStore(
+    useShallow((state) => ({
+      addKnownIssue: state.addKnownIssue,
+      addRecentTask: state.addRecentTask,
+      markImportantFile: state.markImportantFile,
+      memory: state.memory,
+      error: state.error,
+      isLoading: state.isLoading,
+      isMutating: state.isMutating,
+      loadMemory: state.loadMemory,
+      refreshMemory: state.refreshMemory,
+      setDetectedWorkspaceData: state.setDetectedWorkspaceData
+    }))
+  );
   const {
     createTask,
     deleteTask,
@@ -348,7 +432,20 @@ function AppShell() {
     moveTask,
     tasks,
     unlinkJob: unlinkJobFromTask
-  } = useTaskBoardStore();
+  } = useTaskBoardStore(
+    useShallow((state) => ({
+      createTask: state.createTask,
+      deleteTask: state.deleteTask,
+      error: state.error,
+      isLoading: state.isLoading,
+      isMutating: state.isMutating,
+      linkJob: state.linkJob,
+      loadTasks: state.loadTasks,
+      moveTask: state.moveTask,
+      tasks: state.tasks,
+      unlinkJob: state.unlinkJob
+    }))
+  );
   const {
     error: workspaceError,
     files: workspaceFiles,
@@ -359,7 +456,19 @@ function AppShell() {
     scanFiles,
     state: workspaceState,
     updateWorkspaceState
-  } = useWorkspaceStore();
+  } = useWorkspaceStore(
+    useShallow((state) => ({
+      error: state.error,
+      files: state.files,
+      hasLoadedState: state.hasLoadedState,
+      isLoading: state.isLoading,
+      loadWorkspaceState: state.loadWorkspaceState,
+      openProjectDirectory: state.openProjectDirectory,
+      scanFiles: state.scanFiles,
+      state: state.state,
+      updateWorkspaceState: state.updateWorkspaceState
+    }))
+  );
   const {
     analyze: analyzeDocs,
     error: docsAnalysisError,
@@ -369,7 +478,18 @@ function AppShell() {
     setWorkspaceRoot: setDocsWorkspaceRoot,
     summary: docsSummary,
     workspaceRoot: docsWorkspaceRoot
-  } = useDocsAnalysisStore();
+  } = useDocsAnalysisStore(
+    useShallow((state) => ({
+      analyze: state.analyze,
+      error: state.error,
+      generate: state.generate,
+      isLoading: state.isLoading,
+      markdown: state.markdown,
+      setWorkspaceRoot: state.setWorkspaceRoot,
+      summary: state.summary,
+      workspaceRoot: state.workspaceRoot
+    }))
+  );
   const {
     allowedCommands,
     currentRun: testAgentCurrentRun,
@@ -382,14 +502,36 @@ function AppShell() {
     stage: testAgentStage,
     stopCurrentRun,
     summary: testAgentSummary
-  } = useTestAgentStore();
+  } = useTestAgentStore(
+    useShallow((state) => ({
+      allowedCommands: state.allowedCommands,
+      currentRun: state.currentRun,
+      error: state.error,
+      history: state.history,
+      loadAllowedCommands: state.loadAllowedCommands,
+      logs: state.logs,
+      runCommand: state.runCommand,
+      runRecommendedChecks: state.runRecommendedChecks,
+      stage: state.stage,
+      stopCurrentRun: state.stopCurrentRun,
+      summary: state.summary
+    }))
+  );
   const {
     currentBranch,
     repositoryStatus: gitRepositoryStatus,
     diffSummary: gitDiffSummary,
     selectedDiff: gitSelectedDiff,
     refreshGitStatus
-  } = useGitStore();
+  } = useGitStore(
+    useShallow((state) => ({
+      currentBranch: state.currentBranch,
+      repositoryStatus: state.repositoryStatus,
+      diffSummary: state.diffSummary,
+      selectedDiff: state.selectedDiff,
+      refreshGitStatus: state.refreshGitStatus
+    }))
+  );
   const {
     analyses: debugAnalyses,
     affectedFiles: debugAffectedFiles,
@@ -402,7 +544,21 @@ function AppShell() {
     stdout: debugStdout,
     summary: debugSummary,
     generateFixSuggestions
-  } = useDebugAgentStore();
+  } = useDebugAgentStore(
+    useShallow((state) => ({
+      analyses: state.analyses,
+      affectedFiles: state.affectedFiles,
+      error: state.error,
+      inspectLatestRun: state.inspectLatestRun,
+      isAnalyzing: state.isAnalyzing,
+      lastRun: state.lastRun,
+      rawLogs: state.rawLogs,
+      stderr: state.stderr,
+      stdout: state.stdout,
+      summary: state.summary,
+      generateFixSuggestions: state.generateFixSuggestions
+    }))
+  );
   const [leftPanelWidth, setLeftPanelWidth] = useState(280);
   const [rightPanelWidth, setRightPanelWidth] = useState(360);
   const [terminalHeight, setTerminalHeight] = useState(188);

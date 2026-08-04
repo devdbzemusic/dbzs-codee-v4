@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { memo, useMemo } from "react";
 import type { RuntimeChatMessage, RuntimeChatRun } from "@dbzs/shared";
 import { CodeeRunLiveBlock } from "@/components/chat/CodeeRunLiveBlock";
 import { RuntimeChatMessageCard } from "@/components/runtime-chat/RuntimeChatMessageCard";
@@ -12,7 +12,14 @@ function shouldRenderInlineRun(run: RuntimeChatRun, activeRunId: string | null):
   return false;
 }
 
-export function RuntimeChatConversationFeed({
+const EMPTY_CHAT_EXAMPLES = [
+  "Prüfe die Ursache für den Fehler im Review-Controller.",
+  "Mach weiter mit dem laufenden Fix.",
+  "Wie weit bist du gerade?",
+  "Zähle alle gguf Modelle im Workspace."
+] as const;
+
+function RuntimeChatConversationFeedComponent({
   messages,
   historicalRuns,
   activeRun,
@@ -41,6 +48,18 @@ export function RuntimeChatConversationFeed({
 }) {
   const activeRunId = activeRun?.id ?? null;
   const lastAssistantIndex = useMemo(() => findLastAssistantMessageIndex(messages), [messages]);
+  const runsByUserMessageId = useMemo(() => {
+    const map = new Map<string, RuntimeChatRun>();
+    for (const run of Object.values(historicalRuns)) {
+      if (run.userMessageId) {
+        map.set(run.userMessageId, run);
+      }
+    }
+    if (activeRun?.userMessageId) {
+      map.set(activeRun.userMessageId, activeRun);
+    }
+    return map;
+  }, [activeRun, historicalRuns]);
 
   const renderRunBlock = (run: RuntimeChatRun) => (
     <CodeeRunLiveBlock
@@ -62,12 +81,7 @@ export function RuntimeChatConversationFeed({
             den aktuellen Workspace mitdenken und nur bei echten Blockern kurz nachfragen.
           </p>
           <div className="flex flex-wrap gap-2 text-[10px] text-dbzs-muted">
-            {[
-              "Prüfe die Ursache für den Fehler im Review-Controller.",
-              "Mach weiter mit dem laufenden Fix.",
-              "Wie weit bist du gerade?",
-              "Zähle alle gguf Modelle im Workspace."
-            ].map((example) => (
+            {EMPTY_CHAT_EXAMPLES.map((example) => (
               <button
                 className="rounded border border-dbzs-border/70 bg-dbzs-bg/70 px-2 py-1 text-left transition-colors hover:border-dbzs-cyan/40 hover:text-dbzs-cyan"
                 key={example}
@@ -84,13 +98,12 @@ export function RuntimeChatConversationFeed({
           {messages.map((message, index) => {
             const userRun =
               message.role === "user" && message.id
-                ? Object.values(historicalRuns).find((run) => run.userMessageId === message.id) ||
-                  (activeRun?.userMessageId === message.id ? activeRun : null)
+                ? runsByUserMessageId.get(message.id) ?? null
                 : null;
             const renderRun = userRun && shouldRenderInlineRun(userRun, activeRunId);
 
             return (
-              <React.Fragment key={`${message.role}-${index}`}>
+              <React.Fragment key={message.id ?? `${message.role}-${index}`}>
                 <RuntimeChatMessageCard
                   compact={compact}
                   message={message}
@@ -117,3 +130,5 @@ export function RuntimeChatConversationFeed({
     </div>
   );
 }
+
+export const RuntimeChatConversationFeed = memo(RuntimeChatConversationFeedComponent);

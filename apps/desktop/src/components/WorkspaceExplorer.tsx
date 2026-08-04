@@ -4,6 +4,7 @@ import {
   type ReviewArtifactSummary,
   type WorkspaceProjectFile
 } from "@dbzs/shared";
+import { useShallow } from "zustand/react/shallow";
 import { useEditorStore } from "@/stores/editorStore";
 import { useGitStore } from "@/stores/gitStore";
 import { useToastStore } from "@/stores/toastStore";
@@ -106,10 +107,31 @@ async function promptText(req: { title: string; label: string; value: string; co
 // ---------------------------------------------------------------------------
 
 export function WorkspaceExplorer({ embeddedInPanel = false }: { embeddedInPanel?: boolean }) {
-  const { activeTab, openWorkspaceFile } = useEditorStore();
-  const { createProject, error, files, isLoading, openWorkspace, scanFiles, state, status } = useWorkspaceStore();
+  const { activeTab, openWorkspaceFile } = useEditorStore(
+    useShallow((store) => ({
+      activeTab: store.activeTab,
+      openWorkspaceFile: store.openWorkspaceFile
+    }))
+  );
+  const { createProject, error, files, isLoading, openWorkspace, scanFiles, state, status } = useWorkspaceStore(
+    useShallow((store) => ({
+      createProject: store.createProject,
+      error: store.error,
+      files: store.files,
+      isLoading: store.isLoading,
+      openWorkspace: store.openWorkspace,
+      scanFiles: store.scanFiles,
+      state: store.state,
+      status: store.status
+    }))
+  );
   const changedEntries = useGitStore((s) => s.changedEntries);
-  const toast = useToastStore();
+  const toast = useToastStore(
+    useShallow((store) => ({
+      info: store.info,
+      success: store.success
+    }))
+  );
 
   // --- Persistent state ---
   const [collapsed, setCollapsed] = useState<Set<string>>(loadSet(COLLAPSE_KEY));

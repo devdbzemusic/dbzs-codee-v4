@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { memo, useMemo, useState, useEffect } from "react";
 import {
   workspaceScopeId,
   type RuntimeChatRun,
@@ -19,7 +19,7 @@ interface CodeeRunLiveBlockProps {
   onRerunReview?: () => void;
 }
 
-export function CodeeRunLiveBlock({
+function CodeeRunLiveBlockComponent({
   run,
   onCancel,
   isSending,
@@ -610,3 +610,5 @@ export function CodeeRunLiveBlock({
     </details>
   );
 }
+
+export const CodeeRunLiveBlock = memo(CodeeRunLiveBlockComponent);

@@ -1,5 +1,6 @@
 import type { JobRecord } from "@dbzs/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useAgentRegistryStore } from "@/stores/agentRegistryStore";
 import { parsePatchProposalsFromArtifacts, useAgentRunnerStore } from "@/stores/agentRunnerStore";
 import { type JobStatusFilter, useJobSpoolerStore } from "@/stores/jobSpoolerStore";
@@ -163,7 +164,13 @@ function ExpandableArtifact({ name, kind, content, jobId }: { name: string; kind
   const preview = content.slice(0, 120);
   const truncated = content.length > 120;
   const workspacePath = useWorkspaceStore((s) => s.state.projectPath);
-  const toast = useToastStore();
+  const toast = useToastStore(
+    useShallow((store) => ({
+      error: store.error,
+      success: store.success,
+      warning: store.warning
+    }))
+  );
 
   const handleOpenInEditor = async () => {
     if (!workspacePath) { toast.warning("Workspace fehlt", "Projekt zuerst öffnen."); return; }
@@ -450,18 +457,75 @@ function EnqueueJobForm({ onSubmit, disabled }: { onSubmit: (r: EnqueueSubmitArg
 
 export function JobMonitorPanel() {
   const workspacePath = useWorkspaceStore((store) => store.state.projectPath);
-  const toast = useToastStore();
+  const toast = useToastStore(
+    useShallow((store) => ({
+      error: store.error,
+      success: store.success,
+      warning: store.warning
+    }))
+  );
   const handoffJobContext = useRuntimeChatStore((store) => store.handoffJobContext);
   const selectedAgent = useAgentRegistryStore((store) => store.selectedAgent);
-  const { status: runnerStatus, lastResult, isRunning, error: runnerError, runOnce, loadStatus } = useAgentRunnerStore();
+  const { status: runnerStatus, lastResult, isRunning, error: runnerError, runOnce, loadStatus } = useAgentRunnerStore(
+    useShallow((store) => ({
+      status: store.status,
+      lastResult: store.lastResult,
+      isRunning: store.isRunning,
+      error: store.error,
+      runOnce: store.runOnce,
+      loadStatus: store.loadStatus
+    }))
+  );
 
   const {
-    jobs, selectedJob, selectedJobDetail, selectedJobId, selectedStatus,
-    isLoading, isDetailLoading, isMutating, error, sseConnected,
-    loadJobs, loadJobDetail, selectJob, setStatusFilter,
-    enqueueJob, claimNextJob, addWaypoint, addArtifact, verifySelectedJob, requeueStaleJobs,
-    clearAllJobs, pruneFinishedJobs
-  } = useJobSpoolerStore();
+    addArtifact,
+    addWaypoint,
+    claimNextJob,
+    clearAllJobs,
+    enqueueJob,
+    error,
+    isDetailLoading,
+    isLoading,
+    isMutating,
+    jobs,
+    loadJobDetail,
+    loadJobs,
+    pruneFinishedJobs,
+    requeueStaleJobs,
+    selectJob,
+    selectedJob,
+    selectedJobDetail,
+    selectedJobId,
+    selectedStatus,
+    setStatusFilter,
+    sseConnected,
+    verifySelectedJob
+  } = useJobSpoolerStore(
+    useShallow((store) => ({
+      addArtifact: store.addArtifact,
+      addWaypoint: store.addWaypoint,
+      claimNextJob: store.claimNextJob,
+      clearAllJobs: store.clearAllJobs,
+      enqueueJob: store.enqueueJob,
+      error: store.error,
+      isDetailLoading: store.isDetailLoading,
+      isLoading: store.isLoading,
+      isMutating: store.isMutating,
+      jobs: store.jobs,
+      loadJobDetail: store.loadJobDetail,
+      loadJobs: store.loadJobs,
+      pruneFinishedJobs: store.pruneFinishedJobs,
+      requeueStaleJobs: store.requeueStaleJobs,
+      selectJob: store.selectJob,
+      selectedJob: store.selectedJob,
+      selectedJobDetail: store.selectedJobDetail,
+      selectedJobId: store.selectedJobId,
+      selectedStatus: store.selectedStatus,
+      setStatusFilter: store.setStatusFilter,
+      sseConnected: store.sseConnected,
+      verifySelectedJob: store.verifySelectedJob
+    }))
+  );
 
   const [workerId, setWorkerId] = useState(selectedAgent?.id ?? "coder-local");
   const [supportedRoles, setSupportedRoles] = useState<string[]>(selectedAgent?.role ? [selectedAgent.role] : ["coder"]);
