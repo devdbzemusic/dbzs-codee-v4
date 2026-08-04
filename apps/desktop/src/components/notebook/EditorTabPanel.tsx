@@ -73,34 +73,61 @@ export function EditorTabPanel({
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-dbzs-border px-4">
         <div className="min-w-0 text-sm font-medium">
           {activeTab ? activeTab.name : "Editor"}
-          {activeTab?.isDirty ? <span className="text-dbzs-amber"> *</span> : null}
+          {activeTab?.isDirty ? (
+            <span aria-label="Ungespeicherte Änderungen" className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-dbzs-amber align-middle" title="Ungespeicherte Änderungen" />
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <button
-            className="border border-dbzs-border bg-dbzs-panel px-3 py-1.5 text-xs text-dbzs-text"
+            className="flex items-center gap-1.5 border border-dbzs-border bg-dbzs-panel px-3 py-1.5 text-xs text-dbzs-text"
             onClick={() => void openFile()}
             type="button"
           >
+            <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+              <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             Oeffnen
           </button>
           <button
-            className="border border-dbzs-cyan/50 bg-dbzs-cyan/10 px-3 py-1.5 text-xs font-medium text-dbzs-cyan disabled:opacity-40"
+            className="flex items-center gap-1.5 border border-dbzs-cyan/50 bg-dbzs-cyan/10 px-3 py-1.5 text-xs font-medium text-dbzs-cyan disabled:opacity-40"
             disabled={!activeTab || editorBusy}
             onClick={() => void saveActiveFileAs()}
             type="button"
           >
+            <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+              <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M17 21v-8H7v8M7 3v5h8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             Speichern unter
           </button>
           <button
-            className="border border-dbzs-cyan/50 bg-dbzs-cyan/10 px-3 py-1.5 text-xs font-medium text-dbzs-cyan disabled:opacity-40"
+            className="flex items-center gap-1.5 border border-dbzs-cyan/50 bg-dbzs-cyan/10 px-3 py-1.5 text-xs font-medium text-dbzs-cyan disabled:opacity-40"
             disabled={!activeTab || !activeTab.isDirty || editorBusy}
             onClick={() => void saveActiveFile()}
             type="button"
           >
+            <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+              <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M17 21v-8H7v8M7 3v5h8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             {activeTab?.source === "workspace" ? "Diff prüfen" : "Speichern"}
           </button>
         </div>
       </div>
+      {activeTab ? (
+        <div className="flex h-6 shrink-0 items-center gap-1 overflow-x-auto border-b border-dbzs-border bg-dbzs-bg/60 px-4 text-[10px] text-dbzs-muted">
+          {breadcrumbSegments(activeTab.path).map((segment, index, segments) => (
+            <span className="flex shrink-0 items-center gap-1" key={`${segment}-${index}`}>
+              {index > 0 ? (
+                <svg aria-hidden="true" className="h-2.5 w-2.5 text-dbzs-muted/50" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              ) : null}
+              <span className={index === segments.length - 1 ? "text-dbzs-text" : ""}>{segment}</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
       {tabs.length > 0 ? (
         <div className="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-dbzs-border bg-dbzs-panel px-2">
           {tabs.map((tab) => (
@@ -116,8 +143,10 @@ export function EditorTabPanel({
                 setContextMenu({ x: event.clientX, y: event.clientY, tabId: tab.id });
               }}
             >
-              <button className="px-3" onClick={() => selectTab(tab.id)} type="button">
-                {tab.isDirty ? "* " : ""}
+              <button className="flex items-center gap-1.5 px-3" onClick={() => selectTab(tab.id)} type="button">
+                {tab.isDirty ? (
+                  <span aria-hidden="true" className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-dbzs-amber" />
+                ) : null}
                 {tab.name}
               </button>
               <button
@@ -126,7 +155,9 @@ export function EditorTabPanel({
                 title="Tab schliessen"
                 type="button"
               >
-                x
+                <svg aria-hidden="true" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+                </svg>
               </button>
             </div>
           ))}
@@ -152,27 +183,37 @@ export function EditorTabPanel({
             </div>
             <div className="flex items-center gap-2">
               <button
-                className="border border-dbzs-cyan/50 bg-dbzs-cyan/10 px-2 py-1 text-[11px] text-dbzs-cyan disabled:opacity-40"
+                className="flex items-center gap-1 border border-dbzs-cyan/50 bg-dbzs-cyan/10 px-2 py-1 text-[11px] text-dbzs-cyan disabled:opacity-40"
                 disabled={editorBusy}
                 onClick={() => void applyPendingChange(activePendingChange.filePath)}
                 type="button"
               >
+                <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
                 Anwenden
               </button>
               <button
-                className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[11px] text-dbzs-text disabled:opacity-40"
+                className="flex items-center gap-1 border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[11px] text-dbzs-text disabled:opacity-40"
                 disabled={editorBusy}
                 onClick={() => discardPendingChange(activePendingChange.filePath)}
                 type="button"
               >
+                <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+                </svg>
                 Verwerfen
               </button>
               <button
-                className="border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[11px] text-dbzs-text disabled:opacity-40"
+                className="flex items-center gap-1 border border-dbzs-border bg-dbzs-bg px-2 py-1 text-[11px] text-dbzs-text disabled:opacity-40"
                 disabled={editorBusy}
                 onClick={() => void restoreSnapshot(activePendingChange.snapshotId)}
                 type="button"
               >
+                <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M3 3v5h5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
                 Wiederherstellen
               </button>
             </div>
@@ -208,6 +249,10 @@ export function EditorTabPanel({
       </div>
     </div>
   );
+}
+
+function breadcrumbSegments(path: string): string[] {
+  return path.split(/[\\/]/).filter(Boolean);
 }
 
 type MonacoEditorPaneProps = {
