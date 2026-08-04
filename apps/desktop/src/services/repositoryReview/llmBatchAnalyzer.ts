@@ -23,6 +23,7 @@ import type { BatchAnalyzer, BatchAnalysisInput } from "./types";
 export type LlmBatchChatFn = (input: {
   system: string;
   user: string;
+  signal?: AbortSignal;
 }) => Promise<string>;
 
 const SEVERITIES = new Set<RepositoryReviewFindingSeverity>(["P0", "P1", "P2", "P3"]);
@@ -195,7 +196,7 @@ export function createLlmBatchAnalyzer(chat: LlmBatchChatFn): BatchAnalyzer {
     const prompt = buildPrompt(input);
     let raw = "";
     try {
-      raw = await chat(prompt);
+      raw = await chat({ ...prompt, signal: input.signal });
       let parsed = tryParseFindings(raw, input.batch.batchId);
       let repairAttempted = false;
       if (!parsed.ok) {
@@ -209,7 +210,8 @@ export function createLlmBatchAnalyzer(chat: LlmBatchChatFn): BatchAnalyzer {
             `Parser error: ${parsed.errorCode}: ${parsed.errorMessage}`,
             "Response to repair:",
             redactDiagnostic(raw)
-          ].join("\n")
+          ].join("\n"),
+          signal: input.signal
         });
         raw = repaired;
         parsed = tryParseFindings(repaired, input.batch.batchId);

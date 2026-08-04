@@ -17,7 +17,7 @@ import {
   batchFitsBudget,
   ensureBatchFitsOrSplit
 } from "./reviewBatchBudget";
-import { describeEmptyReviewPlan, planReviewBatches } from "./reviewBatchPlanner";
+import { describeEmptyReviewPlan, planReviewBatches, splitReviewBatch } from "./reviewBatchPlanner";
 import { planReviewCommands } from "./reviewCommandPlanner";
 import { runReviewCommands } from "./reviewCommandRunner";
 import {
@@ -226,8 +226,9 @@ export class RepositoryReviewOrchestrator {
     let productionReadiness: ProductionReadinessAssessment | undefined;
     const reviewedPaths = new Set<string>();
     const completed = new Set(state.completedBatchIds);
+    const failed = new Set<string>(state.failedBatchIds ?? []);
     /** Batch-IDs die durch Timeout fehlschlugen — nicht durch Analyseversagen. */
-    const timedOut = new Set<string>();
+    const timedOut = new Set<string>(state.timedOutBatchIds ?? []);
 
     const emit = (
       status: RepositoryReviewPlan["status"],
@@ -365,7 +366,7 @@ export class RepositoryReviewOrchestrator {
 
       while (queue.length > 0) {
         const batch = queue.shift()!;
-        if (completed.has(batch.batchId)) continue;
+        if (completed.has(batch.batchId) || failed.has(batch.batchId) || timedOut.has(batch.batchId)) continue;
 
         console.log(`[Review] Starting batch`, {
           batchId: batch.batchId,
@@ -443,24 +444,28 @@ export class RepositoryReviewOrchestrator {
         const files = [...fileContents.entries()].map(([path, content]) => ({ path, content }));
         let batchFindings: RepositoryReviewFinding[] = [];
         let batchDiagnostics: ReviewBatchAnalyzerDiagnostics;
+        const batchController = new AbortController();
+        let timer: NodeJS.Timeout | undefined;
         try {
           const BATCH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
           const analysisPromise = this.batchAnalyzer({
             batch: fit.batches[0] ?? batch,
             files,
             request,
-            inventory
+            inventory,
+            signal: batchController.signal
           });
 
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(
-              () => reject(new Error(`Batch ${batch.batchId} timed out after ${BATCH_TIMEOUT_MS}ms`)),
-              BATCH_TIMEOUT_MS
-            )
-          );
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+              batchController.abort();
+              reject(new Error(`Batch ${batch.batchId} timed out after ${BATCH_TIMEOUT_MS}ms`));
+            }, BATCH_TIMEOUT_MS);
+          });
 
           console.log(`[Review] Analyzing batch with LLM`, { batchId: batch.batchId });
           const analysis = await Promise.race([analysisPromise, timeoutPromise]);
+          if (timer) clearTimeout(timer);
 
           batchFindings = analysis.findings;
           batchDiagnostics = analysis.diagnostics;
@@ -469,12 +474,41 @@ export class RepositoryReviewOrchestrator {
             findingCount: batchFindings.length
           });
         } catch (error) {
-          const isTimeout =
+          if (timer) clearTimeout(timer);
+          batchController.abort();          const isTimeout =
             error instanceof Error &&
             (error.message.includes("timed out") || error.message.toLowerCase().includes("timeout"));
-          console.error(`[Review] Batch analysis ${isTimeout ? "timed out" : "failed"} for ${batch.batchId}`, { error });
+
+          if (!splitOnce.has(batch.batchId) && batch.paths.length > 1) {
+            splitOnce.add(batch.batchId);
+            const halves = splitReviewBatch(batch);
+            if (halves.length > 1) {
+              console.log(`[Review] Halving batch ${batch.batchId} due to timeout/failure into:`, halves.map((h) => h.batchId));
+              if (isTimeout) {
+                timedOut.add(batch.batchId);
+              } else {
+                failed.add(batch.batchId);
+              }
+              plan = {
+                ...plan!,
+                batches: [
+                  ...plan!.batches.filter((b) => b.batchId !== batch.batchId),
+                  ...halves
+                ]
+              };
+              await saveReviewPlan(this.io, request.workspaceRoot, plan);
+              state.failedBatchIds = [...failed];
+              state.timedOutBatchIds = [...timedOut];
+              await saveReviewState(this.io, request.workspaceRoot, state);
+              queue.unshift(...halves);
+              continue;
+            }
+          }
+
           if (isTimeout) {
             timedOut.add(batch.batchId);
+          } else {
+            failed.add(batch.batchId);
           }
           diagnostics.push({
             batchId: batch.batchId,
@@ -487,10 +521,10 @@ export class RepositoryReviewOrchestrator {
             providerError: error instanceof Error ? error.message : String(error)
           });
           state.analyzerDiagnostics = diagnostics;
+          state.failedBatchIds = [...failed];
+          state.timedOutBatchIds = [...timedOut];
           state.updatedAt = new Date().toISOString();
           await saveReviewState(this.io, request.workspaceRoot, state);
-          // Mark as completed to skip on resume, but timedOut set ensures partial outcome
-          completed.add(batch.batchId);
           continue;
         }
 
@@ -507,6 +541,8 @@ export class RepositoryReviewOrchestrator {
         await saveAnalyzerDiagnostics(this.io, request.workspaceRoot, reviewId, diagnostics);
         completed.add(batch.batchId);
         state.completedBatchIds = [...completed];
+        state.failedBatchIds = [...failed];
+        state.timedOutBatchIds = [...timedOut];
         state.updatedAt = new Date().toISOString();
         await saveReviewState(this.io, request.workspaceRoot, state);
       }
@@ -601,6 +637,9 @@ export class RepositoryReviewOrchestrator {
       await saveReviewPlan(this.io, request.workspaceRoot, plan);
       state.status = "completed";
       state.outcome = outcome;
+      state.completedBatchIds = [...completed];
+      state.failedBatchIds = [...failed];
+      state.timedOutBatchIds = [...timedOut];
       state.analyzerDiagnostics = diagnostics;
       state.quality = quality;
       state.currentBatchId = undefined;

@@ -1273,7 +1273,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
         approveInstall: false,
         batchAnalyzer: createHybridBatchAnalyzer({
           heuristic: createHeuristicBatchAnalyzer(),
-          llm: createLlmBatchAnalyzer(async ({ system, user }) => {
+          llm: createLlmBatchAnalyzer(async ({ system, user, signal }) => {
             const response = await agentRunService.sendChat(
               {
                 messages: [
@@ -1288,7 +1288,7 @@ export const useRuntimeChatStore = create<RuntimeChatState>((set, get) => ({
                 max_tokens: 1024,
                 temperature: 0.1
               },
-              runAbortController.signal
+              signal ?? runAbortController.signal
             );
             return response.message?.content ?? "";
           })

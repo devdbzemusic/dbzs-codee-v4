@@ -492,6 +492,103 @@ describe("RepositoryReviewOrchestrator", () => {
     );
     expect(mismatched.outcome).toBe("inventory_failed");
   });
+
+  it("splits/halves the batch on timeout/failure when paths.length > 1", async () => {
+    const io = createMemoryIO({
+      "package.json": "{}",
+      "src/a.ts": "export const a = 1;\n",
+      "src/b.ts": "export const b = 2;\n",
+      "src/c.ts": "export const c = 3;\n"
+    });
+    const request = buildRepositoryReviewRequest({
+      workspaceId: "c:/demo",
+      workspaceRoot: "C:/demo",
+      scope: "full_repository"
+    });
+
+    let abortCalled = false;
+    const batchAnalyzerCalls: string[] = [];
+
+    const orch = new RepositoryReviewOrchestrator({
+      io,
+      runtimeContextLimit: 8192,
+      batchAnalyzer: async (input) => {
+        batchAnalyzerCalls.push(input.batch.batchId);
+        if (input.signal) {
+          input.signal.addEventListener("abort", () => {
+            abortCalled = true;
+          });
+        }
+        // Simulate timeout on batch containing multiple files
+        if (input.batch.paths.length > 1) {
+          throw new Error("Batch timed out");
+        }
+        return {
+          findings: [],
+          diagnostics: {
+            batchId: input.batch.batchId,
+            llmAttempted: true,
+            llmSucceeded: true,
+            llmFindingCount: 0,
+            heuristicExecuted: false,
+            heuristicFindingCount: 0,
+            parserSucceeded: true,
+            rawResponseLength: 2,
+            repairAttempted: false,
+            mode: "llm"
+          }
+        };
+      },
+      createReviewId: () => "rev-timeout-split"
+    });
+
+    const result = await orch.start(request);
+
+    // The initial batch containing all files should have failed and been split.
+    // The halves should have been run and succeeded.
+    expect(batchAnalyzerCalls.length).toBeGreaterThan(1);
+    expect(abortCalled).toBe(true);
+    // Since some child batches succeeded but the parent timed out, the outcome is partial
+    expect(result.outcome).toBe("partial");
+
+    // The state file should not have the parent batch in completedBatchIds
+    const stateRaw = await io.readText("C:/demo", ".codee/reviews/rev-timeout-split/review-state.json");
+    expect(stateRaw).toBeTruthy();
+    const state = JSON.parse(stateRaw!);
+    expect(state.completedBatchIds).not.toContain("batch-2");
+  });
+
+  it("does not increment completedBatches on timeout of single-file batch, sets timed_out status, and registers partial outcome", async () => {
+    const io = createMemoryIO({
+      "package.json": "{}",
+      "src/a.ts": "export const a = 1;\n"
+    });
+    const request = buildRepositoryReviewRequest({
+      workspaceId: "c:/demo",
+      workspaceRoot: "C:/demo",
+      scope: "full_repository"
+    });
+
+    const orch = new RepositoryReviewOrchestrator({
+      io,
+      runtimeContextLimit: 8192,
+      batchAnalyzer: async () => {
+        throw new Error("Batch timed out");
+      },
+      createReviewId: () => "rev-single-timeout"
+    });
+
+    const result = await orch.start(request);
+
+    expect(result.progress.completedBatches).toBe(0);
+    expect(result.outcome).toBe("failed"); // All batches failed = failed outcome
+
+    const stateRaw = await io.readText("C:/demo", ".codee/reviews/rev-single-timeout/review-state.json");
+    expect(stateRaw).toBeTruthy();
+    const state = JSON.parse(stateRaw!);
+    expect(state.completedBatchIds.length).toBe(0);
+    expect(state.timedOutBatchIds).toContain("batch-2");
+  });
 });
 
 describe("resolveReviewOutcome — Timeout-Batches", () => {

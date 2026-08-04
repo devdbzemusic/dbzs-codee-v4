@@ -296,6 +296,8 @@ export function createInitialReviewState(input: {
     createdAt: now,
     updatedAt: now,
     completedBatchIds: [],
+    failedBatchIds: [],
+    timedOutBatchIds: [],
     artifactDir: reviewArtifactPaths(input.reviewId).root
   };
 }

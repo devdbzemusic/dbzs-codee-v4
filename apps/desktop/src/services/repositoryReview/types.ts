@@ -43,6 +43,8 @@ export interface ReviewStateFile {
   createdAt: string;
   updatedAt: string;
   completedBatchIds: string[];
+  failedBatchIds?: string[];
+  timedOutBatchIds?: string[];
   currentBatchId?: string;
   artifactDir: string;
   analyzerDiagnostics?: import("@dbzs/shared").ReviewBatchAnalyzerDiagnostics[];
@@ -77,6 +79,7 @@ export interface BatchAnalysisInput {
   files: Array<{ path: string; content: string }>;
   request: import("@dbzs/shared").RepositoryReviewRequest;
   inventory: import("@dbzs/shared").RepositoryInventory;
+  signal?: AbortSignal;
 }
 
 export type BatchAnalyzer = (
